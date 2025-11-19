@@ -35,7 +35,15 @@ Run the command below to install all the dependencies on Fedora distros after Fe
 ```$ sudo dnf install gcc g++ cmake cmake-gui libX11-devel libXinerama-devel libXrandr-devel libXext doxygen freetype freetype-devel pulseaudio-libs-devel fontconfig-devel libcurl flac-devel libvorbis-devel ghc-OpenGL-devel```
 
 ----
+### Ubuntu 24.04.1 LTS 
+Run the command below to install all the dependencies on Ubuntu 18.04.
 
+```bash
+sudo apt-get install gcc cmake cmake-qt-gui libx11-dev libxinerama-dev libxrandr-dev libxtst-dev \
+doxygen libfreetype6 libfreetype6-dev libfifechan-dev libpulse-dev \
+libfontconfig1-dev libflac-dev libvorbis-dev
+
+```
 ### Ubuntu 18.04 64 bit system dependencies
 Run the command below to install all the dependencies on Ubuntu 18.04.
 
@@ -48,6 +56,7 @@ after that
 ./bootstrap
 make -j32
 sudo make install
+# Please note that on ubutnu you may need to run cmake -DCMAKE_INSTALL_PREFIX=$HOME/.local ..
 ```
 
 You have installed cmake v3.16.0. This version will solve the issue about fontconfig if you have installed correct fontconfig libraries.
