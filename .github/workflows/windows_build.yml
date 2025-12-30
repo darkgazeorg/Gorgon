@@ -1,0 +1,92 @@
+name: Windows Build CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+
+    steps:
+    # 1. Checkout repository
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive # Ensure submodules (built-in dependencies) are fetched
+
+    # Cache build objects to improve build times
+    - name: Cache Build
+      uses: actions/cache@v4
+      with:
+        path: build
+        key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+
+    # 2. Install Dependencies
+    # Doxygen for documentation.
+    # VS Build Tools and CMake are pre-installed on windows-latest.
+    # Using 'choco' to install Doxygen.
+    - name: Install Dependencies
+      run: |
+        choco install doxygen.install -y
+        # Verify tools
+        cmake --version
+        doxygen --version
+      shell: cmd
+
+    # 3. Configure CMake
+    # Using the exact command requested.
+    # Note: CMAKE_EXPORT_COMPILE_COMMANDS=OFF is passed to disable compile commands,
+    # as they are not supported by VS generators and cause issues.
+    # We use '.' for source and 'build' for temporary_build_folder.
+    - name: Configure Project
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF
+      shell: cmd
+
+    # 4. Build the project
+    # Builds the library and default targets (including documentation via 'docs' target which is ALL)
+    - name: Build Project
+      run: |
+        cmake --build build --config Debug
+      shell: cmd
+
+    # 5. Package Artifacts
+    # Gathers documentation, library files, binaries, and dependencies.
+    - name: Prepare Artifacts
+      run: |
+        mkdir dist
+        
+        REM Install library artifacts (Lib, Include, Bin) to dist folder
+        cmake --install build --config Debug --prefix dist
+        
+        REM Copy Documentation
+        REM Doxygen output is configured to be in Docs/HTML
+        mkdir dist\Docs
+        if exist Docs\HTML xcopy Docs\HTML dist\Docs /E /I /Y
+        
+        REM Create a drop-in installation executable (Self-Extracting Archive)
+        REM This executable allows users to extract the library easily.
+        REM Using 7-Zip (available on runner) to create SFX.
+        REM Output to root first to avoid recursive inclusion issues
+        7z a -sfx Gorgon-Installer.exe .\dist\*
+        move Gorgon-Installer.exe dist\
+        
+    # Zip the final package
+    - name: Create Final Zip Package
+      run: |
+        7z a Gorgon-Windows-Package.zip .\dist\*
+      shell: cmd
+
+    # 6. Upload Artifacts
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Gorgon-Windows-Package
+        path: Gorgon-Windows-Package.zip
+        if-no-files-found: error
