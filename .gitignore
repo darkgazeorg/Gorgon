@@ -62,6 +62,10 @@ ipch/
 compile_commands.json
 .directory
 .cache
+.git
+
+# clion related
+cmake-build-debug
 
 # Git directory (redundant but mirrors original intent)
 .git/
@@ -69,3 +73,4 @@ compile_commands.json
 # Game-specific build dirs
 Source/Gorgon/Game/bin/
 Source/Gorgon/Game/build/
+^\.idea/
