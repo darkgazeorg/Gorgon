@@ -1,0 +1,85 @@
+name: Windows Build CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive 
+
+    # Cache build objects to improve build times
+    - name: Cache Build
+      uses: actions/cache@v4
+      with:
+        path: build
+        key: ${{ runner.os }}-build-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+
+    - name: Install Dependencies
+      run: |
+        choco install doxygen.install -y
+        # Verify tools
+        cmake --version
+        doxygen --version
+      shell: cmd
+
+    # Note: CMAKE_EXPORT_COMPILE_COMMANDS=OFF is passed to disable compile commands,
+    # as they are not supported by VS generators and cause issues.
+    # We use '.' for source and 'build' for temporary_build_folder.
+    - name: Disable Compile Commands in CMakeLists.txt
+      run: |
+        (Get-Content CMakeLists.txt) -replace 'set\(CMAKE_EXPORT_COMPILE_COMMANDS ON\)', 'set(CMAKE_EXPORT_COMPILE_COMMANDS OFF)' | Set-Content CMakeLists.txt
+      shell: powershell
+
+    - name: Configure Project
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug 
+      shell: cmd
+
+    - name: Build Project
+      run: |
+        cmake --build build
+      shell: cmd
+
+    - name: Prepare Artifacts
+      shell: cmd 
+      run: |
+        mkdir dist
+        
+        REM Install library artifacts to dist folder
+        cmake --install build --config Debug --prefix dist
+        
+        REM Copy Documentation
+        REM Doxygen output is configured to be in Docs/HTML
+        mkdir dist\Docs
+        if exist Docs\HTML xcopy Docs\HTML dist\Docs /E /I /Y
+        
+        REM Create a drop-in installation executable
+        REM This executable allows users to extract the library easily
+        REM Using 7-Zip to create SFX
+        REM Output to root first to avoid recursive inclusion issues
+        7z a -sfx Gorgon-Installer.exe .\dist\*
+        move Gorgon-Installer.exe dist\
+        
+    - name: Create Final Zip Package
+      run: |
+        7z a Gorgon-Windows-Package.zip .\dist\*
+      shell: cmd
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Gorgon-Windows-Package
+        path: Gorgon-Windows-Package.zip
+        if-no-files-found: error
