@@ -7,19 +7,14 @@
 #include "Window.h"
 #include "OS.h"
 #include "Time.h"
-#include "Animation.h"
 #include "Resource.h"
 #include "Audio.h"
 #include "Multimedia.h"
-#include "Graphics.h"
 
 #ifdef SCRIPTING
 #	include "Scripting.h"
 #endif
 
-#ifdef ENABLE_UI
-#   include "UI.h"
-#endif
 
 /**
  * @page programminghelpers Programming Utilities

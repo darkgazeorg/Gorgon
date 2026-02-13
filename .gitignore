@@ -1,56 +1,64 @@
-Build
-build
-VSBuild
-Debug
-Lib
-Bin
-bin
-Docs/Latex
-Testing/Tests
-Testing/Runtime
-Docs
+# .gitignore
+# Converted from .hgignore (keeps the same ignore intent)
 
+# Build output and intermediate directories
+Build/
+build/
+VSBuild/
+Debug/
+Lib/
+Bin/
+bin/
+
+# Documentation
+Docs/
+Docs/Latex/
+Docs/xml/
+
+# Testing
+Testing/Tests/
+Testing/Runtime/
+
+# Tooling / generated artifacts
 clang
 ninja
-codeblocks
-Source/External/curl/
-Package/
+codeblocks/
 codelite/
-Docs/xml
+cmake-build-debug
 
+# External sources and packages
+Package/
+Source/External/curl/
 Source/External/flac/src/include/config.h
 
+# Project/IDE files
 CMakeUserPresets.json
+CMakeSettings.json
+.vs/
+.vscode/
+GGE.code-workspace
+.idea/
 
-syntax: glob
-
+# Compilation and temporary files
 *.obj
-ipch
+ipch/
 *.suo
 *.sdf
 *.opensdf
 .kdev_include_paths
-#build
-
 *.gen
 
-# produced by doxygen
+# Doxygen / generated docs
 *.db
 *.tmp
 
-# ignore backup files
+# Backup files
 *.orig
 *.backup
 
-CMakeSettings.json
-.vs
-.vscode
-GGE.code-workspace
-syntax: regexp
-.*\.kdev4(_.*)?
-
-# ccls/emacs related
-.ccls-cache
+# Editor / language server caches
+*.kdev4*
+.ccls-cache/
 compile_commands.json
 .directory
 .cache
@@ -59,7 +67,10 @@ compile_commands.json
 # clion related
 cmake-build-debug
 
+# Git directory (redundant but mirrors original intent)
+.git/
 
+# Game-specific build dirs
 Source/Gorgon/Game/bin/
 Source/Gorgon/Game/build/
 ^\.idea/

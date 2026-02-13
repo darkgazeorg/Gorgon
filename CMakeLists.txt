@@ -21,6 +21,9 @@ set(PROJECT_PACKAGE_DIR ${CMAKE_CURRENT_LIST_DIR}/Package)
 set(gorgon_external_options "" NONE BUILTIN SYSTEM)
 set(gorgon_external_mandatory_options "" BUILTIN SYSTEM)
 
+# Enable generation of a compilation database (compile_commands.json) for tooling like clangd
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(OPENGL "Use OpenGL as underlying GL. Should be ON for now." ON)
 option(AUDIO "Enable audio." ON)
 option(GORGON_FAST_ANY "Make any to work fast by removing empty checks. This will only apply to release mode." OFF)
@@ -313,4 +316,14 @@ if(CODE_COVERAGE AND TESTS)
     else()
         message(WARNING "gcov not found. The 'coverage' target will not be available.")
     endif()
+endif()
+
+# Copy compile_commands.json to the source directory after building the target so editors can find it easily
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/compile_commands.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json
+        COMMENT "Copying compile_commands.json to source directory"
+    )
 endif()

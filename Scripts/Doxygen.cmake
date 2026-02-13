@@ -29,6 +29,9 @@ IF(BUILD_DOCUMENTATION)
 	
 	SET(DOCS_PATH ${CMAKE_SOURCE_DIR}/Docs)
 	
+	# Ensure path values in the configured Doxyfile are quoted so Doxygen does
+	# not split paths containing spaces into multiple sources (which causes
+	# warnings like "source '.../Additional' is not a readable file...").
 	CONFIGURE_FILE(Scripts/Doxyfile.in ${PROJECT_BINARY_DIR}/Doxyfile @ONLY IMMEDIATE)
 	
 	ADD_CUSTOM_COMMAND(OUTPUT ${DOXYGEN_HTML}
