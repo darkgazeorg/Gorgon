@@ -1,3 +1,0 @@
-set(Local 
-    World.h
-)

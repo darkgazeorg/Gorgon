@@ -1,3 +1,0 @@
-set(Local 
-    TiledMap.h
-)
