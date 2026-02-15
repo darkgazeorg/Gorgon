@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <stdint.h>
 #include <string.h>
@@ -8,10 +7,8 @@
 #include "GL.h"
 #include "Geometry/Point.h"
 #include "Geometry/Size.h"
-#include "Geometry/Bounds.h"
 #include "Geometry/Rectangle.h"
 
-#include "Geometry/Transform3D.h"
 #include "Graphics/Color.h"
 
 namespace Gorgon {

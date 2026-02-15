@@ -8,7 +8,7 @@
 #include <cmath>
 
 //TODO uncomment
-//#include "../Widgets/Dialogs/Message.h"
+#include "../UI/Dialog.h"
 
 namespace Gorgon { namespace Time {
 	
@@ -423,8 +423,7 @@ namespace Gorgon { namespace Time {
 		std::stringstream ss;
 		ss<<name<<": "<<passed;
 
-//TODO uncomment
-		//gge::widgets::dialog::ShowMessage(ss.str(), title).SetIcon("Time");
+		UI::ShowMessage(ss.str(), title);
 	}	
 } }
 
