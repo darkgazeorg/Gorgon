@@ -1,13 +1,12 @@
 #include "AudioStream.h"
 
-#include "../Resource/Sound.h"
 #include "../Audio.h"
 
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
 #include "../Encoding/FLAC.h"
 #endif
 
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
 #include "../Encoding/Vorbis.h"
 #endif
 
@@ -105,10 +104,10 @@ namespace internal {
         D_ decoder;
     };
     
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
     using FLACStreamStreamer = DecoderStreamer<Encoding::FLACStream>;
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
     using VorbisStreamStreamer = DecoderStreamer<Encoding::VorbisStream>;
 #endif
 }
@@ -122,12 +121,12 @@ namespace internal {
             if(String::ToLower(ext) == "wav") {
                 return StreamWav(filename);
             }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
             else if(String::ToLower(ext) == "flac") {
                 return StreamFLAC(filename);
             }
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
             else if(String::ToLower(ext) == "ogg") {
                 return StreamVorbis(filename);
             }
@@ -156,12 +155,12 @@ namespace internal {
         if(sig == wavsig) {
             return StreamWav(file, ownstream);
         }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
             return StreamFLAC(file);
         }
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
         else if(sig == oggsig) {
             return StreamVorbis(file);
         }
@@ -215,7 +214,7 @@ namespace internal {
         return true;
     }
     
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
     bool AudioStream::StreamFLAC(const std::string &filename) {
         auto &file = *new std::ifstream(filename, std::ios::binary);
         
@@ -263,7 +262,7 @@ namespace internal {
 #endif
 
     
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
     bool AudioStream::StreamVorbis(const std::string &filename) {
         auto &file = *new std::ifstream(filename, std::ios::binary);
         

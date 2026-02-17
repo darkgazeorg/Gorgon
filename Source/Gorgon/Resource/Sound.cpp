@@ -125,7 +125,7 @@ namespace Gorgon { namespace Resource {
 							gid=GID::Sound_Wave;
 							goto tryagain;
 						}
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
 						else if(compression == GID::FLAC) {
 							Encoding::Flac.Decode(reader->GetStream(), data);
 							data.SetChannels(channels);
@@ -204,7 +204,7 @@ namespace Gorgon { namespace Resource {
 				writer.WriteArray(data.RawData(), data.GetBytes());
 			}
 		}
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
 		else if(compression==GID::FLAC) {
 			auto datastart = writer.WriteChunkStart(GID::Sound_Cmp_Wave);
 			Encoding::Flac.Encode(data, writer.GetStream());

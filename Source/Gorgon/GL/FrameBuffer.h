@@ -69,7 +69,7 @@ namespace Gorgon { namespace GL {
 		static bool HardwareSupport;
 
 	private:
-#ifdef OPENGL
+#ifdef GORGON_GL_OPENGL
 		Texture  texture = 0;
 		uint32_t buffer  = 0;
 		uint32_t depth   = 0;

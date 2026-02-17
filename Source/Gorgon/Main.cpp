@@ -7,11 +7,8 @@
 #include "Window.h"
 #include "OS.h"
 #include "Time.h"
-#include "Resource.h"
-#include "Audio.h"
-#include "Multimedia.h"
 
-#ifdef SCRIPTING
+#ifdef GORGON_SCRIPTING_SUPPORT
 #	include "Scripting.h"
 #endif
 
@@ -82,10 +79,10 @@ namespace Gorgon {
 		Filesystem::Initialize();
 		WindowManager::Initialize();
 		
-#ifdef SCRIPTING
+#ifdef GORGON_SCRIPTING_SUPPORT
 		Scripting::Initialize();
 #endif
-#ifdef AUDIO
+#ifdef GORGON_AUDIO_SUPPORT
 		Audio::Initialize();
         Multimedia::Initialize();
 		Resource::Initialize();

@@ -423,7 +423,11 @@ namespace Gorgon { namespace Time {
 		std::stringstream ss;
 		ss<<name<<": "<<passed;
 
-		UI::ShowMessage(ss.str(), title);
+#ifdef GORGON_UI_SUPPORT
+		UI::ShowMessage(title, ss.str());
+#else
+		std::cout<<ss.str()<<std::endl;
+#endif
 	}	
 } }
 

@@ -11,7 +11,7 @@
 
 #include "../Filesystem.h"
 
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_TRUETYPE_TABLES_H

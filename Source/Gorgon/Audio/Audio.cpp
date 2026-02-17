@@ -8,10 +8,10 @@
 #include "../Multimedia/Wave.h"
 #include "../Multimedia/AudioStream.h"
     
-#ifdef AUDIO_PULSE
+#ifdef GORGON_AUDIO_PULSE
 #	include "PulseAudio.inc.h"
 #endif
-#ifdef AUDIO_WASAPI
+#ifdef GORGON_AUDIO_WASAPI
 #	include "WASAPI.inc.h"
 #endif
 

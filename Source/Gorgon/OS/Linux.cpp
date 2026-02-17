@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef FONTCONFIG_SUPPORT
+#ifdef GORGON_FONTCONFIG_SUPPORT
 #include <fontconfig/fontconfig.h>
 #endif
 

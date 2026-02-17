@@ -101,7 +101,7 @@ namespace Gorgon { namespace Multimedia {
             if(String::ToLower(ext) == "wav") {
                 return ImportWav(filename);
             }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
             else if(String::ToLower(ext) == "flac") {
                 return ImportFLAC(filename);
             }
@@ -126,7 +126,7 @@ namespace Gorgon { namespace Multimedia {
         if(sig == wavsig) {
             return ImportWav(file);
         }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
             return ImportFLAC(file);
         }
@@ -162,7 +162,7 @@ namespace Gorgon { namespace Multimedia {
             if(String::ToLower(ext) == "wav") {
                 return ImportWav(filename);
             }
-#ifdef FLAC_SUPPORT_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
             else if(String::ToLower(ext) == "flac") {
                 return ImportFLAC(filename);
             }
@@ -178,7 +178,7 @@ namespace Gorgon { namespace Multimedia {
         return data->ExportWav(filename);
     }
     
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
     bool Wave::ImportFLAC(const std::string &filename) {
         std::ifstream file(filename, std::ios::binary);
         

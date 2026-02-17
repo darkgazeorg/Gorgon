@@ -13,7 +13,7 @@
 #include "../Graphics/EmptyImage.h"
 #include "../UI.h"
 
-#ifdef FONTCONFIG_SUPPORT
+#ifdef GORGON_FONTCONFIG_SUPPORT
 #   include <fontconfig/fontconfig.h>
 #endif
 
@@ -58,7 +58,7 @@ namespace Gorgon { namespace Widgets {
     }
     
     std::string FindDefaultFontFamily(bool mono, const std::vector<Gorgon::OS::FontFamily> &list) {
-#ifdef FONTCONFIG_SUPPORT
+#ifdef GORGON_FONTCONFIG_SUPPORT
         if(!FcInit())
             goto nofc;
         
