@@ -16,9 +16,12 @@ add_library(Gorgon STATIC "")
 
 include(Options)
 include(Compiler)
-include(Install)
 
 add_subdirectory(Source/Gorgon)
+get_target_property(GORGON_SOURCES Gorgon SOURCES)
+
+include(Documentation)
+include(Install)
 
 target_include_directories(Gorgon PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source>
@@ -28,6 +31,5 @@ target_include_directories(Gorgon PUBLIC
 include(Dependencies)
 
 if(MSVC)
-    get_target_property(GORGON_SOURCES Gorgon SOURCES)
     source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${GORGON_SOURCES})
 endif()

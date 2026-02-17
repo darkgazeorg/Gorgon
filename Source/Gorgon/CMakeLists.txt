@@ -1,5 +1,8 @@
 target_sources(Gorgon
     PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
+    FILES
         Animation.h
         Any.h
         Audio.h
@@ -31,8 +34,11 @@ target_sources(Gorgon
         UI.h
         Window.h
         WindowManager.h
+)
 
+target_sources(Gorgon
     PRIVATE
+    FILES
         Config.cpp
         Layer.cpp
         Main.cpp
