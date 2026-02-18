@@ -1,0 +1,50 @@
+target_sources(Gorgon
+    PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
+    FILES
+		Button.h
+		Checkbox.h
+		Common.h
+		ColorPlane.h
+		ColorPicker.h
+		Composer.h
+		Dropdown.h
+		Generator.h
+		Inputbox.h
+		Textbox.h
+		Label.h
+		Layerbox.h
+		Listbox.h
+		ListItem.h
+		Panel.h
+		Progressbar.h
+		RadioButtons.h
+		Registry.h
+		Slider.h
+		Scrollbar.h
+		Window.h
+		DialogWindow.h
+		TabPanel.h
+		Textarea.h
+)
+
+target_sources(Gorgon
+    PRIVATE
+    FILES
+		Button.cpp
+		Checkbox.cpp
+		ColorPlane.cpp
+		ColorPicker.cpp
+		Composer.cpp
+		Generator.cpp
+		Inputbox.cpp
+		Label.cpp
+		Layerbox.cpp
+		ListItem.cpp
+		Panel.cpp
+		Registry.cpp
+		Window.cpp
+		DialogWindow.cpp
+		Textarea.cpp
+)

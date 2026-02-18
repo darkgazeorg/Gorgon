@@ -1,0 +1,53 @@
+target_sources(Gorgon
+    PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
+    FILES
+		../Resource.h
+		AnimationStorage.h
+		Animation.h
+		Base.h
+		Font.h
+		Blob.h
+		DataItems.h
+		Data.h
+		File.h
+		Folder.h
+		GID.h
+		Image.h
+		Line.h
+		MaskedObject.h
+		Null.h
+		Pointer.h
+		Reader.h
+		Rectangle.h
+		Sound.h
+		StackedObject.h
+		ScalableObject.h
+		TintedObject.h
+		Writer.h
+)
+
+target_sources(Gorgon
+    PRIVATE
+    FILES
+		Resource.cpp
+		Animation.cpp
+		Base.cpp
+		Font.cpp
+		Blob.cpp
+		DataItems.cpp
+		Data.cpp
+		File.cpp
+		Folder.cpp
+		Image.cpp
+		Line.cpp
+		MaskedObject.cpp
+		Null.cpp
+		Pointer.cpp
+		Rectangle.cpp
+		Sound.cpp
+		StackedObject.cpp
+		ScalableObject.cpp
+		TintedObject.cpp
+)

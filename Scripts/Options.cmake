@@ -27,6 +27,9 @@ set(JPEG ON)
 set(ZLIB ON)
 set(LZMA ON)
 
+# HTTP (libcurl)
+option(HTTP "Enable HTTP data and file transfer." ON)
+
 # Flac, FreeType, Vorbis, and FontConfig are optional dependencies. 
 # They can be disabled if the user doesn't want to include them
 # FreeType might be required for most use cases, UI might not work without it.
