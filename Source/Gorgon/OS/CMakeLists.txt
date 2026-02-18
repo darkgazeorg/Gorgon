@@ -26,5 +26,3 @@ else()
             Linux.cpp
     )
 endif()
-
-# Fontconfig linking moved to Scripts/Dependencies.cmake
