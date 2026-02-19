@@ -65,8 +65,8 @@ namespace Gorgon {
 		}
 
 		/// Creates a new GUID from the given data
-		SGuid(unsigned serial, unsigned random, unsigned time) {
-			Set(serial, random, time);
+		SGuid(unsigned serialnum, unsigned random, unsigned time) {
+			Set(serialnum, random, time);
 		}
 
 		/// Reads a new GUID from the given stream
@@ -90,21 +90,10 @@ namespace Gorgon {
 		}
 
 		/// Sets the GUID to the given components
-		void Set(unsigned serial, unsigned random, unsigned time) {
-			//time component - 2
-			/*ints[0] = (time & 0xffff);
-
-			//random component - 3
-			*(int*)(bytes+2) = random & 0xffffff; //this part is 3 bytes, not 4
-
-			//serial component - 3
-			bytes[5] = Byte( serial      & 0xff);
-			bytes[6] = Byte((serial>>8 ) & 0xff);
-			bytes[7] = Byte((serial>>16) & 0xff);*/
-			
+		void Set(unsigned serialnum, unsigned random, unsigned time) {
 			memcpy(Bytes+0, &time  , 2);
 			memcpy(Bytes+2, &random, 3);
-			memcpy(Bytes+5, &serial, 3);
+			memcpy(Bytes+5, &serialnum, 3);
 
 			checknewserial();
 		}

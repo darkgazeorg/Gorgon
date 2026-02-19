@@ -1,7 +1,15 @@
 #include "LZMA.h"
 
-#include "../External/LZMA/LzmaEnc.h"
-#include "../External/LZMA/LzmaDec.h"
+#if defined(__has_include)
+#  if !__has_include(<lzma-sdk/C/Alloc.h>)
+#    error "Install LZMA SDK the project"
+#  endif
+#endif
+
+
+#include <lzma-sdk/C/Alloc.h>
+#include <lzma-sdk/C/LzmaEnc.h>
+#include <lzma-sdk/C/LzmaDec.h>
 
 #include <stdexcept>
 #include <memory>
@@ -11,8 +19,8 @@
 
 namespace Gorgon { namespace Encoding {
 
-	static void * AllocForLzma(void *p, size_t size) { return malloc(size); }
-	static void FreeForLzma(void *p, void *address) { free(address); }
+	static void * AllocForLzma(ISzAllocPtr p, size_t size) { return malloc(size); }
+	static void FreeForLzma(ISzAllocPtr p, void *address) { free(address); }
 	static ISzAlloc SzAllocForLzma = { &AllocForLzma, &FreeForLzma };
 
 	struct MyProgress : ICompressProgress {
@@ -21,7 +29,7 @@ namespace Gorgon { namespace Encoding {
 			Progress=&MyProgress::progress;
 		}
 
-		static SRes progress(void *p, UInt64 inSize, UInt64 outSize) {
+		static SRes progress(ICompressProgressPtr p, UInt64 inSize, UInt64 outSize) {
 			MyProgress *mp=(MyProgress*)p;
 
 			mp->notifier(float(double(inSize)/mp->size));

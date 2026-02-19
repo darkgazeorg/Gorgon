@@ -104,7 +104,6 @@ typedef void (APIENTRY *DEBUGPROC)(GLenum source,
 								   const GLchar *message,
 								   const void *userParam);
 #ifndef LINUX
-typedef void 		(APIENTRYP PFNGLDRAWBUFFERSPROC) 				(GLsizei n, GLenum *bufs);
 typedef GLint		(APIENTRYP PFNGLGETATTRIBLOCATIONPROC)			(GLuint program, const GLchar *name);
 typedef void		(APIENTRYP PFNGLBINDATTRIBLOCATIONPROC)			(GLuint program, GLuint index, const GLchar * name);
 typedef void		(APIENTRYP PFNGLACTIVETEXTUREPROC)				(GLenum texture);
@@ -138,22 +137,13 @@ typedef void *		(APIENTRYP PFNGLMAPBUFFERRANGEPROC)				(GLenum target, GLintptr 
 typedef void		(APIENTRYP PFNGLSHADERSOURCEPROC)				(GLuint shader, GLsizei count, const GLchar* const *string, const GLint *length);
 typedef void		(APIENTRYP PFNGLUNIFORM1FPROC)					(GLint location, GLfloat v0);
 typedef void		(APIENTRYP PFNGLUNIFORM1IPROC)					(GLint location, GLint v0);
-typedef void		(APIENTRYP PFNGLUNIFORM2FVPROC)					(GLint location, GLsizei count, GLfloat* v0);
-typedef void		(APIENTRYP PFNGLUNIFORM3FVPROC)					(GLint location, GLsizei count, GLfloat* v0);
-typedef void		(APIENTRYP PFNGLUNIFORM4FVPROC)					(GLint location, GLsizei count, GLfloat* v0);
 typedef void		(APIENTRYP PFNGLUNIFORMBLOCKBINDINGPROC)		(GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
-typedef void		(APIENTRYP PFNGLUNIFORMMATRIX3FVPROC)			(GLint location, GLsizei count, GLboolean transpose, GLfloat* value);
-typedef void		(APIENTRYP PFNGLUNIFORMMATRIX3X2FVPROC)			(GLint location, GLsizei count, GLboolean transpose, GLfloat* value);
-typedef void		(APIENTRYP PFNGLUNIFORMMATRIX4FVPROC)			(GLint location, GLsizei count, GLboolean transpose, GLfloat* value);
-typedef void		(APIENTRYP PFNGLUNIFORMMATRIX4X2FVPROC)			(GLint location, GLsizei count, GLboolean transpose, GLfloat* value);
-typedef void		(APIENTRYP PFNGLUNIFORMMATRIX4X3FVPROC)			(GLint location, GLsizei count, GLboolean transpose, GLfloat* value);
 typedef GLboolean	(APIENTRYP PFNGLUNMAPBUFFERPROC)				(GLenum target);
 typedef void		(APIENTRYP PFNGLUSEPROGRAMPROC)					(GLuint program);
 typedef void		(APIENTRYP PFNGLVERTEXATTRIBPOINTERPROC)		(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
 typedef void		(APIENTRYP PFNGLVERTEXATTRIBIPOINTERPROC)		(GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 typedef void		(APIENTRYP PFNGLBLENDFUNCSEPARATEPROC)			(GLenum srcRGB, GLenum dstRGB, GLenum srcAlpha, GLenum dstAlpha);
 
-typedef void		(APIENTRYP PFNGLDEBUGMESSAGECALLBACKPROC)		(DEBUGPROC callback, void * userParam);
 
 //frame buffer
 typedef void		(APIENTRYP PFNGLBINDFRAMEBUFFERPROC)			(GLenum target, GLuint framebuffer);
@@ -162,7 +152,6 @@ typedef void		(APIENTRYP PFNGLDELETEFRAMEBUFFERSPROC)			(GLsizei, const GLuint *
 typedef void		(APIENTRYP PFNGLFRAMEBUFFERTEXTURE2DPROC)		(GLenum, GLenum, GLenum, GLuint, GLint);
 typedef void		(APIENTRYP PFNGLGENFRAMEBUFFERSPROC)			(int, GLuint*);
 
-extern PFNGLACTIVETEXTUREPROC					glActiveTexture;
 #endif
 
 typedef void		(APIENTRYP PFNGLFRAMEBUFFERRENDERBUFFER)		(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);

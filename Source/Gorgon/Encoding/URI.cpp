@@ -3,9 +3,8 @@
 #include <algorithm>
 #include "URI.h"
 #include "../String.h"
-#include "../Utils/Assert.h"
 
-namespace Gorgon { namespace Encoding { 
+namespace Gorgon :: Encoding { 
 
 	inline static char *buildhextodec() {
 		auto ret = new char[256];
@@ -429,14 +428,16 @@ namespace Gorgon { namespace Encoding {
 						relative = false;
 					else if(uriform.path[1]!='.') // unless first / is followed by . it is absolute
 						relative = false;
-					else if(uriform.path.length()>=3) // /. but
-						if(uriform.path[2] != '/') //not /./
-							if(uriform.path[2] != '.') // and not /.. either
+					else if(uriform.path.length()>=3) { // /. but
+						if(uriform.path[2] != '/') { //not /./
+							if(uriform.path[2] != '.') { // and not /.. either
 								relative = false;
+							}
 							else  // /..
 								if(uriform.path.length()>=4 && uriform.path[3]!='/') // not /../
 									relative=false;
-
+						}
+					}
 				}
 
 				if(relative) {
@@ -659,4 +660,4 @@ namespace Gorgon { namespace Encoding {
 		return out;
 	}
 
-} }
+}

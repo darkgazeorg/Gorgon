@@ -8,6 +8,13 @@
 #include "OS.h"
 #include "Time.h"
 
+#ifdef GORGON_AUDIO_SUPPORT
+#	include "Audio.h"
+#	include "Multimedia.h"
+#endif
+
+#include "Resource.h"
+
 #ifdef GORGON_SCRIPTING_SUPPORT
 #	include "Scripting.h"
 #endif

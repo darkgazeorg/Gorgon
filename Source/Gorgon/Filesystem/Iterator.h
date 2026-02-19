@@ -25,7 +25,7 @@ namespace Gorgon {
 		/// This iterator allows iteration of directories. It is a forward only
 		/// iterator. An empty iterator can be used for end(). Also instead of
 		/// comparing the iterator with end, IsValid() function could be used.
-		class Iterator : public std::iterator<std::forward_iterator_tag, std::string> {
+		class Iterator {
 		public:
 
 			/// Creates a new iterator from the given directory and pattern.

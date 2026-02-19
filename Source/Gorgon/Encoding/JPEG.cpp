@@ -1,8 +1,7 @@
 #include "JPEG.h"
 
 extern "C" {
-    #include "../External/JPEG/jinclude.h"
-    #include "../External/JPEG/jpeglib.h"
+    #include <jpeglib.h>
 }
 
 namespace Gorgon { namespace Encoding {

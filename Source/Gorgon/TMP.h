@@ -27,6 +27,12 @@ namespace Gorgon {
 		template<class R_, class... Args_>
 		struct FunctionTraits<R_(*)(Args_...)> : public FunctionTraits<R_(Args_...)>
 		{};
+
+		template<class R_, class... Args_>
+		struct FunctionTraits<R_(*)(Args_...) noexcept> : public FunctionTraits<R_(Args_...)>
+		{
+			static const bool IsNoExcept = true;
+		};
 		
 		///@endcond
         
@@ -68,6 +74,9 @@ namespace Gorgon {
 			/// Whether this function is a member function
 			static const bool IsMember = false;
 			
+			/// Whether this function is noexcept
+			static const bool IsNoExcept = false;
+			
 			/// This struct allow access to types of individual arguments. Do not forget to use template
 			/// keyword before arguments.
 			template<unsigned N>
@@ -93,6 +102,23 @@ namespace Gorgon {
 		{ 
 			static const bool IsMember = true;
 		};
+
+		/* noexcept-aware member function pointer specializations */
+		template<class C_, class R_, class ...Args_>
+		struct FunctionTraits<R_(C_::*)(Args_...) noexcept> :
+			public FunctionTraits<R_(typename std::decay<C_>::type&, Args_...)>
+		{
+			static const bool IsMember = true;
+			static const bool IsNoExcept = true;
+		};
+		
+		template<class C_, class R_, class ...Args_>
+		struct FunctionTraits<R_(C_::*)(Args_...) const noexcept> :
+			public FunctionTraits<R_(const typename std::decay<C_>::type&, Args_...)>
+		{
+			static const bool IsMember = true;
+			static const bool IsNoExcept = true;
+		};
 		
 		template<class F_>
 		struct FunctionTraits
@@ -105,6 +131,7 @@ namespace Gorgon {
 			static const unsigned Arity = innertype::Arity - 1;
 
 			static const bool IsMember = false;
+			static const bool IsNoExcept = innertype::IsNoExcept;
 			
 			template <unsigned N>
 			struct Arguments
