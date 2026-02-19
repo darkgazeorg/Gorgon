@@ -4,7 +4,7 @@
 #include "../UI/WidgetContainer.h"
 #include "../UI/ComponentStackWidget.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     /**
     * This object allows its users to compose widgets using other widgets. It is
@@ -362,4 +362,4 @@ namespace Gorgon { namespace Widgets {
         bool issizesset = false;
     };
     
-} }
+}

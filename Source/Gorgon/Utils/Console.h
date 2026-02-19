@@ -6,7 +6,7 @@
 #include "../Graphics/Color.h"
 #include <assert.h>
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
     
     class ConsoleBackend;
 	
@@ -330,4 +330,4 @@ namespace Gorgon { namespace Utils {
 #undef __mychk
 
     /// @endcond
-} }
+}

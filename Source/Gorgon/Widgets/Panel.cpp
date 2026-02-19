@@ -2,7 +2,7 @@
 
 #include <math.h>
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     Panel::Panel(const UI::Template &temp) : 
         UI::ScrollingWidget(temp) 
     {
@@ -302,5 +302,5 @@ namespace Gorgon { namespace Widgets {
         ComponentStackWidget::Resize(size);
     }
 
-} }
+}
 

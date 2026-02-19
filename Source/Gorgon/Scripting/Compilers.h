@@ -9,7 +9,7 @@
 #include "Compilers/AST.h"
 #include "../Types.h"
 
-namespace Gorgon {	namespace Scripting {
+namespace Gorgon :: Scripting {
 
 	class Scope;
 	class InputSource;
@@ -126,4 +126,4 @@ namespace Compilers {
 	/// Disassembles entire input source to the given stream
 	void Disassemble(InputSource &source, std::ostream &out);
 	
-} } }
+} }

@@ -1,7 +1,7 @@
 #include "ListItem.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
         
     ListItem::ListItem(const UI::Template& temp) :
         UI::ComponentStackWidget(temp) 
@@ -209,4 +209,4 @@ namespace Gorgon { namespace Widgets {
     
 
 
-} }
+}

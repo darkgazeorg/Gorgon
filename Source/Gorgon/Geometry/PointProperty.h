@@ -3,7 +3,7 @@
 #include "Point.h"
 #include "../Property.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
     
     /**
      * Property support for point class
@@ -385,4 +385,4 @@ namespace Gorgon { namespace Geometry {
     template<class C_, Pointf(C_::*Getter_)() const, void(C_::*Setter_)(const Pointf &)>
     using PointfProperty = basic_PointProperty<C_, Pointf, Getter_, Setter_>;
     
-} }
+}

@@ -851,7 +851,7 @@ private:
 		pGMI = (tGMI)GetProcAddress(hPsapi, "GetModuleInformation");
 		if ((pEPM == NULL) || (pGMFNE == NULL) || (pGMBN == NULL) || (pGMI == NULL))
 		{
-			// we couldn´t find all functions
+			// we couldn't find all functions
 			FreeLibrary(hPsapi);
 			return FALSE;
 		}
@@ -1554,8 +1554,7 @@ void StackWalker::OnOutput(LPCSTR buffer)
 #include "../Filesystem.h"
 
 #undef min
-namespace Gorgon {
-	namespace Utils {
+namespace Gorgon :: Utils {
 		
 		struct stackentry {
 			std::string file;
@@ -1642,4 +1641,3 @@ namespace Gorgon {
 		struct CrashHandler::dumponlytag CrashHandler::DumpOnlyTag;
 
 	}
-}

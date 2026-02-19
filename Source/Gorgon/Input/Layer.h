@@ -3,7 +3,7 @@
 #include "../Layer.h"
 #include "../Geometry/Bounds.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
         /**
          * Input layer allows mouse events to be handled. Location of mouse events are
@@ -1175,4 +1175,4 @@ namespace Gorgon { namespace Input {
 			virtual bool propagate_mouseevent(Input::Mouse::EventType event, Geometry::Point location, Input::Mouse::Button button, float amount, MouseHandler &handlers) override;
 		};
 
-} }
+}

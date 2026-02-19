@@ -1,7 +1,7 @@
 #include "Folder.h"
 #include "File.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	Folder::Folder(File &file) : Folder(file.Self()) { }
 
@@ -160,4 +160,4 @@ namespace Gorgon { namespace Resource {
 
 
 
-} }
+}

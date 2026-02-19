@@ -3,7 +3,7 @@
 #include "../UI/Template.h"
 #include "../Graphics/AdvancedPrinter.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     
     /**
@@ -239,4 +239,4 @@ namespace Gorgon { namespace Widgets {
     };
     
     
-} }
+}

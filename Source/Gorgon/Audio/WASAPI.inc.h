@@ -7,7 +7,7 @@
 #undef min
 #undef max
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
 	extern IAudioClient *AudioClient;
 	extern IAudioRenderClient *RenderClient;
 
@@ -51,4 +51,4 @@ namespace Gorgon { namespace Audio {
 	void SkipFrame() {
 	}
 
-} } 
+}

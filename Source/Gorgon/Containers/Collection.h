@@ -10,8 +10,7 @@
 
 #include "Iterator.h"
 
-namespace Gorgon { 
-    namespace Containers {
+namespace Gorgon :: Containers {
 
         ///	Collection is a container for reference typed objects. A container never copies its elements
         /// nor destroys unless requested specifically. Internally, a collection stores its objects in a
@@ -719,5 +718,4 @@ namespace Gorgon {
             l.Swap(r);
         }
     } 
-}
 

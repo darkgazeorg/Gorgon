@@ -6,7 +6,7 @@
 #include "Null.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	
 	Line::Line(Graphics::BitmapLineProvider &prov) : ILineProvider(Graphics::Orientation::Horizontal), prov(&prov) 
@@ -274,4 +274,4 @@ namespace Gorgon { namespace Resource {
         return *p;
     }
 
-} }
+}

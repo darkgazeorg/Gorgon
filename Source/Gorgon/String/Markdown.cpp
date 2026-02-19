@@ -1,7 +1,7 @@
 #include "Markdown.h"
 #include "AdvancedTextBuilder.h"
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
    
     std::string readuntilornewline(Graphics::Glyph c, std::string::const_iterator &it, const std::string::const_iterator &end) {
         if(it == end)
@@ -576,4 +576,4 @@ namespace Gorgon { namespace String {
         return {result, links};
     }
     
-} }
+}

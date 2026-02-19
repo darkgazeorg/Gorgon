@@ -2,7 +2,7 @@
 #include <sys/ioctl.h>
 #include "../OS.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 
 	Console::ColorSupportLevel StdOutBackend::ColorSupport() const {
 		struct support {
@@ -208,4 +208,4 @@ namespace Gorgon { namespace Utils {
         std::cout.flush();
 	}
 
-} }
+}

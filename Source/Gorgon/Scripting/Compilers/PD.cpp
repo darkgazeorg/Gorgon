@@ -1,8 +1,5 @@
-#include <locale>
-#include <sstream>
 #include <vector>
 #include <string>
-#include <memory>
 #include <fstream>
 
 #include "../../Enum.h"
@@ -13,16 +10,12 @@
 #include "Utils.h"
 #include "../Runtime.h"
 
-#ifndef _NDEBUG
-#	include "../../Utils/Console.h"
-#endif
-
 #pragma warning(disable:4018)
 
 
 ///@cond INTERNAL
 
-namespace Gorgon { namespace Scripting { 
+namespace Gorgon :: Scripting { 
 	Type *ParameterTemplateType();
 
 namespace Compilers {
@@ -1470,5 +1463,5 @@ namespace Compilers {
 		compiler.Finalize();
 	}
 
-} } }
+} }
 //@endcond

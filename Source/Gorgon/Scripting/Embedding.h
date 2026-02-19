@@ -1,6 +1,5 @@
 #pragma once
 
-#include <tuple>
 #include <type_traits>
 #include <cmath>
 
@@ -17,8 +16,7 @@
  * C++ types and functions to scripting. In the following section, each type of mapping is covered with examples.
  */
 
-namespace Gorgon { 
-namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 	template<class T_>
 	using StringFromFn = std::string(*)(const T_ &);
@@ -1228,9 +1226,6 @@ namespace Scripting {
 			}
 		}
 		
-		virtual void set(Data &source, Data &value) const override {
-		}
-		
 		T_ value;
 	};
 	
@@ -1929,4 +1924,4 @@ namespace Scripting {
 		);	
 	}
 	
-} }
+}

@@ -4,7 +4,7 @@
 
 //!todo y-kerning support
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     namespace internal {
         Glyph decode(std::string::const_iterator &it, std::string::const_iterator end, bool skipcmd) {
             Glyph g = decode_impl(it, end);
@@ -1505,4 +1505,4 @@ namespace Gorgon { namespace Graphics {
         }
     }
 
-} }
+}

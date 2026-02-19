@@ -9,7 +9,7 @@
 #include "TextureTargets.h"
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 	/// Represents a drawable object, that can be drawn to the given point. Size of the object
 	/// is assumed to be fixed. Drawing a single drawable can cause many texture to be added
@@ -575,4 +575,4 @@ namespace Gorgon { namespace Graphics {
 	};
 	
 
-} }
+}

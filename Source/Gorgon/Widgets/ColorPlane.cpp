@@ -6,7 +6,7 @@
 #include <map>
 
 //TODO move halftable lc values out
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     ColorPlane::ColorPlane(const UI::Template &temp) : 
         ComponentStackWidget(temp)
@@ -340,4 +340,4 @@ namespace Gorgon { namespace Widgets {
     };
 
 
-} }
+}

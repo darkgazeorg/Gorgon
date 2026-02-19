@@ -1,7 +1,6 @@
 #include "../Filesystem.h"
 
 #include <cstdio>
-#include <iostream>
 #include <direct.h>
 #include <sys/stat.h>
 #include <io.h>
@@ -19,7 +18,7 @@
 
 #undef CreateDirectory
 
-namespace Gorgon { namespace Filesystem {
+namespace Gorgon :: Filesystem {
 
 	bool CreateDirectory(const std::string &name) {
 		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
@@ -403,4 +402,4 @@ namespace Gorgon { namespace Filesystem {
 		return true;
 	}
 	
-} }
+}

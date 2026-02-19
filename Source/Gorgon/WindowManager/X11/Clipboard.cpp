@@ -14,7 +14,7 @@
 #include <memory>
 #include <thread>
 
-namespace Gorgon { namespace WindowManager { 
+namespace Gorgon :: WindowManager { 
 
     ///@cond internal        
     template<class T_>
@@ -686,4 +686,4 @@ namespace Gorgon { namespace WindowManager {
         XFlush(display);
     }
 
-} }
+}

@@ -1,6 +1,6 @@
 #include "KeyRepeater.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
     
 
     KeyRepeater::KeyRepeater(const std::initializer_list<Key> &keys, int delay) : Base(true) {
@@ -116,4 +116,4 @@ namespace Gorgon { namespace Input {
         return false;
     }
     
-} }
+}

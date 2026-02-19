@@ -1,9 +1,8 @@
 #include "Textarea.h"
-#include "Scrollbar.h"
 #include "../Window.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     Textarea::Textarea(const UI::Template &temp, const std::string &value) :
         ScrollingWidget(temp),
@@ -760,4 +759,4 @@ namespace Gorgon { namespace Widgets {
             ScrollTo(0, ScrollOffset().Y);
     }
 
-} }
+}

@@ -2,7 +2,6 @@
 
 #include <pulse/pulseaudio.h>
 #include <thread>
-#include <chrono>
 #include <string.h>
 
 #include <unistd.h>
@@ -10,7 +9,7 @@
 #include "Controllers.h"
 #include "../Main.h"
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
 	///@cond Internal
 	
 	pa_mainloop *pa_main = nullptr;
@@ -409,4 +408,4 @@ namespace Gorgon { namespace Audio {
 	}
 
 	///@endcond
-} }
+}

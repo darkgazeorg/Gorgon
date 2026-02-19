@@ -7,7 +7,7 @@
 #pragma warning(disable:4003)
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     template<class GF_, class BF_, class LF_, class IF_>
     std::vector<AdvancedPrinter::Region> AdvancedPrinter::AdvancedOperation(
@@ -1422,7 +1422,7 @@ namespace Gorgon { namespace Graphics {
         return regions;
     }
     
-} }
+}
 
 #undef MOVEIT
 

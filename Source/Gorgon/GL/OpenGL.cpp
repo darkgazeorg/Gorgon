@@ -78,7 +78,7 @@ PFNGLFRAMEBUFFERRENDERBUFFER			glFramebufferRenderbuffer;
 PFNGLDELETERENDERBUFFERS				glDeleteRenderbuffers;
 
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
 	Gorgon::Utils::Logger log;
 
 	 void 
@@ -441,4 +441,4 @@ namespace Gorgon { namespace GL {
 #endif
 	}
 	
-} }
+}

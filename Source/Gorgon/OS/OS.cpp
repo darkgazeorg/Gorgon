@@ -2,7 +2,7 @@
 
 #include <iomanip>
 
-namespace Gorgon { namespace OS {
+namespace Gorgon :: OS {
    
     void DumpFontFamilies(std::ostream &file) {
         file << std::left;
@@ -39,4 +39,4 @@ namespace Gorgon { namespace OS {
         }
     }
     
-} }
+}

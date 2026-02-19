@@ -5,7 +5,7 @@
 #include "../Filesystem.h"
 #include "../Containers/Hashmap.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     BitmapFont::BitmapFont(Graphics::BitmapFont&& other) : BasicPrinter(dynamic_cast<GlyphRenderer &>(*this)) {
         using std::swap;
@@ -1121,4 +1121,4 @@ namespace Gorgon { namespace Graphics {
 
         return *this;
     }
-} }
+}

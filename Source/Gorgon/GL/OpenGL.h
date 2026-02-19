@@ -222,13 +222,11 @@ extern PFNGLGENRENDERBUFFERS					glGenRenderbuffers;
 extern PFNGLFRAMEBUFFERRENDERBUFFER				glFramebufferRenderbuffer;
 extern PFNGLDELETERENDERBUFFERS					glDeleteRenderbuffers;
 
-namespace Gorgon {
-	namespace GL {
+namespace Gorgon :: GL {
 
 		void LoadFunctions();
 
 	}
-}
 
 #ifdef WIN32
 #	undef APIENTRY

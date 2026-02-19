@@ -2,7 +2,7 @@
 
 #include "Color.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     
     
@@ -271,4 +271,4 @@ namespace Gorgon { namespace Graphics {
     /// Converts a color in CIE LCh_ab color space to CUE Lab color space.
     LabAf LChToLab(LChAf color);
     
-} }
+}

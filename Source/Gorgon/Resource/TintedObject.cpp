@@ -6,7 +6,7 @@
 #include "Null.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
     TintedObject::TintedObject(Graphics::TintedBitmapProvider &prov) : prov(&prov)
@@ -242,4 +242,4 @@ namespace Gorgon { namespace Resource {
         return *p;
     }
 
-} }
+}

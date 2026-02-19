@@ -2,12 +2,11 @@
 
 #include <Gorgon/Containers/Iterator.h>
 #include <vector>
-#include <exception>
 
 #include "Point.h"
 #include "Line.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
     
     /**
      * This class represents a set of points. This class can be used for 
@@ -584,4 +583,4 @@ namespace Gorgon { namespace Geometry {
         ReflectY(pointlist, origin);
     }
 
-} }
+}

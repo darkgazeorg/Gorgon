@@ -2,7 +2,7 @@
 
 #include "Polygon.h"
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     struct StrokeSettings {
         StrokeSettings(Float width = 1.0f) : width(width) { 
@@ -259,4 +259,4 @@ namespace Gorgon { namespace CGI {
     }
     
     
-} }
+}

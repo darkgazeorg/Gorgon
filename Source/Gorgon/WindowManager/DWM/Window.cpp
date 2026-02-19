@@ -1,25 +1,19 @@
 
-#include "../../GL/OpenGL.h"
-
 #include "DWM.h"
 
-#include "../../Encoding/PNG.h"
 #include "../../Window.h"
 #include "../../Graphics.h"
 #include "../../Graphics/Layer.h"
 
-#include <locale>
-#include <codecvt>
-
 
 namespace Gorgon { 
-namespace WindowManager { namespace internal {
+namespace WindowManager :: internal {
 
 	Gorgon::internal::windowdata *getdata(const Window &w) {
 		return w.data;
 	}
 
-} }
+}
 
 namespace internal {
 

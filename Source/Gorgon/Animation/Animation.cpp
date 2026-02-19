@@ -6,7 +6,7 @@
 #include "../Utils/Logging.h"
 
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
 	Utils::Logger log;
 
@@ -219,4 +219,4 @@ namespace Gorgon { namespace Animation {
 		LOG<<"Animation is destroyed";
 	}
 
-} }
+}

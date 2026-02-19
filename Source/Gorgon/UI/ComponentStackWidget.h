@@ -4,7 +4,7 @@
 #include "ComponentStack.h"
 #include "WidgetContainer.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
 
     /**
@@ -230,4 +230,4 @@ namespace Gorgon { namespace UI {
         PROPERTY_GETSET(cls, Boolean, bool, TextWrap);
 
 
-} }
+}

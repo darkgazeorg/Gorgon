@@ -11,7 +11,7 @@
 #include "Size.h"
 #include "Bounds.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 	/// Represents a rectangle in a 2D space. Top left corner and the size is
 	/// stored.
@@ -447,4 +447,4 @@ namespace Gorgon { namespace Geometry {
 	/// @see basic_Rectangle
 	typedef basic_Rectangle<int> Rectangle;
 
-} }
+}

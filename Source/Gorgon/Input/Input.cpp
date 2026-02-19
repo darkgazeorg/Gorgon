@@ -1,7 +1,7 @@
 #include "../Input.h"
 #include "Keyboard.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 	
 	namespace Keyboard {
 		Modifier CurrentModifier=Modifier::None;
@@ -9,4 +9,4 @@ namespace Gorgon { namespace Input {
 	}
 	
     bool AllowCharEvent = false;
-} }
+}

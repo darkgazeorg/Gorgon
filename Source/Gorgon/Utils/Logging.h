@@ -8,7 +8,7 @@
 #include "../Time.h"
 #include "../Utils/Console.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 	
 	/**
 	 * Eases logging procedure by appending necessary information to the given data and streams to a standard c++ stream.
@@ -368,4 +368,4 @@ namespace Gorgon { namespace Utils {
 #	define DEBUGONLY(action) action
 #endif
 
-} }
+}

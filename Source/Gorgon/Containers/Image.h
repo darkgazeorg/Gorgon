@@ -9,8 +9,7 @@
 #include "../Graphics/Color.h"
 #include "../IO/Stream.h"
 
-namespace Gorgon {
-    namespace Containers {
+namespace Gorgon :: Containers {
         
         enum class InterpolationMethod {
             None,
@@ -1958,4 +1957,3 @@ namespace Gorgon {
         using Image = basic_Image<Byte>;
 
     }
-}

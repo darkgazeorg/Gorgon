@@ -4,7 +4,7 @@
 #include "Array.h"
 
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	static Type *type=nullptr;	
 	Library Reflection("Reflection", "This library contains reflection objects");
 	
@@ -698,4 +698,4 @@ namespace Gorgon { namespace Scripting {
 	}
 	
 	
-} }
+}

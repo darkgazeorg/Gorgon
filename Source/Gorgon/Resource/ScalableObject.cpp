@@ -6,7 +6,7 @@
 #include "Null.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
     ScalableObject::ScalableObject(Graphics::ScalableBitmapProvider &prov) : prov(&prov)
     { }
@@ -247,4 +247,4 @@ namespace Gorgon { namespace Resource {
         return *p;
     }
 
-} }
+}

@@ -16,7 +16,7 @@
 #include "Reader.h"
 #include "Writer.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	/// This class defines a resource loader. The set of predefined resource loaders exists within
 	/// the resource system, however, it is possible to register custom loaders for custom objects.
@@ -211,4 +211,4 @@ namespace Gorgon { namespace Resource {
 		void createfilereader(std::string filename);
 		std::shared_ptr<File> self;
 	};
-} }
+}

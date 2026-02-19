@@ -6,7 +6,7 @@
 #include "../Types.h"
 #include "Base.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	class File;
 	class Reader;
 	
@@ -100,4 +100,4 @@ namespace Gorgon { namespace Resource {
 		std::vector<Byte> data;
 
 	};
-} }
+}

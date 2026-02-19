@@ -62,7 +62,7 @@ PFNGLUSEPROGRAMPROC						glUseProgram;
 PFNGLVERTEXATTRIBPOINTERPROC			glVertexAttribPointer;
 PFNGLVERTEXATTRIBIPOINTERPROC			glVertexAttribIPointer;
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
 
 	void LoadGLFunctions() {
 #ifdef WIN32
@@ -172,4 +172,4 @@ namespace Gorgon { namespace GL {
 			glVertexAttribIPointer			= (PFNGLVERTEXATTRIBIPOINTERPROC)glXGetProcAddress((const GLubyte*)"glVertexAttribIPointer");
 #endif
 		}
-} }
+}

@@ -9,7 +9,7 @@
 
 #include <mutex>
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     
 namespace internal {
     
@@ -188,4 +188,4 @@ namespace internal {
         extern std::mutex ControllerMtx;
     }
     
-} }
+}

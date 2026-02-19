@@ -1,7 +1,7 @@
 #pragma once
 #include "../Scripting.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 		/// Describes the type of an instruction
 		enum class InstructionType {
@@ -175,4 +175,4 @@ namespace Gorgon { namespace Scripting {
 				int JumpOffset=0;
 			};
 		};
-} }
+}

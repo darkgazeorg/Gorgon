@@ -1,6 +1,6 @@
 #include "Scope.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 	const Instruction *Scope::ReadInstruction(unsigned long line) {
 		if(line<lines.size()) {
@@ -92,4 +92,4 @@ namespace Gorgon { namespace Scripting {
 		
 		return inst;
 	}
-} }
+}

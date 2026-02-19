@@ -17,7 +17,7 @@
 
 #undef min
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 
 	static void * AllocForLzma(ISzAllocPtr p, size_t size) { return malloc(size); }
 	static void FreeForLzma(ISzAllocPtr p, void *address) { free(address); }
@@ -203,4 +203,4 @@ namespace Gorgon { namespace Encoding {
 
 	LZMA Lzma;
 
-}}
+}

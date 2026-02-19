@@ -10,7 +10,7 @@
 //TODO uncomment
 #include "../UI/Dialog.h"
 
-namespace Gorgon { namespace Time {
+namespace Gorgon :: Time {
 	
 	void Initialize() {
 		internal::framestart=GetTime();
@@ -429,5 +429,5 @@ namespace Gorgon { namespace Time {
 		std::cout<<ss.str()<<std::endl;
 #endif
 	}	
-} }
+}
 

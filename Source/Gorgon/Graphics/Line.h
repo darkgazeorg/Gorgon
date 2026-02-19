@@ -5,7 +5,7 @@
 #include "EmptyImage.h"
 #include "Bitmap.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 	class Line;
 
 	/// Interface for LineProviders
@@ -362,4 +362,4 @@ namespace Gorgon { namespace Graphics {
 	using LineProvider = basic_LineProvider<RectangularAnimationProvider>;
 	using BitmapLineProvider = basic_LineProvider<Bitmap>;
 	using AnimatedBitmapLineProvider = basic_LineProvider<BitmapAnimationProvider>;
-}}
+}

@@ -5,13 +5,12 @@
 #include <memory>
 
 #include "../String.h"
-#include "../Scripting.h"
 #include "Instruction.h"
 #include "Input.h"
 #include "Compilers.h"
 #include "Runtime.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 	/// @cond INTERNAL
 	/// This class represents a logical line
@@ -428,4 +427,4 @@ namespace Gorgon { namespace Scripting {
 		unsigned long current = 0;
 	};
 	
-} }
+}

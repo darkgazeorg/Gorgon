@@ -5,7 +5,7 @@
 #include "Animations.h"
 #include "TextureAnimation.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     /// For ease of use in resource system
     class ITintedObjectProvider : public RectangularAnimationProvider {
@@ -282,4 +282,4 @@ namespace Gorgon { namespace Graphics {
 	using TintedBitmap = basic_TintedObject<Bitmap>;
 	using TintedBitmapProvider = basic_TintedObjectProvider<Bitmap>;
 
-} }
+}

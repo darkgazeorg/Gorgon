@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <functional>
 
-#include "../Types.h"
 #include "../Containers/Collection.h"
 #include "../Containers/Hashmap.h"
 #include "../Enum.h"
@@ -16,9 +15,7 @@
 #include "Data.h"
 #include "Exceptions.h"
 
-namespace Gorgon {
-	
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		class Type;
 		class Data;
@@ -1607,4 +1604,3 @@ namespace Gorgon {
 			}
 		};
 	}
-}

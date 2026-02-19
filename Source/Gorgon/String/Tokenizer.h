@@ -6,7 +6,7 @@
 #include <iterator>
 
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
 
 	/// Tokenizer is a forward iterator that tokenizes a given string. This class only
 	/// supports single character delimeters, however, its possible to specify more than
@@ -113,4 +113,4 @@ namespace Gorgon { namespace String {
 		const static Tokenizer endit;
 	};
 
-}}
+}

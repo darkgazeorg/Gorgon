@@ -2,7 +2,7 @@
 
 #include "Animations.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
   
 	/**
 	 * Pure color blank image, default size is 0x0, but can be drawn
@@ -106,4 +106,4 @@ namespace Gorgon { namespace Graphics {
 		RGBAf color = {1.0f};
 	};
 
-}}
+}

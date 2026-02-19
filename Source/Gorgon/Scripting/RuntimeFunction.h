@@ -9,13 +9,12 @@
 
 #include "Reflection.h"
 #include "Data.h"
-#include "Input.h"
 #include "Scope.h"
 #include "VirtualMachine.h"
 #include "Types/Array.h"
 
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 	class RuntimeOverload : public Function::Overload {
 	public:
@@ -142,4 +141,4 @@ namespace Gorgon { namespace Scripting {
 		mutable Scope scope;
 	};
 		
-} }
+}

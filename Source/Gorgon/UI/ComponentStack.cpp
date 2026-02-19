@@ -10,7 +10,7 @@
 //TODO:
 // Widgets that are not at the top of the stack still gets to be in the stack
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     static constexpr std::tuple<ComponentCondition, ComponentCondition, ComponentCondition> channelfixedvalues[4] = {
         {ComponentCondition::Ch1V0, ComponentCondition::Ch1V05, ComponentCondition::Ch1V1},
@@ -3878,4 +3878,4 @@ realign:
         return &widgets[&comp->GetTemplate()];
     }
 
-} }
+}

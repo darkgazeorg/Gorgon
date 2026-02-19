@@ -1,11 +1,8 @@
 #pragma once
 
-#include <vector>
-#include <exception>
-
 #include "Point.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
     
     /**
      * This class represents a set of points. This class can be used for 
@@ -150,4 +147,4 @@ namespace Gorgon { namespace Geometry {
 
     //non-member operations: translate, scale, rotate, etc...
     
-} }
+}

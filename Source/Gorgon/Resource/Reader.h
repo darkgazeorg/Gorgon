@@ -10,7 +10,7 @@
 #include "../Filesystem.h"
 #include "../IO/Stream.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	/// This class represents a loading error
 	class LoadError : public std::runtime_error {
@@ -461,4 +461,4 @@ namespace Gorgon { namespace Resource {
 		std::ifstream file;
 	};
 
-} }
+}

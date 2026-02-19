@@ -11,7 +11,7 @@ namespace Gorgon {
     class Window;
 }
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
     
     /**
      * @page "Drag & Drop"
@@ -1119,4 +1119,4 @@ namespace Gorgon { namespace Input {
 	/// Drop the current drag object. If there is no target receiving it, it will be
 	/// canceled
 	void Drop(Geometry::Point location = {0, 0});
-} }
+}

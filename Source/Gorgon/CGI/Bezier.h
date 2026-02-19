@@ -4,7 +4,7 @@
 #include "../Geometry/PointList.h"
 #include "../Geometry/Size.h"
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     /**
      * This class represents a single cubic bezier curve. Use Curves for a
@@ -304,4 +304,4 @@ namespace Gorgon { namespace CGI {
     using Bezier = basic_Bezier<Geometry::Pointf>;
     using Curves = basic_Curves<Geometry::Pointf>;
     
-} }
+}

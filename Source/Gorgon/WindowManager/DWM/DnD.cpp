@@ -8,7 +8,7 @@
 
 #undef max
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
 	HRESULT __stdcall GGEDropTarget::DragEnter(IDataObject *pDataObject, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
 		// does the data object contain data we want?
@@ -131,4 +131,4 @@ namespace Gorgon { namespace WindowManager {
 		return S_OK;
 	}
 
-} }
+}

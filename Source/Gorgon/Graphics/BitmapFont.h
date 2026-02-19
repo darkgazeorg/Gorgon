@@ -12,7 +12,7 @@
 namespace Gorgon { namespace Resource { class Font; } }
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 
     /**
@@ -433,4 +433,4 @@ namespace Gorgon { namespace Graphics {
         float linegap = 0;
     };
     
-} }
+}

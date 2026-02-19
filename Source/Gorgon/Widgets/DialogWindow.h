@@ -4,7 +4,7 @@
 #include "Button.h"
 #include "../UI/Organizers/Flow.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
    
     /**
      * Creates a dialog window. Dialog windows allow buttons to be
@@ -82,5 +82,5 @@ namespace Gorgon { namespace Widgets {
         UI::Organizers::Flow btnorg;
     };
     
-} }
+}
     

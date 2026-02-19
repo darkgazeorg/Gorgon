@@ -9,8 +9,7 @@
 #include "../Types.h"
 #include "../Utils/Assert.h"
 
-namespace Gorgon {
-    namespace Containers {
+namespace Gorgon :: Containers {
 
         /// This class is a container for wave data. It supports different color modes and access to the
         /// underlying data through () operator. This object implements move semantics. Since copy constructor is
@@ -642,4 +641,3 @@ namespace Gorgon {
         }
 
     }
-}

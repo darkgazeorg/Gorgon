@@ -8,7 +8,7 @@
 #include "../Widgets/Registry.h"
 #include "../Widgets/Label.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     TooltipManager::TooltipManager(WidgetContainer &container) :
         container(&container)
@@ -291,4 +291,4 @@ namespace Gorgon { namespace UI {
             mytarget->Text = text;
     }
 
-} }
+}

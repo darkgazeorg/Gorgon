@@ -8,7 +8,7 @@
 #include "../Geometry/PointProperty.h"
 #include "../Geometry/SizeProperty.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     //These classes here are overloads to set default values.
     
@@ -219,4 +219,4 @@ namespace Gorgon { namespace Widgets {
         }
     };
     
-} }
+}

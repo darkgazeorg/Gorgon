@@ -15,7 +15,7 @@
 
 #include <ctype.h>
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 	/// This class represents a 2D geometric size. Although negative size is meaningless,
 	/// this class allows all operations over negative sizes.
@@ -399,4 +399,4 @@ namespace Gorgon { namespace Geometry {
 	/// @see basic_Size
 	using Sizef = basic_Size<Float>;
 
-} }
+}

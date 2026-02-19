@@ -3,7 +3,7 @@
 #include <X11/extensions/Xinerama.h>
 #include <X11/extensions/Xrandr.h>
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
         
     namespace internal {
@@ -183,4 +183,4 @@ failsafe: //this should use X11 screen as monitor
     Event<> Monitor::ChangedEvent;
     Containers::Collection<Monitor> Monitor::monitors;
     Monitor *Monitor::primary=nullptr;    
-} }
+}

@@ -1,7 +1,7 @@
 #include "Wave.h"
 #include "../Encoding/FLAC.h"
 
-namespace Gorgon { namespace Multimedia {
+namespace Gorgon :: Multimedia {
     
     Wave::Wave(Containers::Wave &data, bool own) {
         if(own)
@@ -217,4 +217,4 @@ namespace Gorgon { namespace Multimedia {
 #endif
         
 
-} }
+}

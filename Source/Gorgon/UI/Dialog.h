@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../Containers/Collection.h"
 #include "../Widgets/DialogWindow.h"
 #include "../Widgets/Inputbox.h"
 #include "../Widgets/Label.h"
@@ -8,7 +7,7 @@
 #include "../WindowManager.h"
 #include "../Widgets/Dropdown.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     /// @cond internal
     namespace internal {
@@ -902,4 +901,4 @@ namespace Gorgon { namespace UI {
         );
     }
     
-} }
+}

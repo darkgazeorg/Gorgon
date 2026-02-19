@@ -2,7 +2,7 @@
 #include "../Widgets/Registry.h"
 
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     
     int Window::GetSpacing() const {
@@ -352,4 +352,4 @@ namespace Gorgon { namespace UI {
         distributeparentboundschanged();
     }
 
-} }
+}

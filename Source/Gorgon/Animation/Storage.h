@@ -4,7 +4,7 @@
 
 #include "../Animation.h"
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
     /**
      * Specializing this class allows code injection to animation storages
@@ -169,4 +169,4 @@ namespace Gorgon { namespace Animation {
 	/// Basic animation storage, can store all types of animation and can be moved around as a value.
 	using Storage = basic_Storage<const Provider>;
 
-} }
+}

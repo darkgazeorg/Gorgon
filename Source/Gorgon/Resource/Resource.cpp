@@ -13,7 +13,7 @@
 #include "Null.h"
 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	void Initialize() {
 		DataItem::InitializeLoaders();
@@ -60,4 +60,4 @@ namespace Gorgon { namespace Resource {
 		}
 	}
 	
-} }
+}

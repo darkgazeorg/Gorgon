@@ -1,6 +1,6 @@
 #include "Line.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 	
 	Line::Line(const ILineProvider &prov, bool create /*= true*/) : prov(prov), Gorgon::Animation::Base(create),
 		start(prov.CreateStart()),
@@ -80,5 +80,4 @@ namespace Gorgon { namespace Graphics {
 		drawin(target, {p, Geometry::Sizef(getsize())}, color);
 	}
 
-}
 }

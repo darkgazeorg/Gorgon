@@ -40,9 +40,8 @@
 #define BgC(c) Colors[Graphics::Color::c].Backcolor
 #define BdC(c) Colors[Graphics::Color::c].Bordercolor
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     using UI::UnitSize;
-    using UI::UnitDimension;
     using UI::Units;
     using UI::Pixels;
 
@@ -2966,4 +2965,4 @@ namespace Gorgon { namespace Widgets {
         return temp;
     }
     
-}}
+}

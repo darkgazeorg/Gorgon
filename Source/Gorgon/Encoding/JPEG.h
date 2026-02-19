@@ -3,7 +3,6 @@
 #include <vector>
 #include <Gorgon/Utils/Assert.h>
 #include <fstream>
-#include <functional>
 
 #include "../Types.h"
 #include "../Containers/Image.h"
@@ -13,7 +12,7 @@ extern "C" {
 	struct jpeg_compress_struct;
 }
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 
 
 	namespace jpg {
@@ -191,4 +190,4 @@ namespace Gorgon { namespace Encoding {
 
 	extern JPEG Jpg;
 
-} }
+}

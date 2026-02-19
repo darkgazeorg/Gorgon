@@ -6,8 +6,7 @@
 #include "../Enum.h"
 #include "../Utils/Assert.h"
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		enum class ExceptionType {
 			OutofBounds,
@@ -315,4 +314,3 @@ namespace Gorgon {
 		
 
 	}
-}

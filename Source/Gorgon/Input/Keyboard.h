@@ -3,7 +3,7 @@
 #include <map>
 #include "../Input.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
     
 /// Keyboard related functions and enumerations @nosubgrouping
 namespace Keyboard {
@@ -300,4 +300,4 @@ namespace Keyboard {
 
 	/// Current keyboard modifier, this is a global value.
 	extern Modifier CurrentModifier;
-} } }
+} }

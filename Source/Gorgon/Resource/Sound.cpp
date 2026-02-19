@@ -2,7 +2,7 @@
 #include "File.h"
 #include "../Encoding/FLAC.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	Sound *Sound::LoadResource(std::weak_ptr<File> file, std::shared_ptr<Reader> reader, unsigned long size) {
 		auto snd=new Sound;
@@ -234,4 +234,4 @@ namespace Gorgon { namespace Resource {
 			throw std::runtime_error("Unsupported compression");
 	}
 
-} }
+}

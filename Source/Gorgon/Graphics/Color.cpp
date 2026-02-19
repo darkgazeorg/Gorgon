@@ -1,7 +1,7 @@
 #include "Color.h"
 #include "../String.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     RGBA::operator std::string() const {
         std::stringstream str;
@@ -820,4 +820,4 @@ namespace Color {
 }
 
 
-} }
+}

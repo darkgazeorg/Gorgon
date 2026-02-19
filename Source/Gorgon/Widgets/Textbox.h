@@ -2,7 +2,7 @@
 
 #include "Inputbox.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /// This inputbox variant is designed to contain text. Unlike regular Textbox, this
     /// variant allows overriding the validator
@@ -12,4 +12,4 @@ namespace Gorgon { namespace Widgets {
     /// An inputbox variant designed to edit text.
     using Textbox = Inputbox<std::string, UI::ConversionValidator<std::string>, TextualProperty>;
     
-} }
+}

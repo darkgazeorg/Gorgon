@@ -3,12 +3,9 @@
 
 #include "AST.h"
 #include "../VirtualMachine.h"
-// #include "../../Scripting.h"
-#include "../RuntimeFunction.h"
-#include "../Compilers.h"
 #include "../Embedding.h"
 
-namespace Gorgon { namespace Scripting { namespace Compilers {
+namespace Gorgon :: Scripting :: Compilers {
 	
 	MappedReferenceType<std::vector<Instruction>, &ToEmptyString> instructionlisttype("#instructionlist", "");
 	
@@ -1028,4 +1025,4 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 	
 	const std::string ASTCompiler::scope::keywordnames[] = {"none", "if", "while", "function", "method", "for"};
 	
-} } }
+}

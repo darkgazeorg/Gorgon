@@ -6,14 +6,12 @@
 #include <ostream>
 #include <string>
 #include <sstream>
-#include <iomanip>
-#include <limits>
 
 #include "Point.h"
 #include "Size.h"
 #include "Bounds.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 	
 	/// This class defines Margin of an object or an area. This class is designed to be used
 	/// with Bounds object. Order of components are Left, Top, Right, Bottom. Negative margin
@@ -289,4 +287,4 @@ namespace Gorgon { namespace Geometry {
 
 	typedef basic_Margin<int> Margin;
 	typedef basic_Margin<float> Marginf;
-} }
+}

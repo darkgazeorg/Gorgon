@@ -8,8 +8,7 @@
 	double exp10(double num) { return exp(num)/exp(2); }
 #endif
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		Library Integrals("Integrals", "Integral types and functions");
 		Library Keywords("Keywords", "Function like keywords.");
@@ -1809,5 +1808,4 @@ namespace Gorgon {
 		}
 		
 	}
-}
 

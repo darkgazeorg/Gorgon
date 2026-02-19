@@ -2,13 +2,10 @@
 
 #include "../../WindowManager.h"
 
-#include "../../Graphics.h"
 
 
 
-namespace Gorgon {
-
-	namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
 		/// @cond INTERNAL
 		HCURSOR defaultcursor;
@@ -143,4 +140,3 @@ namespace Gorgon {
 			delete data;
 		}
 	}
-}

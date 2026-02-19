@@ -7,7 +7,7 @@
 #include "Assert.h"
 #include "../Filesystem.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 	
 	void CrashHandler::Backtrace() {
 		void **trace=(void**)malloc((depth+skip+2)*sizeof(void*));
@@ -125,4 +125,4 @@ namespace Gorgon { namespace Utils {
 		}
 	}
 	
-	} }
+	}

@@ -3,7 +3,7 @@
 
 #include "File.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	void Data::save(Writer& writer) const { 
 		auto start=writer.WriteObjectStart(this);
@@ -43,4 +43,4 @@ namespace Gorgon { namespace Resource {
 		return obj;
 	}
 
-} }
+}

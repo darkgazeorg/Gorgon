@@ -6,7 +6,7 @@
 #include "../Graphics/FreeType.h"
 #endif
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
     Font::Font(Graphics::GlyphRenderer& renderer) {
@@ -274,4 +274,4 @@ namespace Gorgon { namespace Resource {
 
 		tobeprepared.Clear();
     }
-} }
+}

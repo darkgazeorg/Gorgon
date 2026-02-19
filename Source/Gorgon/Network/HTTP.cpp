@@ -11,7 +11,7 @@
 #include <curl/curl.h>
 
 
-namespace Gorgon { namespace Network {
+namespace Gorgon :: Network {
 
 	/**
 	 * Enables HTTP text, data and file transfer. Supports only GET operation. 
@@ -291,4 +291,4 @@ namespace Gorgon { namespace Network {
 	}
 
 
-}}
+}

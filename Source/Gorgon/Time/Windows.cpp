@@ -1,7 +1,7 @@
 #include "../Time.h"
 #include <Windows.h>
 
-namespace Gorgon { namespace Time {
+namespace Gorgon :: Time {
 
 	unsigned long GetTime() {
 		return timeGetTime();
@@ -25,4 +25,4 @@ namespace Gorgon { namespace Time {
 		return ret;
 	}
 
-} }
+}

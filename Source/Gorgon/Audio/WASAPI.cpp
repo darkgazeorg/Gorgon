@@ -1,7 +1,6 @@
 #undef UNICODE
 
 #include "../Audio.h"
-#include "../Main.h"
 #include <initguid.h>
 #include <Audioclient.h>
 #include <Mmdeviceapi.h>
@@ -10,7 +9,7 @@
 #include <codecvt>
 #include <functiondiscoverykeys_devpkey.h>
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
 
 	IMMDeviceEnumerator *Enumerator = nullptr;
 	IMMDevice *CurrentDevice = nullptr;
@@ -297,4 +296,4 @@ namespace Gorgon { namespace Audio {
 		return available;
 	}
 
-} }
+}

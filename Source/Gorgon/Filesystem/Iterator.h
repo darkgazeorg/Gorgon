@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <iterator>
 
 #include "../Filesystem.h"
 #include "../String.h"
@@ -10,9 +9,7 @@
 #include <algorithm>
 #include <set>
 
-namespace Gorgon {
-	
-	namespace Filesystem {
+namespace Gorgon :: Filesystem {
 		
 		///
 		/// @cond INTERNAL
@@ -285,4 +282,3 @@ namespace Gorgon {
         }
 
 	}
-}

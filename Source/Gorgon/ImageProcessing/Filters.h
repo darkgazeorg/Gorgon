@@ -5,7 +5,7 @@
 #include "../Containers/Image.h"
 
 
-namespace Gorgon { namespace ImageProcessing {
+namespace Gorgon :: ImageProcessing {
     
     /// These are the policies that governs values outside the boundaries of the image. Not all
     /// values are available in all functions
@@ -349,4 +349,4 @@ namespace Gorgon { namespace ImageProcessing {
         return output;
     }
 
-} }
+}

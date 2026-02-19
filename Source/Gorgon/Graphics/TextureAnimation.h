@@ -5,7 +5,7 @@
 #include "Bitmap.h"
 #include "../Containers/Collection.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     template<class T_>
     class basic_TextureAnimationInjection {
@@ -533,4 +533,4 @@ namespace Gorgon { namespace Graphics {
 
 	using ConstImageAnimation = ConstImageAnimationProvider::AnimationType;
 
-} }
+}

@@ -17,7 +17,7 @@
 #endif
 
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     /**
      * Draws a filled circle with the specified radius to the given target. This
@@ -165,4 +165,4 @@ namespace Gorgon { namespace CGI {
             Circle<S_, P_, F_>(target.GetData(), location, radius, border, fill);
     }
     
-} }
+}

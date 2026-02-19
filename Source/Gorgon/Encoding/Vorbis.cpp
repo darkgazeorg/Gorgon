@@ -5,7 +5,7 @@
 #include <vorbis/vorbisfile.h>
 
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
     
 ///@cond internal
 namespace vorbis {
@@ -261,4 +261,4 @@ namespace vorbis {
     }
 
     
-} }
+}

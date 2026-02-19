@@ -8,8 +8,7 @@
 #include "../Exceptions.h"
 
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 
 		class Array {
 		public:
@@ -94,4 +93,3 @@ namespace Gorgon {
 		Type *ArrayType();
 
 	} 
-}

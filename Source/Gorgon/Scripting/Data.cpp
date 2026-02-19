@@ -4,7 +4,7 @@
 #include "Exceptions.h"
 #include "VirtualMachine.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 	Data::Data(const Data &other) {
 		data=other.data;
@@ -223,4 +223,4 @@ namespace Gorgon { namespace Scripting {
 	}
 	
 	
-} }
+}

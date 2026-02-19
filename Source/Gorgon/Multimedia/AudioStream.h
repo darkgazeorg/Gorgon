@@ -16,9 +16,9 @@ namespace Gorgon {
 namespace Resource {
     class Sound;
 }
-namespace Audio { namespace internal {
+namespace Audio :: internal {
     class Loop;
-} }
+}
 
 namespace Multimedia {
     

@@ -4,7 +4,7 @@
 #include "../Geometry/Transform3D.h"
 
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
 namespace internal {
     class Loop;
 }
@@ -179,4 +179,4 @@ namespace internal {
         
     }
 
-} }
+}

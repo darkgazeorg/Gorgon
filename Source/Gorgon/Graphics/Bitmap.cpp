@@ -9,7 +9,7 @@
 #include "../IO/Stream.h"
 #include "../Utils/Assert.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 	
 	void Bitmap::Prepare() {
 		if(data) {
@@ -806,4 +806,4 @@ namespace Gorgon { namespace Graphics {
         return target;
     }
 
-} }
+}

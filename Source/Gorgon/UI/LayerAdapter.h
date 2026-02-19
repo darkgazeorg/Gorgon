@@ -2,7 +2,7 @@
 
 #include "WidgetContainer.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
    
     /**
      * This class turns a layer into a widget container. This class does not
@@ -114,4 +114,4 @@ namespace Gorgon { namespace UI {
         UnitSize interiorsize;
     };
     
-} }
+}

@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <numeric>
 
-namespace Gorgon { namespace ImageProcessing {
+namespace Gorgon :: ImageProcessing {
     
     Kernel::Kernel(const std::initializer_list<std::initializer_list<Float>> &values) {
         *this = values;
@@ -165,4 +165,4 @@ namespace Gorgon { namespace ImageProcessing {
         return out;
     }
 
-} }
+}

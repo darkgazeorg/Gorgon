@@ -3,11 +3,8 @@
 #include "RuntimeFunction.h"
 #include "../Scripting.h"
 
-#include <chrono>
 
-namespace Gorgon {
-	
-	namespace Scripting {		
+namespace Gorgon :: Scripting {
 		
 		Containers::Hashmap<std::thread::id, VirtualMachine> VirtualMachine::activevms;
 		Type *ParameterTemplateType();
@@ -1147,7 +1144,6 @@ namespace Gorgon {
 		}
 		
 		void VirtualMachine::execute(const Instruction* inst) {
-			//std::this_thread::sleep_for(std::chrono::milliseconds(200));
 			//std::cout<<" | "<<CurrentScopeInstance().GetName()<<"> "<<Compilers::Disassemble(inst)<<std::endl;
 			
 			// assignment ...
@@ -1468,4 +1464,3 @@ namespace Gorgon {
 		
 
 	}
-}

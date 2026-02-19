@@ -1,6 +1,5 @@
 #include "DWM.h"
 
-#include "../../Window.h"
 #include "../../Encoding/PNG.h"
 #include "../../Utils/ScopeGuard.h"
 #include "../../Containers/Vector.h"
@@ -10,7 +9,7 @@
 #include <winuser.h>
 
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
 
 	std::vector<int> getclipboardformats() {
@@ -579,4 +578,4 @@ namespace Gorgon { namespace WindowManager {
 
 	std::vector<clipboardentry> clipboard_entries;
 
-} }
+}

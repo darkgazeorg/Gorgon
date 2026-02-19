@@ -9,7 +9,7 @@
 #include "../GL/Simple.h"
 #include "../GL/FrameBuffer.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     /// @cond INTERNAL
     namespace internal {
@@ -337,4 +337,4 @@ namespace Gorgon { namespace Graphics {
     };
     
 
-} }
+}

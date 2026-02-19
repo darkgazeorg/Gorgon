@@ -11,7 +11,7 @@
 #include "../IO/Stream.h"
 #include "../Geometry/Point.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	class Base;
 
@@ -444,4 +444,4 @@ namespace Gorgon { namespace Resource {
 		std::string filename;
 	};
 	
-} }
+}

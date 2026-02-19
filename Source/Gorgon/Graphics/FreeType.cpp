@@ -80,7 +80,7 @@ namespace {
     }
 } // end of anonymous namespace
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     struct ftlib {
         ftlib() {
@@ -1137,4 +1137,4 @@ namespace Gorgon { namespace Graphics {
 
         return {miny + (int)baseline, maxy - miny};
     }
-} }
+}

@@ -5,7 +5,7 @@
 #include "../Geometry/Point.h"
 
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
 
 	class QuadVertices {
 	public:
@@ -73,4 +73,4 @@ namespace Gorgon { namespace GL {
 		};
 	};
 
-} }
+}

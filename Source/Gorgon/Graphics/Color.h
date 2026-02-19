@@ -14,7 +14,7 @@
 
 #include <cmath>
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     /// Color modes for images
     enum class ColorMode {
@@ -1232,4 +1232,4 @@ namespace Gorgon { namespace Graphics {
         using TripletPack = Pack<Triplet<>>;
         using TripletfPack = Pack<Triplet<RGBAf>>;
     }
-} }
+}

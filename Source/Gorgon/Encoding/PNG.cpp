@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <memory>
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 	namespace png {
 		void ReadFile(png_struct_def *p, unsigned char *buf, size_t size) {
 			FileReader *reader = (FileReader*)png_get_io_ptr(p);
@@ -301,4 +301,4 @@ namespace Gorgon { namespace Encoding {
 	}
 
 	PNG Png;
-} }
+}

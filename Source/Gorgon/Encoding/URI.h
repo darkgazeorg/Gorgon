@@ -1,12 +1,11 @@
  #pragma once
 
-#include <string.h>
 #include <stdexcept>
 #include <set>
 #include <map>
 #include <vector>
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 	/// This error is thrown while URI decoding and building.
 	class URIError : public std::runtime_error {
 	public:
@@ -235,4 +234,4 @@ namespace Gorgon { namespace Encoding {
 	/// characters that are allowed
 	std::string PCTEncode(const std::string &str, const std::set<char> &allowed, bool allowalpha=true, bool allownum=true);
 	
-} }
+}

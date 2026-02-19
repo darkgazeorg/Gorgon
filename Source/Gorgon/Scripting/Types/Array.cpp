@@ -2,8 +2,7 @@
 
 #include "Array.h"
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 
 		// to avoid name clashes
 		namespace {
@@ -236,4 +235,3 @@ namespace Gorgon {
 			};
 		}
 	}
-}

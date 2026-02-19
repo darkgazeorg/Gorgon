@@ -1,6 +1,6 @@
 #include "Rectangle.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 	Rectangle::Rectangle(const IRectangleProvider &prov, bool create /*= true*/) : Gorgon::Animation::Base(create), prov(prov),
 		tl(prov.CreateTL()),
@@ -161,4 +161,4 @@ namespace Gorgon { namespace Graphics {
     }
 
 
-} }
+}

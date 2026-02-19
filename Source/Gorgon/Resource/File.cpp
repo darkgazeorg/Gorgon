@@ -18,7 +18,7 @@
 
 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	File::File() : root(new Folder), self(this, [](File*) {}) {
 		Loaders[GID::Folder] 			= {GID::Folder			, Folder::LoadResource};
@@ -269,4 +269,4 @@ namespace Gorgon { namespace Resource {
 		"This object has no data to save"
 	};
 	
-} }
+}

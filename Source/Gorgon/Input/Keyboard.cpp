@@ -1,9 +1,9 @@
 #include <string>
 #include "Keyboard.h"
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 	std::string osgetkeyname(Input::Keyboard::Key key);
-}}
+}
 
 namespace Gorgon { namespace Input { namespace Keyboard {
 

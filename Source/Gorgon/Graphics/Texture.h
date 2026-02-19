@@ -9,7 +9,7 @@
 #include "../Containers/Image.h"
 #include "Drawables.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 	/// This class represents an image depends on a GL texture. Fulfills the requirements of Graphics::TextureSource.
 	/// Unless GL::Texture created by this object, it is not destroyed by constructor. This is because a GL::Texture could be 
@@ -287,4 +287,4 @@ namespace Gorgon { namespace Graphics {
         }
     };
 
-} }
+}

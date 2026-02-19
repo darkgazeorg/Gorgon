@@ -21,7 +21,7 @@
 #endif
 
 
-namespace Gorgon { namespace OS {
+namespace Gorgon :: OS {
 
 	std::string GetEnvVar(const std::string &var) {
 		auto ret=getenv(var.c_str());
@@ -423,6 +423,6 @@ namespace Gorgon { namespace OS {
         return list;
 #endif
     }
-} }
+}
 
 

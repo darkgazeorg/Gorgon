@@ -8,16 +8,12 @@
 #include <stdexcept>
 #include <algorithm>
 #include <assert.h>
-#include <tuple>
 #include <sstream>
-
-#include "../Utils/Assert.h"
 
 #include "Iterator.h"
 #include <Gorgon/TMP.h>
 
-namespace Gorgon { 
-	namespace Containers {
+namespace Gorgon :: Containers {
 
 		/**
 		 * This class is a reference based hashmap. It uses std::map as underlying mechanism
@@ -516,4 +512,3 @@ namespace Gorgon {
 		}
 		
 	}
-}

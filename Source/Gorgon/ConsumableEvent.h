@@ -17,8 +17,7 @@
 namespace Gorgon {
 
 	/// @cond INTERNAL
-    namespace internal { 
-        namespace consumableevent {
+    namespace internal :: consumableevent {
             template<class Source_, typename... Params_>
             struct HandlerBase {
                 virtual bool Fire(std::mutex &locker, Source_ *, Params_...) = 0;
@@ -118,7 +117,6 @@ namespace Gorgon {
                 return createhandlerfn<Source_, Params_...>(fn);
             }
         }
-    }
 
 	/// @endcond
 	

@@ -2,7 +2,7 @@
 
 #include <pulse/pulseaudio.h>
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
 	extern pa_mainloop *pa_main;
 	extern pa_context  *pa_ctx ;
 	extern pa_stream   *pa_strm;
@@ -22,4 +22,4 @@ namespace Gorgon { namespace Audio {
 		pa_mainloop_iterate(pa_main, 0, NULL);
 	}
 
-} } 
+}

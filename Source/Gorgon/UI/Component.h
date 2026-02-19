@@ -4,7 +4,7 @@
 #include "../Graphics/Layer.h"
 #include "../Animation/ControlledTimer.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     /**
     * This class is an instance of a component. It simply links the component
@@ -74,4 +74,4 @@ namespace Gorgon { namespace UI {
         Animation::ControlledTimer *timer = nullptr;
     };
 
-}}
+}

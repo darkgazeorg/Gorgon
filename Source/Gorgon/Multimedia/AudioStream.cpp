@@ -12,9 +12,9 @@
 
 namespace Gorgon { 
     
-namespace Audio { namespace internal {
+namespace Audio :: internal {
     extern std::mutex ControllerMtx;
-} }
+}
     
 namespace Multimedia {
     

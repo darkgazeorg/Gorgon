@@ -2,7 +2,7 @@
 
 #include <streambuf>
 
-namespace Gorgon { namespace IO {
+namespace Gorgon :: IO {
 
 	/// This class is an input only memory stream buffer. Use MemoryInputStream
 	/// to create a stream
@@ -82,4 +82,4 @@ namespace Gorgon { namespace IO {
 		}
 	};
 
-}}
+}

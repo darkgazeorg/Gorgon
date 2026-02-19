@@ -1,6 +1,6 @@
 #include "Layer.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
     bool needsclip(Input::Mouse::EventType event) {
         switch(event) {
@@ -165,4 +165,4 @@ namespace Gorgon { namespace Input {
 		return false;
 	}
 
-} }
+}

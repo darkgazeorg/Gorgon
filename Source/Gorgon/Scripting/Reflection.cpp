@@ -1,8 +1,7 @@
 #include "../Scripting.h"
 #include "Reflection.h"
-#include "VirtualMachine.h"
 
-namespace Gorgon { namespace Scripting {	
+namespace Gorgon :: Scripting {	
 	void Function::init() {
 		if(keyword) {
 			KeywordNames.insert(name);
@@ -414,4 +413,4 @@ namespace Gorgon { namespace Scripting {
 		return dynamic_cast<const Scripting::Function&>(elm.Current().second);
 	}
 
-} }
+}

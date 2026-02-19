@@ -11,7 +11,7 @@
 
 //TODO: More overflow options, repeat bar, Disable/hide tab, Tab icons
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     template <class Key_>
     class basic_TabPanel;
 
@@ -583,4 +583,4 @@ namespace Gorgon { namespace Widgets {
     using TabPanel = basic_TabPanel<std::string>;
 
 
-} }
+}
