@@ -205,7 +205,10 @@ namespace Gorgon :: Scripting {
 			>::Type
 		>::Type cast(const std::vector<Data> &parameters) const {
 			bool b=is_nontmpref<param<P_>>::value;
-			if(P_-(parent->IsMember() && !parent->IsStatic())==this->parameters.size()-1 && repeatlast) {
+
+			(void)b;
+
+			if(P_-(parent->IsMember() && !parent->IsStatic())==(int)this->parameters.size()-1 && repeatlast) {
 				ASSERT(extractvector<param<P_>>::isvector, "Repeating parameter should be a vector");
 
 				return accumulatevector<P_>(parameters);

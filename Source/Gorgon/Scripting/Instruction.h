@@ -151,8 +151,7 @@ namespace Gorgon :: Scripting {
 			Instruction() { }
 			
 			Instruction(const Instruction &inst) :
-			Type(inst.Type), Name(inst.Name), RHS(inst.RHS), Parameters(inst.Parameters), JumpOffset(inst.JumpOffset),
-			Reference(inst.Reference)
+			Type(inst.Type), Name(inst.Name), RHS(inst.RHS), Parameters(inst.Parameters), Reference(inst.Reference), JumpOffset(inst.JumpOffset)
 			{ }
 			
 			/// Type of the instruction

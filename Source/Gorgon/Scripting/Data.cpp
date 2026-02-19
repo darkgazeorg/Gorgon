@@ -45,7 +45,7 @@ namespace Gorgon :: Scripting {
 	}
 	
 	Data::Data(const Type *type, const Any &data, bool isreference, bool isconstant) : 
-		type(type), data(data), 
+		data(data), type(type),
 		isreference(isreference), isconstant(isconstant)
 	{
 		check();

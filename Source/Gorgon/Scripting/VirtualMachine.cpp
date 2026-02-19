@@ -12,8 +12,8 @@ namespace Gorgon :: Scripting {
 		extern Library Math;
 
 		VirtualMachine::VirtualMachine(bool automaticreset, std::ostream &out, std::istream &in) : 
-		Libraries(libraries), output(&out), input(&in), 
-		defoutput(&out), definput(&in), automaticreset(automaticreset), temporaries(300, Data::Invalid())
+		Libraries(libraries), automaticreset(automaticreset),
+		output(&out), input(&in), defoutput(&out), definput(&in), temporaries(300, Data::Invalid())
 		{
 			Activate();
 			init_builtin();

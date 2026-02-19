@@ -11,7 +11,7 @@ namespace Gorgon :: String {
 	/// Tokenizer is a forward iterator that tokenizes a given string. This class only
 	/// supports single character delimeters, however, its possible to specify more than
 	/// one delimeter.
-	class Tokenizer : public std::iterator<std::forward_iterator_tag, std::string> {
+	class Tokenizer {
 	public:
 		
 		/// Creates an empty tokenizer. Effectively creates an end iterator.
@@ -21,8 +21,7 @@ namespace Gorgon :: String {
 		/// @param  str string to be tokenized
 		/// @param  delimeters is the delimeters to use while tokenizing
 		Tokenizer(const std::string &str, const std::string &delimeters) : 
-		      text(str), Delimeters(delimeters) {
-			position=0;
+	      Delimeters(delimeters), text(str) {
 
 			Next();
 		}
@@ -107,7 +106,7 @@ namespace Gorgon :: String {
 		/// Current token
 		std::string token;
 		/// Position of the next token. std::string::npos denotes the iterator reached the end.
-		std::size_t position;
+		std::size_t position = 0;
 		
 	private:
 		const static Tokenizer endit;

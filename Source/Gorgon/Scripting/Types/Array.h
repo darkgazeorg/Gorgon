@@ -12,9 +12,9 @@ namespace Gorgon :: Scripting {
 
 		class Array {
 		public:
-			Array(const Type &type) : type(&type), Elements(elements) {}
+			Array(const Type &type) : Elements(elements), type(&type) {}
 			
-			Array(const Array &arr) : type(arr.type), elements(arr.elements), Elements(elements) {}
+			Array(const Array &arr) : Elements(elements), elements(arr.elements), type(arr.type) {}
 			
 			
 			Data GetItemData(unsigned index) const {

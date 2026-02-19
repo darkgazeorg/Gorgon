@@ -114,7 +114,7 @@ namespace Gorgon :: Utils {
         
 		/// Default constructor. Allows you to specify a section
 		Logger(const std::string &section = "", bool marktime = true, bool markdate = false) : 
-			section(section), marktime(marktime), markdate(markdate) 
+			marktime(marktime), markdate(markdate), section(section)
 		{ }
 
 		/// Default constructor. Allows you to specify a section
@@ -125,7 +125,7 @@ namespace Gorgon :: Utils {
 		Logger(bool marktime, bool markdate = false) : Logger("", marktime, markdate) { }
 		
 		Logger(std::ostream &stream, const std::string &section = "", bool marktime = true, bool markdate = false) : 
-			stream(&stream), section(section), marktime(marktime), markdate(markdate)
+			stream(&stream), marktime(marktime), markdate(markdate), section(section)
 		{ 
 			
 		}

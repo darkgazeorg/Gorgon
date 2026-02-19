@@ -44,7 +44,7 @@ namespace Gorgon :: Graphics {
 
 		/// Moves a texture. This newly created texture object will own the texture if the other object
 		/// owns it
-		Texture(Texture &&other) : id(other.id), mode(other.mode), size(other.size), owner(other.owner) {
+		Texture(Texture &&other) : id(other.id), size(other.size), mode(other.mode), owner(other.owner) {
 			memcpy(coordinates, other.coordinates, sizeof(coordinates));
 			other.owner=false;
 		}

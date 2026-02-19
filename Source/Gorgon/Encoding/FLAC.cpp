@@ -65,9 +65,9 @@ namespace Encoding {
 
             unsigned long currentpos = 0;
 
-            int channels = 0;
+            unsigned channels = 0;
 
-            int rate = 0;
+            unsigned rate = 0;
             
             bool autoalloc = true;
         };
@@ -81,7 +81,7 @@ namespace Encoding {
         class streamread : public streamdata {
         public:
             streamread(std::istream &stream, size_t len) : stream(stream), len(len) {
-                if(len == -1) {
+                if(len == (size_t)-1) {
                     auto pos = stream.tellg();
                     stream.seekg(0, std::ios::end);
                     this->len = stream.tellg();
@@ -226,6 +226,7 @@ namespace Encoding {
 
         *stream_length = ((flac::streamread*)client_data)->len;
         auto &input = ((flac::streamread*)client_data)->stream;
+        (void)input;
 
         
 

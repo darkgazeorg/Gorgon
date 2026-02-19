@@ -407,7 +407,7 @@ namespace Gorgon :: Scripting {
 		std::map<std::string, std::string, String::CaseInsensitiveLess> ambiguoussymbols;
 		
 		/// Constructor requires an input source. Execution scopes can share same input source
-		ScopeInstance(Scope &scope, ScopeInstance *parent) : scope(scope), parent(parent) {
+		ScopeInstance(Scope &scope, ScopeInstance *parent) : parent(parent), scope(scope) {
 			name=scope.GetName()+" #"+String::From(scope.nextid++);
 		}
 		

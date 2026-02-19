@@ -105,10 +105,13 @@ namespace Gorgon :: Scripting {
 
 	
 	Type::Type(const std::string& name, const std::string& help, const Any& defaultvalue, TMP::RTTH *typeinterface, bool isref):
-		Namespace(name, help), InstanceMembers(instancemembers), Constructor(constructor),
-		InheritsFrom(inheritsfrom), defaultvalue(defaultvalue),
-		referencetype(isref), TypeInterface(*typeinterface), Parents(parents), InheritedSymbols(inheritedsymbols),
-		constructor("{}", "Constructs "+name, this, Containers::Collection<Function::Overload>(), StaticTag)
+		Namespace(name, help),
+		Constructor(constructor), Parents(parents),
+		InheritsFrom(inheritsfrom), InheritedSymbols(inheritedsymbols),
+		InstanceMembers(instancemembers), TypeInterface(*typeinterface),
+		defaultvalue(defaultvalue),
+		constructor("{}", "Constructs "+name, this, Containers::Collection<Function::Overload>(), StaticTag),
+		referencetype(isref)
 	{
 		ASSERT(
 			isref ? 

@@ -139,13 +139,14 @@ namespace Gorgon :: Graphics {
             }
 
         private:
-            TextureTarget::DrawMode drawmode = TextureTarget::Normal;
 
             GL::QuadVertices vertices;
             Geometry::Pointf *texture = nullptr;
 
             const TextureSource *source = nullptr;
             RGBAf color;
+            
+            TextureTarget::DrawMode drawmode = TextureTarget::Normal;
         };
     }
     /// @endcond

@@ -476,23 +476,23 @@ namespace Gorgon :: Containers {
                 
                 if(IO::ReadString(file, 4) != "RIFF") return false;
                 
-                if(IO::ReadInt32(file) <= 36) return false;
+                if(IO::ReadUInt32(file) <= 36) return false;
                 
                 if(IO::ReadString(file, 4) != "WAVE") return false;
             
                 if(IO::ReadString(file, 4) != "fmt ") return false;
                 
-                auto fmtsize = IO::ReadInt32(file);
+                auto fmtsize = IO::ReadUInt32(file);
                 
                 if(fmtsize < 16) return false;
                 
                 if(IO::ReadInt16(file) != 1) return false; //must be PCM
                 
-                int channelcnt = IO::ReadInt16(file);
-                samplerate     = IO::ReadInt32(file);                
-                int byterate   = IO::ReadInt32(file);                
-                    blocksize  = IO::ReadInt16(file);                
-                    samplesize = IO::ReadInt16(file);
+                unsigned channelcnt = IO::ReadUInt16(file);
+                samplerate          = IO::ReadUInt32(file);                
+                unsigned  byterate  = IO::ReadUInt32(file);                
+                blocksize  = IO::ReadUInt16(file);                
+                samplesize = IO::ReadUInt16(file);
                 
                 if(fmtsize != 16)
                     file.seekg(fmtsize-16, std::ios::cur);
@@ -529,8 +529,8 @@ namespace Gorgon :: Containers {
                 
                 if(!file) return false;
                 
-                while(!file.eof() && file.tellg() < target) {
-                    for(int c = 0; c<channelcnt; c++) {
+                while(!file.eof() && (size_t)file.tellg() < target) {
+                    for(unsigned c = 0; c<channelcnt; c++) {
                         if(samplesize == 8) {
                             *ptr++ = (IO::ReadUInt8(file) / 255.f) * 2.f - 1.f;
                         }
@@ -545,7 +545,7 @@ namespace Gorgon :: Containers {
                         file.seekg(skip, std::ios::cur);
                 }
                 
-                if((long)file.tellg() != target) return false;
+                if((size_t)file.tellg() != target) return false;
 
                 this->channels = std::move(channels);
                 

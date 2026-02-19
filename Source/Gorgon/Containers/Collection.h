@@ -323,13 +323,13 @@ namespace Gorgon :: Containers {
                 if(before<0 || before>(long)list.size())
                     throw std::out_of_range("Invalid location");
 
-                if(before==list.size()) {
+                if(before == (long)list.size()) {
                     return Add(data);
                 }
 
                 list.resize(list.size()+1);
                 
-                for(long i=(long)list.size()-1;i>before;i--)
+                for(long i=(long)list.size()-1; i>before; i--)
                     list[i]=list[i-1];
 
                 list[before]=data;
@@ -379,22 +379,22 @@ namespace Gorgon :: Containers {
             void MoveBefore(long index, long before) {
                 if(before == -1)
                     before = (long)list.size();
-                if(index>=list.size())
+                if(index >= (long)list.size())
                     throw std::out_of_range("Invalid location");
-                if(before>list.size())
+                if(before > (long)list.size())
                     throw std::out_of_range("Invalid location");
 
                 if(index==before)
                     return;
 
-                if(index>before) {
+                if(index > before) {
                     T_ *t=list[index];
                     for(long i=index; i>before; i--)
                         list[i]=list[i-1];
 
                     list[before]=t;
                 }
-                else if(before==list.size()) {
+                else if(before == (long)list.size()) {
                     T_ *t=list[index];
 
                     for(long i=index; i<(long)list.size()-1; i++)

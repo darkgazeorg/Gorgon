@@ -1,5 +1,4 @@
 #include "BitmapFont.h"
-#include "../Utils/Assert.h"
 #include "../Filesystem/Iterator.h"
 #include "Bitmap.h"
 #include "../Filesystem.h"
@@ -85,9 +84,9 @@ namespace Gorgon :: Graphics {
             auto glyph = glyphmap.at(chr);
             glyph.image->Draw(target, location + glyph.offset, color);
         }
-		else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
-			auto glyph = glyphmap.at(0);
-			glyph.image->Draw(target, location + glyph.offset, color);
+        else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
+            auto glyph = glyphmap.at(0);
+            glyph.image->Draw(target, location + glyph.offset, color);
 		}
     }
     
@@ -190,9 +189,6 @@ namespace Gorgon :: Graphics {
 			bool multichar = false;
 
 			int minval = 0;
-
-			bool searchprefix = true;
-			bool first = true;
 
 			//prefix search
 			if(files.GetSize() != 1 && prefix == "") {

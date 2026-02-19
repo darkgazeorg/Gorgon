@@ -78,7 +78,7 @@ namespace Gorgon :: Encoding {
 		unsigned char build = 0;
 		for(auto c : src) {
 			if(pcte) {
-				auto digit = hextodec[c];
+				auto digit = hextodec[c<0 ? 255 : (int)c];
 				if(digit==-1) {
 					throw URIError(String::Concat("Non-hex character at URI: '", c, "'"));
 				}

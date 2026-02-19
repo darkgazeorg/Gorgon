@@ -59,7 +59,7 @@ namespace Gorgon :: Scripting {
 		}
 	}
 	
-	Scope::Scope(InputProvider &provider, const std::string &name, bool terminal) : provider(&provider), name(name), terminal(terminal) {
+	Scope::Scope(InputProvider &provider, const std::string &name, bool terminal) : name(name), provider(&provider), terminal(terminal) {
 		switch(provider.GetDialect()) {
 			case InputProvider::Intermediate:
 				parser=new Compilers::Intermediate(this);
@@ -72,7 +72,7 @@ namespace Gorgon :: Scripting {
 		}
 	}
 	
-	Scope::Scope(Scope& parent, const std::string& name, bool terminal) : parent(&parent), name(name), terminal(terminal) {
+	Scope::Scope(Scope& parent, const std::string& name, bool terminal) : name(name), parent(&parent), terminal(terminal) {
 		
 	}
 

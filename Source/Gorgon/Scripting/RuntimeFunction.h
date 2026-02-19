@@ -26,11 +26,11 @@ namespace Gorgon :: Scripting {
 			bool returnsref, bool returnsconst, 
 			bool implicit
 		) : 
-		  scope(parent, ""), 
 		  Function::Overload(
 			returntype, parameters, stretchlast, repeatlast, accessible,
 			constant, returnsref, returnsconst, implicit
-		  ) 
+		  ),
+		  scope(parent, "") 
 		{ }
 		
 		Scope &GetParentScope() {

@@ -2,6 +2,7 @@
 
 #include "AdvancedPrinter.h"
 #include "Gorgon/Graphics/AdvancedPrinterConstants.h"
+#include "Gorgon/Graphics/Font.h"
 
 //empty macro parameter in msvc
 #pragma warning(disable:4003)
@@ -823,7 +824,7 @@ namespace Gorgon :: Graphics {
 
             if(nl == 0) {
                 //clean spaces at the start of the next line
-                for(; end<acc.size(); end++) {
+                for(; end<(int)acc.size(); end++) {
                     //send the index with do not draw glyph
                     if(!glyphr(
                         *acc[end].renderer, 0xffff,
@@ -933,7 +934,7 @@ namespace Gorgon :: Graphics {
             newline = ind == 0;
 
             int regionendy = cur.Y + lineh;
-            if(nl != -1) {
+            if(nl != (Glyph)-1) {
                 cur.Y += lineh;
                 curunderlineoff += lineh;
                 curstrikeoff    += lineh;
@@ -1082,7 +1083,7 @@ namespace Gorgon :: Graphics {
             //END
 
             //if requested do paragraph
-            if(nl != -1 && beginparag)
+            if(nl != (size_t)-1 && beginparag)
                 cur.Y += paragraphspacing(maxh, printer->GetParagraphSpacing());
 
             //BEGIN Reset

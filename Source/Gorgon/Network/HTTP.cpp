@@ -233,11 +233,12 @@ namespace Gorgon :: Network {
 			runner=std::thread(&Nonblocking::operation, this);
 		}
 
-		Nonblocking::Nonblocking() : isrunning(false),
+		Nonblocking::Nonblocking() :
 			TextTransferCompletedEvent(this),
 			DataTransferCompletedEvent(this),
 			FileTransferCompletedEvent(this),
-			TransferErrorEvent(this)
+			TransferErrorEvent(this),
+			isrunning(false)
 		{
 
 			Initialize();

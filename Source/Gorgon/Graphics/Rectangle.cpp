@@ -2,7 +2,7 @@
 
 namespace Gorgon :: Graphics {
 
-	Rectangle::Rectangle(const IRectangleProvider &prov, bool create /*= true*/) : Gorgon::Animation::Base(create), prov(prov),
+	Rectangle::Rectangle(const IRectangleProvider &prov, bool create /*= true*/) : Gorgon::Animation::Base(create),
 		tl(prov.CreateTL()),
 		tm(prov.CreateTM()),
 		tr(prov.CreateTR()),
@@ -11,7 +11,8 @@ namespace Gorgon :: Graphics {
 		mr(prov.CreateMR()),
 		bl(prov.CreateBL()),
 		bm(prov.CreateBM()),
-		br(prov.CreateBR())
+		br(prov.CreateBR()),
+		prov(prov)
     {
 		if(HasController()) {
 			tl.SetController(GetController());
@@ -26,7 +27,7 @@ namespace Gorgon :: Graphics {
 		}
 	}
 
-	Rectangle::Rectangle(const IRectangleProvider &prov, Gorgon::Animation::ControllerBase &timer) : Gorgon::Animation::Base(timer), prov(prov),
+	Rectangle::Rectangle(const IRectangleProvider &prov, Gorgon::Animation::ControllerBase &timer) : Gorgon::Animation::Base(timer),
 		tl(prov.CreateTL()),
 		tm(prov.CreateTM()),
 		tr(prov.CreateTR()),
@@ -35,7 +36,8 @@ namespace Gorgon :: Graphics {
 		mr(prov.CreateMR()),
 		bl(prov.CreateBL()),
 		bm(prov.CreateBM()),
-		br(prov.CreateBR())
+		br(prov.CreateBR()),
+		prov(prov)
     {
 		if(HasController()) {
 			tl.SetController(GetController());
