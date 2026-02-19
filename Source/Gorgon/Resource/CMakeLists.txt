@@ -30,7 +30,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Resource.cpp
 		Animation.cpp
 		Base.cpp

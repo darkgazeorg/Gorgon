@@ -10,7 +10,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Base.cpp
 		Flow.cpp
 		List.cpp

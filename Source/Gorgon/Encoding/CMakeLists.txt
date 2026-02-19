@@ -11,7 +11,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         LZMA.cpp
         PNG.cpp
         URI.cpp
@@ -28,7 +27,6 @@ if(FLAC)
     )
     target_sources(Gorgon
         PRIVATE
-        FILES
             FLAC.cpp
     )
 endif()
@@ -43,7 +41,6 @@ if(VORBIS)
     )
     target_sources(Gorgon
         PRIVATE
-        FILES
             Vorbis.cpp
     )
 endif()

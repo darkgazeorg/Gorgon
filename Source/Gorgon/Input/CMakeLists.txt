@@ -13,7 +13,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Input.cpp
 		DnD.cpp
 		Layer.cpp

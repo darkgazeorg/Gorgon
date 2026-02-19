@@ -12,7 +12,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         FrameBuffer.cpp
         Shader.cpp
 )
@@ -25,5 +24,5 @@ if(OPENGL)
         target_link_libraries(Gorgon PRIVATE ${OPENGL_LIBRARIES})
     endif()
 
-    target_sources(Gorgon PRIVATE FILES OpenGL.cpp)
+    target_sources(Gorgon PRIVATE OpenGL.cpp)
 endif()

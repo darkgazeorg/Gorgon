@@ -20,7 +20,6 @@ target_sources(Gorgon
 if(SCRIPTING)
     target_sources(Gorgon
         PRIVATE
-        FILES
             Scripting.cpp
     )
 endif()

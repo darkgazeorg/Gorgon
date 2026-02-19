@@ -8,21 +8,18 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         OS.cpp
 )
 
 if(WIN32)
     target_sources(Gorgon
         PRIVATE
-        FILES
             Win32.cpp
     )
     target_link_libraries(Gorgon PRIVATE Secur32 Netapi32)
 else()
     target_sources(Gorgon
         PRIVATE
-        FILES
             Linux.cpp
     )
 endif()

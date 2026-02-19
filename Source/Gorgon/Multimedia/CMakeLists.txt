@@ -11,7 +11,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Multimedia.cpp
 		AudioStream.cpp
 		Wave.cpp

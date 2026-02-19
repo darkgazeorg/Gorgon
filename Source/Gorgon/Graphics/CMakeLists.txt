@@ -33,7 +33,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		AdvancedPrinter.cpp
 		Bitmap.cpp
 		Color.cpp
@@ -59,12 +58,11 @@ if(FREETYPE)
     )
     target_sources(Gorgon
         PRIVATE
-        FILES
             FreeType.cpp
     )
 endif()
 
-EmbedShaders(ShaderSrc.strings.gen Shaders.cpp 
+target_embed_shaders(Gorgon ShaderSrc.strings.gen
 	"Shaders/Simple_V.glsl"
 	"Shaders/NoTex_V.glsl"	
 	"Shaders/Simple_F.glsl"	
@@ -74,7 +72,7 @@ EmbedShaders(ShaderSrc.strings.gen Shaders.cpp
 	"Shaders/ToMaskFill_F.glsl"	
 )
 
-EmbedShaders(MaskedShaderSrc.strings.gen Shaders.cpp 
+target_embed_shaders(Gorgon MaskedShaderSrc.strings.gen
 	"Shaders/Masked_V.glsl"
 	"Shaders/MaskedAlpha_F.glsl"	
 	"Shaders/MaskedNoTex_V.glsl"	

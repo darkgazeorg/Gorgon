@@ -9,7 +9,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         X11.cpp
         Clipboard.cpp
         DnD.cpp

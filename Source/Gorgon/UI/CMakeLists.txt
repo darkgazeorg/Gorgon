@@ -26,7 +26,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         UI.cpp
         ComponentStack.cpp
         ScrollingWidget.cpp

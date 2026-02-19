@@ -11,7 +11,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Audio.cpp
 		Controllers.cpp
 		Environment.cpp
@@ -20,7 +19,6 @@ target_sources(Gorgon
 if(AUDIOLIB STREQUAL "PULSE")
     target_sources(Gorgon
         PRIVATE
-        FILES
             PulseAudio.cpp
     )
 endif()
@@ -28,7 +26,6 @@ endif()
 if(AUDIOLIB STREQUAL "WASAPI")
     target_sources(Gorgon
         PRIVATE
-        FILES
             WASAPI.cpp
     )
     target_sources(Gorgon

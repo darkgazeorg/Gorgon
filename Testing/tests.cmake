@@ -1,6 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.25)
-
-SET(ManualTests
+set(ManualTests
 	AdvancedText
 	Animation
 	Clipboard
@@ -21,7 +19,7 @@ SET(ManualTests
 	UI_WidgetTest
 )
 
-SET(UnitTests
+set(UnitTests
 	Enum
 	Event
 	Filesystem
@@ -41,11 +39,8 @@ SET(UnitTests
 	IO
 )
 
-
-option(UNIT_TESTS "Enable all unit tests." OFF)
-
-IF(${SCRIPTING})
-	LIST(APPEND UnitTests
+if(${SCRIPTING})
+	list(APPEND UnitTests
 		Scripting
 	)
-ENDIF()
+endif()

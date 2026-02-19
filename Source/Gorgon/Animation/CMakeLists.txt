@@ -12,6 +12,5 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Animation.cpp
 )

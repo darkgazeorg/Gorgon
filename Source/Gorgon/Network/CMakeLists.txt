@@ -9,7 +9,6 @@ if(HTTP)
     )
     target_sources(Gorgon
         PRIVATE
-        FILES
             HTTP.cpp
     )
 endif()

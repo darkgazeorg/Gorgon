@@ -12,7 +12,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		String.cpp
 		Markdown.cpp
 )

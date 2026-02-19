@@ -22,7 +22,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Scripting.cpp
 		Builtin.cpp
 		Data.cpp

@@ -8,7 +8,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
         DWM.cpp
         Clipboard.cpp
         DnD.cpp

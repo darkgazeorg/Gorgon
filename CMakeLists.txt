@@ -16,6 +16,7 @@ add_library(Gorgon STATIC "")
 
 include(Options)
 include(Compiler)
+include(Functions)
 
 add_subdirectory(Source/Gorgon)
 get_target_property(GORGON_SOURCES Gorgon SOURCES)

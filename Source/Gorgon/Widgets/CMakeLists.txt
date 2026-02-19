@@ -31,7 +31,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
-    FILES
 		Button.cpp
 		Checkbox.cpp
 		ColorPlane.cpp
