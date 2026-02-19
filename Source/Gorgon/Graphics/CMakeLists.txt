@@ -1,3 +1,23 @@
+
+target_embed_shaders(Gorgon ShaderSrc.strings.gen
+	"Shaders/Simple_V.glsl"
+	"Shaders/NoTex_V.glsl"	
+	"Shaders/Simple_F.glsl"	
+	"Shaders/Alpha_F.glsl"	
+	"Shaders/Fill_F.glsl"	
+	"Shaders/ToMask_F.glsl"	
+	"Shaders/ToMaskFill_F.glsl"	
+)
+
+target_embed_shaders(Gorgon MaskedShaderSrc.strings.gen
+	"Shaders/Masked_V.glsl"
+	"Shaders/MaskedAlpha_F.glsl"	
+	"Shaders/MaskedNoTex_V.glsl"	
+	"Shaders/MaskedFill_F.glsl"
+	"Shaders/Masked_F.glsl"
+)
+
+
 target_sources(Gorgon
     PUBLIC
     FILE_SET HEADERS
@@ -61,21 +81,3 @@ if(FREETYPE)
             FreeType.cpp
     )
 endif()
-
-target_embed_shaders(Gorgon ShaderSrc.strings.gen
-	"Shaders/Simple_V.glsl"
-	"Shaders/NoTex_V.glsl"	
-	"Shaders/Simple_F.glsl"	
-	"Shaders/Alpha_F.glsl"	
-	"Shaders/Fill_F.glsl"	
-	"Shaders/ToMask_F.glsl"	
-	"Shaders/ToMaskFill_F.glsl"	
-)
-
-target_embed_shaders(Gorgon MaskedShaderSrc.strings.gen
-	"Shaders/Masked_V.glsl"
-	"Shaders/MaskedAlpha_F.glsl"	
-	"Shaders/MaskedNoTex_V.glsl"	
-	"Shaders/MaskedFill_F.glsl"
-	"Shaders/Masked_F.glsl"
-)

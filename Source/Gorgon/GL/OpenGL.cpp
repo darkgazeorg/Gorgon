@@ -17,9 +17,6 @@
 
 
 
-#ifndef LINUX
-PFNGLACTIVETEXTUREPROC					glActiveTexture;
-#endif
 PFNGLDRAWBUFFERSPROC 					glDrawBuffers;
 PFNGLGETATTRIBLOCATIONPROC				glGetAttribLocation;
 PFNGLBINDATTRIBLOCATIONPROC				glBindAttribLocation;

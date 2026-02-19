@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include <map>
 #include <string>
 
 #include "../GL/Shader.h"
@@ -13,7 +12,8 @@
 #include "Color.h"
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
+
 	enum class ShaderMode {
 		Normal,
 		ToMask
@@ -312,4 +312,4 @@ namespace Gorgon { namespace Graphics {
 	};
 
 
-} }
+}

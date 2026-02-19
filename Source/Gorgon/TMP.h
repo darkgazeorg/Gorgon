@@ -350,7 +350,7 @@ namespace Gorgon {
 		template<>
 		class AbstractRTT<void> : public RTTS {
 			
-			virtual RTTS *Duplicate() const {
+			virtual RTTS *Duplicate() const override {
 				return new AbstractRTT<void>();
 			}
 			
