@@ -95,7 +95,7 @@ namespace Gorgon :: Multimedia {
     bool Wave::Import(const std::string &filename) {
         auto dotpos = filename.find_last_of('.');
 
-        if(dotpos != -1) {
+        if(dotpos != std::string::npos) {
             auto ext = filename.substr(dotpos+1);
 
             if(String::ToLower(ext) == "wav") {
@@ -156,7 +156,7 @@ namespace Gorgon :: Multimedia {
     bool Wave::Export(const std::string &filename) {
         auto dotpos = filename.find_last_of('.');
 
-        if(dotpos != -1) {
+        if(dotpos != std::string::npos) {
             auto ext = filename.substr(dotpos+1);
 
             if(String::ToLower(ext) == "wav") {

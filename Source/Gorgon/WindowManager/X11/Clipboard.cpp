@@ -76,7 +76,7 @@ namespace Gorgon :: WindowManager {
                 
                 Atom *atoms = (Atom*)data;
                 
-                for(int i=0;i<bytes/4;i++) {
+                for(std::size_t i=0;i<bytes/4;i++) {
                     ret.push_back(atoms[i]);
                 }
                 

@@ -50,7 +50,7 @@ namespace Gorgon :: WindowManager {
 
         XQueryTree(display, parent, &w, &w, &children, &child_count);
         
-        for(int i=0; i<child_count; i++) {
+        for(std::size_t i=0; i<child_count; i++) {
             Atom actual_type;
             int actual_format;
             unsigned long item_count;

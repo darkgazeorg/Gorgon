@@ -304,7 +304,7 @@ namespace Gorgon :: Scripting {
 				restoptional=true;
 				//should either be a repeating parameter or default value should be set
 				ASSERT(
-					p.GetDefaultValue().IsValid() || (i==parameters.size()-1 && repeatlast),
+					p.GetDefaultValue().IsValid() || (i==(int)parameters.size()-1 && repeatlast),
 					"An optional parameter #"+String::From(i+1)+" should have its default value set\n "
 					"in function "+parent->GetName()
 				);

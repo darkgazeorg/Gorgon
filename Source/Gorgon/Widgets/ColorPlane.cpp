@@ -44,7 +44,7 @@ namespace Gorgon :: Widgets {
             location -= alphaoffset;
             l = Round(location) / stride;
             
-            if(l.Y == 0 && l.X < huetable.size()) {
+            if(l.Y == 0 && l.X < (int)huetable.size()) {
                 found = true;
                 color = this->color;
                 color.A = 1.f / (huetable.size()-1) * l.X;
@@ -59,30 +59,30 @@ namespace Gorgon :: Widgets {
             
             if(lctable.size()>8) {
                 if(l.Y == 0) {
-                    if(l.X >= huetable.size() / 2) {
+                    if(l.X >= (int)huetable.size() / 2) {
                         halftablerow = 1;
                         l.X -= (int)huetable.size() / 2;
                     }
-                    else if(l.X < huetable.size()){
+                    else if(l.X < (int)huetable.size()){
                         halftablerow = 0;
                     }
                 }
                 if(l.Y == 1) {
-                    if(l.X >= huetable.size() / 2) {
+                    if(l.X >= (int)huetable.size() / 2) {
                         halftablerow = 3;
                         l.X -= (int)huetable.size() / 2;
                     }
-                    else if(l.X < huetable.size()){
+                    else if(l.X < (int)huetable.size()){
                         halftablerow = 2;
                     }
                 }
             }
             else if(l.Y == 0) {
-                if(l.X >= huetable.size() / 2) {
+                if(l.X >= (int)huetable.size() / 2) {
                     halftablerow = 3;
                     l.X -= (int)huetable.size() / 2;
                 }
-                else if(l.X < huetable.size()){
+                else if(l.X < (int)huetable.size()){
                     halftablerow = 2;
                 }
             }
@@ -113,7 +113,7 @@ namespace Gorgon :: Widgets {
             location -= colortableoffset;
             l = Round(location) / stride;
             
-            if(l.Y < lctable.size() && l.X < huetable.size()) {
+            if(l.Y < (int)lctable.size() && l.X < (int)huetable.size()) {
                 found = true;
                 color = Graphics::LChAf(float(lctable[l.Y].first), float(lctable[l.Y].second), float(huetable[l.X]));
             }
@@ -125,7 +125,7 @@ namespace Gorgon :: Widgets {
             location -= grayscaleoffset;
             l = Round(location) / stride;
             
-            if(l.Y == 0 && l.X < huetable.size()) {
+            if(l.Y == 0 && l.X < (int)huetable.size()) {
                 found = true;
                 color = Graphics::LChAf(100.f/(huetable.size()-1) * l.X, 0, 0);
             }
@@ -228,7 +228,7 @@ namespace Gorgon :: Widgets {
         
         //grayscale
         grayscaleoffset = {x, y};
-        for(int c=0; c<huetable.size(); c++) {
+        for(std::size_t c=0; c<huetable.size(); c++) {
             drawrect(Graphics::LChAf(100.f/(huetable.size()-1)*c, 0, 0));
         }
         y += h + 4;
@@ -249,10 +249,10 @@ namespace Gorgon :: Widgets {
         halftableoffset = {x, y};
         //additional low constrast colors
         if(lctable.size() > 8) {
-            for(int hue=0; hue<huetable.size()/2; hue++) {
+            for(std::size_t hue=0; hue<huetable.size()/2; hue++) {
                 drawrect(Graphics::LChAf(20, 10, float(huetable[hue*2])));
             }
-            for(int hue=0; hue<huetable.size()/2; hue++) {
+            for(std::size_t hue=0; hue<huetable.size()/2; hue++) {
                 drawrect(Graphics::LChAf(80, 15, float(huetable[hue*2])));
             }
             y += h + 2;
@@ -260,10 +260,10 @@ namespace Gorgon :: Widgets {
         
         //compress very dark colors
         x = 2;
-        for(int hue=0; hue<huetable.size()/2; hue++) {
+        for(std::size_t hue=0; hue<huetable.size()/2; hue++) {
             drawrect(Graphics::LChAf(8.f, 25.f, float(huetable[hue*2])));
         }
-        for(int hue=0; hue<huetable.size()/2; hue++) {
+        for(std::size_t hue=0; hue<huetable.size()/2; hue++) {
             drawrect(Graphics::LChAf(5.f, 75.f, float(huetable[hue*2])));
         }
         y += h + 2;
@@ -281,7 +281,7 @@ namespace Gorgon :: Widgets {
             y += 2;
             x = 2;
             alphaoffset = {x, y};
-            for(int a=0; a<huetable.size(); a++) {
+            for(std::size_t a=0; a<huetable.size(); a++) {
                 auto c = this->color;
                 c.A = std::round(1000.f/(huetable.size()-1) * a) / 1000;
                 CGI::Rectangle(display, {x, y, w, h}, CGI::SolidFill<>(c));

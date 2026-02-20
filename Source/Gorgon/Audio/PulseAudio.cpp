@@ -56,7 +56,7 @@ namespace Gorgon :: Audio {
 		return true;
 	}
 	
-    bool wait_pa_op(pa_operation* pa_op, int timeout = 1000) {
+    bool wait_pa_op(pa_operation* pa_op, unsigned long timeout = 1000) {
         if(pa_op == nullptr) {
             //pa_error
             Log.Log("A wait operation is failed: ")<<pa_strerror(pa_context_errno(pa_ctx));

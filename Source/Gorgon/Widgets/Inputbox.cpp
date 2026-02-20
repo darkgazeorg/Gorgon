@@ -317,7 +317,7 @@ namespace Gorgon { namespace Widgets { namespace internal {
             eraseselected();
         }
 
-        if(selstart.byte == display.size())
+        if(selstart.byte == (int)display.size())
             String::AppendUnicode(display, c);
         else
             String::InsertUnicode(display, selstart.byte, c);
@@ -362,7 +362,7 @@ namespace Gorgon { namespace Widgets { namespace internal {
             sellen = selstart;
         }
         
-        if(selstart.byte > display.size()) { //equal is fine
+        if(selstart.byte > (int)display.size()) { //equal is fine
             selstart = {glyphcount, (int)display.size()};
         }
         if((std::size_t)selstart.byte + sellen.byte >= display.size()) {

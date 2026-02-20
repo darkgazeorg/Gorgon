@@ -115,7 +115,7 @@ namespace internal {
     bool AudioStream::Stream(const std::string &filename) {
         auto dotpos = filename.find_last_of('.');
 
-        if(dotpos != -1) {
+        if(dotpos != std::string::npos) {
             auto ext = filename.substr(dotpos+1);
 
             if(String::ToLower(ext) == "wav") {
@@ -201,13 +201,13 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
@@ -247,13 +247,13 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
@@ -295,13 +295,13 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
@@ -321,7 +321,7 @@ namespace internal {
             Audio::Log << "Seek detected: " << seektarget << " currently at " << lastsample;
             
             //find the last sample in the buffers
-            for(int i=0; i<buffers.size(); i++) {
+            for(std::size_t i=0; i<buffers.size(); i++) {
                 if(seektarget >= buffers[i].beg  && seektarget < buffers[i].end) {
                     Audio::Log << "Seek done immediately";
                     seekcomplete = true;
@@ -333,7 +333,7 @@ namespace internal {
             int sampleind = -1;
             
             //find the last sample in the buffers
-            for(int i=0; i<buffers.size(); i++) {
+            for(std::size_t i=0; i<buffers.size(); i++) {
                 if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end) {
                     sampleind = i;
                     break;
@@ -361,7 +361,7 @@ namespace internal {
         unsigned long startoff = lastsample;
         
         //find the last sample in the buffers
-        for(int i=0; i<buffers.size(); i++) {
+        for(std::size_t i=0; i<buffers.size(); i++) {
             if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end)
                 sampleind = i;
         }
@@ -370,7 +370,7 @@ namespace internal {
             loadbuffer = 0;
         }
         else {
-            for(int i=1; i<buffers.size(); i++) {
+            for(std::size_t i=1; i<buffers.size(); i++) {
                 auto cur = int((sampleind + i)%buffers.size());
                 auto prev = (cur + buffers.size() - 1) % buffers.size();
                 auto p = buffers[prev].end;

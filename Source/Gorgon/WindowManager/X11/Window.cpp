@@ -508,7 +508,7 @@ namespace internal {
         bool min = false, max = false;
     
         ::XGetWindowProperty(WindowManager::display, data->handle, WindowManager::XA_NET_WM_STATE, 0, std::numeric_limits<long>::max(), False, AnyPropertyType, &type, &format, &count, &b, &properties);
-        for(int i=0; i<count; i++) {
+        for(std::size_t i=0; i<count; i++) {
             auto prop = reinterpret_cast<unsigned long *>(properties)[i];
             if(prop == WindowManager::XA_NET_WM_STATE_HIDDEN)
                 min = true;
@@ -580,7 +580,7 @@ namespace internal {
         bool min = false;
     
         ::XGetWindowProperty(WindowManager::display, data->handle, WindowManager::XA_NET_WM_STATE, 0, std::numeric_limits<long>::max(), False, AnyPropertyType, &type, &format, &count, &b, &properties);
-        for(int i=0; i<count; i++) {
+        for(std::size_t i=0; i<count; i++) {
             auto prop = reinterpret_cast<unsigned long *>(properties)[i];
             if(prop == WindowManager::XA_NET_WM_STATE_HIDDEN)
                 min = true;
@@ -599,7 +599,7 @@ namespace internal {
         bool min = false, max = false;
     
         ::XGetWindowProperty(WindowManager::display, data->handle, WindowManager::XA_NET_WM_STATE, 0, std::numeric_limits<long>::max(), False, AnyPropertyType, &type, &format, &count, &b, &properties);
-        for(int i=0; i<count; i++) {
+        for(std::size_t i=0; i<count; i++) {
             auto prop = reinterpret_cast<unsigned long *>(properties)[i];
             
             if(prop == WindowManager::XA_NET_WM_STATE_MAXIMIZED_HORZ || prop == WindowManager::XA_NET_WM_STATE_MAXIMIZED_VERT)

@@ -489,7 +489,7 @@ namespace Audio {
                 
             float get(const Multimedia::AudioStream *src, unsigned long int sample, int ch) {
                 int bufferind = -1;
-                for(int i=0; i<src->buffers.size(); i++) {
+                for(std::size_t i=0; i<src->buffers.size(); i++) {
                     int j = (src->currentbuffer+i)%src->buffers.size();
                     auto &cur = src->buffers[j];
                     

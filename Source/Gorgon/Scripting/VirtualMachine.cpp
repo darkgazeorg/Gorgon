@@ -887,7 +887,7 @@ namespace Gorgon :: Scripting {
 														"Parameter "+pdef.GetName()+" is not optional."
 						);
 					}
-					else if(!(variant->RepeatLast() && ind==variant->Parameters.size()-1)) {
+					else if(!(variant->RepeatLast() && ind==(int)variant->Parameters.size()-1)) {
 						params.push_back(pdef.GetDefaultValue());
 					}
 					

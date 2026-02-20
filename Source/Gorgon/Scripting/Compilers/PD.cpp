@@ -166,11 +166,11 @@ namespace Compilers {
 		}
 		
 		Token consumenexttoken(const std::string &input, int &index, bool expectop=false) {
-			while(index < input.length() && isspace(input[index])) index++;
+			while(index < (int)input.length() && isspace(input[index])) index++;
 			
 			int start=index;
 
-			if(index >= input.length()) return Token {";", Token::EoS, start};
+			if(index >= (int)input.length()) return Token {";", Token::EoS, start};
 
 			std::string acc = "";
 
@@ -182,7 +182,7 @@ namespace Compilers {
 			case '\'': {
 				auto s=ExtractQuotes(input, --index);
 				std::string literalmarker;
-				while(input.length()>index && !isbreaker(input[index])) {
+				while((int)input.length()>index && !isbreaker(input[index])) {
 					literalmarker.push_back(input[index++]);
 				}
 				if(literalmarker=="" || literalmarker=="s") {
@@ -256,9 +256,9 @@ namespace Compilers {
 
 			bool literalpart=false;
 			std::string literal;
-			for(; index<input.length() + 1; index++) {
+			for(; index<(int)input.length() + 1; index++) {
 				char c;
-				if(input.length()>index)
+				if((int)input.length()>index)
 					c = input[index];
 				else
 					c = 0;

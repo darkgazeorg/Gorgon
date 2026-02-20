@@ -310,13 +310,13 @@ namespace Gorgon :: OS {
         }};
         
         int i;
-        for(i=0; i<mapping.size(); i++) {
+        for(i=0; i<(int)mapping.size(); i++) {
             if(mapping[i].first >= weight) {
                 break;
             }
         }
         
-        if(i == mapping.size()) //weight is over EXTRABLACK
+        if(i == (int)mapping.size()) //weight is over EXTRABLACK
             return weight * 950 / FC_WEIGHT_EXTRABLACK;
         
         if(mapping[i].first == weight)

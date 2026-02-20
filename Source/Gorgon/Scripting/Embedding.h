@@ -307,7 +307,7 @@ namespace Gorgon :: Scripting {
 					
 					//repeating parameters cannot be a non-const reference or a pointer
 					ASSERT(
-						P_-ismember!=parameters.size()-1 || !repeatlast, 
+						(std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast, 
 						"Repeating parameter vectors cannot be non-const references"
 						"in function "+parent->GetName(), 4, 3
 					);
@@ -353,7 +353,7 @@ namespace Gorgon :: Scripting {
 					
 					//a repeating parameter cannot be a pointer
 					ASSERT(
-						P_-ismember!=parameters.size()-1 || !repeatlast, 
+						(std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast, 
 						"Repeating parameter vectors cannot be a pointer"
 					);
 					
@@ -438,7 +438,7 @@ namespace Gorgon :: Scripting {
 					const auto &param=parameters[P_-ismember];
 					
 					//if not the repeating parameter
-					if(P_-ismember!=parameters.size()-1 || !repeatlast) {
+					if((std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast) {
 						//cannot be a reference as it is passed by value
 						ASSERT(!param.IsReference() || param.GetType()==Types::Variant(),
 							"Parameter #"+(String::From(P_-ismember+1)+", "+param.GetName())+" is declared as reference, "
@@ -471,7 +471,7 @@ namespace Gorgon :: Scripting {
 				);
 			}
 			//repeating parameter
-			else if(P_-ismember==parameters.size()-1 && repeatlast) {
+			else if((std::size_t)(P_-ismember)==parameters.size()-1 && repeatlast) {
 				const auto &param=parameters[P_-ismember];
 				
 				TMP::RTTS *typeinf;
