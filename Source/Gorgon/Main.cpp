@@ -126,7 +126,7 @@ namespace Gorgon {
         }
         
         for(auto it=timeouts.begin(); it != timeouts.end(); ) {
-            if(it->second.first == 0 || it->second.first == -1) {
+            if(it->second.first == 0 || it->second.first == (unsigned long)-1) {
                 it= timeouts.erase(it);
             } else {
                 ++it;
@@ -144,7 +144,7 @@ namespace Gorgon {
         }
         
         for(auto it=intervals.begin(); it != intervals.end(); ) {
-            if(std::get<0>(it->second) == -1) {
+            if(std::get<0>(it->second) == (unsigned long)-1) {
                 it= intervals.erase(it);
             } else {
                 ++it;

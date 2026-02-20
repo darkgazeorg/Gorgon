@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Gorgon/Graphics/Animations.h"
 #pragma warning(disable:4250)
 
 #include "../Geometry/Size.h"

@@ -12,7 +12,7 @@ namespace Gorgon :: ImageProcessing {
     }
 
     Kernel &Kernel::operator = (const std::initializer_list<std::initializer_list<Float>> &values) {
-        int maxlistsize = (int)values.begin()->size();
+        auto maxlistsize = values.begin()->size();
         
         for(auto &list : values) {            
             if(list.size()  > maxlistsize)

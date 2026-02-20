@@ -323,7 +323,7 @@ namespace Gorgon :: Graphics {
                     doline(0, acc.begin(), acc.begin()+lastbreak-sp+1, totw);
 
                     //rollback section
-                    if(lastbreak == acc.size()) {
+                    if(lastbreak == (int)acc.size()) {
                         acc.clear();
                     }
                     else {
@@ -475,7 +475,7 @@ namespace Gorgon :: Graphics {
                         return;
                     
                     //rollback section
-                    if(lastbreak == acc.size()) {
+                    if(lastbreak == (int)acc.size()) {
                         acc.clear();
                     }
                     else {
@@ -756,7 +756,6 @@ namespace Gorgon :: Graphics {
         Geometry::Point pos{std::numeric_limits<int>::min(), std::numeric_limits<int>::min()};
         Geometry::Size  size{0, 0};
 
-        int pcurx = 0;
 
         if(index < 0)
             return {pos, size};
@@ -1195,12 +1194,9 @@ namespace Gorgon :: Graphics {
         
         auto y   = 0;
         auto tot = wrap ? width : 0;
-        int ploc = 0;
 
         Geometry::Point pos{std::numeric_limits<int>::min(), std::numeric_limits<int>::min()};
         Geometry::Size  size{0, 0};
-
-        int pcurx = 0;
 
         if(index < 0)
             return {pos, size};

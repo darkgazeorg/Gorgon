@@ -1,7 +1,6 @@
 #include "Bitmap.h"
 
 #include <fstream>
-#include <algorithm>
 #include <numeric>
 
 #include "../Encoding/PNG.h"
@@ -24,7 +23,7 @@ namespace Gorgon :: Graphics {
 
 	bool Bitmap::Import(const std::string &filename) {
 		auto dotpos = filename.find_last_of('.');
-		if(dotpos!=-1) {
+		if(dotpos != (size_t)-1) {
 			auto ext = filename.substr(dotpos+1);
 
 			if(String::ToLower(ext) == "png") {
@@ -149,7 +148,7 @@ namespace Gorgon :: Graphics {
 
 	bool Bitmap::Export(const std::string &filename) const {
 		auto dotpos = filename.find_last_of('.');
-		if(dotpos!=-1) {
+		if(dotpos != (size_t)-1) {
 			auto ext = filename.substr(dotpos+1);
 
 			if(String::ToLower(ext) == "png") {

@@ -52,7 +52,7 @@ namespace Gorgon :: Scripting {
 	class MappedFunction : public Scripting::Function::Overload {
 		using variant = Scripting::Function::Overload;
 		using traits  = TMP::FunctionTraits<F_>;
-		template<int P_>
+		template<size_t P_>
 		using param = typename traits::template Arguments<P_>::Type;
 	public:
 

@@ -104,7 +104,7 @@ namespace Gorgon :: Graphics {
         
         /// Returns the number of the glyphs in the range
         int Count() const { 
-            if(Start == -1) return 0; 
+            if(Start == (Glyph)-1) return 0; 
             
             return End - Start + 1; 
         }

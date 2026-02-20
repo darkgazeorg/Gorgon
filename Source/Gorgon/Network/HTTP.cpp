@@ -280,6 +280,8 @@ namespace Gorgon :: Network {
 						case Stream:
 							FileTransferCompletedEvent();
 							break;
+						case None:
+							break;
 						}
 					}
 					if(!isrunning)

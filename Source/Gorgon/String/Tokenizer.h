@@ -3,7 +3,6 @@
 #pragma once
 
 #include <string>
-#include <iterator>
 
 
 namespace Gorgon :: String {

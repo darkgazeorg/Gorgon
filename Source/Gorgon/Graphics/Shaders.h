@@ -115,7 +115,7 @@ namespace Gorgon :: Graphics {
 		}
 
 		MaskedShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -210,7 +210,7 @@ namespace Gorgon :: Graphics {
 
 		/// Sets alpha texture
 		MaskedAlphaShader &SetAlpha(GL::Texture value) {
-			static int id = BindTexture("diffuse", 0);
+			BindTexture("diffuse", 0);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -226,7 +226,7 @@ namespace Gorgon :: Graphics {
 		}
 
 		MaskedAlphaShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -299,7 +299,7 @@ namespace Gorgon :: Graphics {
 		}
 
 		MaskedFillShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
