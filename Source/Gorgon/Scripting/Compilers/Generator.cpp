@@ -84,10 +84,13 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 				disassemblevalue(instruction->RHS);
 		case InstructionType::FunctionCall:
 			fnmark="fn";
+			[[fallthrough]];
 		case InstructionType::MemberFunctionCall:
 			if(!fnmark) fnmark="fm";
+			[[fallthrough]];
 		case InstructionType::MethodCall:
 			if(!fnmark) fnmark="mn";
+			[[fallthrough]];
 		case InstructionType::MemberMethodCall:
 		{
 			if(!fnmark) fnmark="mm";

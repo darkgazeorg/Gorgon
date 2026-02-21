@@ -249,10 +249,6 @@ namespace Gorgon :: Graphics {
         /// Default constructor, creates an empty texture
         TextureProvider() { }
         
-        /// Copy constructor
-        TextureProvider(TextureProvider &other) : Texture(other) {
-        }
-        
         /// Move constructor
         TextureProvider(TextureProvider &&other) : Texture(std::move(other)) {
         }

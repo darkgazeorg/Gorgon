@@ -24,7 +24,9 @@ target_compile_options(Gorgon PUBLIC
     
 target_compile_options(Gorgon PRIVATE
     # Strict checks with unknown pragmas explicitly ignored
-    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>: -Wall -Wno-unused-local-typedefs -Werror # #-Wextra -Wpedantic 
-        -Wno-unknown-pragmas -Wno-unused-parameter>
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>: 
+        -Wall -Werror -Wextra
+        -Wno-unknown-pragmas -Wno-unused-parameter
+    >
     $<$<CXX_COMPILER_ID:MSVC>:/WX /W4 /wd4068 /wd4100>
 )

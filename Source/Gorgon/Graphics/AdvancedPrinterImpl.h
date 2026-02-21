@@ -481,6 +481,7 @@ namespace Gorgon :: Graphics {
                 changeprinter(findfont(defaultfont));
                 fontid = defaultfont;
                 baselineoffset = 0.0f;
+                break;
             case internal::SCI_USE_SUBSCRIPT:
             case internal::SCI_USE_SUPERSCRIPT:
                 switchtoscript();
@@ -1083,7 +1084,7 @@ namespace Gorgon :: Graphics {
             //END
 
             //if requested do paragraph
-            if(nl != (size_t)-1 && beginparag)
+            if(nl != (Glyph)-1 && beginparag)
                 cur.Y += paragraphspacing(maxh, printer->GetParagraphSpacing());
 
             //BEGIN Reset

@@ -177,22 +177,6 @@ namespace Gorgon :: Scripting {
 			}
 			/// @endcond
 			
-			/// Copy assignment
-			Parameter &operator =(const Parameter &p) {
-				name		= p.name		;
-				help		= p.help		;
-				type		= p.type		;
-				defaultvalue= p.defaultvalue;
-				Options		= p.Options		;
-				optional	= p.optional	;
-				reference	= p.reference	;
-				constant	= p.constant	;
-				variable	= p.variable	;
-				allownull	= p.allownull	;
-				
-				return *this;
-			}
-			
 			/// Compares two parameters, not very reliable, it does not check defaultvalue and options
 			bool operator ==(const Parameter &p) const {
 				return 

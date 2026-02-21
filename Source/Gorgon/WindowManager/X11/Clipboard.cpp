@@ -238,10 +238,10 @@ namespace Gorgon :: WindowManager {
                 Containers::PushBackUnique(ret, Resource::GID::FileList);
                 Containers::PushBackUnique(ret, Resource::GID::URIList);
             }
-            else
-                ;//std::cout<<GetAtomName(atom)<<std::endl;
+            else {
+                //std::cout<<GetAtomName(atom)<<std::endl;
+            }
         }
-        //std::cout<<std::endl;
         
         return ret;
     }

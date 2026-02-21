@@ -300,7 +300,7 @@ namespace Gorgon :: Graphics {
                     //go through the glyph to check if it has any other pixel color
                     //other than the previous, unless it has 0 alpha
                     p.second.ForAllPixels([&](int x, int y) {
-                        if(p.second.GetAlphaAt(x, y) >= 0) {
+                        if(p.second.GetAlphaAt(x, y) > 0) {
                             if(prevcolor.A == 0) {
                                 prevcolor = p.second.GetRGBAAt(x, y);
                             }

@@ -153,6 +153,8 @@ namespace Gorgon :: Scripting {
 			Instruction(const Instruction &inst) :
 			Type(inst.Type), Name(inst.Name), RHS(inst.RHS), Parameters(inst.Parameters), Reference(inst.Reference), JumpOffset(inst.JumpOffset)
 			{ }
+
+			Instruction &operator=(const Instruction &inst) = default;
 			
 			/// Type of the instruction
 			InstructionType Type = InstructionType::Unknown;

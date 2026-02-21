@@ -73,20 +73,28 @@ namespace Gorgon :: Network {
 			case CURLE_UNSUPPORTED_PROTOCOL:
 			case CURLE_URL_MALFORMAT:
 				err=Error("Bad URL", Error::BadURL);
+				break;
 			case CURLE_COULDNT_RESOLVE_HOST:
 				err=Error("Cannot resolve host name", Error::HostResolutionFailed);
+				break;
 			case CURLE_COULDNT_CONNECT:
 				err=Error("Cannot connect to the host", Error::ConnectionFailed);
+				break;
 			case CURLE_REMOTE_ACCESS_DENIED:
 				err=Error("Access denied", Error::AccessDenied);
+				break;
 			case CURLE_OUT_OF_MEMORY:
 				err=Error("Out of memory", Error::OutOfMemory);
+				break;
 			case CURLE_LOGIN_DENIED:
 				err=Error("Login error", Error::LoginError);
+				break;
 			case CURLE_HTTP_RETURNED_ERROR:
 				err=Error("Page not found", Error::PageNotFound);
+				break;
 			default:
 				err=Error("Unknown error", Error::Unknown);
+				break;
 			}
 
 			return err;

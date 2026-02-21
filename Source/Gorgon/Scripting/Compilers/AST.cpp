@@ -882,7 +882,7 @@ namespace Gorgon :: Scripting :: Compilers {
 			return true;
 		}
 		else if(tree->Text=="return" && scopes.size()) {
-			for(size_t i=scopes.size()-1; i>=0; i--) {
+			for(long long i=(long long)scopes.size()-1; i>=0; i--) {
 				if(scopes[i].type==scope::functionkeyword) {
 					if(scopes[i].state>0) {
 						if(tree->Leaves.GetSize()==0) {

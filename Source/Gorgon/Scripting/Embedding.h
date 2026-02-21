@@ -135,7 +135,7 @@ namespace Gorgon :: Scripting {
 			is_nontmpref<T_>::value && !std::is_const<typename std::remove_reference<T_>::type>::value, 
 			T_
 		>::type castto(const Data &d) const {
-			using regtype=typename std::remove_reference<T_>::type;
+			// using regtype=typename std::remove_reference<T_>::type;
 			
 			ASSERT(!d.IsConstant(), "Constant data is being submitted to non-const reference");
 			return d.ReferenceValue<T_>();

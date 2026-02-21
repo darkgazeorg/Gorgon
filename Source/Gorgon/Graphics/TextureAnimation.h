@@ -272,7 +272,7 @@ namespace Gorgon :: Graphics {
 
 		/// Returns the duration of the given frame
 		unsigned GetDuration(unsigned frame) const override {
-            ASSERT(frame>=0 && frame<frames.size(), "Index out of bounds");
+            ASSERT(frame<frames.size(), "Index out of bounds");
             
 			return frames[frame].GetDuration();
 		}
@@ -399,7 +399,7 @@ namespace Gorgon :: Graphics {
 		
 		/// Removes an image from the animation
 		void Remove(unsigned frame) override {
-            ASSERT(frame>=0 && frame < frames.size(), "Index out of bounds");
+            ASSERT(frame < frames.size(), "Index out of bounds");
             
 			duration -= (frames.begin() + frame)->GetDuration();
             frames.erase(frames.begin() + frame);
