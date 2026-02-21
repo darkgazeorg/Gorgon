@@ -5,6 +5,7 @@
 #include <Gorgon/Graphics/FreeType.h>
 #include <Gorgon/Graphics/BlankImage.h>
 #include <Gorgon/Input/Keyboard.h>
+#include <Gorgon/OS.h>
 
 int main() {
     //Initialize everything with the system name of HelloWorld
@@ -30,20 +31,17 @@ int main() {
     //Load a font to display some text
     Gorgon::Graphics::FreeType font, smallfont;
     
-    //You probably should ship your project with a .ttf file
-    //or wait until font enumeration is finished. This checks
-    //for the current platform. Windows is almost guaranteed
-    //to be shipped with tahoma but same cannot be told for
-    //Linux as there are many different configurations for it.
     //Fonts will be created with 20px and 11px high
-#ifdef WIN32
-    font.LoadFile(Gorgon::OS::GetEnvVar("windir")+"/Fonts/tahoma.ttf", 20);
-    smallfont.LoadFile(Gorgon::OS::GetEnvVar("windir")+"/Fonts/tahoma.ttf", 11);
-#else
-    font.LoadFile("/usr/share/fonts/liberation/LiberationSerif-Regular.ttf", 20);
-    smallfont.LoadFile("/usr/share/fonts/liberation/LiberationSerif-Regular.ttf", 11);
-#endif
-    
+    auto [fontdef, found] = Gorgon::OS::GetFont();
+
+    if(!found) {
+        std::cerr << "No font found in the system, cannot continue." << std::endl;
+        return 1;
+    }
+
+    font.LoadFile(fontdef.Filename, 20);
+    smallfont.LoadFile(fontdef.Filename, 11);
+
     //Create a layer to draw on
     Gorgon::Graphics::Layer layer;
     window.Add(layer);

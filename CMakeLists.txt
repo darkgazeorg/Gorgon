@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/Scripts")
 include(CMakeSetup)
 
 add_library(Gorgon STATIC "")
+add_library(Gorgon::Gorgon ALIAS Gorgon)
 
 include(Options)
 include(Compiler)
@@ -32,6 +33,10 @@ target_include_directories(Gorgon PUBLIC
 )
 
 include(Dependencies)
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(Examples)
+endif()
 
 if(MSVC)
     source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${GORGON_SOURCES})

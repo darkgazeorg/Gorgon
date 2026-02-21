@@ -522,7 +522,7 @@ namespace Gorgon :: Graphics {
     }
 
     float FreeType::GetCursorAdvance(Glyph chr) const  {
-		if(glyphmap.count(chr))
+        if(glyphmap.count(chr))
 			return glyphmap.at(chr).advance;
         else if(chr == '\t')
             return (float)height;

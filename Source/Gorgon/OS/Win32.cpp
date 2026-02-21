@@ -407,7 +407,7 @@ namespace Gorgon {
 	}
 
 	std::vector<FontFamily> GetFontFamilies() {
-#ifndef FREETYPE_SUPPORT
+#ifndef GORGON_FREETYPE_SUPPORT
 		Utils::AssertFalse("Listing fonts require freetype library.");
 #else
 		std::vector<FontFamily> list;
@@ -454,6 +454,49 @@ namespace Gorgon {
 
 		delete[] data;
 		delete[] valname;
+		RegCloseKey(fontskey)
+
+		fontcount = 0;
+		maxnamelen = 0;
+		maxsize = 0;
+
+		result = RegOpenKeyEx(HKEY_CURRENT_USER,
+			L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+			0, KEY_READ, &fontskey);
+
+		if(result == ERROR_SUCCESS) {
+			result = RegQueryInfoKey(
+				fontskey,
+				NULL, NULL, NULL, NULL, NULL, NULL,
+				&fontcount, &maxnamelen, &maxsize, 
+				NULL, NULL
+			);
+
+			if(result != ERROR_SUCCESS)
+				RegCloseKey(fontskey);
+		}
+
+		if(result == ERROR_SUCCESS) {
+			valname = new WCHAR[maxnamelen + 1]; 
+			data = new WCHAR[maxsize / sizeof(WCHAR) + 1];
+
+			for(int i = 0; i<(int)fontcount; i++) {
+				DWORD type, size = maxsize, nl = maxnamelen;
+
+				result = RegEnumValue(fontskey, i,
+					valname, &nl,
+					NULL,
+					&type, (LPBYTE)data, &size
+				);
+
+				filenames.push_back(UnicodeToMByte(data));
+			}
+
+			delete[] data;
+			delete[] valname;
+		}
+
+		if(result == ERROR_SUCCESS) RegCloseKey(fontskey);
 
 		auto curdir = Filesystem::CurrentDirectory();
 		Filesystem::ChangeDirectory(GetEnvVar("WINDIR") + "/fonts");
@@ -514,13 +557,6 @@ namespace Gorgon {
 				font.Monospaced = os2->panose[0] == 2 && os2->panose[3] == 9;
                 font.Width  = os2->usWidthClass;
 			}
-			
-			/*face.Bold = weight > FC_WEIGHT_NORMAL;
-			face.Italic = slant > 0;
-			face.Monospaced = spacing == FC_MONO;
-			face.Weight = fctocss(weight);*/
-
-			
 
 			it->Faces.push_back(font);
 		}

@@ -8,21 +8,21 @@ endif()
 
 # --- Always-required libraries ---------------------------------------------
 find_package(Threads REQUIRED)
-target_link_libraries(Gorgon PRIVATE Threads::Threads)
+target_link_libraries(Gorgon PUBLIC Threads::Threads)
 
 # PNG
 find_package(PNG REQUIRED)
-target_link_libraries(Gorgon PRIVATE PNG::PNG)
+target_link_libraries(Gorgon PUBLIC PNG::PNG)
 message(STATUS "Found libpng -> ${PNG_VERSION}")
 
 # JPEG
 find_package(JPEG REQUIRED)
-target_link_libraries(Gorgon PRIVATE JPEG::JPEG)
+target_link_libraries(Gorgon PUBLIC JPEG::JPEG)
 message(STATUS "Found libjpeg")
 
 # ZLIB
 find_package(ZLIB REQUIRED)
-target_link_libraries(Gorgon PRIVATE ZLIB::ZLIB)
+target_link_libraries(Gorgon PUBLIC ZLIB::ZLIB)
 message(STATUS "Found zlib -> ${ZLIB_VERSION}")
 
 # --- LZMA SDK (7-Zip) ------------------------------------------------------
@@ -31,8 +31,6 @@ find_path(LZMASDK_INCLUDE_DIR
     NAMES LzmaDec.h 
     PATH_SUFFIXES lzma-sdk/C lzma-sdk
 )
-
-message(${LZMASDK_INCLUDE_DIR})
 
 # Look for the SDK-specific library
 find_library(LZMASDK_LIBRARY 
@@ -49,7 +47,7 @@ if(LZMASDK_INCLUDE_DIR AND LZMASDK_LIBRARY)
         )
     endif()
     
-    target_link_libraries(Gorgon PRIVATE LzmaSdk::LzmaSdk)
+    target_link_libraries(Gorgon PUBLIC LzmaSdk::LzmaSdk)
     message(STATUS "LZMA SDK: Found (Include: ${LZMASDK_INCLUDE_DIR})")
 else()
     message(FATAL_ERROR "LZMA SDK (7-zip) is required but was not found.")
@@ -68,7 +66,7 @@ endif()
 # FreeType
 if(FreeType)
     find_package(Freetype REQUIRED)
-    target_link_libraries(Gorgon PRIVATE Freetype::Freetype)
+    target_link_libraries(Gorgon PUBLIC Freetype::Freetype)
     message(STATUS "FreeType: SYSTEM")
 endif()
 
@@ -77,7 +75,7 @@ if(NOT WIN32)
     if(FONTCONFIG)
         find_package(Fontconfig REQUIRED)
         
-        target_link_libraries(Gorgon PRIVATE Fontconfig::Fontconfig)
+        target_link_libraries(Gorgon PUBLIC Fontconfig::Fontconfig)
         message(STATUS "Fontconfig: SYSTEM")
     else()
         # If explicitly disabled via options
@@ -90,9 +88,9 @@ if(FLAC)
     find_package(FLAC REQUIRED)
     
     if(TARGET FLAC::FLAC)
-        target_link_libraries(Gorgon PRIVATE FLAC::FLAC)
+        target_link_libraries(Gorgon PUBLIC FLAC::FLAC)
     else()
-        target_link_libraries(Gorgon PRIVATE ${FLAC_LIBRARIES})
+        target_link_libraries(Gorgon PUBLIC ${FLAC_LIBRARIES})
     endif()
     message(STATUS "FLAC: SYSTEM")
 endif()
@@ -101,9 +99,9 @@ endif()
 if(OGG)
     find_package(Ogg REQUIRED)
     if(TARGET Ogg::ogg)
-        target_link_libraries(Gorgon PRIVATE Ogg::ogg)
+        target_link_libraries(Gorgon PUBLIC Ogg::ogg)
     else()
-        target_link_libraries(Gorgon PRIVATE ${OGG_LIBRARIES})
+        target_link_libraries(Gorgon PUBLIC ${OGG_LIBRARIES})
     endif()
     message(STATUS "OGG: SYSTEM")
 endif()
@@ -111,19 +109,22 @@ endif()
 # Vorbis
 if(VORBIS)
     if(WIN32)
+        # On Windows/vcpkg, the CONFIG package usually provides these targets
         find_package(Vorbis CONFIG REQUIRED)
-        target_link_libraries(Gorgon PRIVATE Vorbis::vorbis)
+        # Link both the base and the file API
+        target_link_libraries(Gorgon PUBLIC Vorbis::vorbis Vorbis::vorbisfile)
     else()
-        pkg_check_modules(VORBIS REQUIRED IMPORTED_TARGET vorbis)
-        target_link_libraries(Gorgon PRIVATE PkgConfig::VORBIS)
+        # On Linux, you must explicitly ask for 'vorbisfile' in pkg_check_modules
+        pkg_check_modules(VORBIS REQUIRED IMPORTED_TARGET vorbis vorbisfile)
+        target_link_libraries(Gorgon PUBLIC PkgConfig::VORBIS)
     endif()
-    message(STATUS "Vorbis: SYSTEM")
+    message(STATUS "Vorbis: SYSTEM (including vorbisfile)")
 endif()
 
 # PulseAudio
 if(AUDIOLIB STREQUAL "PULSE")
     pkg_check_modules(PULSE REQUIRED IMPORTED_TARGET libpulse)
-    target_link_libraries(Gorgon PRIVATE PkgConfig::PULSE)
+    target_link_libraries(Gorgon PUBLIC PkgConfig::PULSE)
     message(STATUS "Audio: PulseAudio selected -> PULSEAUDIO=SYSTEM")
 endif()
 
@@ -131,12 +132,12 @@ endif()
 if(HTTP)
     if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Source/External/curl/libcurl.lib")
         # Preserved your bundled Windows fallback
-        target_link_libraries(Gorgon PRIVATE "${CMAKE_SOURCE_DIR}/Source/External/curl/libcurl.lib" Ws2_32.lib wldap32.lib)
-        target_compile_definitions(Gorgon PRIVATE CURL_STATICLIB)
+        target_link_libraries(Gorgon PUBLIC "${CMAKE_SOURCE_DIR}/Source/External/curl/libcurl.lib" Ws2_32.lib wldap32.lib)
+        target_compile_definitions(Gorgon PUBLIC CURL_STATICLIB)
         message(STATUS "CURL: using bundled libcurl")
     else()
         find_package(CURL REQUIRED)
-        target_link_libraries(Gorgon PRIVATE CURL::libcurl)
+        target_link_libraries(Gorgon PUBLIC CURL::libcurl)
         message(STATUS "CURL: SYSTEM")
     endif()
 endif()

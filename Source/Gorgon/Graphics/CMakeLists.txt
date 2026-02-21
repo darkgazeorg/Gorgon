@@ -68,7 +68,7 @@ target_sources(Gorgon
 		HTMLRenderer.cpp
 )
 
-if(FREETYPE)
+if(FreeType)
     target_sources(Gorgon
         PUBLIC
         FILE_SET HEADERS

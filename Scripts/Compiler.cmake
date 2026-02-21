@@ -30,3 +30,7 @@ target_compile_options(Gorgon PRIVATE
     >
     $<$<CXX_COMPILER_ID:MSVC>:/WX /W4 /wd4068 /wd4100>
 )
+
+if(NOT WIN32)
+    target_compile_definitions(Gorgon PRIVATE LINUX)
+endif()

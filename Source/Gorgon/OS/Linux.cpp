@@ -148,7 +148,7 @@ namespace Gorgon :: OS {
 			close(execpipe[0]);
 
 			//build args
-			char *v[args.size()+2];
+			char **v = (char**)malloc(sizeof(char*)*(args.size()+2));
 			int arg=1;
 			v[0]=(char*)malloc(name.length()+1);
 			strcpy(v[0], Filesystem::GetFilename(name).c_str());
@@ -229,7 +229,7 @@ namespace Gorgon :: OS {
             dup2(outpipe[1], 1);
 
 			//build args
-			char *v[args.size()+2];
+			char **v = (char**)malloc(sizeof(char*)*(args.size()+2));
 			int arg=1;
 			v[0]=(char*)malloc(name.length()+1);
 			strcpy(v[0], Filesystem::GetFilename(name).c_str());
@@ -333,7 +333,7 @@ namespace Gorgon :: OS {
     }
 	
     std::vector<FontFamily> GetFontFamilies() {
-#ifndef FONTCONFIG_SUPPORT
+#ifndef GORGON_FONTCONFIG_SUPPORT
         Utils::AssertFalse("Gorgon is not configured to work with Font config");
 #else
         std::vector<FontFamily> list;
@@ -423,6 +423,170 @@ namespace Gorgon :: OS {
         return list;
 #endif
     }
+
+	std::pair<Font, bool> GetFont(const std::string &familyname, const std::string &stylename) {
+		Font ret;
+
+#ifdef GORGON_FONTCONFIG_SUPPORT
+		auto populatefont = [](Font &f, FcPattern *font) {
+			int weight = FC_WEIGHT_REGULAR;
+			int slant = 0;
+			int spacing = 0;
+			int width = 100;
+			FcChar8 *file = nullptr, *family = nullptr, *style = nullptr;
+
+			FcPatternGetString(font, FC_FILE, 0, &file);
+			FcPatternGetString(font, FC_FAMILY, 0, &family);
+			FcPatternGetString(font, FC_STYLE, 0, &style);
+			FcPatternGetInteger(font, FC_WEIGHT, 0, &weight);
+			FcPatternGetInteger(font, FC_SLANT, 0, &slant);
+			FcPatternGetInteger(font, FC_SPACING, 0, &spacing);
+			FcPatternGetInteger(font, FC_WIDTH, 0, &width);
+
+			if(file)    f.Filename = (const char *)file;
+			if(family)  f.Family = (const char *)family;
+			if(style)   f.Style = (const char *)style;
+			f.Bold = weight > FC_WEIGHT_NORMAL;
+			f.Italic = slant > 0;
+			f.Monospaced = spacing == FC_MONO;
+			f.Weight = fctocss(weight);
+			f.Width = width;
+		};
+		if(FcInit()) {
+			FcObjectSet *os = FcObjectSetBuild(
+				FC_FAMILY, FC_STYLE, FC_FILE, FC_SLANT, FC_SPACING, FC_WEIGHT, FC_WIDTH, (char *)0
+			);
+
+			if(os) {
+				// Try exact match with family and style
+				FcPattern *pat = FcPatternCreate();
+				if(pat) {
+					FcPatternAddString(pat, FC_FAMILY, (const unsigned char*)familyname.c_str());
+					if(!stylename.empty())
+						FcPatternAddString(pat, FC_STYLE, (const unsigned char*)stylename.c_str());
+
+					FcFontSet *fs = FcFontList(nullptr, pat, os);
+
+					if(fs && fs->nfont > 0) {
+						populatefont(ret, fs->fonts[0]);
+						FcFontSetDestroy(fs);
+						FcPatternDestroy(pat);
+						FcObjectSetDestroy(os);
+						return {ret, true};
+					}
+
+					if(fs) FcFontSetDestroy(fs);
+					FcPatternDestroy(pat);
+				}
+
+				// Try family only (without style constraint)
+				if(!stylename.empty()) {
+					pat = FcPatternCreate();
+					if(pat) {
+						FcPatternAddString(pat, FC_FAMILY, (const unsigned char*)familyname.c_str());
+
+						FcFontSet *fs = FcFontList(nullptr, pat, os);
+
+						if(fs && fs->nfont > 0) {
+							populatefont(ret, fs->fonts[0]);
+							FcFontSetDestroy(fs);
+							FcPatternDestroy(pat);
+							FcObjectSetDestroy(os);
+							return {ret, false};
+						}
+
+						if(fs) FcFontSetDestroy(fs);
+						FcPatternDestroy(pat);
+					}
+				}
+
+				// Use FcFontMatch for best effort matching
+				pat = FcPatternCreate();
+				if(pat) {
+					FcPatternAddString(pat, FC_FAMILY, (const unsigned char*)familyname.c_str());
+					if(!stylename.empty())
+						FcPatternAddString(pat, FC_STYLE, (const unsigned char*)stylename.c_str());
+
+					FcConfigSubstitute(nullptr, pat, FcMatchPattern);
+					FcDefaultSubstitute(pat);
+
+					FcResult result;
+					FcPattern *match = FcFontMatch(nullptr, pat, &result);
+
+					if(match) {
+						populatefont(ret, match);
+
+						// Check if returned family matches the requested one
+						bool perfect = String::ToLower(ret.Family) == String::ToLower(familyname);
+						if(perfect && !stylename.empty())
+							perfect = String::ToLower(ret.Style) == String::ToLower(stylename);
+
+						if(!perfect) {
+							static constexpr auto genericnames = {
+								"", "serif", "sans", "sans-serif", "monospace", "cursive", "fantasy"
+							};
+							auto lowerfam = String::ToLower(familyname);
+							if(std::find(genericnames.begin(), genericnames.end(), lowerfam) != genericnames.end()) {
+								perfect = true;
+							}
+						}
+
+						FcPatternDestroy(match);
+						FcPatternDestroy(pat);
+						FcObjectSetDestroy(os);
+						return {ret, perfect};
+					}
+
+					FcPatternDestroy(pat);
+				}
+
+				FcObjectSetDestroy(os);
+			}
+		}
+#endif
+
+		// Fallback: use GetFontFamilies to find a match
+		auto list = GetFontFamilies();
+		auto lowerfamily = String::ToLower(familyname);
+		auto lowerstyle = String::ToLower(stylename);
+
+		// Try exact family + style match
+		for(auto &f : list) {
+			if(String::ToLower(f.Family) == lowerfamily) {
+				for(auto &face : f.Faces) {
+					if(lowerstyle.empty() || String::ToLower(face.Style) == lowerstyle) {
+						return {face, true};
+					}
+				}
+				// Family found but style not matched, return first face
+				if(!f.Faces.empty()) {
+					return {f.Faces.front(), false};
+				}
+			}
+		}
+
+		// Try well-known fallback lists
+		static const std::string regularlist[] = {"dejavu sans", "freesans", "liberation sans", "arial", "times new roman"};
+		static const std::string monolist[] = {"dejavu sans mono", "free mono", "liberation mono", "consolas", "courier new"};
+
+		auto &fallbacklist = (lowerfamily == "monospace" || lowerfamily == "mono") ? monolist : regularlist;
+		for(auto &r : fallbacklist) {
+			for(auto &f : list) {
+				if(String::ToLower(f.Family) == r && !f.Faces.empty()) {
+					return {f.Faces.front(), false};
+				}
+			}
+		}
+
+		// Last resort: return any available font
+		for(auto &f : list) {
+			if(!f.Faces.empty()) {
+				return {f.Faces.front(), false};
+			}
+		}
+
+		throw std::runtime_error("No fonts found in the system");
+	}
 }
 
 
