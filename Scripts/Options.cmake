@@ -75,6 +75,7 @@ if(FAST_ANY)
 endif()
 
 if(GraphicsLibrary STREQUAL "OpenGL")
+    set(GORGON_GL_OPENGL ON CACHE INTERNAL "Enable OpenGL support")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_OPENGL)
 endif()
 

@@ -1,0 +1,137 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "Quick",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Build",
+      "description": "Documentation is disabled for a quick build and installation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "QuickDebug",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Debug Build",
+      "description": "Quick build with debug configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "QuickRelease",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Release Build",
+      "description": "Quick build with release configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "Default",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Build",
+      "description": "Standard configuration with all default modules and features enabled.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "DefaultDebug",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Debug Build",
+      "description": "Standard configuration in debug mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "DefaultRelease",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Release Build",
+      "description": "Standard configuration in release mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "Minimal",
+      "inherits": "linux-base",
+      "displayName": "Minimal Linux Build",
+      "description": "Disables all optional modules and external format support for a core-only build.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AUDIO": "OFF",
+        "SCRIPTING": "OFF",
+        "UI": "OFF",
+        "CGI": "OFF",
+        "HTTP": "OFF",
+        "FLAC": "OFF",
+        "FreeType": "OFF",
+        "OGG": "OFF",
+        "VORBIS": "OFF",
+        "FONTCONFIG": "OFF",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "Testing",
+      "inherits": "linux-base",
+      "displayName": "Testing & Examples",
+      "description": "Enables unit tests, manual tests, and builds example applications.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TESTS": "ON",
+        "UNIT_TESTS": "ON",
+        "MANUAL_TESTS": "ON",
+        "BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "TestingRelWithDebInfo",
+      "inherits": "Testing",
+      "displayName": "Testing & Examples (RelWithDebInfo)",
+      "description": "Testing build with RelWithDebInfo configuration.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "Coverage",
+      "inherits": "Testing",
+      "displayName": "Code Coverage",
+      "description": "Testing build with code coverage instrumentation enabled.",
+      "cacheVariables": {
+        "COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "DocumentationMode",
+      "inherits": "linux-base",
+      "displayName": "Documentation Mode",
+      "description": "Builds documentation with strict warning reporting enabled.",
+      "cacheVariables": {
+        "DOCUMENTATION": "ON",
+        "DOCUMENTATION_MODE": "ON"
+      }
+    }
+  ]
+}

@@ -33,12 +33,29 @@ if(DOCUMENTATION)
             set(DOXY_WARNINGS NO)
         endif()
         
+        # force output into the source Docs folder rather than the build tree.
+        # the HTML output will appear under <output>/html.
+        set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_DOCUMENT_OUTPUT_DIRECTORY}")
+        # break up the generated files into many subdirectories so explorers stay fast
+        set(DOXYGEN_CREATE_SUBDIRS YES)
+        set(DOXYGEN_CREATE_SUBDIRS_LEVEL 8)
+
         doxygen_add_docs(docs
             ${GORGON_HEADERS}
             ALL
             WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
             COMMENT "Generating API documentation with Doxygen"
         )
+
+        # to make it easy to open the docs we write a tiny wrapper at
+        # ${CMAKE_DOCUMENT_OUTPUT_DIRECTORY}/index.html that simply redirects
+        # to the real HTML generated beneath the "html" subdirectory.  Using a
+        # redirect avoids any broken paths for the javascript and css resources
+        # which are referenced relative to the page itself.
+        file(MAKE_DIRECTORY "${CMAKE_DOCUMENT_OUTPUT_DIRECTORY}")
+        file(WRITE "${CMAKE_DOCUMENT_OUTPUT_DIRECTORY}/index.html" 
+                    "<!DOCTYPE html>\n<html><head>\n  <meta http-equiv=\"refresh\" content=\"0;url=html/index.html\" />\n</head><body>\n  <p>If you are not redirected automatically, <a href=\"html/index.html\">click here</a>.</p>\n</body></html>\n")
+
 
         if(BUILD_PDF)
             add_custom_target(pdf

@@ -16,7 +16,7 @@ target_sources(Gorgon
         Shader.cpp
 )
 
-if(OPENGL)
+if(GORGON_GL_OPENGL)
     find_package(OpenGL REQUIRED)
     if(TARGET OpenGL::GL)
         target_link_libraries(Gorgon PRIVATE OpenGL::GL)
