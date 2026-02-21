@@ -9,6 +9,9 @@
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
 namespace Gorgon :: Graphics {
+    inline bool operator ==(int l, NamedFont r) {
+        return l == (int)r;
+    }
 
     template<class GF_, class BF_, class LF_, class IF_>
     std::vector<AdvancedPrinter::Region> AdvancedPrinter::AdvancedOperation(

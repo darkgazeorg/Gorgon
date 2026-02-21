@@ -2,7 +2,6 @@
 
 #include "Source.h"
 
-#include "../Containers/Wave.h"
 #include "../Containers/Collection.h"
 
 #include "../Geometry/Point3D.h"

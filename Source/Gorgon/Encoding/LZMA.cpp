@@ -1,12 +1,5 @@
 #include "LZMA.h"
 
-#if defined(__has_include)
-#  if !__has_include(<lzma-sdk/C/Alloc.h>)
-#    error "Install LZMA SDK the project"
-#  endif
-#endif
-
-
 #include <lzma-sdk/C/Alloc.h>
 #include <lzma-sdk/C/LzmaEnc.h>
 #include <lzma-sdk/C/LzmaDec.h>

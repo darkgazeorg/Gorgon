@@ -1,7 +1,8 @@
 ﻿#pragma once
 
 #include "../Layer.h"
-#include "../Geometry/Bounds.h"
+
+#include <functional>
 
 namespace Gorgon :: Input {
 

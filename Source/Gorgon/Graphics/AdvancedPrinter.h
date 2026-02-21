@@ -8,16 +8,12 @@
 
 #include <string>
 
-#include "../String.h"
 #include "Drawables.h"
 
 #pragma warning(disable:4003)
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
 namespace Gorgon :: Graphics {
-    inline bool operator ==(int l, NamedFont r) {
-        return l == (int)r;
-    }
 
     /**
      * Advanced renderer allows AdvancedPrint that allows unicode based markup that can change every

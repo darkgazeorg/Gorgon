@@ -3,7 +3,6 @@
 #include "Drawables.h"
 #include "../Utils/Assert.h"
 #include "../Geometry/Point.h"
-#include "../Containers/Hashmap.h"
 #include "Animations.h"
 #include "TextureAnimation.h"
 

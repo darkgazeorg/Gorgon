@@ -527,10 +527,10 @@ namespace Gorgon :: Graphics {
         else if(chr == '\t')
             return (float)height;
         else if(internal::isspace(chr))
-            return float(height / 4);
-		else if(glyphmap.count(0))
+            return float(height / 4.f);
+        else if(glyphmap.count(0))
 			return glyphmap.at(0).advance;
-		else
+        else
 			return 0;
 	}
 	
@@ -554,7 +554,7 @@ namespace Gorgon :: Graphics {
             auto glyph = glyphmap.at(chr);
             glyph.images.regular->Draw(target, location + glyph.offset + Geometry::Pointf(0.f, (float)baseline), color);
         }
-		else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
+        else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
 			auto glyph = glyphmap.at(0);
 			glyph.images.regular->Draw(target, location + glyph.offset + Geometry::Pointf(0.f, (float)baseline), color);
 		}
@@ -565,7 +565,7 @@ namespace Gorgon :: Graphics {
             auto glyph = glyphmap.at(chr);
             return glyph.images.regular;
         }
-		else {
+        else {
 			LoadGlyphs(chr);
             
             if(glyphmap.count(chr)) {
@@ -836,7 +836,7 @@ namespace Gorgon :: Graphics {
         if(size < 1) return;
         
         int w = CeilToPowerOf2(unsigned(sqrt(float(size))));
-        int h = CeilToPowerOf2((int)ceil(size / w));
+        int h = CeilToPowerOf2((int)ceil(float(size) / w));
         
         if(atlas.GetID()) {
             //resize and copy everything

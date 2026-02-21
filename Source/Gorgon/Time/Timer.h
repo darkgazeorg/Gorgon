@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../Time.h"
+#include <iostream>
 
 namespace Gorgon :: Time {
 

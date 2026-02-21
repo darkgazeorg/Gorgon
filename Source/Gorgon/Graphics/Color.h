@@ -395,6 +395,8 @@ namespace Gorgon :: Graphics {
         /// Default constructor does not perform initialization
         RGBAf() { }
 
+        RGBAf(const RGBAf &) = default;
+
         /// Filling constructor
         RGBAf(float r, float g, float b, float a=1.f) : R(r), G(g), B(b), A(a) { }
 

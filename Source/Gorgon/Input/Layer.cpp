@@ -82,7 +82,7 @@ namespace Gorgon :: Input {
             
             return true;
         }
-		else if(event == Input::Mouse::EventType::DownPressed) {
+        else if(event == Input::Mouse::EventType::DownPressed) {
 			if(down) {
 				down(*this, curlocation, button);
 				handlers.Add(this);
@@ -92,7 +92,7 @@ namespace Gorgon :: Input {
 				return true;
 			}
 		}
-		else if(event == Input::Mouse::EventType::HitCheck) {
+        else if(event == Input::Mouse::EventType::HitCheck) {
             Gorgon::Layer::propagate_mouseevent(event, curlocation, button, amount, handlers);
         }
         else { //click/scroll/move/down

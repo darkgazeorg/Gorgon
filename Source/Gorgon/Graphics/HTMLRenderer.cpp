@@ -27,7 +27,6 @@ namespace Gorgon :: Graphics {
         orgy = yy = y;
         
         unsigned int offset = 0;
-        int tagcnt = 0; // !!! debug
         bool intag = false;
         bool remove = false;
         bool inquote = false;
@@ -80,7 +79,6 @@ namespace Gorgon :: Graphics {
                 }
                 tag.clear();
                 intag = false;
-                tagcnt++; // !!! debug
                 continue;
             }
             else if(current == '/') {

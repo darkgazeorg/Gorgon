@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Gorgon/ConsumableEvent.h"
 #include "Panel.h"
 #include "../Graphics/Pointer.h"
 

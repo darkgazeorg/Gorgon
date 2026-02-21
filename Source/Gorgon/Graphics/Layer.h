@@ -2,7 +2,6 @@
 
 #include "../Layer.h"
 #include "TextureTargets.h"
-#include "../Utils/Assert.h"
 #include "../Geometry/Point3D.h"
 #include "../Geometry/Transform3D.h"
 #include "../Geometry/Rectangle.h"

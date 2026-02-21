@@ -4,12 +4,10 @@
 
 #include <iostream>
 #include <time.h>
-#include <fstream>
 #include <stdlib.h>
 #include <string>
 #include <cstring>
 #include <stdlib.h>
-#include <iomanip>
 #include <stdint.h>
 
 #include "Types.h"

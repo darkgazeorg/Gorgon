@@ -1,14 +1,11 @@
 #include "Shader.h"
 
-#include <vector>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 
 #include "Shader.h"
 #include "OpenGL.h"
-#include <streambuf>
 #include <algorithm>
 
 #include "Simple.h"

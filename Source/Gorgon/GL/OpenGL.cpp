@@ -1,7 +1,11 @@
-
-
 #include "OpenGL.h"
 #include "FrameBuffer.h"
+
+#include "../GL.h"
+#include "../Graphics/Color.h"
+#include "../Containers/Image.h"
+#include "../OS.h"
+
 
 #ifdef LINUX
 #	include <GL/glx.h>

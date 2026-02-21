@@ -5,9 +5,7 @@
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <iomanip>
 #include <limits>
-#include <sstream>
 
 #include "../Types.h"
 #include "Point.h"

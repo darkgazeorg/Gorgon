@@ -1,13 +1,8 @@
 #pragma once
 
-#include <vector>
 #include <string>
 #include <set>
 
-#include "Types.h"
-#include "Enum.h"
-#include "Containers/Collection.h"
-#include "Any.h"
 
 #include "Scripting/Reflection.h"
 #include "Scripting/Data.h"

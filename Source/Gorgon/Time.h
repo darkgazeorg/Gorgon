@@ -3,8 +3,6 @@
 #pragma once
 
 #include <string>
-#include <sstream>
-#include <iomanip>
 #include <stdexcept>
 
 namespace Gorgon {

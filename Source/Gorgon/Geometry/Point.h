@@ -4,10 +4,7 @@
 
 #include <iostream>
 #include <string>
-#include <iomanip>
-#include <limits>
 #include <cmath>
-#include <sstream>
 #include <type_traits>
 
 #include "../Types.h"

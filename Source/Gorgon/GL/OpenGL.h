@@ -4,10 +4,8 @@
 
 #pragma once
 
-#include "../GL.h"
-#include "../Graphics/Color.h"
-#include "../Containers/Image.h"
-#include "../OS.h"
+
+#include <cstddef>
 
 #ifdef WIN32
 #  ifdef APIENTRY

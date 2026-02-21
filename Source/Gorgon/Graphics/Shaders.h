@@ -10,6 +10,7 @@
 
 #include "../GL/OpenGL.h"
 #include "Color.h"
+#include "../GL.h"
 
 
 namespace Gorgon :: Graphics {
