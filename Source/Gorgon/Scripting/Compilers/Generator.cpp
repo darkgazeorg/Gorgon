@@ -125,6 +125,9 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		case InstructionType::JumpFalse:
 			return "jf\"" + String::From(instruction->JumpOffset) + "\"" + disassemblevalue(instruction->RHS);
 			
+		case InstructionType::Unknown:
+		default:
+			throw std::runtime_error("Unknown instruction type");
 		}
 		
 		return "";

@@ -1,6 +1,9 @@
-#include "../../Scripting.h"
+#pragma once
 
-namespace Gorgon { namespace Scripting { namespace Compilers {
+#include "Gorgon/Scripting/Exceptions.h"
+#include <string>
+
+namespace Gorgon :: Scripting :: Compilers {
 
 	/// Checks if the input string contains one of the given characters at current point. If it does
 	/// the index of the character found is returned and index is incremented. If not, an exception
@@ -45,8 +48,6 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		std::string ret = "";
 		
 		int quotes = CheckInputFor(input, ch, '\'', '"') + 1;
-		
-		int start = ch;
 		
 		bool escape = false;
 		int escapenum = 0;
@@ -111,4 +112,4 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		return ret;
 	}
 	
-} } }
+}

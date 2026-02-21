@@ -596,7 +596,7 @@ namespace internal {
         unsigned long count, b;
         unsigned char *properties = NULL;
         
-        bool min = false, max = false;
+        bool max = false;
     
         ::XGetWindowProperty(WindowManager::display, data->handle, WindowManager::XA_NET_WM_STATE, 0, std::numeric_limits<long>::max(), False, AnyPropertyType, &type, &format, &count, &b, &properties);
         for(std::size_t i=0; i<count; i++) {
@@ -659,7 +659,7 @@ namespace internal {
 
         while(XEventsQueued(WindowManager::display, QueuedAfterReading)) {
             XNextEvent(WindowManager::display, &event);
-            KeySym key;
+            // KeySym key;
             //std::cout<<"XEV: "<<xeventname(event)<<std::endl;
             
             switch(event.type) {

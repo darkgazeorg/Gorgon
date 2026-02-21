@@ -326,7 +326,7 @@ namespace Gorgon :: Widgets {
                     return true;
                     
                 case Keycodes::End:
-                    selstart = selstart = {Length(), (int)text.size()};
+                    selstart = {Length(), (int)text.size()};
                     updateselection();
                     return true;
 

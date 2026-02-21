@@ -218,7 +218,6 @@ namespace Gorgon :: Scripting {
 		
 		auto inheritance=inheritsfrom.find(type);
 		Inheritance::ConversionFunction fn;
-		bool downcasting=false;
 		
 		//not a direct parent
 		if(inheritance==inheritsfrom.end()) {

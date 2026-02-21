@@ -120,8 +120,7 @@ namespace WindowManager {
     void handledndposition(XEvent event, Window &wind) {
         auto data = WindowManager::internal::getdata(wind);
         
-        XClientMessageEvent m;
-        memset(&m, sizeof(m), 0);
+        XClientMessageEvent m{};
         m.type = ClientMessage;
         m.display = event.xclient.display;
         m.window = event.xclient.data.l[0];

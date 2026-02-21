@@ -291,7 +291,6 @@ namespace Gorgon :: Scripting {
 			}
 			
 			if(spec) {
-				bool done=false;
 				if(spechandler) {
 					Data dat=spechandler(name[0], &name[1]);
 					if(dat.IsValid()) {
@@ -1386,8 +1385,6 @@ namespace Gorgon :: Scripting {
 					fn->AddMethod(overld);
 				else
 					fn->AddOverload(overld);
-				
-				fn=fn;
 			}
 			
 			else {

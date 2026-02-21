@@ -666,6 +666,8 @@ namespace Gorgon :: Scripting {
 			}
 			
 		}
+
+		using Function::AddOverload;
 		
 		/// Adds a new operator overload
 		template<class F_>

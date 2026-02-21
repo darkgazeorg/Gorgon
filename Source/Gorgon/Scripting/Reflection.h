@@ -911,7 +911,7 @@ namespace Gorgon :: Scripting {
 #endif
 				methods.Push(overload);
 			}
-			
+
 			/// Adds the given overload to this function after performing necessary checks
 			virtual void AddOverload(Overload *overload) {
 				ASSERT(overload, "Empty variant\n in function "+name);

@@ -40,7 +40,7 @@ namespace Gorgon :: Animation {
 
 		/// Move assignment
 		basic_Instance &operator =(basic_Instance &&other) {
-			Remove();
+			RemoveAnimation();
 			isowned = other.isowned;
 			instance = other.instance;
 			other.isowned = false;
@@ -48,11 +48,16 @@ namespace Gorgon :: Animation {
 
 			return *this;
 		}
-		
+
+		/// Destructor
+		virtual ~basic_Instance() {
+			RemoveAnimation();
+		}
+
 		/// Move assignment, owns the assigned object as CreateAnimation returns
 		/// objects that needs to be owned
 		basic_Instance &operator =(A_ &instance) {
-			Remove();
+			RemoveAnimation();
 			isowned = true;
 			this->instance = &instance;
 
@@ -85,7 +90,7 @@ namespace Gorgon :: Animation {
         
 		/// Sets the animation stored in this container
 		void SetAnimation(A_ &value, bool owner = true) {
-			Remove();
+			RemoveAnimation();
 
 			instance = &value;
 			this->isowned = owner;
@@ -94,7 +99,7 @@ namespace Gorgon :: Animation {
 		/// Removes the animation stored in the container, if the container owns
 		/// the animation, it will be destroyed. Use Release to release resource
 		/// without destroying it
-		void Remove() {
+		void RemoveAnimation() {
 			if(isowned)
 				instance->DeleteAnimation();
 
@@ -103,12 +108,12 @@ namespace Gorgon :: Animation {
 		}
         
 		/// Removes the animation from the storage without destroying it.
-		A_ *Release() {
+		A_ *ReleaseAnimation() {
 			auto temp = instance;
 			
 			isowned = false;
 
-			Remove();
+			RemoveAnimation();
 
 			return temp;
 		}

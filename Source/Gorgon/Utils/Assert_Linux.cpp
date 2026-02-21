@@ -25,7 +25,6 @@ namespace Gorgon :: Utils {
 			
 			std::string name=message.substr(mangledbegin+1, mangledend-mangledbegin-1);
 			
-			int status;
 			std::string demangled = demangle(name);
 			
 			int fd[2];

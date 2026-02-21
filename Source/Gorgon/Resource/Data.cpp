@@ -25,8 +25,6 @@ namespace Gorgon :: Resource {
 			auto size= reader->ReadChunkSize();
 			
 			if(!reader->ReadCommonChunk(*obj, gid, size)) {
-				bool done=false;
-				
 				if(DataItem::DataLoaders.count(gid)) {
 					auto data=DataItem::DataLoaders[gid](file, reader, size);
 					if(data) {

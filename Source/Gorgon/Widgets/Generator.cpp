@@ -1,9 +1,7 @@
 #include "Generator.h"
 #include "../OS.h"
-#include "../Filesystem.h"
 #include "../Graphics/FreeType.h"
 #include "../Graphics/Color.h"
-#include "../Graphics/BitmapFont.h"
 #include "../Graphics/BlankImage.h"
 #include "../Graphics/Animations.h"
 #include "../CGI/Line.h"
@@ -2838,7 +2836,7 @@ namespace Gorgon :: Widgets {
         temp.SetSize(defsize);
 
 
-        auto &bg = temp.AddContainer(0, UI::ComponentCondition::Always)
+        temp.AddContainer(0, UI::ComponentCondition::Always)
             .AddIndex(1) //border
             .AddIndex(2) //boxed content
         ;

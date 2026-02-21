@@ -129,7 +129,6 @@ namespace Gorgon :: Resource {
 		auto target = reader->Target(totalsize);
         
         auto font = new Font;
-        bool recalc = false;
         float bl = 0;
 		float sz = 0;
 
@@ -154,8 +153,6 @@ namespace Gorgon :: Resource {
                 bf->SetGlyphSpacing(reader->ReadInt32());
                 bf->SetBaseline((float)reader->ReadInt32());
                 bf->SetLineGap(bf->GetBaseLine() + bf->GetLineGap());
-                
-                recalc = true;
             }
 #ifdef GORGON_FREETYPE_SUPPORT
 			else if(gid == GID::Font_FreeTypeData) {

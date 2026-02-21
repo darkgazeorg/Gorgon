@@ -3,6 +3,8 @@
 #include "Base.h"
 #include "GID.h"
 
+#include <memory>
+
 namespace Gorgon :: Resource {
    
     class File;

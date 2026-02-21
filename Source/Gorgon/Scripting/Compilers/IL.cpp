@@ -428,7 +428,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 	unsigned long Intermediate::parsetemporary(const std::string &input, int &ch) {
 		auto str=ExtractQuotes(input, ch);
 		auto ret=String::To<Gorgon::Byte>(str);
-		if(ret==0 && ret>255) {
+		if(ret==0 || ret>255) {
 			throw std::runtime_error("Invalid temporary: "+str);
 		}
 		return ret;

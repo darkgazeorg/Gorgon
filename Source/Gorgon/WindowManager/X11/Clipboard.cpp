@@ -593,7 +593,7 @@ namespace Gorgon :: WindowManager {
         XIfEvent(display, &event, waitfor_selectionnotify, (char*)windowhandle);
         if (event.xselection.property == XA_CP_PROP) {
             Atom type;
-            unsigned long len, bytes, dummy;
+            unsigned long bytes, dummy;
             unsigned char *data;
             int format;
 

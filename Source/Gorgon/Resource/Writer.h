@@ -3,13 +3,12 @@
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
-#include <map>
-#include <memory>
 
 #include "../Utils/Assert.h"
 #include "../Filesystem.h"
 #include "../IO/Stream.h"
 #include "../Geometry/Point.h"
+#include "../Resource/GID.h"
 
 namespace Gorgon :: Resource {
 	

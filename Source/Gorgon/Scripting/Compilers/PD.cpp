@@ -231,7 +231,6 @@ namespace Compilers {
 			bool numeric = false;
 			bool flt = false; //float
 			bool op = false;
-			bool var = false;
 
 			acc.push_back(c);
 			
@@ -400,6 +399,7 @@ namespace Compilers {
 			{Token::Membership, "Membership"}, {Token::Namespace, "Namespace"}, {Token::EoS, "EoS"}, {Token::None, "None"}
 		);
 		
+		[[maybe_unused]]
 		void testlexer(const std::string &input, std::ostream *cases) {
 			int index = 0;
 			int i = 0;
@@ -599,7 +599,6 @@ namespace Compilers {
 		ASTNode *parseexpression(const std::string &input, int &index) {
 			Token token;
 
-			int par=0;
 			bool nextisop=false;
 			
 			struct opnode {
@@ -612,6 +611,7 @@ namespace Compilers {
 			Containers::Collection<ASTNode> outputstack;
 			
 			
+			[[maybe_unused]]
 			auto printtrees = [&]() {
 				for(auto &t : outputstack) {
 					PrintAST(t);
