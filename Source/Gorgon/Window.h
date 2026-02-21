@@ -47,79 +47,83 @@ namespace Gorgon {
 
         /// Creates a new window
         /// @param  rect the position and the **interior** size of the window unless
-        ///         use outer metrics is set to true
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        ///         use outer metrics is set to true.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(Geometry::Rectangle rect, const std::string &name, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), rect, name, name, allowresize, visible) {}
 
         /// Creates a new window
         /// @param  rect the position and the **interior** size of the window unless
-        ///         use outer metrics is set to true
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        ///         use outer metrics is set to true.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(Geometry::Rectangle rect, const char *name, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), rect, name, name, allowresize, visible) {}
 
         /// Creates a new window at the center of the screen
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  title of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  title of the window (displayed in the title bar).
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const Geometry::Size &size, const std::string &name, const std::string &title, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), {automaticplacement, size}, name, title, allowresize, visible) { }
 
         /// Creates a new window at the center of the screen
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  title of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  title of the window (displayed in the title bar).
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const Geometry::Size &size, const char *name, const char *title, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), {automaticplacement, size}, name, title, allowresize, visible) { }
 
         /// Creates a new window at the center of the screen
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const Geometry::Size &size, const std::string &name, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), {automaticplacement, size}, name, name, allowresize, visible) { }
 
         /// Creates a new window at the center of the screen
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const Geometry::Size &size, const char *name, bool allowresize=false, bool visible=true) :
             Window(WindowManager::Monitor::Primary(), {automaticplacement, size}, name, name, allowresize, visible) { }
 
         /// Creates a new window at the center of the screen
-        /// @param  monitor that the window will be centered on
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  monitor that the window will be centered on.
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const WindowManager::Monitor &monitor, const Geometry::Size &size, const std::string &name, bool allowresize=false, bool visible=true) :
             Window(monitor, {automaticplacement, size}, name, name, allowresize, visible) { }
 
         /// Creates a new window at the center of the screen
-        /// @param  monitor that the window will be centered on
-        /// @param  size of the window
-        /// @param  name of the window
-        /// @param  visible after creation, window will be visible or invisible depending
-        ///         on this value. 
+        /// @param  monitor that the window will be centered on.
+        /// @param  size of the window.
+        /// @param  name of the window.
+        /// @param  allowresize whether the user may resize the window after creation.
+        /// @param  visible after creation; the window will be shown if true, hidden if false.
         Window(const WindowManager::Monitor &monitor, const Geometry::Size &size, const char *name, bool allowresize=false, bool visible=true) :
             Window(monitor, {automaticplacement, size}, name, name, allowresize, visible) { }
 
         /// Creates a fullscreen window. Fullscreen windows do not have chrome and covers
         /// entire screen, including any panels it contains.
+        /// @param tag       must be Gorgon::Window::Fullscreen to select fullscreen mode.
+        /// @param monitor   the monitor on which the window will appear.
+        /// @param name      internal name of the window.
+        /// @param title     text to display in the title bar (ignored on some platforms).
+        /// @param visible   whether the window should be visible immediately after creation.
         Window(const FullscreenTag &, const WindowManager::Monitor &monitor, const std::string &name, const std::string &title="", bool visible = true);
-        /// Creates a fullscreen window. Fullscreen windows do not have chrome and covers
-        /// entire screen, including any panels it contains.
+        /// Creates a fullscreen window on the primary monitor. See other overload for details.
         Window(const FullscreenTag &tag, const std::string &name, const std::string &title="") :
             Window(tag, WindowManager::Monitor::Primary(), name, title) { }
 

@@ -23,8 +23,11 @@ endif()
 option(BUILD_EXAMPLES "Enable compiling example applications." OFF)
 option(COVERAGE "Enable code coverage instrumentation (only valid in Debug builds)." OFF)
 option(DOCUMENTATION "Enable generation of documentation." ON)
-option(DOCUMENTATION_GRAPHVIZ "Enable generation of documentation graphs (requires Graphviz)." OFF)
-option(BUILD_PDF "Use Doxygen to create the PDF API documentation" OFF)
+if(DOCUMENTATION)
+    option(DOCUMENTATION_MODE "Enable this mode to enable documentation warnings" OFF)
+    option(DOCUMENTATION_GRAPHVIZ "Enable generation of documentation graphs (requires Graphviz)." OFF)
+    option(BUILD_PDF "Use Doxygen to create the PDF API documentation" OFF)
+endif()
 
 # Dependencies
 #PNG, JPEG, Zlib, LZMA are all forced dependencies. No option to disable them.

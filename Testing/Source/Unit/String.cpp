@@ -1,7 +1,9 @@
+#include "catch2/catch_approx.hpp"
 #define CATCH_CONFIG_MAIN
 #define WINDOWS_LEAN_AND_MEAN
 
-#include <catch.h>
+#include <catch2/catch_test_macros.hpp>
+
 #include <Gorgon/String.h>
 #include <Gorgon/String/Tokenizer.h>
 #include <Gorgon/Types.h>
@@ -11,6 +13,9 @@
 #include <string>
 
 using namespace Gorgon;
+
+using Catch::Approx;
+
 
 
 TEST_CASE("Gorgon::String - To<T> Conversion (Safe)") {

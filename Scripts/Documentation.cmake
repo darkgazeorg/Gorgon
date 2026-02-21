@@ -10,10 +10,32 @@ if(DOCUMENTATION)
             "${PROJECT_BINARY_DIR}/Doxyfile" 
             @ONLY
         )
+
+        # warning-related variables default to off; documentation mode will enable them
+        set(DOXYGEN_WARN_NO_PARAMDOC NO)
+
+        if(DOCUMENTATION_MODE)
+            # Strict mode: Show all warnings and progress
+            set(DOXYGEN_QUIET NO)
+            set(DOXYGEN_WARNINGS YES)
+            set(DOXYGEN_WARN_IF_UNDOCUMENTED YES)
+            set(DOXYGEN_WARN_IF_DOC_ERROR YES)
+            set(DOXYGEN_WARN_IF_INCOMPLETE_DOC YES)
+            set(DOXY_WARNINGS YES)
+        else()
+            # Silent mode: Hide progress and all warnings
+            set(DOXYGEN_QUIET YES)
+            set(DOXYGEN_WARNINGS NO)
+            set(DOXYGEN_WARN_IF_UNDOCUMENTED NO)
+            set(DOXYGEN_WARN_IF_DOC_ERROR NO)
+            set(DOXYGEN_WARN_IF_INCOMPLETE_DOC NO)
+            set(DOXYGEN_WARN_NO_PARAMDOC NO)
+            set(DOXY_WARNINGS NO)
+        endif()
         
         doxygen_add_docs(docs
-            ${GORGON_SOURCES}
-            ALL # Built as part of the default target
+            ${GORGON_HEADERS}
+            ALL
             WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
             COMMENT "Generating API documentation with Doxygen"
         )

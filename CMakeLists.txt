@@ -24,6 +24,7 @@ add_subdirectory(Tools/ShaderEmbedder)
 
 add_subdirectory(Source/Gorgon)
 get_target_property(GORGON_SOURCES Gorgon SOURCES)
+get_target_property(GORGON_HEADERS Gorgon HEADER_SET_HEADERS)
 
 if(TESTS)
     include(Tests)

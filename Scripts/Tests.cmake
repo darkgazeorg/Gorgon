@@ -18,6 +18,7 @@ function(gorgon_add_test_executable name mode exclude_from_all)
     endif()
     
     target_link_libraries(${target_name} PRIVATE Gorgon::Gorgon)
+        target_link_libraries(${target_name} PRIVATE Gorgon::Gorgon Catch2::Catch2WithMain)
     target_include_directories(${target_name} PRIVATE "${TEST_SOURCE_DIR}")
 
     target_compile_definitions(${target_name} PRIVATE 
@@ -41,6 +42,14 @@ endfunction()
 
 # --- UNIT TESTS ---
 if(UNIT_TESTS)
+    include(FetchContent)
+        FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG        v3.5.2
+    )
+    FetchContent_MakeAvailable(Catch2)
+
     foreach(test ${UnitTests})
         gorgon_add_test_executable(${test} "Unit" FALSE)
         
