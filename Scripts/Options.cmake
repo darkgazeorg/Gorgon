@@ -14,11 +14,15 @@ option(UI "Enable UI module. Disabling might break the entire build." ON)
 option(CGI "Enable CGI module. UI depends on CGI module." ON)
 
 # Optional Features
-option(TESTS "Enable compiling of test applications." OFF)
-option(MANUAL_TESTS "Compiles manual test applications." OFF)
+option(TESTS "Enable testing mode." OFF)
+if(TESTS)
+    option(UNIT_TESTS "Enable unit tests." ON)
+    option(MANUAL_TESTS "Compiles manual test applications." ON)
+endif()
+
 option(BUILD_EXAMPLES "Enable compiling example applications." OFF)
 option(COVERAGE "Enable code coverage instrumentation (only valid in Debug builds)." OFF)
-option(DOCUMENTATION "Enable generation of documentation." OFF)
+option(DOCUMENTATION "Enable generation of documentation." ON)
 option(DOCUMENTATION_GRAPHVIZ "Enable generation of documentation graphs (requires Graphviz)." OFF)
 option(BUILD_PDF "Use Doxygen to create the PDF API documentation" OFF)
 

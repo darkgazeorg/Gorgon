@@ -5,7 +5,6 @@ set(TEST_SOURCE_DIR "${TEST_ROOT}/Source")
 set(TEST_RUNTIME_DIR "${TEST_ROOT}/Runtime")
 
 include("${TEST_ROOT}/tests.cmake")
-include(CTest)
 
 file(MAKE_DIRECTORY "${TEST_RUNTIME_DIR}")
 
@@ -34,6 +33,10 @@ function(gorgon_add_test_executable name mode exclude_from_all)
     set_target_properties(${target_name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/Testing/${mode}"
     )
+
+    if(NOT WIN32)
+        target_compile_definitions(${target_name} PRIVATE LINUX)
+    endif()
 endfunction()
 
 # --- UNIT TESTS ---
@@ -42,8 +45,8 @@ if(UNIT_TESTS)
         gorgon_add_test_executable(${test} "Unit" FALSE)
         
         # Register with CTest
-        add_test(NAME ${test} 
-                 COMMAND "UnitTest-${test}"
+        add_test(NAME ${test}
+                 COMMAND $<TARGET_FILE:UnitTest-${test}>
                  WORKING_DIRECTORY "${TEST_RUNTIME_DIR}")
     endforeach()
 endif()

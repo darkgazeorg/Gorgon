@@ -11,7 +11,8 @@
 #include <sstream>
 
 #include "Iterator.h"
-#include <Gorgon/TMP.h>
+#include "../TMP.h"
+#include "../Utils/Assert.h"
 
 namespace Gorgon :: Containers {
 

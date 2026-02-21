@@ -7,6 +7,7 @@ project(Gorgon
         audio, and input handling. Gorgon is designed to be easy to use and highly customizable."
     LANGUAGES CXX C
 )
+include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/Scripts")
 
@@ -23,6 +24,10 @@ add_subdirectory(Tools/ShaderEmbedder)
 
 add_subdirectory(Source/Gorgon)
 get_target_property(GORGON_SOURCES Gorgon SOURCES)
+
+if(TESTS)
+    include(Tests)
+endif()
 
 include(Documentation)
 include(Install)
