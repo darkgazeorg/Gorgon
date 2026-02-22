@@ -7,7 +7,7 @@
 #include "Assert.h"
 #include "../Filesystem.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 	
 	void CrashHandler::Backtrace() {
 		void **trace=(void**)malloc((depth+skip+2)*sizeof(void*));
@@ -25,7 +25,6 @@ namespace Gorgon { namespace Utils {
 			
 			std::string name=message.substr(mangledbegin+1, mangledend-mangledbegin-1);
 			
-			int status;
 			std::string demangled = demangle(name);
 			
 			int fd[2];
@@ -125,4 +124,4 @@ namespace Gorgon { namespace Utils {
 		}
 	}
 	
-	} }
+	}

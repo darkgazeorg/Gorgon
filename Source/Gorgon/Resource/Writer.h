@@ -3,15 +3,14 @@
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
-#include <map>
-#include <memory>
 
 #include "../Utils/Assert.h"
 #include "../Filesystem.h"
 #include "../IO/Stream.h"
 #include "../Geometry/Point.h"
+#include "../Resource/GID.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	class Base;
 
@@ -66,25 +65,25 @@ namespace Gorgon { namespace Resource {
 			Marker(const Marker &) = delete;
 			Marker(Marker &&other) {
 				pos = other.pos;
-				other.pos = -1;
+				other.pos = (unsigned long)-1;
 			}
 
 			Marker &operator =(Marker &&other) {
 				pos = other.pos;
-				other.pos = -1;
+				other.pos = (unsigned long)-1;
 
 				return *this;
 			}
 			
 			~Marker() { 
-				if(pos!=-1) 
+				if(pos!=(unsigned long)-1) 
 					Utils::ASSERT_FALSE("Marker is not ended.");
 			}
 			
 		private:
 			Marker(unsigned long pos) : pos(pos) { }
 			
-			unsigned long pos = -1;
+			unsigned long pos = (unsigned long)-1;
 		};
 		
 		/// Any writer implementation should close and set the stream to nullptr in destructor
@@ -444,4 +443,4 @@ namespace Gorgon { namespace Resource {
 		std::string filename;
 	};
 	
-} }
+}

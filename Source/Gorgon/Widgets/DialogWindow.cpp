@@ -3,7 +3,7 @@
 #include "../Window.h"
 #include "../UI/Window.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     DialogWindow::DialogWindow(const UI::Template &temp, const std::string &title, AutoplaceTarget autoplace) : 
         Window(temp, title, false)
@@ -80,4 +80,4 @@ namespace Gorgon { namespace Widgets {
         return *btn;
     }
     
-} }
+}

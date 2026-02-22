@@ -1,4 +1,4 @@
-#include <Gorgon/Main.h>
+#include <Gorgon/EntryPoint.h>
 #include <Gorgon/Window.h>
 #include <Gorgon/WindowManager.h>
 #include <Gorgon/Graphics/Layer.h>
@@ -6,6 +6,7 @@
 #include <Gorgon/Graphics/BlankImage.h>
 #include <Gorgon/Input/Mouse.h>
 #include <Gorgon/Input/Layer.h>
+#include <vector>
     
 //WARNING:
 //This sample game is designed to show how a very simple game can be coded
@@ -176,21 +177,8 @@ public:
 std::vector<Object> objects;
 
     
-//Windows applications start with WinMain. In the future this distinction
-//will be handled by the engine.
-#ifdef WIN32
-#define WINDOWS_LEAN_AND_MEAN
-#include <windows.h>
-int CALLBACK WinMain(
-  _In_ HINSTANCE hInstance,
-  _In_ HINSTANCE hPrevInstance,
-  _In_ LPSTR     lpCmdLine,
-  _In_ int       nCmdShow
-) {
-#else
-int main() {
-#endif
-    
+
+int Main(const std::vector<std::string> &args) {    
     //Initialize everything with the system name of GreenShooter
     Gorgon::Initialize("GreenShooter");
     

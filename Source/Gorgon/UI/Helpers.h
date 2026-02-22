@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
    
     namespace internal {
         template<class I_, class T_>
@@ -36,4 +36,4 @@ namespace Gorgon { namespace UI {
         }
     }
     
-} }
+}

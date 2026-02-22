@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     class WidgetContainer;
 
@@ -79,4 +79,4 @@ namespace Gorgon { namespace UI {
             bool paused = false;
         };
     }
-} }
+}

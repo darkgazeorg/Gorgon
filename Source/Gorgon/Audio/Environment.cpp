@@ -1,7 +1,7 @@
 #include "Environment.h"
 
  
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     void Environment::init() {
         float maxboost = 0;
         for(int i=0; i<4; i++) {
@@ -48,4 +48,4 @@ namespace Gorgon { namespace Audio {
         env->updateorientation();
     }
 
-} }
+}

@@ -2,7 +2,7 @@
 #include "File.h"
 #include "Writer.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
     Resource::Pointer* Pointer::LoadResource(std::weak_ptr< Gorgon::Resource::File > file, std::shared_ptr< Gorgon::Resource::Reader > reader, long unsigned int totalsize) {
         Pointer *p = new Pointer();
         
@@ -72,4 +72,4 @@ namespace Gorgon { namespace Resource {
 		return Graphics::RectangularAnimationStorage(anim, true);
 	}
 
-}}
+}

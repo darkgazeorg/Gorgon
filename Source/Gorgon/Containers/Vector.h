@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace Gorgon { namespace Containers {
+namespace Gorgon :: Containers {
 
 	/// This function push_backs an item to the given vector
 	/// if the item does not exists in the vector
@@ -51,4 +51,4 @@ namespace Gorgon { namespace Containers {
 		vector.push_back(val);
 	}
 
-}}
+}

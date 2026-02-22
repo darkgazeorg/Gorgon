@@ -7,7 +7,7 @@
 
 #include <functional>
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	class File;
 	
@@ -493,4 +493,4 @@ namespace Gorgon { namespace Resource {
 	}
 
 
-} }
+}

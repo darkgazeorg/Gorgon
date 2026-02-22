@@ -1,6 +1,5 @@
 #pragma once
 
-#include <tuple>
 #include <type_traits>
 #include <cmath>
 
@@ -17,8 +16,7 @@
  * C++ types and functions to scripting. In the following section, each type of mapping is covered with examples.
  */
 
-namespace Gorgon { 
-namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 	template<class T_>
 	using StringFromFn = std::string(*)(const T_ &);
@@ -54,7 +52,7 @@ namespace Scripting {
 	class MappedFunction : public Scripting::Function::Overload {
 		using variant = Scripting::Function::Overload;
 		using traits  = TMP::FunctionTraits<F_>;
-		template<int P_>
+		template<size_t P_>
 		using param = typename traits::template Arguments<P_>::Type;
 	public:
 
@@ -137,7 +135,7 @@ namespace Scripting {
 			is_nontmpref<T_>::value && !std::is_const<typename std::remove_reference<T_>::type>::value, 
 			T_
 		>::type castto(const Data &d) const {
-			using regtype=typename std::remove_reference<T_>::type;
+			// using regtype=typename std::remove_reference<T_>::type;
 			
 			ASSERT(!d.IsConstant(), "Constant data is being submitted to non-const reference");
 			return d.ReferenceValue<T_>();
@@ -207,7 +205,10 @@ namespace Scripting {
 			>::Type
 		>::Type cast(const std::vector<Data> &parameters) const {
 			bool b=is_nontmpref<param<P_>>::value;
-			if(P_-(parent->IsMember() && !parent->IsStatic())==this->parameters.size()-1 && repeatlast) {
+
+			(void)b;
+
+			if(P_-(parent->IsMember() && !parent->IsStatic())==(int)this->parameters.size()-1 && repeatlast) {
 				ASSERT(extractvector<param<P_>>::isvector, "Repeating parameter should be a vector");
 
 				return accumulatevector<P_>(parameters);
@@ -302,11 +303,12 @@ namespace Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//repeating parameters cannot be a non-const reference or a pointer
 					ASSERT(
-						P_-ismember!=parameters.size()-1 || !repeatlast, 
+						(std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast, 
 						"Repeating parameter vectors cannot be non-const references"
 						"in function "+parent->GetName(), 4, 3
 					);
@@ -325,7 +327,7 @@ namespace Scripting {
 						"in function "+parent->GetName(), 4, 3
 					);
 					
-					if(is_nonconstref<T>::value) {
+					if constexpr (is_nonconstref<T>::value) {
 						ASSERT(!param.AllowsNull(), 
 							"Parameter #"+String::From(P_-ismember)+" is a reference "
 							"and its implementation allows nullptr. This may cause crashes\n"
@@ -348,11 +350,12 @@ namespace Scripting {
 #endif
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//a repeating parameter cannot be a pointer
 					ASSERT(
-						P_-ismember!=parameters.size()-1 || !repeatlast, 
+						(std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast, 
 						"Repeating parameter vectors cannot be a pointer"
 					);
 					
@@ -375,6 +378,7 @@ namespace Scripting {
 			}
 			else if(std::is_reference<T>::value) { //const ref can be anything
 				if(!ismember || P_!=0)  {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if really is a reference
@@ -400,6 +404,7 @@ namespace Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if not the repeating parmeter
@@ -434,10 +439,11 @@ namespace Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if not the repeating parameter
-					if(P_-ismember!=parameters.size()-1 || !repeatlast) {
+					if((std::size_t)(P_-ismember)!=parameters.size()-1 || !repeatlast) {
 						//cannot be a reference as it is passed by value
 						ASSERT(!param.IsReference() || param.GetType()==Types::Variant(),
 							"Parameter #"+(String::From(P_-ismember+1)+", "+param.GetName())+" is declared as reference, "
@@ -470,9 +476,10 @@ namespace Scripting {
 				);
 			}
 			//repeating parameter
-			else if(P_-ismember==parameters.size()-1 && repeatlast) {
+			else if((std::size_t)(P_-ismember)==parameters.size()-1 && repeatlast) {
 				const auto &param=parameters[P_-ismember];
 				
+				[[maybe_unused]]
 				TMP::RTTS *typeinf;
 				if(param.IsConstant()) {
 					if(param.IsReference()) {
@@ -501,6 +508,7 @@ namespace Scripting {
 			}
 			//regular parameters
 			else {
+				[[maybe_unused]]
 				const auto &param=parameters[P_-ismember];
 				
 				ASSERT(
@@ -515,7 +523,8 @@ namespace Scripting {
 		
 		template<int ...S_>
 		void check(TMP::Sequence<S_...>) {
-			char dummy[[gnu::unused]] [] = {0, (checkparam<S_>(),'\0')...};
+			[[maybe_unused]]
+			char dummy[] = {0, (checkparam<S_>(),'\0')...};
 		}
 		
 		virtual void dochecks(bool ismethod) override {
@@ -665,6 +674,8 @@ namespace Scripting {
 			}
 			
 		}
+
+		using Function::AddOverload;
 		
 		/// Adds a new operator overload
 		template<class F_>
@@ -1226,9 +1237,6 @@ namespace Scripting {
 				
 				return d;
 			}
-		}
-		
-		virtual void set(Data &source, Data &value) const override {
 		}
 		
 		T_ value;
@@ -1929,4 +1937,4 @@ namespace Scripting {
 		);	
 	}
 	
-} }
+}

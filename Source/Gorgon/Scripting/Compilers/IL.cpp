@@ -165,7 +165,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		int ch=0;
 		eatwhite(input, ch);
 		
-		if(input.size()<=ch) return 0;
+		if((int)input.size()<=ch) return 0;
 		
 		int ret=0;
 		
@@ -209,7 +209,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		}
 		
 		eatwhite(input, ch);
-		if(ch<input.size()) {
+		if(ch<(int)input.size()) {
 			throw ParseError{ExceptionType::UnexpectedToken, "Expected end of line, found: "+input.substr(ch,1), 1, 0};
 		}
 		
@@ -238,7 +238,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 			return ;
 		}
 		
-		if(input[ch]!='m' && (input[ch]!='f' || (input.size()>ch+1 && input[ch+1]!='n' && input[ch+1]!='m'))) { //save to temp
+		if(input[ch]!='m' && (input[ch]!='f' || ((int)input.size()>ch+1 && input[ch+1]!='n' && input[ch+1]!='m'))) { //save to temp
 			List.resize(List.size()+1);
 			Instruction &inst = List.back();
 			
@@ -285,7 +285,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		
 		inst.Name=parsevalue(input, ch);
 		
-		while(ch<input.size()) {				
+		while(ch<(int)input.size()) {				
 			inst.Parameters.push_back(parsevalue(input, ch));
 			eatwhite(input, ch);
 		}
@@ -326,7 +326,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		inst.Reference=CheckInputFor(input, ch, '=', ':')==1;
 		eatwhite(input, ch);
 		
-		if(input.size()>ch && input[ch]=='|') {
+		if((int)input.size()>ch && input[ch]=='|') {
 			inst.Type=InstructionType::MemberToVar;
 			inst.Parameters.push_back(parsevalue(input, ch));
 			eatwhite(input, ch);
@@ -353,7 +353,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 	}
 	
 	void Intermediate::eatwhite(const std::string& input, int& ch) {
-		for(;ch<input.size();ch++) {
+		for(;ch<(int)input.size();ch++) {
 			if(input[ch]!=' ' && input[ch]!='\t') return;
 		}
 	}
@@ -427,11 +427,11 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 	
 	unsigned long Intermediate::parsetemporary(const std::string &input, int &ch) {
 		auto str=ExtractQuotes(input, ch);
-		auto ret=String::To<Gorgon::Byte>(str);
-		if(ret==0 && ret>255) {
+		auto ret=String::To<int>(str);
+		if(ret==0 || ret>255) {
 			throw std::runtime_error("Invalid temporary: "+str);
 		}
-		return ret;
+		return (Gorgon::Byte)ret;
 	}
 	
 	

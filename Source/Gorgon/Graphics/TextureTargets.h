@@ -6,7 +6,7 @@
 #include "../Geometry/Size.h"
 #include "../Geometry/Rectangle.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 	/// This interface defines a class that can be used as a common target for texture based drawing
 	class TextureTarget {
@@ -100,4 +100,4 @@ namespace Gorgon { namespace Graphics {
 		virtual void NewMask() = 0;
 	};
 
-} }
+}

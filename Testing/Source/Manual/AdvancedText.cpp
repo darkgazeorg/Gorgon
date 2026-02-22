@@ -11,6 +11,7 @@
 #include <Gorgon/Widgets/Generator.h>
 #include <Gorgon/CGI/Marking.h>
 #include <Gorgon/String/Markdown.h>
+#include <Gorgon/Input/Layer.h>
 
 
 std::string helptext = 

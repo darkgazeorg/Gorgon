@@ -2,7 +2,7 @@
 #include "File.h"
 #include "../Encoding/LZMA.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	Blob *Blob::LoadResource(std::weak_ptr<File> file, std::shared_ptr<Reader> reader, unsigned long size) {
 		auto blob=new Blob;
@@ -179,4 +179,4 @@ namespace Gorgon { namespace Resource {
 	}
 
 
-} }
+}

@@ -6,8 +6,7 @@
 #include "../Enum.h"
 #include "../Utils/Assert.h"
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		enum class ExceptionType {
 			OutofBounds,
@@ -83,8 +82,7 @@ namespace Gorgon {
 		class Exception : public std::runtime_error {
 		public:
 			
-			explicit Exception(ExceptionType type, const std::string &message, long linenumber=0) : linenumber(linenumber), 
-				std::runtime_error(message), type(type) { 
+			explicit Exception(ExceptionType type, const std::string &message, long linenumber=0) : std::runtime_error(message), type(type), linenumber(linenumber) { 
 #ifndef NDEBUG
 				std::streambuf* oldbuf = std::cout.rdbuf();
 				std::ostringstream newbuf;
@@ -315,4 +313,3 @@ namespace Gorgon {
 		
 
 	}
-}

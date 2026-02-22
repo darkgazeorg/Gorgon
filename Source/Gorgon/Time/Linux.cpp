@@ -4,7 +4,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-namespace Gorgon { namespace Time {
+namespace Gorgon :: Time {
 	
 	Date GetDate() {
 		time_t rawtime;
@@ -39,4 +39,4 @@ namespace Gorgon { namespace Time {
 
 		
 	
-} }
+}

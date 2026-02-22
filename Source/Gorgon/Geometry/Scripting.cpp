@@ -5,7 +5,7 @@
 #include "../Scripting.h"
 #include "Margin.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 
 
@@ -339,4 +339,4 @@ namespace Gorgon { namespace Geometry {
         
         
 	}
-} }
+}

@@ -1,6 +1,8 @@
 #pragma once
 
-namespace Gorgon { namespace UI {
+#include "../Event.h"
+
+namespace Gorgon :: UI {
     
     /**
     * This class is designed to be the interface class for all checkbox
@@ -54,4 +56,4 @@ namespace Gorgon { namespace UI {
         
     };
 
-} }
+}

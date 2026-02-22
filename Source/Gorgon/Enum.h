@@ -267,7 +267,8 @@ namespace Gorgon {
 		\
 		const std::multimap<clsname::type, std::string> mapping;\
 	};\
-	gorgon_enumtraits_##type gorgon__enum_tr_loc(const clsname::type &);
+	[[maybe_unused]]\
+	inline gorgon_enumtraits_##type gorgon__enum_tr_loc(const clsname::type &){return {};}
 
 	/// This macro converts a regular C++ enumeration in to an enumerable, stream-able, and parsable
 	/// enumeration by assigning one or more strings to enum values. This macro should be invoked

@@ -4,8 +4,6 @@
 #include <string>
 #include <thread>
 
-#include "../Types.h"
-#include "../Event.h"
 #include "../Containers/Collection.h"
 #include "../Containers/Hashmap.h"
 
@@ -18,9 +16,7 @@
 
 
 
-namespace Gorgon {
-	
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		/// Represents a symbol, can be a variable, type, function or constant.
 		class Symbol {
@@ -275,4 +271,3 @@ namespace Gorgon {
 		
 		
 	}
-}

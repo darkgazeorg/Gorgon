@@ -3,7 +3,7 @@
 #include "TwoStateControl.h"
 #include "../Containers/Hashmap.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     /**
      * This class is designed to turn any group of two state widgets to
@@ -275,4 +275,4 @@ namespace Gorgon { namespace UI {
         int columns = 1;
     };
     
-} }
+}

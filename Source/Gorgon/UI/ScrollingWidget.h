@@ -2,7 +2,7 @@
 
 #include "ComponentStackWidget.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     /**
      * This class adds scrolling support to component stack widgets. It uses viewport and contents
@@ -148,4 +148,4 @@ namespace Gorgon { namespace UI {
 
     };
     
-} }
+}

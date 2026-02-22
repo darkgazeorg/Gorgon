@@ -8,12 +8,9 @@
 
 #include "Reflection.h"
 #include "Data.h"
-#include "Input.h"
 #include "Instruction.h"
 
-namespace Gorgon {
-	
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		/// This class allows references to be counted and destroyed properly.
 		class ReferenceCounter {
@@ -230,4 +227,3 @@ namespace Gorgon {
 		};
 		
 	}
-}

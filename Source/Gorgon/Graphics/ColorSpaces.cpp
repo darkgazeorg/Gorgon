@@ -17,7 +17,7 @@
  */
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
    
     
     XYZAf RGBToXYZ(RGBAf color) {
@@ -311,4 +311,4 @@ namespace Gorgon { namespace Graphics {
     }
 
     
-} }
+}

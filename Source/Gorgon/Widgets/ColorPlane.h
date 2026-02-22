@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../UI/ComponentStackWidget.h"
-#include "../UI/TwoStateControl.h"
 #include "../Property.h"
 #include "Layerbox.h"
 
@@ -9,7 +8,7 @@
 
 #include "../Graphics/Bitmap.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * This class shows a color plane allowing user to select one of them. The selected color may
@@ -142,4 +141,4 @@ namespace Gorgon { namespace Widgets {
     };
     
     
-} }
+}

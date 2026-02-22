@@ -1,7 +1,7 @@
 #include "Tokenizer.h"
 #include "../String.h"
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
 	
 	const Tokenizer Tokenizer::endit;
 
@@ -40,6 +40,6 @@ namespace Gorgon { namespace String {
 	}
 
 	
-} }
+}
 	
 		

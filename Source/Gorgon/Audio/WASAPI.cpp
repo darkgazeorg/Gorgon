@@ -1,16 +1,16 @@
 #undef UNICODE
 
 #include "../Audio.h"
-#include "../Main.h"
+#include "../OS/Win32Unicode.h"
 #include <initguid.h>
 #include <Audioclient.h>
 #include <Mmdeviceapi.h>
 #include <comdef.h>
-#include <locale>
-#include <codecvt>
 #include <functiondiscoverykeys_devpkey.h>
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon {
+
+namespace Audio {
 
 	IMMDeviceEnumerator *Enumerator = nullptr;
 	IMMDevice *CurrentDevice = nullptr;
@@ -57,9 +57,6 @@ namespace Gorgon { namespace Audio {
 	}
 
 	Device GetDevice(IMMDevice *dev) {
-		using convert_type=std::codecvt_utf8<wchar_t>;
-		std::wstring_convert<convert_type, wchar_t> converter;
-
 		std::string devid, devname;
 		std::vector<Channel> channels;
 		bool headphones = false;
@@ -67,7 +64,7 @@ namespace Gorgon { namespace Audio {
 		wchar_t *id = nullptr;
 		dev->GetId(&id);
 		if(id!=nullptr) {
-			devid = converter.to_bytes(id);
+			devid = UnicodeToMByte(id);
 			CoTaskMemFree(id);
 		}
 
@@ -83,7 +80,7 @@ namespace Gorgon { namespace Audio {
 
 		props->GetValue(PKEY_Device_FriendlyName, &pv);
 
-		devname = converter.to_bytes(pv.pwszVal);
+		devname = UnicodeToMByte(pv.pwszVal);
 
 		props->GetValue(PKEY_AudioEndpoint_FormFactor, &pv);
 
@@ -239,10 +236,6 @@ namespace Gorgon { namespace Audio {
 	}
 
 	void Device::Refresh() {
-		//for wstring conversion
-		using convert_type=std::codecvt_utf8<wchar_t>;
-		std::wstring_convert<convert_type, wchar_t> converter;
-
 		HRESULT hr;
 
 		IMMDeviceCollection *devs = nullptr;
@@ -256,7 +249,7 @@ namespace Gorgon { namespace Audio {
 		wchar_t *id = nullptr;
 		defaultdev->GetId(&id);
 		if(id!=nullptr) {
-			defaultdevid = converter.to_bytes(id);
+			defaultdevid = UnicodeToMByte(id);
 			CoTaskMemFree(id);
 		}
 
@@ -297,4 +290,5 @@ namespace Gorgon { namespace Audio {
 		return available;
 	}
 
-} }
+}
+}

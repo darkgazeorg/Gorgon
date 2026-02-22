@@ -4,9 +4,7 @@
 #   define GORGON_WINDOWMANAGER_CLICKTHRESHOLD 5
 #endif
 
-namespace Gorgon {
-    
-namespace WindowManager {
+namespace Gorgon :: WindowManager {
     
     
     
@@ -15,4 +13,3 @@ namespace WindowManager {
     
 }
 
-}

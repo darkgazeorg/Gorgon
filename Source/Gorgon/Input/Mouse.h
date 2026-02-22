@@ -5,7 +5,7 @@
 #include "../Types.h"
 #include "../Enum.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
 	namespace Mouse {
 
@@ -79,4 +79,4 @@ namespace Gorgon { namespace Input {
 
 	}
 
-}}
+}

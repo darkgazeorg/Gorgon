@@ -1,21 +1,20 @@
 #include "AudioStream.h"
 
-#include "../Resource/Sound.h"
 #include "../Audio.h"
 
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
 #include "../Encoding/FLAC.h"
 #endif
 
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
 #include "../Encoding/Vorbis.h"
 #endif
 
 namespace Gorgon { 
     
-namespace Audio { namespace internal {
+namespace Audio :: internal {
     extern std::mutex ControllerMtx;
-} }
+}
     
 namespace Multimedia {
     
@@ -34,7 +33,7 @@ namespace internal {
         }
         
         unsigned long Init(Containers::Wave &target) override {
-            unsigned long size;
+            unsigned long size = 0;
             
             target.ImportWav(stream, false, size, samplesize, blocksize);
             startoffset = stream.tellg();
@@ -105,10 +104,10 @@ namespace internal {
         D_ decoder;
     };
     
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
     using FLACStreamStreamer = DecoderStreamer<Encoding::FLACStream>;
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
     using VorbisStreamStreamer = DecoderStreamer<Encoding::VorbisStream>;
 #endif
 }
@@ -116,18 +115,18 @@ namespace internal {
     bool AudioStream::Stream(const std::string &filename) {
         auto dotpos = filename.find_last_of('.');
 
-        if(dotpos != -1) {
+        if(dotpos != std::string::npos) {
             auto ext = filename.substr(dotpos+1);
 
             if(String::ToLower(ext) == "wav") {
                 return StreamWav(filename);
             }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
             else if(String::ToLower(ext) == "flac") {
                 return StreamFLAC(filename);
             }
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
             else if(String::ToLower(ext) == "ogg") {
                 return StreamVorbis(filename);
             }
@@ -156,12 +155,12 @@ namespace internal {
         if(sig == wavsig) {
             return StreamWav(file, ownstream);
         }
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
             return StreamFLAC(file);
         }
 #endif
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
         else if(sig == oggsig) {
             return StreamVorbis(file);
         }
@@ -202,20 +201,20 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
         return true;
     }
     
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
     bool AudioStream::StreamFLAC(const std::string &filename) {
         auto &file = *new std::ifstream(filename, std::ios::binary);
         
@@ -248,13 +247,13 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
@@ -263,7 +262,7 @@ namespace internal {
 #endif
 
     
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
     bool AudioStream::StreamVorbis(const std::string &filename) {
         auto &file = *new std::ifstream(filename, std::ios::binary);
         
@@ -296,13 +295,13 @@ namespace internal {
         totalsize = streamer->Init(buffers[0].buffer);
         
         //overwrite it to other buffers 
-        for(int i=1; i<buffers.size(); i++)
+        for(std::size_t i=1; i<buffers.size(); i++)
             buffers[i].buffer = buffers[0].buffer.Duplicate();
         
         if(totalsize == 0)
             return false;
         
-        for(int i=0; i<buffers.size(); i++)
+        for(std::size_t i=0; i<buffers.size(); i++)
             buffers[i].buffer.Resize(buffersize);
         
         
@@ -322,7 +321,7 @@ namespace internal {
             Audio::Log << "Seek detected: " << seektarget << " currently at " << lastsample;
             
             //find the last sample in the buffers
-            for(int i=0; i<buffers.size(); i++) {
+            for(std::size_t i=0; i<buffers.size(); i++) {
                 if(seektarget >= buffers[i].beg  && seektarget < buffers[i].end) {
                     Audio::Log << "Seek done immediately";
                     seekcomplete = true;
@@ -334,9 +333,9 @@ namespace internal {
             int sampleind = -1;
             
             //find the last sample in the buffers
-            for(int i=0; i<buffers.size(); i++) {
+            for(std::size_t i=0; i<buffers.size(); i++) {
                 if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end) {
-                    sampleind = i;
+                    sampleind = int(i);
                     break;
                 }
             }
@@ -362,16 +361,16 @@ namespace internal {
         unsigned long startoff = lastsample;
         
         //find the last sample in the buffers
-        for(int i=0; i<buffers.size(); i++) {
+        for(std::size_t i=0; i<buffers.size(); i++) {
             if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end)
-                sampleind = i;
+                sampleind = int(i);
         }
         
         if(sampleind == -1) {
             loadbuffer = 0;
         }
         else {
-            for(int i=1; i<buffers.size(); i++) {
+            for(std::size_t i=1; i<buffers.size(); i++) {
                 auto cur = int((sampleind + i)%buffers.size());
                 auto prev = (cur + buffers.size() - 1) % buffers.size();
                 auto p = buffers[prev].end;

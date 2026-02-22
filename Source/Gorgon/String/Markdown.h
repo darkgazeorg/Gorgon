@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
    
     /**
      * Represents a link in markdown text
@@ -45,4 +45,4 @@ namespace Gorgon { namespace String {
      */
     std::pair<std::string, std::vector<MarkdownLink>> ParseMarkdown(const std::string &markdown, bool useinfofont = false);
     
-} }
+}

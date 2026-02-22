@@ -12,7 +12,7 @@
 #include "StackedObject.h"
 #include "Null.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
    
   
     /// Returns if the resource type with the given gid is an animation provider
@@ -74,4 +74,4 @@ namespace Gorgon { namespace Resource {
     }
 
     
-} }
+}

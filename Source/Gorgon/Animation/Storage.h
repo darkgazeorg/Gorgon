@@ -4,7 +4,7 @@
 
 #include "../Animation.h"
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
     /**
      * Specializing this class allows code injection to animation storages
@@ -35,6 +35,11 @@ namespace Gorgon { namespace Animation {
 			other.isowned = false;
 			other.anim  = nullptr;
 		}
+
+		/// Destructor
+		virtual ~basic_Storage() {
+			RemoveAnimation();
+		}
 		
         //types are derived not to type the same code for every class
 		virtual auto MoveOutProvider() -> decltype(*this) override {
@@ -48,7 +53,7 @@ namespace Gorgon { namespace Animation {
 
 		/// Move assignment
 		basic_Storage &operator =(basic_Storage &&other) {
-			Remove();
+			RemoveAnimation();
 			isowned = other.isowned;
 			anim = other.anim;
 			other.isowned = false;
@@ -83,7 +88,7 @@ namespace Gorgon { namespace Animation {
 
 		/// Sets the animation stored in this container
 		void SetAnimation(A_ &value, bool owner = false) {
-			Remove();
+			RemoveAnimation();
 
 			anim = &value;
 			this->isowned = owner;
@@ -91,7 +96,7 @@ namespace Gorgon { namespace Animation {
 
 		/// Sets the animation stored in this container
 		void SetAnimation(A_ &&value) {
-			Remove();
+			RemoveAnimation();
 
 			anim = &value.MoveOutProvider();
 			this->isowned = true;
@@ -100,7 +105,7 @@ namespace Gorgon { namespace Animation {
 		/// Removes the animation stored in the container, if the container owns
 		/// the animation, it will be destroyed. Use Release to release resource
 		/// without destroying it
-		void Remove() {
+		void RemoveAnimation() {
 			if(isowned)
 				delete anim;
 
@@ -109,12 +114,12 @@ namespace Gorgon { namespace Animation {
 		}
         
 		/// Removes the animation from the storage without destroying it.
-		A_ *Release() {
+		A_ *ReleaseAnimation() {
 			auto temp = anim;
 			
 			isowned = false;
 
-			Remove();
+			RemoveAnimation();
 
 			return temp;
 		}
@@ -157,7 +162,7 @@ namespace Gorgon { namespace Animation {
         
 
 		bool owned = original.IsOwner();
-		Target_ *anim = dynamic_cast<Target_*>(original.Release());
+		Target_ *anim = dynamic_cast<Target_*>(original.ReleaseAnimation());
         if(!anim)
             throw std::runtime_error("Animation types are not compatible");
         
@@ -169,4 +174,4 @@ namespace Gorgon { namespace Animation {
 	/// Basic animation storage, can store all types of animation and can be moved around as a value.
 	using Storage = basic_Storage<const Provider>;
 
-} }
+}

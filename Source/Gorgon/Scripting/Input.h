@@ -2,13 +2,9 @@
 
 #include <stdint.h>
 #include <string>
-#include <vector>
-#include <iomanip>
 #include <fstream>
-#include "../String.h"
-#include "../Scripting.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 	class InputProvider {
 	public:
@@ -152,4 +148,4 @@ namespace Gorgon { namespace Scripting {
 		std::ifstream file;
 	};
 		
-} }
+}

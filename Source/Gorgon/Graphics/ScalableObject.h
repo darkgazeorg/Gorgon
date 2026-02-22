@@ -5,7 +5,7 @@
 #include "Animations.h"
 #include "TextureAnimation.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     /// For ease of use in resource system
     class IScalableObjectProvider : public RectangularAnimationProvider {
@@ -280,4 +280,4 @@ namespace Gorgon { namespace Graphics {
 	using ScalableBitmap = basic_ScalableObject<Bitmap>;
 	using ScalableBitmapProvider = basic_ScalableObjectProvider<Bitmap>;
 
-} }
+}

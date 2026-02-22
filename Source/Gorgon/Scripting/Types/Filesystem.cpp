@@ -5,7 +5,7 @@
 #include "../Embedding.h"
 
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 
 	class File : public std::fstream {
 	public:
@@ -164,4 +164,4 @@ namespace Gorgon { namespace Scripting {
 		return *lib;
 	}
 	
-} }
+}

@@ -9,7 +9,7 @@
 namespace Gorgon { namespace Resource { class Font; } }
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     /// @cond internal
     struct ftlib;
@@ -407,4 +407,4 @@ namespace Gorgon { namespace Graphics {
 		float size = 0;
     };
     
-} }
+}

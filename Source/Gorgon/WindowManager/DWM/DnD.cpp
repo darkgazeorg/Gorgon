@@ -8,7 +8,7 @@
 
 #undef max
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
 	HRESULT __stdcall GGEDropTarget::DragEnter(IDataObject *pDataObject, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
 		// does the data object contain data we want?
@@ -31,9 +31,7 @@ namespace Gorgon { namespace WindowManager {
 			wchar_t *widetext = (wchar_t *)((char *)(fdata)+fdata->pFiles);
 
 			while(widetext[0]) {
-				name.resize(wcslen(widetext));
-
-				wcstombs(&name[0], widetext, wcslen(widetext)+1);
+				name = UnicodeToMByte(widetext);
 				OS::winslashtonormal(name);
 				data->AddFile(name);
 
@@ -131,4 +129,4 @@ namespace Gorgon { namespace WindowManager {
 		return S_OK;
 	}
 
-} }
+}

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <map>
 #include <limits.h>
 
 #include "../Types.h"
@@ -10,7 +9,7 @@
 #include "TextureTargets.h"
 #include "Color.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     /// Glyph is a symbol for a character. In Gorgon, glyphs are UTF32 chars.
     using Glyph = Gorgon::Char;
     
@@ -105,7 +104,7 @@ namespace Gorgon { namespace Graphics {
         
         /// Returns the number of the glyphs in the range
         int Count() const { 
-            if(Start == -1) return 0; 
+            if(Start == (Glyph)-1) return 0; 
             
             return End - Start + 1; 
         }
@@ -263,9 +262,9 @@ namespace Gorgon { namespace Graphics {
         virtual int GetHeight() const = 0;
 
         /// Returns the offset (first) and maximum height (second) that is used by letters. Offset 
-        /// is the distance of the letter with max height to the top. This function uses Â and j
+        /// is the distance of the letter with max height to the top. This function uses Ã‚ and j
         /// to calculate letter height when ascii only is not set. If ascii only is set, it uses
-        /// A, f, j. If Â is not found, this function simply reverts to using A.
+        /// A, f, j. If Ã‚ is not found, this function simply reverts to using A.
         virtual std::pair<int, int> GetLetterHeight(bool asciionly = false) const = 0;
 
         /// Width of a digit, if digits do not have the same width, maximum should be returned. For
@@ -1077,4 +1076,4 @@ namespace Gorgon { namespace Graphics {
 
     }
     
-} }
+}

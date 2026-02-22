@@ -1,6 +1,3 @@
-# .gitignore
-# Converted from .hgignore (keeps the same ignore intent)
-
 # Build output and intermediate directories
 Build/
 build/
@@ -38,6 +35,8 @@ CMakeSettings.json
 .vscode/
 GGE.code-workspace
 .idea/
+.clangd
+.tools/
 
 # Compilation and temporary files
 *.obj

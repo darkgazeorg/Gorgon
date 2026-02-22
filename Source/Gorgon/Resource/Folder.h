@@ -5,7 +5,7 @@
 
 #include "Base.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	class File;
 	class Reader;
 	class Folder;
@@ -207,4 +207,4 @@ namespace Gorgon { namespace Resource {
 
 	};
 
-} }
+}

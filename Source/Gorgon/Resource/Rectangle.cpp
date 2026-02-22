@@ -6,7 +6,7 @@
 #include "Null.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	
 	Rectangle::Rectangle(Graphics::BitmapRectangleProvider &prov) : prov(&prov)
@@ -86,7 +86,7 @@ namespace Gorgon { namespace Resource {
 		auto file = f.lock();
 
 		auto rectangle = new Rectangle();
-		bool ctile, stile;
+		bool ctile = false, stile = false;
 		enum {
 			unknown, img, anim, mixed
 		} type = unknown;
@@ -362,4 +362,4 @@ namespace Gorgon { namespace Resource {
 		return *p;
 	}
 
-} }
+}

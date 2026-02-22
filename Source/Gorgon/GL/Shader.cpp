@@ -1,20 +1,17 @@
 #include "Shader.h"
 
-#include <vector>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <stdexcept>
 
 #include "Shader.h"
 #include "OpenGL.h"
-#include <streambuf>
 #include <algorithm>
 
 #include "Simple.h"
 #include "../Utils/Logging.h"
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
     GLuint activeprogram = -1;
     extern Gorgon::Utils::Logger log;
 
@@ -267,4 +264,4 @@ namespace Gorgon { namespace GL {
 		log << "Shader program " << name << " successfully linked.\n";
 	}
 
-} }
+}

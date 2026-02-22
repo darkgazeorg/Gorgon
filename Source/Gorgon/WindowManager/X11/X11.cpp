@@ -1,20 +1,6 @@
 #include "X11.h"
 
 #include "../../WindowManager.h"
-#include <thread>
-#include "../../Geometry/Margin.h"
-#include "../../Time.h"
-#include "../../OS.h"
-#include "../../Graphics.h"
-#include "../../Utils/Assert.h"
-
-#include "../../Graphics/Layer.h"
-
-#include "../../Encoding/URI.h"
-#include "../../Encoding/PNG.h"
-#include "../../Encoding/JPEG.h"
-#include "../../IO/MemoryStream.h"
-
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <unistd.h>
@@ -31,7 +17,7 @@
 #undef None
 
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
     
     /// @cond INTERNAL
     /// X11 display information
@@ -395,4 +381,4 @@ namespace Gorgon { namespace WindowManager {
     }
     
     
-} }
+}

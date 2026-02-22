@@ -114,7 +114,7 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		
 		/// AST compiler requires a vector of instructions. The compiler appends elements to the end of the
 		/// list. However, it is important not to modify the list while IsReady function returns false.
-		ASTCompiler(std::vector<Instruction> &list, Base &parser) : parser(parser), list(&list) { }
+		ASTCompiler(std::vector<Instruction> &list, Base &parser) : list(&list), parser(parser) { }
 		
 		/// This function compiles given abstract syntax tree, returns the number of instructions generated.
 		/// You should check IsReady function before using instructions.

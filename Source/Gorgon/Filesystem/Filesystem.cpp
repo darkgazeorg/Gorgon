@@ -1,5 +1,4 @@
 #include "../Filesystem.h"
-#include "Iterator.h"
 #include "../String.h"
 
 #include <fstream>
@@ -15,7 +14,7 @@
 #   define stat _stat
 #endif
 
-namespace Gorgon { namespace Filesystem {
+namespace Gorgon :: Filesystem {
 	
 	static std::string startupdir;
 	
@@ -172,4 +171,4 @@ namespace Gorgon { namespace Filesystem {
         
         return String::ToLower(path);
     }	
-} }
+}

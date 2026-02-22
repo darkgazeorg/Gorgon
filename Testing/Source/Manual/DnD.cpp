@@ -5,6 +5,7 @@
 #include <Gorgon/Resource/GID.h>
 #include <Gorgon/Graphics/StackedObject.h>
 #include <Gorgon/Graphics/TintedObject.h>
+#include <Gorgon/Graphics/BlankImage.h>
 
 
 void Init();

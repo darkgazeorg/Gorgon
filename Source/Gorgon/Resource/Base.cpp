@@ -2,7 +2,7 @@
 #include "Writer.h"
 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	void Base::Resolve(File &file) {
 		for(auto it=children.First(); it.IsValid(); ) {
 
@@ -61,4 +61,4 @@ namespace Gorgon { namespace Resource {
 		
 		save(writer);
 	}
-} }
+}

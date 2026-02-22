@@ -4,9 +4,8 @@
 #pragma once
 
 
-#include <stdexcept>
-#include <iterator>
 #include <iostream>
+#include <vector>
 
 
 namespace Gorgon {
@@ -28,7 +27,7 @@ namespace Gorgon {
 		///    bool isbefore(const I_ &) const  ...
 		/// @endcode
 		template <class I_, class T_, class D_=long>
-		class Iterator : public std::iterator<std::random_access_iterator_tag, T_, D_> {
+		class Iterator {
 		private:
 			I_ &iterator() { return *static_cast<I_*>(this); }
 			const I_ &iterator() const { return *static_cast<const I_*>(this); }
@@ -216,7 +215,7 @@ namespace Gorgon {
 		///    bool isbefore(const I_ &) const  ...
 		/// @endcode
 		template <class I_, class T_, class D_=long>
-		class ValueIterator : std::iterator<std::random_access_iterator_tag, T_, D_> {
+		class ValueIterator {
 		private:
 			I_ &iterator() { return *static_cast<I_*>(this); }
 			const I_ &iterator() const { return *static_cast<const I_*>(this); }

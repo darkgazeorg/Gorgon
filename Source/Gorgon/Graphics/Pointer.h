@@ -3,12 +3,11 @@
 #include "Drawables.h"
 #include "../Utils/Assert.h"
 #include "../Geometry/Point.h"
-#include "../Containers/Hashmap.h"
 #include "Animations.h"
 #include "TextureAnimation.h"
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     ///Pointer types
     enum class PointerType {
@@ -558,4 +557,4 @@ namespace Gorgon { namespace Graphics {
         anim->Draw(target, p-parent.GetHotspot(), color);
     }
 
-} }
+}

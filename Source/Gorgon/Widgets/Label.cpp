@@ -4,7 +4,7 @@
 #include "../UI.h"
 #include "../Window.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     
     Label::Label(const UI::Template &temp, const std::string &text) :
@@ -171,5 +171,4 @@ namespace Gorgon { namespace Widgets {
         }
     }
 
-}
 }

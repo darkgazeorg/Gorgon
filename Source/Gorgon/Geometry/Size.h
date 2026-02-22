@@ -5,9 +5,7 @@
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <iomanip>
 #include <limits>
-#include <sstream>
 
 #include "../Types.h"
 #include "Point.h"
@@ -15,7 +13,7 @@
 
 #include <ctype.h>
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 	/// This class represents a 2D geometric size. Although negative size is meaningless,
 	/// this class allows all operations over negative sizes.
@@ -255,10 +253,10 @@ namespace Gorgon { namespace Geometry {
 		}
 
 		/// Width of this size object
-		T_ Width;
+		T_ Width = 0;
 
 		/// Height of this size object
-		T_ Height;
+		T_ Height = 0;
 	};
 
 	/// Multiplies a size with a scalar, effectively resizing it.
@@ -399,4 +397,4 @@ namespace Gorgon { namespace Geometry {
 	/// @see basic_Size
 	using Sizef = basic_Size<Float>;
 
-} }
+}

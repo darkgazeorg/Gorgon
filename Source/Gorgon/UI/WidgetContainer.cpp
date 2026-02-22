@@ -2,7 +2,7 @@
 #include "../Widgets/Composer.h"
 #include "../Widgets/Label.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     bool WidgetContainer::Add(Widget &widget) {
         if(widgets.Find(widget) != widgets.end())
@@ -710,4 +710,4 @@ namespace Gorgon { namespace UI {
     }
 
 
-} }
+}

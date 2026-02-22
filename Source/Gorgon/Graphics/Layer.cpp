@@ -1,6 +1,7 @@
 #include "Layer.h"
 #include "../Graphics.h"
 #include "../GL.h"
+#include "Gorgon/Utils/Assert.h"
 #include "Shaders.h"
 
 namespace Gorgon { 

@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace Gorgon {namespace Utils {
+namespace Gorgon :: Utils {
 
 	/**
 	 * This class guards a scope and as soon as the object runs out of scope calls the given
@@ -55,4 +55,4 @@ namespace Gorgon {namespace Utils {
 		std::function<void()> fn;
 	};
 
-}}
+}

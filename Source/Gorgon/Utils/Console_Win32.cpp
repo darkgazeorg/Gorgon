@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 
 	/// @cond INTERNAL
 	struct consoleattributes {
@@ -208,4 +208,4 @@ namespace Gorgon { namespace Utils {
 		SetConsoleCursorInfo(stdhandle, &cursorInfo);
 	}
 
-} }
+}

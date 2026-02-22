@@ -1,6 +1,8 @@
-
+#include "catch2/catch_approx.hpp"
 #define CATCH_CONFIG_MAIN
-#include <catch.h>
+
+#include <catch2/catch_test_macros.hpp>
+
 #include <sstream>
 #include <Gorgon/IO/Stream.h>
 #include <Gorgon/Graphics/Color.h>
@@ -10,6 +12,8 @@
 
 using namespace Gorgon;
 using namespace Gorgon::IO;
+
+using Catch::Approx;
 
 std::stringstream stream;
 auto resetStream = []() {

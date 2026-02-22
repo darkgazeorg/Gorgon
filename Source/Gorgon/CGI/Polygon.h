@@ -6,7 +6,6 @@
 #include "../Containers/Image.h"
 #include "../CGI.h"
 #include "../Geometry/PointList.h"
-#include "../Geometry/Line.h"
 #include "../Containers/Collection.h"
 #include <stdint.h>
 
@@ -20,7 +19,7 @@
 #   endif
 #endif
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
    
 ///@cond internal
 namespace internal {
@@ -384,4 +383,4 @@ namespace internal {
             Rectangle<S_>(target.GetData(), rect, fill);
     }
   
-} }
+}

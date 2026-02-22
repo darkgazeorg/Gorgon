@@ -11,7 +11,7 @@
 #include "../Containers/Image.h"
 #include "../Geometry/Margin.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 
     /**
@@ -852,4 +852,4 @@ namespace Gorgon { namespace Graphics {
 		
 		using Texture::size;
 	};
-} }
+}

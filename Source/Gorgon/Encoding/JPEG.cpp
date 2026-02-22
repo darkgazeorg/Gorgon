@@ -1,11 +1,10 @@
 #include "JPEG.h"
 
 extern "C" {
-    #include "../External/JPEG/jinclude.h"
-    #include "../External/JPEG/jpeglib.h"
+    #include <jpeglib.h>
 }
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 
 	struct myerror {
 		jpeg_error_mgr pub;
@@ -326,4 +325,4 @@ namespace Gorgon { namespace Encoding {
 	
 	JPEG Jpg;
 
-} }
+}

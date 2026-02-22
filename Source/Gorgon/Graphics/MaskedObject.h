@@ -4,7 +4,7 @@
 #include "Animations.h"
 #include "TextureAnimation.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     /// For ease of use in resource system
     class IMaskedObjectProvider : public RectangularAnimationProvider {
@@ -347,4 +347,4 @@ namespace Gorgon { namespace Graphics {
 	using MaskedBitmap = basic_MaskedObject<Bitmap>;
 	using MaskedBitmapProvider = basic_MaskedObjectProvider<Bitmap>;
 
-} }
+}

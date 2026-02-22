@@ -10,8 +10,7 @@
 
 #include "Iterator.h"
 
-namespace Gorgon { 
-    namespace Containers {
+namespace Gorgon :: Containers {
 
         ///	Collection is a container for reference typed objects. A container never copies its elements
         /// nor destroys unless requested specifically. Internally, a collection stores its objects in a
@@ -324,13 +323,13 @@ namespace Gorgon {
                 if(before<0 || before>(long)list.size())
                     throw std::out_of_range("Invalid location");
 
-                if(before==list.size()) {
+                if(before == (long)list.size()) {
                     return Add(data);
                 }
 
                 list.resize(list.size()+1);
                 
-                for(long i=(long)list.size()-1;i>before;i--)
+                for(long i=(long)list.size()-1; i>before; i--)
                     list[i]=list[i-1];
 
                 list[before]=data;
@@ -380,22 +379,22 @@ namespace Gorgon {
             void MoveBefore(long index, long before) {
                 if(before == -1)
                     before = (long)list.size();
-                if(index>=list.size())
+                if(index >= (long)list.size())
                     throw std::out_of_range("Invalid location");
-                if(before>list.size())
+                if(before > (long)list.size())
                     throw std::out_of_range("Invalid location");
 
                 if(index==before)
                     return;
 
-                if(index>before) {
+                if(index > before) {
                     T_ *t=list[index];
                     for(long i=index; i>before; i--)
                         list[i]=list[i-1];
 
                     list[before]=t;
                 }
-                else if(before==list.size()) {
+                else if(before == (long)list.size()) {
                     T_ *t=list[index];
 
                     for(long i=index; i<(long)list.size()-1; i++)
@@ -719,5 +718,4 @@ namespace Gorgon {
             l.Swap(r);
         }
     } 
-}
 

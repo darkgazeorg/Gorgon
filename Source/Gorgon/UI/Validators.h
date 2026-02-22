@@ -2,9 +2,8 @@
 
 #include <string>
 #include "../String.h"
-#include "../Graphics/ColorSpaces.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
     /**
      * 
@@ -135,4 +134,4 @@ namespace Gorgon { namespace UI {
         
         DisplayType Display = HTML;
     };
-} }
+}

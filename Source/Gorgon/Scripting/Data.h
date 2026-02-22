@@ -4,9 +4,7 @@
 #include "../Utils/Assert.h"
 #include "Exceptions.h"
 
-namespace Gorgon {
-	
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		class Type;
 		
@@ -201,4 +199,3 @@ namespace Gorgon {
 		
 		
 	}
-}

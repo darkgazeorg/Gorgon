@@ -16,9 +16,9 @@ namespace Gorgon {
 namespace Resource {
     class Sound;
 }
-namespace Audio { namespace internal {
+namespace Audio :: internal {
     class Loop;
-} }
+}
 
 namespace Multimedia {
     
@@ -115,7 +115,7 @@ namespace Multimedia {
         /// issues.
         bool StreamWav(std::istream &stream, bool ownstream = false);
         
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
         /// Starts streaming the given FLAC file. Only a portion of the file will be loaded 
         /// immediately and it will be loaded automatically as necessary. Returns false if the file
         /// cannot be read.
@@ -135,7 +135,7 @@ namespace Multimedia {
         bool StreamFLAC(std::istream &stream, bool ownstream = false);
 #endif
         
-#ifdef VORBIS_SUPPORT
+#ifdef GORGON_VORBIS_SUPPORT
         /// Starts streaming the given Vorbis file. Only a portion of the file will be loaded 
         /// immediately and it will be loaded automatically as necessary. Returns false if the file
         /// cannot be read.

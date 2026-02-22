@@ -1,12 +1,10 @@
 #pragma once
 
-#include "Common.h"
 #include "../UI/ComponentStackWidget.h"
-#include "../Property.h"
 #include "Registry.h"
 #include "Listbox.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * This is the dropdown base for all dropdown lists, including ones that are
@@ -390,4 +388,4 @@ namespace Gorgon { namespace Widgets {
     template <class T_, void (*TW_)(const T_ &, ListItem &) = internal::SetTextUsingFrom<T_, ListItem>>
     using DropdownCollection = SingleSelectionDropdown<T_, TW_, SimpleCollectionbox<T_, TW_>>;
     
-} }
+}

@@ -7,7 +7,7 @@
 #include "../UI/Helpers.h"
 #include "../Input/KeyRepeater.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * Textarea widget allows users to enter multiline text information. This widget should be used
@@ -310,4 +310,4 @@ namespace Gorgon { namespace Widgets {
         struct UI::internal::prophelper<Textarea, std::string> helper = UI::internal::prophelper<Textarea, std::string>(this);
     };
     
-} }
+}

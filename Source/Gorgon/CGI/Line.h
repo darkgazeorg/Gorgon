@@ -2,7 +2,7 @@
 
 #include "Polygon.h"
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     struct StrokeSettings {
         StrokeSettings(Float width = 1.0f) : width(width) { 
@@ -36,7 +36,7 @@ namespace Gorgon { namespace CGI {
             do {
                 l = p.GetLine(s);
                 s++;
-            } while(s < p.GetSize() && l.Start == l.End);
+            } while(s < (int)p.GetSize() && l.Start == l.End);
             
             //nothing to draw here
             if(l.Start == l.End)
@@ -64,7 +64,7 @@ namespace Gorgon { namespace CGI {
 		}
 
         
-        for(int i=s; i<p.GetSize()-1; i++) {
+        for(int i=s; i<(int)p.GetSize()-1; i++) {
             Geometry::Line<P_> l = p.GetLine(i);
             
             if(l.Start == l.End)
@@ -136,7 +136,7 @@ namespace Gorgon { namespace CGI {
             do {
                 l = p.GetLine(st);
                 st++;
-            } while(st < p.GetSize() && l.Start == l.End);
+            } while(st < (int)p.GetSize() && l.Start == l.End);
 
 			auto off = (Geometry::Pointf(l.End) - Geometry::Pointf(l.Start)).Perpendicular().Normalize() * w;
 
@@ -259,4 +259,4 @@ namespace Gorgon { namespace CGI {
     }
     
     
-} }
+}

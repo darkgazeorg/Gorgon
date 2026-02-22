@@ -5,14 +5,12 @@
 #include "../Graphics/AdvancedPrinterConstants.h"
 #include "../Graphics.h"
 #include "../Geometry/Margin.h"
-#include "../Containers/Hashmap.h"
 
 #include <string>
 
 #include "../String.h"
-#include "../Graphics/Drawables.h"
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
     /**
      * This class helps building strings to be used with AdvancedRenderer. Advanced rendering is
      * capable of modifying fonts, offsets, displaying images, handing regions, selection, and 
@@ -784,4 +782,4 @@ namespace Gorgon { namespace String {
     private:
         std::string text;
     };
-} }
+}

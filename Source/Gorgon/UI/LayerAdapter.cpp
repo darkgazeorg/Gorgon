@@ -3,7 +3,7 @@
 #include "../Widgets/Registry.h"
 
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     ExtenderRequestResponse LayerAdapter::RequestExtender(const Layer &self) {
         auto toplevel = dynamic_cast<Window *>(&self.GetTopLevel());
@@ -59,4 +59,4 @@ namespace Gorgon { namespace UI {
         return true;
     }
 
-} }
+}

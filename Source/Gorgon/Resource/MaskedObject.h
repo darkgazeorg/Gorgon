@@ -4,7 +4,7 @@
 #include "../Graphics/MaskedObject.h"
 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	class File;
 	class Reader;
 
@@ -151,4 +151,4 @@ namespace Gorgon { namespace Resource {
 		
 		bool own = false;
     };
-} }
+}

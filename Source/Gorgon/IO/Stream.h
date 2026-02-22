@@ -10,7 +10,7 @@
 
 /// IO Related functionality. Stream operations in this namespace do not check the validity of the stream.
 /// it is up to the caller
-namespace Gorgon { namespace IO { 
+namespace Gorgon :: IO { 
 
 	/// Reads an enumeration that is saved as 32bit integer
 	template<class E_>
@@ -328,7 +328,7 @@ namespace Gorgon { namespace IO {
         WriteInt32(stream, s.Width);
         WriteInt32(stream, s.Height);
     }
-} }
+}
 
 
 /// Adds an integer to streampos

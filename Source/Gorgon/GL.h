@@ -20,7 +20,7 @@ namespace Gorgon {
 
 		class FrameBuffer;
 
-#ifdef OPENGL
+#ifdef GORGON_GL_OPENGL
 		/// This is a GLTexture descriptor. This may change depending on the GL used. It will always be
 		/// copy constructible/assignable and comparable.
 		typedef uint32_t Texture;

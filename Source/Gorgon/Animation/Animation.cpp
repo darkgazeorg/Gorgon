@@ -6,7 +6,7 @@
 #include "../Utils/Logging.h"
 
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
 	Utils::Logger log;
 
@@ -125,7 +125,7 @@ namespace Gorgon { namespace Animation {
                     if(!length && animations.GetSize()) {
                         length = animations[0].GetDuration();
                         
-                        if(length == -1) {
+                        if(length == (unsigned)-1) {
                             length = 0;
                         }
                     }
@@ -174,7 +174,7 @@ namespace Gorgon { namespace Animation {
             if(!length && speed < 0 && animations.GetSize()) {
                 length = animations[0].GetDuration();
                 
-                if(length == -1) {
+                if(length == (unsigned)-1) {
                     length = 0;
                 }
             }
@@ -219,4 +219,4 @@ namespace Gorgon { namespace Animation {
 		LOG<<"Animation is destroyed";
 	}
 
-} }
+}

@@ -1,7 +1,7 @@
 #pragma once
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     ///@cond internal
     
@@ -19,4 +19,4 @@ namespace Gorgon { namespace Widgets {
     
     ///@endcond
     
-} }
+}

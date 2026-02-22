@@ -4,7 +4,7 @@
 
 #include "File.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	void DataItem::InitializeLoaders() {
 		DataLoaders[GID::Data_Int]   = &IntegerData::Load;
@@ -187,4 +187,4 @@ namespace Gorgon { namespace Resource {
 
 	std::map<GID::Type, DataItem::LoaderFn> DataItem::DataLoaders;
 
-} }
+}

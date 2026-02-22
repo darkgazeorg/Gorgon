@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../OS.h"
+#include "../../OS/Win32Unicode.h"
 #include "../../Input/Keyboard.h"
 #include "../../Geometry/Margin.h"
 #include "../../ConsumableEvent.h"
@@ -23,10 +24,6 @@
 namespace Gorgon {
 
 	class Window;
-
-	std::string MByteToUnicode(const std::string &multiByteStr);
-
-	std::string UnicodeToMByte(LPCWSTR unicodeStr);
 
 namespace internal {
 	struct windowdata;

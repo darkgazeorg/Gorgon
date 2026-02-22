@@ -8,16 +8,12 @@
 
 #include <string>
 
-#include "../String.h"
 #include "Drawables.h"
 
 #pragma warning(disable:4003)
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
-namespace Gorgon { namespace Graphics {
-    inline bool operator ==(int l, NamedFont r) {
-        return l == (int)r;
-    }
+namespace Gorgon :: Graphics {
 
     /**
      * Advanced renderer allows AdvancedPrint that allows unicode based markup that can change every
@@ -450,7 +446,7 @@ namespace Gorgon { namespace Graphics {
         std::vector<Glyph> breakingchars;
     };
 
-} }
+}
 
 #undef MOVEIT
 #pragma warning(default:4003)

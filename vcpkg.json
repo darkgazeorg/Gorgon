@@ -1,0 +1,45 @@
+{
+  "name": "gorgon",
+  "version": "4.1.0",
+  "builtin-baseline": "05442024c3fda64320bd25d2251cc9807b84fb6f",
+  "dependencies": [
+    "libpng",
+    "libjpeg-turbo",
+    "zlib",
+    "liblzma",
+    "cpptrace",
+    "glew"
+  ],
+  "features": {
+    "flac": {
+      "description": "Flac support",
+      "dependencies": [
+        "libflac"
+      ]
+    },
+    "ogg": {
+      "description": "Ogg support",
+      "dependencies": [
+        "libogg"
+      ]
+    },
+    "vorbis": {
+      "description": "Vorbis support",
+      "dependencies": [
+        "libvorbis"
+      ]
+    },
+    "freetype": {
+      "description": "FreeType font support",
+      "dependencies": [
+        "freetype"
+      ]
+    },
+    "curl": {
+      "description": "HTTP support via curl",
+      "dependencies": [
+        "curl"
+      ]
+    }
+  }
+}

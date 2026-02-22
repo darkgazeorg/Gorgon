@@ -2,7 +2,7 @@
 #include "OpenGL.h"
 #include "../Window.h"
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
 
 	void FrameBuffer::Generate(bool gendepth) {
 		if(!glBindFramebuffer) return;
@@ -74,5 +74,4 @@ namespace Gorgon { namespace GL {
 
 	bool FrameBuffer::HardwareSupport = false;
 	Containers::Collection<FrameBuffer> FrameBuffer::buffers;
-}
 }

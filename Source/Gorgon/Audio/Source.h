@@ -2,7 +2,7 @@
 
 #include "Basic.h"
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     
     
     /**
@@ -68,4 +68,4 @@ namespace Gorgon { namespace Audio {
     };
     
     
-} }
+}

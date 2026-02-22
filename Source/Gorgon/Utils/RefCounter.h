@@ -1,7 +1,7 @@
 #pragma once
 
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 
     /// RefCounter helps implementing reference counted objects. Suitable
     /// for shared implicit heap management and flyweight objects.
@@ -81,4 +81,4 @@ namespace Gorgon { namespace Utils {
         mutable int *refcnt;
     };
 
-} }
+}

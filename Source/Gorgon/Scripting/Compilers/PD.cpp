@@ -1,8 +1,5 @@
-#include <locale>
-#include <sstream>
 #include <vector>
 #include <string>
-#include <memory>
 #include <fstream>
 
 #include "../../Enum.h"
@@ -13,16 +10,12 @@
 #include "Utils.h"
 #include "../Runtime.h"
 
-#ifndef _NDEBUG
-#	include "../../Utils/Console.h"
-#endif
-
 #pragma warning(disable:4018)
 
 
 ///@cond INTERNAL
 
-namespace Gorgon { namespace Scripting { 
+namespace Gorgon :: Scripting { 
 	Type *ParameterTemplateType();
 
 namespace Compilers {
@@ -173,11 +166,11 @@ namespace Compilers {
 		}
 		
 		Token consumenexttoken(const std::string &input, int &index, bool expectop=false) {
-			while(index < input.length() && isspace(input[index])) index++;
+			while(index < (int)input.length() && isspace(input[index])) index++;
 			
 			int start=index;
 
-			if(index >= input.length()) return Token {";", Token::EoS, start};
+			if(index >= (int)input.length()) return Token {";", Token::EoS, start};
 
 			std::string acc = "";
 
@@ -189,7 +182,7 @@ namespace Compilers {
 			case '\'': {
 				auto s=ExtractQuotes(input, --index);
 				std::string literalmarker;
-				while(input.length()>index && !isbreaker(input[index])) {
+				while((int)input.length()>index && !isbreaker(input[index])) {
 					literalmarker.push_back(input[index++]);
 				}
 				if(literalmarker=="" || literalmarker=="s") {
@@ -238,7 +231,6 @@ namespace Compilers {
 			bool numeric = false;
 			bool flt = false; //float
 			bool op = false;
-			bool var = false;
 
 			acc.push_back(c);
 			
@@ -263,9 +255,9 @@ namespace Compilers {
 
 			bool literalpart=false;
 			std::string literal;
-			for(; index<input.length() + 1; index++) {
+			for(; index<(int)input.length() + 1; index++) {
 				char c;
-				if(input.length()>index)
+				if((int)input.length()>index)
 					c = input[index];
 				else
 					c = 0;
@@ -407,6 +399,7 @@ namespace Compilers {
 			{Token::Membership, "Membership"}, {Token::Namespace, "Namespace"}, {Token::EoS, "EoS"}, {Token::None, "None"}
 		);
 		
+		[[maybe_unused]]
 		void testlexer(const std::string &input, std::ostream *cases) {
 			int index = 0;
 			int i = 0;
@@ -606,7 +599,6 @@ namespace Compilers {
 		ASTNode *parseexpression(const std::string &input, int &index) {
 			Token token;
 
-			int par=0;
 			bool nextisop=false;
 			
 			struct opnode {
@@ -619,6 +611,7 @@ namespace Compilers {
 			Containers::Collection<ASTNode> outputstack;
 			
 			
+			[[maybe_unused]]
 			auto printtrees = [&]() {
 				for(auto &t : outputstack) {
 					PrintAST(t);
@@ -1470,5 +1463,5 @@ namespace Compilers {
 		compiler.Finalize();
 	}
 
-} } }
+} }
 //@endcond

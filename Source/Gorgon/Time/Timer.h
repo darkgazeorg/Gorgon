@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include <sstream>
-
 #include "../Time.h"
+#include <iostream>
 
-namespace Gorgon { namespace Time {
+namespace Gorgon :: Time {
 
 	/// Millisecond based timer. This class allows performance calculations.
 	/// Constructing a new timer effectively starts it. However, explicit start
@@ -106,4 +105,4 @@ namespace Gorgon { namespace Time {
 		return output;
 	}
 		
-} }
+}

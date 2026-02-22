@@ -1,6 +1,6 @@
 #include "Null.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
    
     void Null::save(Writer& writer) const {
         writer.WriteGID(GID::Null);
@@ -16,4 +16,4 @@ namespace Gorgon { namespace Resource {
         writer.WriteChunkSize(0);
     }
     
-} }
+}

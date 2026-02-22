@@ -8,7 +8,7 @@
 #include "../Time.h"
 #include "../Utils/Console.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 	
 	/**
 	 * Eases logging procedure by appending necessary information to the given data and streams to a standard c++ stream.
@@ -114,7 +114,7 @@ namespace Gorgon { namespace Utils {
         
 		/// Default constructor. Allows you to specify a section
 		Logger(const std::string &section = "", bool marktime = true, bool markdate = false) : 
-			section(section), marktime(marktime), markdate(markdate) 
+			marktime(marktime), markdate(markdate), section(section)
 		{ }
 
 		/// Default constructor. Allows you to specify a section
@@ -125,7 +125,7 @@ namespace Gorgon { namespace Utils {
 		Logger(bool marktime, bool markdate = false) : Logger("", marktime, markdate) { }
 		
 		Logger(std::ostream &stream, const std::string &section = "", bool marktime = true, bool markdate = false) : 
-			stream(&stream), section(section), marktime(marktime), markdate(markdate)
+			stream(&stream), marktime(marktime), markdate(markdate), section(section)
 		{ 
 			
 		}
@@ -368,4 +368,4 @@ namespace Gorgon { namespace Utils {
 #	define DEBUGONLY(action) action
 #endif
 
-} }
+}

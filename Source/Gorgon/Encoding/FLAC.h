@@ -2,7 +2,7 @@
 
 #include "../Containers/Wave.h"
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 /// @cond internal
 namespace flac {
     class streamread;
@@ -101,4 +101,4 @@ namespace flac {
         unsigned long last = 0;
     };
 
-} }
+}

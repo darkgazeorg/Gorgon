@@ -1,7 +1,7 @@
 #include "DnD.h"
 #include "../Window.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
 	bool needsclip(Input::Mouse::EventType event);
 
@@ -225,4 +225,4 @@ namespace Gorgon { namespace Input {
 	Event<void, DragInfo &> DragStarted;
     
 	Event<void, DragInfo &, bool> DragEnded;
-} }
+}

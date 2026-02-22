@@ -1,10 +1,9 @@
 #define CATCH_CONFIG_MAIN
-#include <catch.h>
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <Gorgon/Containers/Hashmap.h>
 #include <stdint.h>
-#include <vector>
-#include <algorithm>
 
 using namespace Gorgon::Containers;
 using std::string;

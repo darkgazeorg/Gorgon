@@ -3,8 +3,7 @@
 #include "Path.h"
 #include "Polygon.h"
 
-namespace Gorgon {
-namespace CGI {
+namespace Gorgon :: CGI {
 
 /// Convenience wrapper that converts a path to point lists, then fills it.
 template <int S_ = GORGON_DEFAULT_SUBDIVISIONS, int W_ = 0,
@@ -32,4 +31,4 @@ void Draw(Graphics::Bitmap &target, const Path &path, Float tolerance = 0.72f,
 }
 
 } // namespace CGI
-} // namespace Gorgon
+ // namespace Gorgon
