@@ -7,6 +7,10 @@
 
 
 namespace Gorgon { 
+
+std::string MByteToUnicode(const std::string &multiByteStr);
+std::string UnicodeToMByte(LPCWSTR unicodeStr);
+
 namespace WindowManager :: internal {
 
 	Gorgon::internal::windowdata *getdata(const Window &w) {
@@ -147,9 +151,8 @@ namespace internal {
 		HINSTANCE instance=GetModuleHandle(NULL);
 
 		HWND hwnd;
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto namew = converter.from_bytes(name);
-		auto titlew = converter.from_bytes(title);
+		auto namew = MByteToUnicode(name);
+		auto titlew = MByteToUnicode(title);
 
 		//Creating window class
 		ZeroMemory(&windclass, sizeof(windclass));
@@ -159,7 +162,7 @@ namespace internal {
 		windclass.hCursor = LoadCursor(NULL, IDC_ARROW);
 		windclass.hInstance = instance;
 		windclass.lpfnWndProc = internal::WndProc;
-		windclass.lpszClassName = namew.c_str();
+		windclass.lpszClassName = (LPCWSTR)namew.data();
 		windclass.hCursor = (HCURSOR)WindowManager::defaultcursor;
 		windclass.style = 3;
 		ATOM ret = RegisterClassEx(&windclass);
@@ -168,9 +171,9 @@ namespace internal {
 			throw std::runtime_error("Cannot create window");
 		}
 		if(allowresize) {
-			hwnd=CreateWindowEx(
+			hwnd=CreateWindowExW(
 				WS_EX_APPWINDOW | WS_EX_WINDOWEDGE, 
-				namew.c_str(), titlew.c_str(),
+				(LPCWSTR)namew.data(), (LPCWSTR)titlew.data(),
 				WS_TILEDWINDOW,
 				CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, instance, NULL
 			);
@@ -178,7 +181,7 @@ namespace internal {
 		else {
 			hwnd=CreateWindowExW(
 				WS_EX_APPWINDOW | WS_EX_WINDOWEDGE,
-				namew.c_str(), titlew.c_str(),
+				(LPCWSTR)namew.data(), (LPCWSTR)titlew.data(),
 				WS_MINIMIZEBOX | WS_SYSMENU | WS_CLIPSIBLINGS |WS_CLIPCHILDREN,
 				CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, instance, NULL
 			);
@@ -229,9 +232,8 @@ namespace internal {
 		windows.Add(this);
 
 		this->name = name;
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto namew = converter.from_bytes(name);
-		auto titlew = converter.from_bytes(title);
+		auto namew = MByteToUnicode(name);
+		auto titlew = MByteToUnicode(title);
 
 		WNDCLASSEX windclass;
 		HINSTANCE instance;
@@ -247,15 +249,15 @@ namespace internal {
 		windclass.hCursor = LoadCursor(NULL, IDC_ARROW);
 		windclass.hInstance = instance;
 		windclass.lpfnWndProc = internal::WndProc;
-		windclass.lpszClassName = namew.c_str();
+		windclass.lpszClassName = (LPCWSTR)namew.data();
 		windclass.hCursor = (HCURSOR)WindowManager::defaultcursor;
 		windclass.style = CS_HREDRAW | CS_VREDRAW;
 		windclass.cbSize = (unsigned int)sizeof(WNDCLASSEX);
 
 		RegisterClassEx(&windclass);
 
-		hwnd = CreateWindowEx(WS_EX_APPWINDOW,
-			namew.c_str(), titlew.c_str(),
+		hwnd = CreateWindowExW(WS_EX_APPWINDOW,
+			(LPCWSTR)namew.data(), (LPCWSTR)titlew.data(),
 			WS_OVERLAPPED | WS_POPUP, 0, 0,
 			(int)GetSystemMetrics(SM_CXSCREEN),
 			(int)GetSystemMetrics(SM_CYSCREEN), 
@@ -432,9 +434,8 @@ namespace internal {
 	}
 
 	void Window::SetTitle(const std::string &title) {
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto titlew = converter.from_bytes(title);
-		SetWindowText(data->handle, titlew.c_str());
+		auto titlew = MByteToUnicode(title);
+		SetWindowTextW(data->handle, (LPCWSTR)titlew.data());
 	}
 
 	std::string Window::GetTitle() const {

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.25)
 
 include(Scripts/Windows.cmake)
 
+set(CMAKE_CXX_STANDARD 17)
+
 project(Gorgon 
     VERSION 4.1.0
     DESCRIPTION "Gorgon is a cross-platform framework for games and visual applications. \
@@ -47,5 +49,5 @@ if(BUILD_EXAMPLES)
 endif()
 
 if(MSVC)
-    source_group(TREE "${PROJECT_SOURCE_DIR}/Source" FILES ${GORGON_SOURCES})
+    include(SourceTree)
 endif()

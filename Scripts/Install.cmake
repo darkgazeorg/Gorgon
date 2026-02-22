@@ -37,12 +37,6 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Gorgon
 )
 
-if(MSVC)
-    install(FILES $<TARGET_PDB_FILE:Gorgon> 
-            DESTINATION ${CMAKE_INSTALL_LIBDIR} 
-            OPTIONAL)
-endif()
-
 #install documentation
 if(DOCUMENTATION AND DOXYGEN_FOUND)
     install(DIRECTORY "${CMAKE_BINARY_DIR}/html/" 

@@ -335,7 +335,7 @@ namespace internal {
             //find the last sample in the buffers
             for(std::size_t i=0; i<buffers.size(); i++) {
                 if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end) {
-                    sampleind = i;
+                    sampleind = int(i);
                     break;
                 }
             }
@@ -363,7 +363,7 @@ namespace internal {
         //find the last sample in the buffers
         for(std::size_t i=0; i<buffers.size(); i++) {
             if(lastsample >= buffers[i].beg  && lastsample < buffers[i].end)
-                sampleind = i;
+                sampleind = int(i);
         }
         
         if(sampleind == -1) {

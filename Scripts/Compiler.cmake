@@ -1,6 +1,3 @@
-
-set(CMAKE_CXX_STANDARD 17)
-
 target_compile_definitions(Gorgon PUBLIC UNICODE _UNICODE)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -28,9 +25,11 @@ target_compile_options(Gorgon PRIVATE
         -Wall -Werror -Wextra
         -Wno-unknown-pragmas -Wno-unused-parameter
     >
-    $<$<CXX_COMPILER_ID:MSVC>:/WX /W4 /wd4068 /wd4100>
+    $<$<CXX_COMPILER_ID:MSVC>: /W3 /wd4068 /wd4100 /wd4458>
 )
 
-if(NOT WIN32)
-    target_compile_definitions(Gorgon PRIVATE LINUX)
+if(WIN32)
+    target_compile_definitions(Gorgon PUBLIC WIN32)
+else()
+    target_compile_definitions(Gorgon PUBLIC LINUX)
 endif()

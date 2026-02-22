@@ -38,6 +38,18 @@ if(NOT WIN32)
     endif()
 endif()
 
+# For Utils/Assert
+if(WIN32)
+    find_package(cpptrace CONFIG REQUIRED)
+endif()
+
+
+# GLEW provides an imported target with all the necessary include paths and libraries
+find_package(GLEW REQUIRED)
+target_link_libraries(Gorgon PUBLIC GLEW::GLEW)
+target_compile_definitions(Gorgon PUBLIC GLEW_STATIC)
+message(STATUS "Found GLEW.")
+
 # --- Optional libraries ---------------------------------------------------
 
 # FreeType

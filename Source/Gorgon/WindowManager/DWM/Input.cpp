@@ -35,8 +35,8 @@ namespace WindowManager {
 
 		auto h = GetKeyboardLayout(NULL);
 		LCID ll = (LCID)((intptr_t)GetKeyboardLayout(NULL)>>16);
-		if((ll == 0x41f || ll == 0x42c) && str[0] == L'i' && str[1] == 0) { //tr, az keyboards should have i => İ
-			strupper[0] = L'İ';
+		if((ll == 0x41f || ll == 0x42c) && str[0] == L'i' && str[1] == 0) { //tr, az keyboards should have i => Ä°
+			strupper[0] = L'Ä°';
 			strupper[1] = 0;
 		}
 		else {

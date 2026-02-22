@@ -326,7 +326,7 @@ namespace Gorgon :: Scripting {
 						"in function "+parent->GetName(), 4, 3
 					);
 					
-					if(is_nonconstref<T>::value) {
+					if constexpr (is_nonconstref<T>::value) {
 						ASSERT(!param.AllowsNull(), 
 							"Parameter #"+String::From(P_-ismember)+" is a reference "
 							"and its implementation allows nullptr. This may cause crashes\n"
@@ -516,7 +516,7 @@ namespace Gorgon :: Scripting {
 		
 		template<int ...S_>
 		void check(TMP::Sequence<S_...>) {
-			char dummy[[gnu::unused]] [] = {0, (checkparam<S_>(),'\0')...};
+			char dummy[[maybe_unused]] [] = {0, (checkparam<S_>(),'\0')...};
 		}
 		
 		virtual void dochecks(bool ismethod) override {

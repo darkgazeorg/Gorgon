@@ -39,7 +39,7 @@ namespace Gorgon :: Graphics {
 		static bool initialized=false;
 		if(!initialized) {
 			initialized=true;
-			GL::LoadFunctions();
+			GL::Initialize();
 
 			glGenBuffers(1, &quadvbo);
 

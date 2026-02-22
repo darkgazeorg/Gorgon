@@ -4,6 +4,7 @@
 
 #include <string>
 #include <stdexcept>
+#include <iostream>
 
 namespace Gorgon {
 	/// This module contains time related information.

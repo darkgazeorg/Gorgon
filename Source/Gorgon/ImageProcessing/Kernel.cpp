@@ -28,8 +28,8 @@ namespace Gorgon :: ImageProcessing {
                 kernel.insert(kernel.end(), maxlistsize - list.size(), 0);
         }        
             
-        size.Height = (int)values.size();
-        size.Width = maxlistsize;
+        size.Height = int(values.size());
+        size.Width = int(maxlistsize);
         
         return *this;
     }

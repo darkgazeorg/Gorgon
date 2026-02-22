@@ -94,11 +94,17 @@ namespace Gorgon {
 	namespace OS {
 
 	std::string GetEnvVar(const std::string &var) {
-		auto ret=getenv(var.c_str());
-		if(!ret)
+		char *buffer = nullptr;
+		size_t size = 0;
+
+		if (_dupenv_s(&buffer, &size, var.c_str()) != 0 || buffer == nullptr) {
 			return "";
-		else
+		}
+		else {
+			std::string ret(buffer);
+			free(buffer);
 			return ret;
+		}
 	}
 
 	void Initialize() {
@@ -112,9 +118,7 @@ namespace Gorgon {
 			DWORD s=256;
 			GetUserName(username, &s);
 
-			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-			return converter.to_bytes(username);
+			return UnicodeToMByte(username);
 		}
 
 		std::string GetName() {
@@ -124,9 +128,7 @@ namespace Gorgon {
 			DWORD s=256;
 			GetUserNameEx(NameDisplay, name, &s);
 
-			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-			return converter.to_bytes(name);
+			return UnicodeToMByte(name);
 		}
 
 		std::string GetDocumentsPath() {
@@ -135,9 +137,7 @@ namespace Gorgon {
 
 			SHGetFolderPath(NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, my_documents);
 
-			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-			return Filesystem::Canonical(converter.to_bytes(my_documents));
+			return Filesystem::Canonical(UnicodeToMByte(my_documents));
 		}
 
 		std::string GetHomePath() {
@@ -146,9 +146,7 @@ namespace Gorgon {
 
 			SHGetFolderPath(NULL, CSIDL_PROFILE, NULL, SHGFP_TYPE_CURRENT, profile);
 
-			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-			return Filesystem::Canonical(converter.to_bytes(profile));
+			return Filesystem::Canonical(UnicodeToMByte(profile));
 		}
 
 		std::string GetDataPath() {
@@ -157,9 +155,7 @@ namespace Gorgon {
 
 			SHGetFolderPath(NULL, CSIDL_APPDATA, NULL, SHGFP_TYPE_CURRENT, path);
 
-			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-
-			return Filesystem::Canonical(converter.to_bytes(path));
+			return Filesystem::Canonical(UnicodeToMByte(path));
 		}
 		
 		bool IsAdmin() {
@@ -326,8 +322,7 @@ namespace Gorgon {
 		STARTUPINFO si;
 		memset(&si, 0, sizeof(si));
 
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		std::wstring wname = converter.from_bytes(name);
+		std::string wname = MByteToUnicode(name);
 
 		PROCESS_INFORMATION pi;
 
@@ -346,7 +341,7 @@ namespace Gorgon {
 		if(usepath) {
 			//application to run
 			cmd[current++]='"';
-			wcscpy(cmd+current, wname.c_str());
+			wcscpy(cmd+current, (LPCWSTR)wname.data());
 			current+=(int)wname.size();
 			cmd[current++]='"';
 			cmd[current++]=' ';
@@ -354,16 +349,16 @@ namespace Gorgon {
 
 		//application name as first arg
 		cmd[current++]='"';
-		wcscpy(cmd, wname.c_str());
+		wcscpy(cmd, (LPCWSTR)wname.data());
 		current+=(int)wname.size();
 		cmd[current++]='"';
 		cmd[current++]=' ';
 
 		//arguments
 		for(auto arg : args) {
-			std::wstring warg = converter.from_bytes(arg);
+			std::string warg = MByteToUnicode(arg);
 			cmd[current++]='"';
-			wcscpy(cmd, warg.c_str());
+			wcscpy(cmd, (LPCWSTR)warg.data());
 			current+=(int)warg.size();
 			cmd[current++]='"';
 			cmd[current++]=' ';
@@ -376,7 +371,7 @@ namespace Gorgon {
 			ret=CreateProcess(nullptr, cmd, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi)!=0;
 		}
 		else {
-			ret=CreateProcess(wname.c_str(), cmd, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi)!=0;
+			ret=CreateProcess((LPCWSTR)wname.data(), cmd, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi)!=0;
 		}
 
 		if(ret) {
@@ -454,7 +449,7 @@ namespace Gorgon {
 
 		delete[] data;
 		delete[] valname;
-		RegCloseKey(fontskey)
+		RegCloseKey(fontskey);
 
 		fontcount = 0;
 		maxnamelen = 0;

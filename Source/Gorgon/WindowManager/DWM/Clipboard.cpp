@@ -4,6 +4,9 @@
 #include "../../Utils/ScopeGuard.h"
 #include "../../Containers/Vector.h"
 #include "../../IO/MemoryStream.h"
+#include "../../Resource.h"
+#include "../../Resource/GID.h"
+#include "../../Window.h"
 
 #include <ShlObj.h>
 #include <winuser.h>
@@ -248,7 +251,7 @@ namespace Gorgon :: WindowManager {
 				while(widetext[0]) {
 					name.resize(wcslen(widetext));
 
-					wcstombs(&name[0], widetext, wcslen(widetext)+1);
+					wcstombs_s(nullptr, &name[0], wcslen(widetext)+1, widetext, wcslen(widetext));
 					OS::winslashtonormal(name);
 					ret.push_back(name);
 
@@ -296,7 +299,7 @@ namespace Gorgon :: WindowManager {
 				while(widetext[0]) {
 					name.resize(wcslen(widetext));
 
-					wcstombs(&name[0], widetext, wcslen(widetext)+1);
+					wcstombs_s(nullptr, &name[0], wcslen(widetext)+1, widetext, wcslen(widetext));
 					OS::winslashtonormal(name);
 					ret.push_back("file://" + name);
 

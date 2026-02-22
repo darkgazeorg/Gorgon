@@ -180,7 +180,7 @@ namespace Gorgon {
                     Geometry::Sizef{target.Height * aspect, (float)target.Height} :
                     Geometry::Sizef{(float)target.Width, target.Width / aspect};
 
-                auto offset = CalculateOffset<float>(place, target - nsize);
+                auto offset = CalculateOffset<float>(place, Geometry::Sizef{target} - nsize);
                 return {offset, nsize};
             }
             else {

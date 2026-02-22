@@ -33,7 +33,7 @@ namespace Gorgon :: Scripting :: Compilers {
 		
 		for(std::size_t i = 0; i < sizeof...(args); i++) {
 			if(allowed[i] == c) {
-				return i;
+				return int(i);
 			}
 		}
 		

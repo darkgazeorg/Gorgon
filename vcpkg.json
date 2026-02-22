@@ -6,7 +6,9 @@
     "libpng",
     "libjpeg-turbo",
     "zlib",
-    "liblzma"
+    "liblzma",
+    "cpptrace",
+    "glew"
   ],
   "features": {
     "flac": {

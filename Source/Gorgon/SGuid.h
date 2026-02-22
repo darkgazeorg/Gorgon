@@ -184,7 +184,7 @@ namespace Gorgon {
 		
 		for(int i=15; i>=0; i--) {	
 			char c;
-			c=in.get();
+			c=(char)in.get();
 			c=tolower(c);
 			
 			if(c>='0' && c<='9') {
