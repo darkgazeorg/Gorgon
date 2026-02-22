@@ -59,7 +59,7 @@ endfunction()
 # This mirrors an entire folder and removes "retired" (deleted) files.
 function(gorgon_copy_directory target source_dir)
     add_custom_command(TARGET ${target} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_FILE_DIR:${target}>/${source_dir}"
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${target}>/${source_dir}"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/${source_dir}"
             "$<TARGET_FILE_DIR:${target}>/${source_dir}"
@@ -70,7 +70,7 @@ function(gorgon_copy_directory target source_dir)
 endfunction()
 
 # --- 4. THE EXECUTABLE ---
-add_executable(${PROJECT_NAME} ${APP_SOURCES})
+add_executable(${PROJECT_NAME} WIN32 ${APP_SOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE Gorgon::Gorgon)
 
 # Set output to the local 'Bin' folder for easy access during development
