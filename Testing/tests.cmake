@@ -37,6 +37,7 @@ set(UnitTests
 	String
 	URI
 	IO
+	LZMA
 )
 
 if(${SCRIPTING})

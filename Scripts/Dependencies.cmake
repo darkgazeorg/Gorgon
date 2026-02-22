@@ -25,33 +25,10 @@ find_package(ZLIB REQUIRED)
 target_link_libraries(Gorgon PUBLIC ZLIB::ZLIB)
 message(STATUS "Found zlib -> ${ZLIB_VERSION}")
 
-# --- LZMA SDK (7-Zip) ------------------------------------------------------
-# Look for the SDK-specific headers (LzmaDec.h) rather than lzma.h
-find_path(LZMASDK_INCLUDE_DIR 
-    NAMES LzmaDec.h 
-    PATH_SUFFIXES lzma-sdk/C lzma-sdk
-)
-
-# Look for the SDK-specific library
-find_library(LZMASDK_LIBRARY 
-    NAMES lzmasdk lzma-sdk
-)
-
-if(LZMASDK_INCLUDE_DIR AND LZMASDK_LIBRARY)
-    # Create an imported target so the rest of the build remains clean
-    if(NOT TARGET LzmaSdk::LzmaSdk)
-        add_library(LzmaSdk::LzmaSdk UNKNOWN IMPORTED)
-        set_target_properties(LzmaSdk::LzmaSdk PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${LZMASDK_INCLUDE_DIR}"
-            IMPORTED_LOCATION "${LZMASDK_LIBRARY}"
-        )
-    endif()
-    
-    target_link_libraries(Gorgon PUBLIC LzmaSdk::LzmaSdk)
-    message(STATUS "LZMA SDK: Found (Include: ${LZMASDK_INCLUDE_DIR})")
-else()
-    message(FATAL_ERROR "LZMA SDK (7-zip) is required but was not found.")
-endif()
+# --- LZMA (xz-utils / liblzma) ----------------------------------------------
+find_package(LibLZMA REQUIRED)
+target_link_libraries(Gorgon PUBLIC LibLZMA::LibLZMA)
+message(STATUS "Found liblzma -> ${LIBLZMA_VERSION_STRING}")
 
 # PkgConfig (Required for some Linux dependencies)
 if(NOT WIN32)
