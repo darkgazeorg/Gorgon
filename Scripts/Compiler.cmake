@@ -1,5 +1,4 @@
 target_compile_definitions(Gorgon PUBLIC UNICODE _UNICODE)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 target_compile_options(Gorgon PUBLIC 
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8>

@@ -39,4 +39,33 @@ namespace Gorgon :: OS {
         }
     }
     
+    FontWeight Font::GetWeight() const {
+        if(Weight <= 150) {
+            return FontWeight::Thin;
+        }
+        else if(Weight <= 250) {
+            return FontWeight::ExtraLight;
+        }
+        else if(Weight <= 350) {
+            return FontWeight::Light;
+        }
+        else if(Weight > 850) {
+            return FontWeight::Heavy;
+        }
+        else if(Weight > 750) {
+            return FontWeight::ExtraBold;
+        }
+        else if(Weight > 650) {
+            return FontWeight::Bold;
+        }
+        else if(Weight > 550) {
+            return FontWeight::SemiBold;
+        }
+        else if(Weight > 450) {
+            return FontWeight::Medium;
+        }
+        else {
+            return FontWeight::Regular;
+        }
+    }
 }

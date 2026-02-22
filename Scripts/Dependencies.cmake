@@ -41,6 +41,7 @@ endif()
 # For Utils/Assert
 if(WIN32)
     find_package(cpptrace CONFIG REQUIRED)
+    target_link_libraries(Gorgon PUBLIC cpptrace::cpptrace)
 endif()
 
 
@@ -59,8 +60,10 @@ if(FreeType)
     message(STATUS "FreeType: SYSTEM")
 endif()
 
-# FontConfig (Linux only)
-if(NOT WIN32)
+# Font enumation
+if(WIN32)
+    target_link_libraries(Gorgon PUBLIC dwrite)
+else()
     if(FONTCONFIG)
         find_package(Fontconfig REQUIRED)
         

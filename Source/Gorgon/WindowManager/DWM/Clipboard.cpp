@@ -128,17 +128,17 @@ namespace Gorgon :: WindowManager {
 				GlobalUnlock(clipbuffer);
 
 				if(unicode) {
-					auto unicode = MByteToUnicode(text);
+					auto wtext = MByteToUnicode(text);
 
-					char *cbu;
-					clipbuffers.push_back(GlobalAlloc(GMEM_DDESHARE, unicode.length()));
-					auto clipbuffer = clipbuffers.back();
+					size_t wbytes = (wtext.size() + 1) * sizeof(wchar_t);
+					clipbuffers.push_back(GlobalAlloc(GMEM_DDESHARE, wbytes));
+					auto ucbuffer = clipbuffers.back();
 
-					cbu = (char *)GlobalLock(clipbuffer);
-					memcpy(cbu, unicode.c_str(), unicode.length());
-					GlobalUnlock(clipbuffer);
+					wchar_t *cbu = (wchar_t *)GlobalLock(ucbuffer);
+					memcpy(cbu, wtext.c_str(), wbytes);
+					GlobalUnlock(ucbuffer);
 
-					SetClipboardData(CF_UNICODETEXT, cbu);
+					SetClipboardData(CF_UNICODETEXT, ucbuffer);
 				}
 
 				SetClipboardData(CF_TEXT, clipbuffer);
@@ -249,9 +249,7 @@ namespace Gorgon :: WindowManager {
 
 				std::string name;
 				while(widetext[0]) {
-					name.resize(wcslen(widetext));
-
-					wcstombs_s(nullptr, &name[0], wcslen(widetext)+1, widetext, wcslen(widetext));
+					name = UnicodeToMByte(widetext);
 					OS::winslashtonormal(name);
 					ret.push_back(name);
 
@@ -297,9 +295,7 @@ namespace Gorgon :: WindowManager {
 
 				std::string name;
 				while(widetext[0]) {
-					name.resize(wcslen(widetext));
-
-					wcstombs_s(nullptr, &name[0], wcslen(widetext)+1, widetext, wcslen(widetext));
+					name = UnicodeToMByte(widetext);
 					OS::winslashtonormal(name);
 					ret.push_back("file://" + name);
 
@@ -351,10 +347,14 @@ namespace Gorgon :: WindowManager {
 				SetClipboardData(cf_urilist, uri);
 
 				len = 0;
-				for(const auto &e : list)
-					len += e.length() + 1;
+				std::vector<std::wstring> wlist;
+				for(auto &e : list) {
+					OS::normalslashtowin(e);
+					wlist.push_back(MByteToUnicode(e));
+					len += wlist.back().size() + 1;
+				}
 
-				clipbuffers.push_back(GlobalAlloc(GMEM_DDESHARE, len*2+sizeof(DROPFILES)+2));
+				clipbuffers.push_back(GlobalAlloc(GMEM_DDESHARE, (len + 1) * sizeof(wchar_t) + sizeof(DROPFILES)));
 				auto clipbuffer = clipbuffers.back();
 
 				DROPFILES *files = (DROPFILES *)GlobalLock(clipbuffer);
@@ -365,14 +365,11 @@ namespace Gorgon :: WindowManager {
 				files->pFiles = sizeof(DROPFILES);
 
 				wchar_t *buffer = (wchar_t *)((char *)(files)+files->pFiles);
-				for(auto &e : list) {
-					OS::normalslashtowin(e);
-					auto s = MByteToUnicode(e);
-					memcpy(buffer, &s[0], s.length());
-					buffer += s.length()/2;
+				for(auto &ws : wlist) {
+					memcpy(buffer, ws.c_str(), (ws.size() + 1) * sizeof(wchar_t));
+					buffer += ws.size() + 1;
 				}
-				buffer[0] = 0;
-				buffer[1] = 0;
+				*buffer = 0;
 				GlobalUnlock(clipbuffer);
 
 				SetClipboardData(CF_HDROP, clipbuffer);

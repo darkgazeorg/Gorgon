@@ -20,6 +20,7 @@ if(TESTS)
     option(MANUAL_TESTS "Compiles manual test applications." ON)
 endif()
 
+option(GORGON_EXPORT_BUILD_TREE "Export the build tree for local examples" OFF)
 option(BUILD_EXAMPLES "Enable compiling example applications." OFF)
 option(COVERAGE "Enable code coverage instrumentation (only valid in Debug builds)." OFF)
 option(DOCUMENTATION "Enable generation of documentation." ON)

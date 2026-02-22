@@ -1,18 +1,14 @@
 #undef UNICODE
 
 #include "../Audio.h"
+#include "../OS/Win32Unicode.h"
 #include <initguid.h>
 #include <Audioclient.h>
 #include <Mmdeviceapi.h>
 #include <comdef.h>
-#include <locale>
-#include <codecvt>
 #include <functiondiscoverykeys_devpkey.h>
 
 namespace Gorgon {
-
-std::string MByteToUnicode(const std::string &multiByteStr);
-std::string UnicodeToMByte(LPCWSTR unicodeStr);
 
 namespace Audio {
 

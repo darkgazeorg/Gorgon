@@ -103,7 +103,8 @@
         "TESTS": "ON",
         "UNIT_TESTS": "ON",
         "MANUAL_TESTS": "ON",
-        "BUILD_EXAMPLES": "ON"
+        "BUILD_EXAMPLES": "ON",
+        "EXPORT_BUILD_TREE": "ON"
       }
     },
     {
@@ -144,12 +145,43 @@
         "CMAKE_CXX_COMPILER": "cl.exe",
         "CMAKE_MAKE_PROGRAM": "${sourceDir}/.tools/ninja/ninja.exe",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.tools/vcpkg/scripts/buildsystems/vcpkg.cmake",        
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
       },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
+      }
+    },
+    {
+      "name": "WindowsQuick",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Build",
+      "description": "Documentation is disabled for a quick build and installation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "WindowsQuickDebug",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Debug Build",
+      "description": "Quick build with debug configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "WindowsQuickRelease",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Release Build",
+      "description": "Quick build with release configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "DOCUMENTATION": "OFF"
       }
     },
     {
@@ -163,6 +195,106 @@
           "value": "flac;ogg;vorbis;freetype;curl" 
         },
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsDefaultDebug",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Debug Build",
+      "description": "Standard default build in debug mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsDefaultRelease",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Release Build",
+      "description": "Standard default build in release mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsMinimal",
+      "inherits": "windows-base",
+      "displayName": "Windows Minimal Build",
+      "description": "Core-only build with optional modules and external formats disabled.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AUDIO": "OFF",
+        "SCRIPTING": "OFF",
+        "UI": "OFF",
+        "CGI": "OFF",
+        "HTTP": "OFF",
+        "FLAC": "OFF",
+        "FreeType": "OFF",
+        "OGG": "OFF",
+        "VORBIS": "OFF",
+        "FONTCONFIG": "OFF",
+        "DOCUMENTATION": "OFF",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": ""
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsTesting",
+      "inherits": "windows-base",
+      "displayName": "Windows Testing & Examples",
+      "description": "Enables unit tests, manual tests, and example applications.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TESTS": "ON",
+        "UNIT_TESTS": "ON",
+        "MANUAL_TESTS": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "EXPORT_BUILD_TREE": "ON",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsTestingRelWithDebInfo",
+      "inherits": "WindowsTesting",
+      "displayName": "Windows Testing & Examples (RelWithDebInfo)",
+      "description": "Testing build with RelWithDebInfo configuration.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "WindowsCoverage",
+      "inherits": "WindowsTesting",
+      "displayName": "Windows Code Coverage",
+      "description": "Testing build with code coverage instrumentation enabled.",
+      "cacheVariables": {
+        "COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "WindowsDocumentationMode",
+      "inherits": "windows-base",
+      "displayName": "Windows Documentation Mode",
+      "description": "Builds documentation with strict warning reporting enabled.",
+      "cacheVariables": {
+        "DOCUMENTATION": "ON",
+        "DOCUMENTATION_MODE": "ON"
       }
     }
   ]

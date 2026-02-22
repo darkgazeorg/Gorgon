@@ -17,6 +17,8 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/Scripts")
 
 include(CMakeSetup)
 
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 add_library(Gorgon STATIC "")
 add_library(Gorgon::Gorgon ALIAS Gorgon)
 
@@ -36,6 +38,16 @@ endif()
 
 include(Documentation)
 include(Install)
+
+if(EXPORT_BUILD_TREE)
+    export(EXPORT GorgonTargets 
+           FILE "${CMAKE_CURRENT_BINARY_DIR}/GorgonConfig.cmake"
+           NAMESPACE Gorgon::)
+           
+    export(PACKAGE Gorgon)
+    
+    message(STATUS "Gorgon Build Tree Exported for Local Discovery")
+endif()
 
 target_include_directories(Gorgon PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source>

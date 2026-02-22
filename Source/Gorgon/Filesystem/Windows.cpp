@@ -1,4 +1,5 @@
 #include "../Filesystem.h"
+#include "../OS/Win32Unicode.h"
 
 #include <cstdio>
 #include <direct.h>
@@ -21,20 +22,12 @@ namespace Gorgon :: Filesystem {
 
     // --- Private Win32 Helpers ---
     namespace {
-        std::wstring ToW(const std::string& utf8) {
-            if (utf8.empty()) return L"";
-            int size = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), NULL, 0);
-            std::wstring wstr(size, 0);
-            MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), &wstr[0], size);
-            return wstr;
+        inline std::wstring ToW(const std::string& utf8) {
+            return MByteToUnicode(utf8);
         }
 
-        std::string ToA(const std::wstring& utf16) {
-            if (utf16.empty()) return "";
-            int size = WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), (int)utf16.size(), NULL, 0, NULL, NULL);
-            std::string str(size, 0);
-            WideCharToMultiByte(CP_UTF8, 0, utf16.c_str(), (int)utf16.size(), &str[0], size, NULL, NULL);
-            return str;
+        inline std::string ToA(const std::wstring& utf16) {
+            return UnicodeToMByte(utf16);
         }
     }
 

@@ -31,9 +31,7 @@ namespace Gorgon :: WindowManager {
 			wchar_t *widetext = (wchar_t *)((char *)(fdata)+fdata->pFiles);
 
 			while(widetext[0]) {
-				name.resize(wcslen(widetext));
-
-				wcstombs(&name[0], widetext, wcslen(widetext)+1);
+				name = UnicodeToMByte(widetext);
 				OS::winslashtonormal(name);
 				data->AddFile(name);
 

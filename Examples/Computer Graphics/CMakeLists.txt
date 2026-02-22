@@ -10,7 +10,10 @@ set(APP_SOURCES
 )
 
 # --- 2. GORGON FRAMEWORK ---
-find_package(Gorgon REQUIRED)
+if(NOT TARGET Gorgon::Gorgon)
+    find_package(Gorgon REQUIRED)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

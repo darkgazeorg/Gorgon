@@ -10,12 +10,12 @@
 #include "../Input.h"
 
 #include "../Filesystem.h"
+#include "../String.h"
 
-#ifdef GORGON_FREETYPE_SUPPORT
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_TRUETYPE_TABLES_H
-#endif
+#include <dwrite.h>
+#include <wrl/client.h>
+
+using Microsoft::WRL::ComPtr;
 
 #define WINDOWS_LEAN_AND_MEAN
 #define SECURITY_WIN32
@@ -27,8 +27,8 @@
 
 #include <LM.h>
 #include <LMaccess.h>
-#include <locale>
-#include <codecvt>
+
+#include "Win32Unicode.h"
 
 #ifndef WM_MOUSEWHEEL
 #	define WM_MOUSEWHEEL					0x020A
@@ -60,32 +60,19 @@ extern "C" {
 namespace Gorgon { 
 
 
-	//Modified from https://social.msdn.microsoft.com/Forums/en-US/41f3fa1c-d7cd-4ba6-a3bf-a36f16641e37/conversion-from-multibyte-to-unicode-character-set?forum=vcgeneral
-	std::string MByteToUnicode(const std::string &multiByteStr) {
-		// Get the required size of the buffer that receives the Unicode string. 
-		DWORD minSize;
-		minSize = MultiByteToWideChar(CP_UTF8, 0, multiByteStr.c_str(), -1, NULL, 0);
-
-		std::string ret;
-		ret.resize(minSize*2);
-
-		// Convert string from multi-byte to Unicode.
-		MultiByteToWideChar(CP_UTF8, 0, multiByteStr.c_str(), -1, (LPWSTR)&ret[0], minSize);
-
+	std::wstring MByteToUnicode(const std::string &multiByteStr) {
+		if (multiByteStr.empty()) return L"";
+		int size = MultiByteToWideChar(CP_UTF8, 0, multiByteStr.c_str(), (int)multiByteStr.size(), NULL, 0);
+		std::wstring ret(size, 0);
+		MultiByteToWideChar(CP_UTF8, 0, multiByteStr.c_str(), (int)multiByteStr.size(), &ret[0], size);
 		return ret;
 	}
 
-	//https://social.msdn.microsoft.com/Forums/en-US/41f3fa1c-d7cd-4ba6-a3bf-a36f16641e37/conversion-from-multibyte-to-unicode-character-set?forum=vcgeneral
 	std::string UnicodeToMByte(LPCWSTR unicodeStr) {
-		// Get the required size of the buffer that receives the multiByte string. 
-		DWORD minSize;
-		minSize = WideCharToMultiByte(CP_UTF8, NULL, unicodeStr, -1, NULL, 0, NULL, FALSE);
-
-		std::string ret;
-		ret.resize(minSize - 1);
-
-		// Convert string from Unicode to multi-byte.
-		WideCharToMultiByte(CP_UTF8, NULL, unicodeStr, -1, &ret[0], minSize, NULL, FALSE);
+		if (!unicodeStr || !unicodeStr[0]) return "";
+		int size = WideCharToMultiByte(CP_UTF8, 0, unicodeStr, -1, NULL, 0, NULL, NULL);
+		std::string ret(size - 1, 0);
+		WideCharToMultiByte(CP_UTF8, 0, unicodeStr, -1, &ret[0], size, NULL, NULL);
 		return ret;
 	}
 
@@ -285,7 +272,7 @@ namespace Gorgon {
 	}
 
 	void DisplayMessage(const std::string &message) {
-		MessageBox(NULL, (LPCWSTR)MByteToUnicode(message).data(), (LPCWSTR)MByteToUnicode(GetSystemName()).data(), 0);
+		MessageBoxW(NULL, MByteToUnicode(message).c_str(), MByteToUnicode(GetSystemName()).c_str(), 0);
 	}
 
 	std::string GetAppDataPath() {
@@ -319,59 +306,39 @@ namespace Gorgon {
 	}
 
 	bool Start(const std::string &name, const std::vector<std::string> &args) {
-		STARTUPINFO si;
-		memset(&si, 0, sizeof(si));
+		STARTUPINFOW si = {};
+		si.cb = sizeof(si);
 
-		std::string wname = MByteToUnicode(name);
+		std::wstring wname = MByteToUnicode(name);
 
-		PROCESS_INFORMATION pi;
+		PROCESS_INFORMATION pi = {};
 
-		bool usepath=name.find_first_of("/")==name.npos;
-		int size=0;
-		size=(int)name.length()+3;
-		if(usepath) size*=2;
-		for(auto &arg : args) {
-			size+=(int)arg.size()+3;
+		bool usepath = name.find('/') == std::string::npos;
+
+		// Build command line: "name" "arg1" "arg2" ...
+		std::wstring cmdline;
+		cmdline += L'"';
+		cmdline += wname;
+		cmdline += L'"';
+
+		for(const auto &arg : args) {
+			cmdline += L' ';
+			cmdline += L'"';
+			cmdline += MByteToUnicode(arg);
+			cmdline += L'"';
 		}
 
-		//build command line
-		wchar_t *cmd=new wchar_t[size];
-		int current=0;
-
-		if(usepath) {
-			//application to run
-			cmd[current++]='"';
-			wcscpy(cmd+current, (LPCWSTR)wname.data());
-			current+=(int)wname.size();
-			cmd[current++]='"';
-			cmd[current++]=' ';
-		}
-
-		//application name as first arg
-		cmd[current++]='"';
-		wcscpy(cmd, (LPCWSTR)wname.data());
-		current+=(int)wname.size();
-		cmd[current++]='"';
-		cmd[current++]=' ';
-
-		//arguments
-		for(auto arg : args) {
-			std::string warg = MByteToUnicode(arg);
-			cmd[current++]='"';
-			wcscpy(cmd, (LPCWSTR)warg.data());
-			current+=(int)warg.size();
-			cmd[current++]='"';
-			cmd[current++]=' ';
-		}
-		cmd[size]='\0';
+		// CreateProcessW may modify the command line buffer
+		std::vector<wchar_t> cmd(cmdline.begin(), cmdline.end());
+		cmd.push_back(L'\0');
 
 		bool ret;
 
 		if(usepath) {
-			ret=CreateProcess(nullptr, cmd, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi)!=0;
+			ret = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi) != 0;
 		}
 		else {
-			ret=CreateProcess((LPCWSTR)wname.data(), cmd, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi)!=0;
+			ret = CreateProcessW(wname.c_str(), cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi) != 0;
 		}
 
 		if(ret) {
@@ -380,13 +347,12 @@ namespace Gorgon {
 
 			return true;
 		}
-		else {
-			return false;
-		}
+
+		return false;
 	}
 	
 	bool Open(const std::string &file) {
-		return (intptr_t)ShellExecute(nullptr, L"open", (LPCWSTR)MByteToUnicode(file).data(), nullptr, nullptr, SW_SHOWNORMAL)>32;
+		return (intptr_t)ShellExecuteW(nullptr, L"open", MByteToUnicode(file).c_str(), nullptr, nullptr, SW_SHOWNORMAL)>32;
 	}
 
 	void normalslashtowin(std::string &s) {
@@ -401,165 +367,364 @@ namespace Gorgon {
 				c = '/';
 	}
 
+	namespace {
+
+		/// Converts DWRITE_FONT_STRETCH (1-9) to percentage width values
+		int stretchtowidth(DWRITE_FONT_STRETCH stretch) {
+			static const int mapping[] = {
+				100, // 0 = undefined, treat as normal
+				50,  // 1 = ultra condensed
+				62,  // 2 = extra condensed
+				75,  // 3 = condensed
+				87,  // 4 = semi condensed
+				100, // 5 = normal
+				112, // 6 = semi expanded
+				125, // 7 = expanded
+				150, // 8 = extra expanded
+				200, // 9 = ultra expanded
+			};
+			int idx = (int)stretch;
+			if(idx < 0) idx = 0;
+			if(idx > 9) idx = 9;
+			return mapping[idx];
+		}
+
+		/// Helper to get the font file path from a DirectWrite font face
+		std::string getfontfilepath(IDWriteFontFace *fontface) {
+			UINT32 filecount = 0;
+			fontface->GetFiles(&filecount, nullptr);
+			if(filecount == 0) return "";
+
+			ComPtr<IDWriteFontFile> fontfile;
+			filecount = 1;
+			if(FAILED(fontface->GetFiles(&filecount, &fontfile)))
+				return "";
+
+			const void *refkey = nullptr;
+			UINT32 refkeysize = 0;
+			if(FAILED(fontfile->GetReferenceKey(&refkey, &refkeysize)))
+				return "";
+
+			ComPtr<IDWriteFontFileLoader> loader;
+			if(FAILED(fontfile->GetLoader(&loader)))
+				return "";
+
+			ComPtr<IDWriteLocalFontFileLoader> localloader;
+			if(FAILED(loader.As(&localloader)))
+				return "";
+
+			UINT32 pathlen = 0;
+			if(FAILED(localloader->GetFilePathLengthFromKey(refkey, refkeysize, &pathlen)))
+				return "";
+
+			std::wstring wpath(pathlen + 1, L'\0');
+			if(FAILED(localloader->GetFilePathFromKey(refkey, refkeysize, &wpath[0], pathlen + 1)))
+				return "";
+
+			wpath.resize(pathlen);
+			auto result = UnicodeToMByte(wpath);
+			winslashtonormal(result);
+			return result;
+		}
+
+		/// Helper to get localized string from IDWriteLocalizedStrings, preferring en-US
+		std::string getlocalizedstring(IDWriteLocalizedStrings *strings) {
+			if(!strings) return "";
+
+			UINT32 index = 0;
+			BOOL exists = FALSE;
+			strings->FindLocaleName(L"en-us", &index, &exists);
+			if(!exists) index = 0;
+
+			UINT32 len = 0;
+			if(FAILED(strings->GetStringLength(index, &len)))
+				return "";
+
+			std::wstring wstr(len + 1, L'\0');
+			if(FAILED(strings->GetString(index, &wstr[0], len + 1)))
+				return "";
+
+			wstr.resize(len);
+			return UnicodeToMByte(wstr);
+		}
+
+		/// Populate a Font object from an IDWriteFont
+		void populatefont(Font &f, IDWriteFont *dwfont, IDWriteFontFamily *dwfamily) {
+			// Family name
+			ComPtr<IDWriteLocalizedStrings> familynames;
+			if(SUCCEEDED(dwfamily->GetFamilyNames(&familynames)))
+				f.Family = getlocalizedstring(familynames.Get());
+
+			// Style name
+			ComPtr<IDWriteLocalizedStrings> facenames;
+			if(SUCCEEDED(dwfont->GetFaceNames(&facenames)))
+				f.Style = getlocalizedstring(facenames.Get());
+
+			// Weight (DirectWrite weight maps directly to CSS weight)
+			f.Weight = (int)dwfont->GetWeight();
+			f.Bold = f.Weight > (int)DWRITE_FONT_WEIGHT_NORMAL;
+
+			// Italic
+			auto style = dwfont->GetStyle();
+			f.Italic = (style == DWRITE_FONT_STYLE_ITALIC || style == DWRITE_FONT_STYLE_OBLIQUE);
+
+			// Width
+			f.Width = stretchtowidth(dwfont->GetStretch());
+
+			// Monospaced - check if the font is part of a fixed-pitch family
+			f.Monospaced = dwfont->IsSymbolFont() ? false : false; // Will be set below
+
+			// Get the file path
+			ComPtr<IDWriteFontFace> fontface;
+			if(SUCCEEDED(dwfont->CreateFontFace(&fontface))) {
+				f.Filename = getfontfilepath(fontface.Get());
+
+				// Check monospacing via PANOSE in OS/2 table
+				const UINT32 os2tag = DWRITE_MAKE_OPENTYPE_TAG('O','S','/','2');
+				const void *tabledata = nullptr;
+				UINT32 tablesize = 0;
+				void *tablecontext = nullptr;
+				BOOL tableexists = FALSE;
+
+				if(SUCCEEDED(fontface->TryGetFontTable(os2tag, &tabledata, &tablesize, &tablecontext, &tableexists)) && tableexists && tablesize >= 36) {
+					const uint8_t *data = (const uint8_t *)tabledata;
+					// PANOSE starts at offset 32 in OS/2 table, 10 bytes
+					uint8_t panose_family = data[32];
+					uint8_t panose_proportion = data[35]; // bProportion is at index 3 within PANOSE
+					f.Monospaced = (panose_family == 2 && panose_proportion == 9);
+				}
+
+				if(tablecontext)
+					fontface->ReleaseFontTable(tablecontext);
+			}
+		}
+
+		ComPtr<IDWriteFactory> getdwritefactory() {
+			ComPtr<IDWriteFactory> factory;
+			DWriteCreateFactory(
+				DWRITE_FACTORY_TYPE_SHARED,
+				__uuidof(IDWriteFactory),
+				reinterpret_cast<IUnknown**>(factory.GetAddressOf())
+			);
+			return factory;
+		}
+
+	} // anonymous namespace
+
 	std::vector<FontFamily> GetFontFamilies() {
-#ifndef GORGON_FREETYPE_SUPPORT
-		Utils::AssertFalse("Listing fonts require freetype library.");
-#else
 		std::vector<FontFamily> list;
 
-		//Collect font filenames
-		HKEY fontskey;
+		auto factory = getdwritefactory();
+		if(!factory)
+			throw std::runtime_error("Cannot initialize DirectWrite");
 
-		if(RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-			L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
-			0, KEY_READ, &fontskey) != ERROR_SUCCESS
-		) 
-			throw std::runtime_error("Cannot reach to list of fonts");
+		ComPtr<IDWriteFontCollection> collection;
+		if(FAILED(factory->GetSystemFontCollection(&collection)))
+			throw std::runtime_error("Cannot get system font collection");
 
-		DWORD fontcount = 0;
-		DWORD maxnamelen = 0;
-		DWORD maxsize = 0;
+		UINT32 familycount = collection->GetFontFamilyCount();
 
-		auto result = RegQueryInfoKey(
-			fontskey,
-			NULL, NULL, NULL, NULL, NULL, NULL,
-			&fontcount, &maxnamelen, &maxsize, 
-			NULL, NULL
-		);
-
-		if(result != ERROR_SUCCESS)
-			throw std::runtime_error("Cannot reach to list of fonts");
-
-		WCHAR *valname = new WCHAR[maxnamelen + 1]; 
-		WCHAR *data = new WCHAR[maxsize / sizeof(WCHAR) + 1];
-
-		std::vector<std::string> filenames;
-
-		for(int i = 0; i<(int)fontcount; i++) {
-			DWORD type, size = maxsize, nl = maxnamelen;
-
-			result = RegEnumValue(fontskey, i,
-				valname, &nl,
-				NULL,
-				&type, (LPBYTE)data, &size
-			);
-
-			filenames.push_back(UnicodeToMByte(data));
-		}
-
-		delete[] data;
-		delete[] valname;
-		RegCloseKey(fontskey);
-
-		fontcount = 0;
-		maxnamelen = 0;
-		maxsize = 0;
-
-		result = RegOpenKeyEx(HKEY_CURRENT_USER,
-			L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
-			0, KEY_READ, &fontskey);
-
-		if(result == ERROR_SUCCESS) {
-			result = RegQueryInfoKey(
-				fontskey,
-				NULL, NULL, NULL, NULL, NULL, NULL,
-				&fontcount, &maxnamelen, &maxsize, 
-				NULL, NULL
-			);
-
-			if(result != ERROR_SUCCESS)
-				RegCloseKey(fontskey);
-		}
-
-		if(result == ERROR_SUCCESS) {
-			valname = new WCHAR[maxnamelen + 1]; 
-			data = new WCHAR[maxsize / sizeof(WCHAR) + 1];
-
-			for(int i = 0; i<(int)fontcount; i++) {
-				DWORD type, size = maxsize, nl = maxnamelen;
-
-				result = RegEnumValue(fontskey, i,
-					valname, &nl,
-					NULL,
-					&type, (LPBYTE)data, &size
-				);
-
-				filenames.push_back(UnicodeToMByte(data));
-			}
-
-			delete[] data;
-			delete[] valname;
-		}
-
-		if(result == ERROR_SUCCESS) RegCloseKey(fontskey);
-
-		auto curdir = Filesystem::CurrentDirectory();
-		Filesystem::ChangeDirectory(GetEnvVar("WINDIR") + "/fonts");
-		FT_Library library = nullptr; 
-		FT_Face    face = nullptr;
-
-		FT_Init_FreeType(&library);
-
-		if(!library)
-			throw std::runtime_error("Cannot initialize freetype");
-
-		for(auto filename : filenames) {
-			if(face) {
-				FT_Done_Face(face);
-				face = nullptr;
-			}
-
-			try {
-				filename = Filesystem::Canonical(filename);
-			}
-			catch(...) {
-				continue;
-			}
-			
-			auto error = FT_New_Face(library, filename.c_str(), 0, &face);
-
-			if(error != FT_Err_Ok || face == nullptr)
+		for(UINT32 i = 0; i < familycount; i++) {
+			ComPtr<IDWriteFontFamily> dwfamily;
+			if(FAILED(collection->GetFontFamily(i, &dwfamily)))
 				continue;
 
-			auto family = face->family_name;
+			ComPtr<IDWriteLocalizedStrings> familynames;
+			if(FAILED(dwfamily->GetFamilyNames(&familynames)))
+				continue;
 
-			//search if we have the same family already
-			auto it = std::find_if(begin(list), end(list), [&family](const auto &fam) {
-				return fam.Family == (char *)family;
-			});
+			std::string familyname = getlocalizedstring(familynames.Get());
+			if(familyname.empty()) continue;
 
-			if(it == end(list)) {
-				FontFamily ff;
-				ff.Family = family;
+			FontFamily ff;
+			ff.Family = familyname;
+
+			UINT32 fontcount = dwfamily->GetFontCount();
+			for(UINT32 j = 0; j < fontcount; j++) {
+				ComPtr<IDWriteFont> dwfont;
+				if(FAILED(dwfamily->GetFont(j, &dwfont)))
+					continue;
+
+				// Skip simulated fonts
+				if(dwfont->GetSimulations() != DWRITE_FONT_SIMULATIONS_NONE)
+					continue;
+
+				Font font;
+				populatefont(font, dwfont.Get(), dwfamily.Get());
+				ff.Faces.push_back(font);
+			}
+
+			if(!ff.Faces.empty())
 				list.push_back(ff);
-				it = list.begin() + list.size() - 1;
-			}
-
-
-			Font font;
-
-			font.Filename = filename;
-			font.Family = it->Family;
-			font.Style = face->style_name;
-
-			auto tbl = FT_Get_Sfnt_Table(face, FT_SFNT_OS2);
-			if(tbl != nullptr) {
-				TT_OS2 *os2 = (TT_OS2 *)tbl;
-
-				font.Weight = os2->usWeightClass;
-				font.Italic = (os2->fsSelection & 0b1000000001) != 0;
-				font.Bold   = (os2->fsSelection & 0b100000) != 0;
-				font.Monospaced = os2->panose[0] == 2 && os2->panose[3] == 9;
-                font.Width  = os2->usWidthClass;
-			}
-
-			it->Faces.push_back(font);
 		}
-
-		FT_Done_FreeType(library);
-		Filesystem::ChangeDirectory(curdir);
 
 		return list;
-#endif
 	}
+
+	std::pair<Font, bool> GetFont(const std::string &familyname, const std::string &stylename) {
+		Font ret;
+
+		auto factory = getdwritefactory();
+		if(!factory)
+			throw std::runtime_error("Cannot initialize DirectWrite");
+
+		ComPtr<IDWriteFontCollection> collection;
+		if(FAILED(factory->GetSystemFontCollection(&collection)))
+			throw std::runtime_error("Cannot get system font collection");
+
+		auto findinfamily = [&](IDWriteFontFamily *dwfamily, const std::string &wantedstyle) -> bool {
+			UINT32 fontcount = dwfamily->GetFontCount();
+
+			// If a style is specified, try to find an exact style match first
+			if(!wantedstyle.empty()) {
+				auto lowerstyle = String::ToLower(wantedstyle);
+				for(UINT32 j = 0; j < fontcount; j++) {
+					ComPtr<IDWriteFont> dwfont;
+					if(FAILED(dwfamily->GetFont(j, &dwfont)))
+						continue;
+
+					ComPtr<IDWriteLocalizedStrings> facenames;
+					if(FAILED(dwfont->GetFaceNames(&facenames)))
+						continue;
+
+					std::string facename = getlocalizedstring(facenames.Get());
+					if(String::ToLower(facename) == lowerstyle) {
+						populatefont(ret, dwfont.Get(), dwfamily);
+						return true;
+					}
+				}
+			}
+
+			return false;
+		};
+
+		auto findanyfacein = [&](IDWriteFontFamily *dwfamily) -> bool {
+			if(dwfamily->GetFontCount() > 0) {
+				ComPtr<IDWriteFont> dwfont;
+				if(SUCCEEDED(dwfamily->GetFont(0, &dwfont))) {
+					populatefont(ret, dwfont.Get(), dwfamily);
+					return true;
+				}
+			}
+			return false;
+		};
+
+		static constexpr auto genericnames = {
+			"", "serif", "sans", "sans-serif", "monospace", "cursive", "fantasy"
+		};
+
+		auto lowerfamily = String::ToLower(familyname);
+		bool isgeneric = std::find(genericnames.begin(), genericnames.end(), lowerfamily) != genericnames.end();
+
+		// Try to find the exact family in system collection
+		if(!familyname.empty()) {
+			UINT32 index = 0;
+			BOOL exists = FALSE;
+			collection->FindFamilyName(MByteToUnicode(familyname).c_str(), &index, &exists);
+
+			if(exists) {
+				ComPtr<IDWriteFontFamily> dwfamily;
+				if(SUCCEEDED(collection->GetFontFamily(index, &dwfamily))) {
+					// Try exact family + style match
+					if(!stylename.empty() && findinfamily(dwfamily.Get(), stylename))
+						return {ret, true};
+
+					// Family found, return first face (style not matched or not specified)
+					if(findanyfacein(dwfamily.Get()))
+						return {ret, stylename.empty()};
+				}
+			}
+		}
+
+		// For generic names, map to well-known Windows font families
+		if(isgeneric) {
+			static const std::string sanslist[] = {
+				"Segoe UI", "Arial", "Helvetica", "Verdana", "Tahoma"
+			};
+			static const std::string seriflist[] = {
+				"Times New Roman", "Georgia", "Cambria", "Palatino Linotype"
+			};
+			static const std::string monolist[] = {
+				"Cascadia Mono", "Consolas", "Courier New", "Lucida Console"
+			};
+			static const std::string cursivelist[] = {
+				"Segoe Script", "Comic Sans MS", "Lucida Handwriting"
+			};
+			static const std::string fantasylist[] = {
+				"Impact", "Gabriola"
+			};
+
+			const std::string *fallbacklist = nullptr;
+			size_t fallbackcount = 0;
+
+			if(lowerfamily == "sans" || lowerfamily == "sans-serif" || lowerfamily.empty()) {
+				fallbacklist = sanslist;
+				fallbackcount = std::size(sanslist);
+			}
+			else if(lowerfamily == "serif") {
+				fallbacklist = seriflist;
+				fallbackcount = std::size(seriflist);
+			}
+			else if(lowerfamily == "monospace") {
+				fallbacklist = monolist;
+				fallbackcount = std::size(monolist);
+			}
+			else if(lowerfamily == "cursive") {
+				fallbacklist = cursivelist;
+				fallbackcount = std::size(cursivelist);
+			}
+			else if(lowerfamily == "fantasy") {
+				fallbacklist = fantasylist;
+				fallbackcount = std::size(fantasylist);
+			}
+
+			if(fallbacklist) {
+				for(size_t k = 0; k < fallbackcount; k++) {
+					UINT32 index = 0;
+					BOOL exists = FALSE;
+					collection->FindFamilyName(MByteToUnicode(fallbacklist[k]).c_str(), &index, &exists);
+
+					if(exists) {
+						ComPtr<IDWriteFontFamily> dwfamily;
+						if(SUCCEEDED(collection->GetFontFamily(index, &dwfamily))) {
+							if(!stylename.empty() && findinfamily(dwfamily.Get(), stylename))
+								return {ret, true};
+
+							if(findanyfacein(dwfamily.Get()))
+								return {ret, true};
+						}
+					}
+				}
+			}
+		}
+
+		// Try well-known fallback fonts as a last resort before giving up
+		static const std::string lastresort[] = {
+			"Segoe UI", "Arial", "Times New Roman", "Consolas", "Courier New"
+		};
+
+		for(auto &name : lastresort) {
+			UINT32 index = 0;
+			BOOL exists = FALSE;
+			collection->FindFamilyName(MByteToUnicode(name).c_str(), &index, &exists);
+
+			if(exists) {
+				ComPtr<IDWriteFontFamily> dwfamily;
+				if(SUCCEEDED(collection->GetFontFamily(index, &dwfamily)) && findanyfacein(dwfamily.Get()))
+					return {ret, false};
+			}
+		}
+
+		// Absolute last resort: return the first available font
+		UINT32 familycount = collection->GetFontFamilyCount();
+		for(UINT32 i = 0; i < familycount; i++) {
+			ComPtr<IDWriteFontFamily> dwfamily;
+			if(SUCCEEDED(collection->GetFontFamily(i, &dwfamily)) && findanyfacein(dwfamily.Get()))
+				return {ret, false};
+		}
+
+		throw std::runtime_error("No fonts found in the system");
+	}
+
+	
 } }
