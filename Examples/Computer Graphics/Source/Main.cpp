@@ -1,10 +1,10 @@
-#include <Gorgon/Main.h>
+#include <Gorgon/EntryPoint.h>
 #include <Gorgon/UI.h>
 #include <Gorgon/UI/Window.h>
 
 #include "Application.h"
 
-int main() {
+int Main(const std::vector<std::string> &args) {
     Gorgon::Initialize("CG");
 
     //Change this line to change window size or window title

@@ -726,5 +726,21 @@ namespace Gorgon {
 		throw std::runtime_error("No fonts found in the system");
 	}
 
+	std::vector<std::string> GetWin32Args() {
+        int argc;
+		
+        LPWSTR* argvW = CommandLineToArgv(GetCommandLine(), &argc);
+        std::vector<std::string> args;
+
+        if (argvW) {
+            for (int i = 0; i < argc; ++i) {
+				args.push_back(UnicodeToMByte(argvW[i]));
+            }
+
+            LocalFree(argvW);
+        }
+		
+        return args;
+    }
 	
 } }

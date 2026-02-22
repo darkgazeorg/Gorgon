@@ -1,4 +1,4 @@
-#include <Gorgon/Main.h>
+#include <Gorgon/EntryPoint.h>
 #include <Gorgon/Window.h>
 #include <Gorgon/WindowManager.h>
 #include <Gorgon/Graphics/Layer.h>
@@ -6,6 +6,7 @@
 #include <Gorgon/Graphics/BlankImage.h>
 #include <Gorgon/Input/Mouse.h>
 #include <Gorgon/Input/Layer.h>
+#include <vector>
     
 //WARNING:
 //This sample game is designed to show how a very simple game can be coded
@@ -177,8 +178,7 @@ std::vector<Object> objects;
 
     
 
-int main() {
-    
+int Main(const std::vector<std::string> &args) {    
     //Initialize everything with the system name of GreenShooter
     Gorgon::Initialize("GreenShooter");
     

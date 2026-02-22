@@ -1,4 +1,4 @@
-#include <Gorgon/Main.h>
+#include <Gorgon/EntryPoint.h>
 #include <Gorgon/Window.h>
 #include <Gorgon/WindowManager.h>
 #include <Gorgon/Graphics/Layer.h>
@@ -7,7 +7,7 @@
 #include <Gorgon/Input/Keyboard.h>
 #include <Gorgon/OS.h>
 
-int main() {
+int Main(const std::vector<std::string> &args) {
     //Initialize everything with the system name of HelloWorld
     Gorgon::Initialize("HelloWorld");
     
