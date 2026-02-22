@@ -24,7 +24,7 @@ target_compile_options(Gorgon PRIVATE
         -Wall -Werror -Wextra
         -Wno-unknown-pragmas -Wno-unused-parameter
     >
-    $<$<CXX_COMPILER_ID:MSVC>: /W3 /wd4068 /wd4100 /wd4458>
+    $<$<CXX_COMPILER_ID:MSVC>:/WX /W3 /wd4068 /wd4100 /wd4458>
 )
 
 if(WIN32)

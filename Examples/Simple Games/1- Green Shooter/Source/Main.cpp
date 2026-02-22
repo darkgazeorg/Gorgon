@@ -176,20 +176,8 @@ public:
 std::vector<Object> objects;
 
     
-//Windows applications start with WinMain. In the future this distinction
-//will be handled by the engine.
-#ifdef WIN32
-#define WINDOWS_LEAN_AND_MEAN
-#include <windows.h>
-int CALLBACK WinMain(
-  _In_ HINSTANCE hInstance,
-  _In_ HINSTANCE hPrevInstance,
-  _In_ LPSTR     lpCmdLine,
-  _In_ int       nCmdShow
-) {
-#else
+
 int main() {
-#endif
     
     //Initialize everything with the system name of GreenShooter
     Gorgon::Initialize("GreenShooter");

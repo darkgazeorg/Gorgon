@@ -1345,11 +1345,22 @@ namespace Gorgon :: Scripting {
 					{
 						MapFunction(
 							[](const std::string &n) -> std::string {
-								char *v=getenv(n.c_str());
+								const char *v = nullptr;
+#ifdef _MSC_VER
+								size_t len = 0;
+								if(_dupenv_s((char**)&v, &len, n.c_str()) == 0 && v != nullptr) {
+									std::string result(v);
+									free((void*)v);
+									return result;
+								}
+								return "";
+#else
+								v = getenv(n.c_str());
 								if(v)
 									return v;
 								else
 									return "";
+#endif
 							}, 
 							Types::String(), 
 							{
