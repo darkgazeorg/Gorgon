@@ -5,9 +5,6 @@
 		}
 	],
 	"settings": {
-		"chat.tools.terminal.autoApprove": {
-			"ninja": true
-		},
 		"clangd.arguments": [
         	"--compile-commands-dir=${workspaceFolder}/build/${command:cmake.activeBuildPreset}"
     	]
