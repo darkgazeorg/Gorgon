@@ -36,6 +36,7 @@ CMakeSettings.json
 GGE.code-workspace
 .idea/
 .clangd
+.tools/
 
 # Compilation and temporary files
 *.obj

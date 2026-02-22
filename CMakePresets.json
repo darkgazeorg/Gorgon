@@ -15,6 +15,7 @@
         "rhs": "Linux"
       }
     },
+    
     {
       "name": "Quick",
       "inherits": "linux-base",
@@ -131,6 +132,36 @@
       "cacheVariables": {
         "DOCUMENTATION": "ON",
         "DOCUMENTATION_MODE": "ON"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_MAKE_PROGRAM": "${sourceDir}/.tools/ninja/ninja.exe",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.tools/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "WindowsDefault",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl" 
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
       }
     }
   ]

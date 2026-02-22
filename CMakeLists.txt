@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
+include(Scripts/Windows.cmake)
+
 project(Gorgon 
     VERSION 4.1.0
     DESCRIPTION "Gorgon is a cross-platform framework for games and visual applications. \

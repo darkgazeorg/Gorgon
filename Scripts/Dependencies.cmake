@@ -130,14 +130,7 @@ endif()
 
 # CURL
 if(HTTP)
-    if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/Source/External/curl/libcurl.lib")
-        # Preserved your bundled Windows fallback
-        target_link_libraries(Gorgon PUBLIC "${CMAKE_SOURCE_DIR}/Source/External/curl/libcurl.lib" Ws2_32.lib wldap32.lib)
-        target_compile_definitions(Gorgon PUBLIC CURL_STATICLIB)
-        message(STATUS "CURL: using bundled libcurl")
-    else()
-        find_package(CURL REQUIRED)
-        target_link_libraries(Gorgon PUBLIC CURL::libcurl)
-        message(STATUS "CURL: SYSTEM")
-    endif()
+    find_package(CURL REQUIRED)
+    target_link_libraries(Gorgon PUBLIC CURL::libcurl)
+    message(STATUS "CURL: SYSTEM")
 endif()
