@@ -86,7 +86,7 @@ namespace Gorgon :: Resource {
 		auto file = f.lock();
 
 		auto rectangle = new Rectangle();
-		bool ctile, stile;
+		bool ctile = false, stile = false;
 		enum {
 			unknown, img, anim, mixed
 		} type = unknown;

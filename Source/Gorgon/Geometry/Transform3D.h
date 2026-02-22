@@ -157,7 +157,7 @@ namespace Gorgon :: Geometry {
 	private:
         union {
             T_ mat[4][4];
-            T_ vec[16];
+            T_ vec[16] = {};
         };
 	};
 

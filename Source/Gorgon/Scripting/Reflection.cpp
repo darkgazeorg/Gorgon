@@ -295,7 +295,10 @@ namespace Gorgon :: Scripting {
 	
 	void Function::Overload::dochecks(bool ismethod) {
 		int i=0;
+
+		[[maybe_unused]]
 		bool restoptional=false;
+
 		//check params
 		for(const Parameter &p : parameters) {
 			//if optional

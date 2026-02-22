@@ -67,9 +67,9 @@ namespace Gorgon :: Geometry {
         
         union {
             struct {
-                T_ X;
-                T_ Y;
-                T_ Z;
+                T_ X = 0;
+                T_ Y = 0;
+                T_ Z = 0;
             };
             
             T_ Vector[3];

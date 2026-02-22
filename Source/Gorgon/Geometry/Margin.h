@@ -163,16 +163,16 @@ namespace Gorgon :: Geometry {
 		}
 
 		/// Left margin
-		T_ Left;
+		T_ Left = 0;
 		
 		/// Top margin
-		T_ Top;
+		T_ Top = 0;
 		
 		/// Right margin
-		T_ Right;
+		T_ Right = 0;
 		
 		/// Bottom margin
-		T_ Bottom;
+		T_ Bottom = 0;
 	};
 
 	/// Adds a Margin object to a size structure, resultant size can contain previous size

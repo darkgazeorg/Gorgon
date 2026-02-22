@@ -253,10 +253,10 @@ namespace Gorgon :: Geometry {
 		}
 
 		/// Width of this size object
-		T_ Width;
+		T_ Width = 0;
 
 		/// Height of this size object
-		T_ Height;
+		T_ Height = 0;
 	};
 
 	/// Multiplies a size with a scalar, effectively resizing it.

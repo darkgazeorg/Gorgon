@@ -350,16 +350,16 @@ namespace Gorgon :: Geometry {
 		}
 
 		/// X coordinate of the top left corner of this rectangle
-		T_ X;
+		T_ X = 0;
 		
 		/// Y coordinate of the top left corner of this rectangle
-		T_ Y;
+		T_ Y = 0;
 		
 		/// Width of the rectangle
-		T_ Width;
+		T_ Width = 0;
 
 		/// Height of the rectangle
-		T_ Height;
+		T_ Height = 0;
 	};
 
 	/// Allows streaming of Rectangle

@@ -33,7 +33,7 @@ namespace internal {
         }
         
         unsigned long Init(Containers::Wave &target) override {
-            unsigned long size;
+            unsigned long size = 0;
             
             target.ImportWav(stream, false, size, samplesize, blocksize);
             startoffset = stream.tellg();

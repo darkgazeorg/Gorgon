@@ -47,7 +47,7 @@ namespace Gorgon :: Resource {
 		auto file = f.lock();
 
 		auto line = new Line();
-		bool tile;
+		bool tile = false;
 		Graphics::Orientation orient;
 		enum {
 			unknown, img, anim, mixed

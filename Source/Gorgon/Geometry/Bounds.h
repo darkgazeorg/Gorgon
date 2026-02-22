@@ -456,16 +456,16 @@ namespace Gorgon :: Geometry {
 		}
 
 		/// Left-most boundary
-		T_ Left;
+		T_ Left = 0;
 
 		/// Top-most boundary
-		T_ Top;
+		T_ Top = 0;
 
 		/// Right-most boundary
-		T_ Right;
+		T_ Right = 0;
 
 		/// Bottom-most boundary
-		T_ Bottom;
+		T_ Bottom = 0;
 	};
 
 

@@ -303,6 +303,7 @@ namespace Gorgon :: Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//repeating parameters cannot be a non-const reference or a pointer
@@ -349,6 +350,7 @@ namespace Gorgon :: Scripting {
 #endif
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//a repeating parameter cannot be a pointer
@@ -376,6 +378,7 @@ namespace Gorgon :: Scripting {
 			}
 			else if(std::is_reference<T>::value) { //const ref can be anything
 				if(!ismember || P_!=0)  {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if really is a reference
@@ -401,6 +404,7 @@ namespace Gorgon :: Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if not the repeating parmeter
@@ -435,6 +439,7 @@ namespace Gorgon :: Scripting {
 					);
 				}
 				else {
+					[[maybe_unused]]
 					const auto &param=parameters[P_-ismember];
 					
 					//if not the repeating parameter
@@ -474,6 +479,7 @@ namespace Gorgon :: Scripting {
 			else if((std::size_t)(P_-ismember)==parameters.size()-1 && repeatlast) {
 				const auto &param=parameters[P_-ismember];
 				
+				[[maybe_unused]]
 				TMP::RTTS *typeinf;
 				if(param.IsConstant()) {
 					if(param.IsReference()) {
@@ -502,6 +508,7 @@ namespace Gorgon :: Scripting {
 			}
 			//regular parameters
 			else {
+				[[maybe_unused]]
 				const auto &param=parameters[P_-ismember];
 				
 				ASSERT(
@@ -516,7 +523,8 @@ namespace Gorgon :: Scripting {
 		
 		template<int ...S_>
 		void check(TMP::Sequence<S_...>) {
-			char dummy[[maybe_unused]] [] = {0, (checkparam<S_>(),'\0')...};
+			[[maybe_unused]]
+			char dummy[] = {0, (checkparam<S_>(),'\0')...};
 		}
 		
 		virtual void dochecks(bool ismethod) override {
