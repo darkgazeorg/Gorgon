@@ -26,8 +26,11 @@ option(COVERAGE "Enable code coverage instrumentation (only valid in Debug build
 option(DOCUMENTATION "Enable generation of documentation." ON)
 if(DOCUMENTATION)
     option(DOCUMENTATION_MODE "Enable this mode to enable documentation warnings" OFF)
-    option(DOCUMENTATION_GRAPHVIZ "Enable generation of documentation graphs (requires Graphviz)." OFF)
+    option(DOCUMENTATION_GRAPHS "Enable generation of documentation graphs (requires Graphviz)." OFF)
     option(BUILD_PDF "Use Doxygen to create the PDF API documentation" OFF)
+endif()
+if(WIN32)
+    option(GORGON_AUTO_SETUP "Automatically set up necessary tools on Windows." ON)
 endif()
 
 # Dependencies

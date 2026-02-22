@@ -1,5 +1,5 @@
 # --- Windows Auto-Setup Bootstrap ---
-if(WIN32 AND (NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools" OR NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools/vcpkg" OR NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools/ninja"))
+if(GORGON_AUTO_SETUP AND WIN32 AND (NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools" OR NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools/vcpkg" OR NOT EXISTS "${CMAKE_SOURCE_DIR}/.tools/ninja"))
     message(STATUS "Tools directory (.tools) not found. Initializing auto-setup...")
     
     # Find PowerShell

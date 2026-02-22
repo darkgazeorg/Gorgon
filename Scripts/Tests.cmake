@@ -17,8 +17,7 @@ function(gorgon_add_test_executable name mode exclude_from_all)
         add_executable(${target_name} "${TEST_SOURCE_DIR}/${mode}/${name}.cpp")
     endif()
     
-    target_link_libraries(${target_name} PRIVATE Gorgon::Gorgon)
-        target_link_libraries(${target_name} PRIVATE Gorgon::Gorgon Catch2::Catch2WithMain)
+    target_link_libraries(${target_name} PRIVATE Gorgon::Gorgon Catch2::Catch2WithMain)
     target_include_directories(${target_name} PRIVATE "${TEST_SOURCE_DIR}")
 
     target_compile_definitions(${target_name} PRIVATE 
