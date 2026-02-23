@@ -2,12 +2,12 @@
 #include "Game.h"
 #include "Scenes.h"
 
-#include <Gorgon/Main.h>
+#include <Gorgon/EntryPoint.h>
 #include <Gorgon/Window.h>
 #include <Gorgon/Scene.h>
 #include <Gorgon/UI.h>
 
-int main() {
+int Main(const std::vector<std::string> &args) {
     Gorgon::Initialize("Shooter");
 
     Gorgon::SceneManager manager(Gorgon::Window::Fullscreen, "Shooter");

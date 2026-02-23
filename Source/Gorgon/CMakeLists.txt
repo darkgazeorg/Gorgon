@@ -3,22 +3,21 @@ target_sources(Gorgon
     FILE_SET HEADERS
     BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
     FILES
-        Animation.h
         Any.h
         Config.h
         ConsumableEvent.h
         DataExchange.h
+        EntryPoint.h
         Enum.h
         Event.h
         Layer.h
         Main.h
-        Multimedia.h
         Property.h
-        SGuid.h
         Scene.h
+        SGuid.h
         Struct.h
-        TMP.h
         Threading.h
+        TMP.h
         Types.h
         Window.h
 )
