@@ -4,15 +4,16 @@ target_sources(Gorgon
     BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
     FILES
 		../Resource.h
-		AnimationStorage.h
 		Animation.h
+		AnimationServices.h
+		AnimationStorage.h
 		Base.h
-		Font.h
 		Blob.h
 		DataItems.h
 		Data.h
 		File.h
 		Folder.h
+		Font.h
 		GID.h
 		Image.h
 		Line.h
@@ -22,8 +23,8 @@ target_sources(Gorgon
 		Reader.h
 		Rectangle.h
 		Sound.h
-		StackedObject.h
 		ScalableObject.h
+		StackedObject.h
 		TintedObject.h
 		Writer.h
 )

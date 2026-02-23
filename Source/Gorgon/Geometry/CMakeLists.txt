@@ -5,15 +5,15 @@ target_sources(Gorgon
     FILES
 		../Geometry.h
 		Bounds.h
-		Margin.h
 		Line.h
+		Margin.h
 		Point.h
+		Point3D.h
 		PointList.h
 		PointProperty.h
 		Rectangle.h
 		Size.h
 		SizeProperty.h
-		Point3D.h
 		Transform3D.h
 )
 

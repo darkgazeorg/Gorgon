@@ -3,9 +3,9 @@ target_sources(Gorgon
     FILE_SET HEADERS
     BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
     FILES
-        Console.h
 		Assert.h
         Compiler.h
+        Console.h
 		Logging.h
 		RefCounter.h
 		ScopeGuard.h

@@ -6,8 +6,8 @@ target_sources(Gorgon
 		../String.h
 		AdvancedTextBuilder.h
 		Exceptions.h
-		Tokenizer.h
 		Markdown.h
+		Tokenizer.h
 )
 
 target_sources(Gorgon

@@ -7,6 +7,7 @@ target_sources(Gorgon
 		Basic.h
 		Controllers.h
 		Environment.h
+        Source.h
 )
 
 target_sources(Gorgon
@@ -19,6 +20,7 @@ target_sources(Gorgon
 if(AUDIOLIB STREQUAL "PULSE")
     target_sources(Gorgon
         PRIVATE
+            PulseAudio.inc.h
             PulseAudio.cpp
     )
 endif()
@@ -27,12 +29,6 @@ if(AUDIOLIB STREQUAL "WASAPI")
     target_sources(Gorgon
         PRIVATE
             WASAPI.cpp
-    )
-    target_sources(Gorgon
-        PUBLIC
-        FILE_SET HEADERS
-        BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
-        FILES
             WASAPI.inc.h
     )
 endif()
