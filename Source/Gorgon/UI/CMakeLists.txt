@@ -9,15 +9,15 @@ target_sources(Gorgon
         Component.h
         ComponentStack.h
         ComponentStackWidget.h
-        ScrollingWidget.h
         Dialog.h
         Dimension.h
         Helpers.h
         LayerAdapter.h
         RadioControl.h
+        ScrollingWidget.h
         Template.h
-        TwoStateControl.h
         TooltipManager.h
+        TwoStateControl.h
         Validators.h
         Widget.h
         WidgetContainer.h

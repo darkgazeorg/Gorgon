@@ -9,4 +9,6 @@ target_sources(Gorgon
 		Path.h
 		PathFill.h
 		Polygon.h
+		Bezier.h
+  		Marking.h
 )

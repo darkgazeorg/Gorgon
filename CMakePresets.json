@@ -109,12 +109,12 @@
       }
     },
     {
-      "name": "LinuxMaintainer",
+      "name": "Maintainer",
       "hidden": false,
       "generator": "Ninja Multi-Config",
-      "displayName": "Linux Maintainer Mode",
+      "displayName": "Maintainer Mode",
       "description": "Multi-config environment for debugging releases and developing the framework.",
-      "binaryDir": "${sourceDir}/build/LinuxMaintainer",
+      "binaryDir": "${sourceDir}/build/Maintainer",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
@@ -246,6 +246,44 @@
         },
         "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
       }
+    }
+  ],
+"buildPresets": [
+    {
+      "name": "Debug",
+      "configurePreset": "Maintainer",
+      "displayName": "Build Debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Release",
+      "configurePreset": "Maintainer",
+      "displayName": "Build Release",
+      "configuration": "Release"
+    },
+    {
+      "name": "RelWithDebInfo",
+      "configurePreset": "Maintainer",
+      "displayName": "Build RelWithDebInfo",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "Win-Debug",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build Debug (Windows)",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Win-Release",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build Release (Windows)",
+      "configuration": "Release"
+    },
+    {
+      "name": "Win-RelWithDebInfo",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build RelWithDebInfo (Windows)",
+      "configuration": "RelWithDebInfo"
     }
   ]
 }
