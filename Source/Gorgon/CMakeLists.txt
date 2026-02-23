@@ -17,6 +17,7 @@ target_sources(Gorgon
         Geometry.h
         Graphics.h
         Input.h
+        Layer.h
         Main.h
         Multimedia.h
         OS.h

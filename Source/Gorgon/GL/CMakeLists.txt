@@ -17,12 +17,8 @@ target_sources(Gorgon
 )
 
 if(GORGON_GL_OPENGL)
-    find_package(OpenGL REQUIRED)
-    if(TARGET OpenGL::GL)
-        target_link_libraries(Gorgon PRIVATE OpenGL::GL)
-    else()
-        target_link_libraries(Gorgon PRIVATE ${OPENGL_LIBRARIES})
-    endif()
-
-    target_sources(Gorgon PRIVATE OpenGL.cpp)
+    target_sources(Gorgon
+        PRIVATE
+        OpenGL.cpp
+    )
 endif()

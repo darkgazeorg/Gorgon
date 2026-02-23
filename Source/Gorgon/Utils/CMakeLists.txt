@@ -5,6 +5,7 @@ target_sources(Gorgon
     FILES
         Console.h
 		Assert.h
+        Compiler.h
 		Logging.h
 		RefCounter.h
 		ScopeGuard.h

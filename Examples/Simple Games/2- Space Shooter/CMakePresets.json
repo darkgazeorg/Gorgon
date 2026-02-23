@@ -1,0 +1,64 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "ninja-debug",
+      "displayName": "Ninja Debug (cross-platform)",
+      "description": "Configure using the Ninja generator with a Debug build type.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "ninja-release",
+      "displayName": "Ninja Release (cross-platform)",
+      "description": "Configure using the Ninja generator with a Release build type.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "vs2022",
+      "displayName": "Visual Studio 2022",
+      "description": "Generate Visual Studio 2022 project/solution files.",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/vs2022",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build-ninja-debug",
+      "displayName": "Build Ninja Debug",
+      "configurePreset": "ninja-debug"
+    },
+    {
+      "name": "build-ninja-release",
+      "displayName": "Build Ninja Release",
+      "configurePreset": "ninja-release"
+    },
+    {
+      "name": "build-vs2022-debug",
+      "displayName": "Build VS2022 Debug",
+      "configurePreset": "vs2022",
+      "configuration": "Debug"
+    },
+    {
+      "name": "build-vs2022-release",
+      "displayName": "Build VS2022 Release",
+      "configurePreset": "vs2022",
+      "configuration": "Release"
+    }
+  ]
+}
