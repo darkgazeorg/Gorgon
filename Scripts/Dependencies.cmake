@@ -77,7 +77,9 @@ endif()
 
 # FLAC
 if(FLAC)
-    find_package(FLAC REQUIRED)
+    pkg_check_modules(FLAC REQUIRED flac)
+
+    target_include_directories(Gorgon PUBLIC ${FLAC_INCLUDE_DIRS})
     
     if(TARGET FLAC::FLAC)
         target_link_libraries(Gorgon PUBLIC FLAC::FLAC)
@@ -89,7 +91,10 @@ endif()
 
 # OGG
 if(OGG)
-    find_package(Ogg REQUIRED)
+    pkg_check_modules(OGG REQUIRED ogg)
+
+    target_include_directories(Gorgon PUBLIC ${OGG_INCLUDE_DIRS})
+
     if(TARGET Ogg::ogg)
         target_link_libraries(Gorgon PUBLIC Ogg::ogg)
     else()

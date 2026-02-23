@@ -111,8 +111,10 @@ namespace Gorgon :: OS {
 	}
 
 	void DisplayMessage(const std::string &message) {
-		std::system( std::string("xmessage -center \""+message+"\"").c_str() );	
-	}
+        if (std::system( std::string("xmessage -center \""+message+"\"").c_str() ) == -1) {
+            std::cerr << message << std::endl;
+        }
+    }
 
 	std::string GetAppDataPath() {
 		return "/usr/share";
@@ -169,7 +171,9 @@ namespace Gorgon :: OS {
 			}
 
 			//only arrives here if there is an error
-			write(execpipe[1], &errno, sizeof(errno));
+			if (write(execpipe[1], &errno, sizeof(errno)) == -1) {
+                std::cerr << "Error: Failed to write to pipe" << std::endl;
+            }
 			close(execpipe[1]);
 			exit(-1);
 		}
@@ -250,7 +254,9 @@ namespace Gorgon :: OS {
 			}
 
 			//only arrives here if there is an error
-			write(execpipe[1], &errno, sizeof(errno));
+			if (write(execpipe[1], &errno, sizeof(errno)) == -1) {
+                std::cerr << "Error: Failed to write to pipe" << std::endl;
+            }
 			close(execpipe[1]);
 			exit(-1);
 		}

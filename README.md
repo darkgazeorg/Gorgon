@@ -28,7 +28,8 @@ sudo apt-get update && sudo apt-get install build-essential cmake ninja-build pk
 libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
 libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
 doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
-libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev
+libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+libgl1-mesa-dev libglew-dev
 ```
 
 ### Fedora 40+

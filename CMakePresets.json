@@ -297,5 +297,15 @@
         "DOCUMENTATION_MODE": "ON"
       }
     }
+  ],
+  "buildPresets": [
+    {
+      "name": "Default",
+      "configurePreset": "Default"
+    },
+    {
+      "name": "Quick",
+      "configurePreset": "Quick"
+    }
   ]
 }
