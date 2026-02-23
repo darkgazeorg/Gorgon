@@ -1,12 +1,30 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(CGAnimationTemplate LANGUAGES CXX)
+project(SpaceShooter LANGUAGES CXX)
 
 # --- 1. Source files ---
 set(APP_SOURCES
-    Source/Application.h
-    Source/Application.cpp
     Source/Main.cpp
+
+    Source/Scenes.h
+
+    Source/MainMenu.h
+
+    Source/Game.h
+    Source/Game.cpp
+
+    Source/Assets/Player.h
+    Source/Assets/Player.cpp
+    Source/Assets/Enemy.h
+    Source/Assets/Enemy.cpp
+    Source/Assets/UI.h
+    Source/Assets/UI.cpp
+
+    Source/Mechanics/Game.h
+    Source/Mechanics/Game.cpp
+    Source/Mechanics/Player.h
+    Source/Mechanics/Player.cpp
+    Source/Mechanics/Enemy.h
 )
 
 # --- 2. GORGON FRAMEWORK ---
@@ -21,6 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(${PROJECT_NAME} WIN32 ${APP_SOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE Gorgon::Gorgon)
+copy_commands_to_root(${PROJECT_NAME})
 
 # Set output to the local 'Bin' folder for easy access during development
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -30,13 +49,12 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # --- 4. ASSET MANAGEMENT ---
-# gorgon_copy_resource(${PROJECT_NAME} "Resource/Icon.png")
-# gorgon_copy_directory(${PROJECT_NAME} "Resources/Textures")
+gorgon_copy_directory(${PROJECT_NAME} "Resources")
 
 # --- 5. INSTALLATION & PACKAGING ---
 include(GNUInstallDirs)
 
-install(TARGETS ${PROJECT_NAME} 
+install(TARGETS ${PROJECT_NAME}
     RUNTIME_DEPENDENCY_SET app_deps
     RUNTIME DESTINATION bin
 )
