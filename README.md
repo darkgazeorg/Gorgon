@@ -38,7 +38,7 @@ sudo dnf install gcc g++ cmake ninja-build pkgconf-pkg-config \
 libX11-devel libXinerama-devel libXrandr-devel libXext-devel \
 libpng-devel libjpeg-turbo-devel zlib-devel xz-devel \
 doxygen freetype-devel pulseaudio-libs-devel fontconfig-devel \
-flac-devel libogg-devel libvorbis-devel libcurl-devel
+flac-devel libogg-devel libvorbis-devel libcurl-devel glew-devel
 ```
 
 ---
