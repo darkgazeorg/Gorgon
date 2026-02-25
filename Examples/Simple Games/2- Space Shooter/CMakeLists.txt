@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(SpaceShooter LANGUAGES CXX)
 
 # --- 1. Source files ---
+# You need to list all your source files here so CMake can compile them.
 set(APP_SOURCES
     Source/Main.cpp
 
@@ -49,6 +50,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # --- 4. ASSET MANAGEMENT ---
+# This function call will copy the entire "Resources" folder to the output
+# directory (Bin) whenever you build the project. This ensures that all your
+# assets are available at runtime without needing to manually copy them.
+# This function is aware of any changes in resources and will initiate
+# copying only when necessary, which speeds up the build process.
 gorgon_copy_directory(${PROJECT_NAME} "Resources")
 
 # --- 5. INSTALLATION & PACKAGING ---
@@ -64,8 +70,12 @@ install(RUNTIME_DEPENDENCY_SET app_deps
 )
 
 # CPack handles the creation of .zip, .tar.gz, or installers
+# You can also create full installers. Refer to CPack documentation 
+# for more options. Gorgon is dependency free on Windows. On Linux,
+# there are some shared libraries that need to be included. CPack will
+# automatically detect those and include them in the package.
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-set(CPACK_PACKAGE_VENDOR "DarkGaze.Org") #Replace this
+set(CPACK_PACKAGE_VENDOR "DarkGaze.Org")
 set(CPACK_PACKAGE_VERSION "1.0.0")
 set(CPACK_GENERATOR "ZIP;TGZ") # Generates a zip file for easy distribution
 include(CPack)
