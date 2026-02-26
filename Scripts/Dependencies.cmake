@@ -77,9 +77,13 @@ endif()
 
 # FLAC
 if(FLAC)
-    pkg_check_modules(FLAC REQUIRED flac)
-
-    target_include_directories(Gorgon PUBLIC ${FLAC_INCLUDE_DIRS})
+    if(WIN32)
+        find_package(FLAC REQUIRED)
+    else()
+        pkg_check_modules(FLAC REQUIRED flac)
+    
+        target_include_directories(Gorgon PUBLIC ${FLAC_INCLUDE_DIRS})
+    endif()
     
     if(TARGET FLAC::FLAC)
         target_link_libraries(Gorgon PUBLIC FLAC::FLAC)
@@ -91,9 +95,13 @@ endif()
 
 # OGG
 if(OGG)
-    pkg_check_modules(OGG REQUIRED ogg)
-
-    target_include_directories(Gorgon PUBLIC ${OGG_INCLUDE_DIRS})
+    if(WIN32)
+        find_package(OGG REQUIRED)
+    else()
+        pkg_check_modules(OGG REQUIRED ogg)
+    
+        target_include_directories(Gorgon PUBLIC ${OGG_INCLUDE_DIRS})
+    endif()
 
     if(TARGET Ogg::ogg)
         target_link_libraries(Gorgon PUBLIC Ogg::ogg)
