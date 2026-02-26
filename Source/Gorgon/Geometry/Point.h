@@ -32,7 +32,7 @@ namespace Gorgon {
             typedef T_ BaseType;
             
 			/// Default constructor, does not zero initialize point.
-			basic_Point() { }
+			basic_Point() : X{}, Y{} { }
 
 			/// Filling constructor
 			basic_Point(const T_ &X, const T_ &Y) : X(X), Y(Y) { }
@@ -368,10 +368,10 @@ namespace Gorgon {
 			union {
                 struct {
                     /// X coordinate
-                    T_ X = 0;
+                    T_ X;
                     
                     /// Y coordinate
-                    T_ Y = 0;
+                    T_ Y;
                 };
                 
                 /// Allows this point to be accessed as a vector
