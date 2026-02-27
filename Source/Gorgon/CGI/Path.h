@@ -8,8 +8,7 @@
 #include "../Utils/Assert.h"
 #include "Bezier.h"
 
-namespace Gorgon {
-namespace CGI {
+namespace Gorgon :: CGI {
 
 /// Path builder that records drawing commands and can flatten curves.
 template <class Point_> class basic_Path {
@@ -307,4 +306,4 @@ private:
 using Path = basic_Path<Geometry::Pointf>;
 
 } // namespace CGI
-} // namespace Gorgon
+ // namespace Gorgon
