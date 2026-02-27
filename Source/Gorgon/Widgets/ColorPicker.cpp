@@ -1,7 +1,7 @@
 #include "ColorPicker.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     ColorPicker::ColorPicker(const UI::Template &temp) :
         Inputbox<Graphics::RGBAf>(temp, Graphics::Color::Black),
@@ -165,4 +165,4 @@ namespace Gorgon { namespace Widgets {
     constexpr ColorPicker::DisplayType ColorPicker::HTML;
     constexpr ColorPicker::DisplayType ColorPicker::RGBAf;
     
-} }
+}

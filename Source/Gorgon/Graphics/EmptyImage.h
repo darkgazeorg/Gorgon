@@ -2,7 +2,7 @@
 
 #include "Animations.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
 	/**
 	 * This class is an empty image that will not draw anything if drawn on a layer.
@@ -77,4 +77,4 @@ namespace Gorgon { namespace Graphics {
 		}
 	};
 
-}}
+}

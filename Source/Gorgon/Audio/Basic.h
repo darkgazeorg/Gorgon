@@ -1,9 +1,8 @@
 #pragma once
 
 #include "../Enum.h"
-#include "../String.h"
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     /// Sample format. For now only Float will be used and all conversions are done
     /// by the underlying library.
     enum class Format {
@@ -70,4 +69,4 @@ namespace Gorgon { namespace Audio {
         int SampleRate = 44000;
     };
 
-} }
+}

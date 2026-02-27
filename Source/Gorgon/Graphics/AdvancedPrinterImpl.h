@@ -2,12 +2,16 @@
 
 #include "AdvancedPrinter.h"
 #include "Gorgon/Graphics/AdvancedPrinterConstants.h"
+#include "Gorgon/Graphics/Font.h"
 
 //empty macro parameter in msvc
 #pragma warning(disable:4003)
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
+    inline bool operator ==(int l, NamedFont r) {
+        return l == (int)r;
+    }
 
     template<class GF_, class BF_, class LF_, class IF_>
     std::vector<AdvancedPrinter::Region> AdvancedPrinter::AdvancedOperation(
@@ -480,6 +484,7 @@ namespace Gorgon { namespace Graphics {
                 changeprinter(findfont(defaultfont));
                 fontid = defaultfont;
                 baselineoffset = 0.0f;
+                break;
             case internal::SCI_USE_SUBSCRIPT:
             case internal::SCI_USE_SUPERSCRIPT:
                 switchtoscript();
@@ -823,7 +828,7 @@ namespace Gorgon { namespace Graphics {
 
             if(nl == 0) {
                 //clean spaces at the start of the next line
-                for(; end<acc.size(); end++) {
+                for(; end<(int)acc.size(); end++) {
                     //send the index with do not draw glyph
                     if(!glyphr(
                         *acc[end].renderer, 0xffff,
@@ -933,7 +938,7 @@ namespace Gorgon { namespace Graphics {
             newline = ind == 0;
 
             int regionendy = cur.Y + lineh;
-            if(nl != -1) {
+            if(nl != (Glyph)-1) {
                 cur.Y += lineh;
                 curunderlineoff += lineh;
                 curstrikeoff    += lineh;
@@ -1082,7 +1087,7 @@ namespace Gorgon { namespace Graphics {
             //END
 
             //if requested do paragraph
-            if(nl != -1 && beginparag)
+            if(nl != (Glyph)-1 && beginparag)
                 cur.Y += paragraphspacing(maxh, printer->GetParagraphSpacing());
 
             //BEGIN Reset
@@ -1422,7 +1427,7 @@ namespace Gorgon { namespace Graphics {
         return regions;
     }
     
-} }
+}
 
 #undef MOVEIT
 

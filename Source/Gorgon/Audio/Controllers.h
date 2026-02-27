@@ -2,14 +2,13 @@
 
 #include "Source.h"
 
-#include "../Containers/Wave.h"
 #include "../Containers/Collection.h"
 
 #include "../Geometry/Point3D.h"
 
 #include <mutex>
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     
 namespace internal {
     
@@ -188,4 +187,4 @@ namespace internal {
         extern std::mutex ControllerMtx;
     }
     
-} }
+}

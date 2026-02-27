@@ -6,7 +6,6 @@
 #include <assert.h>
 #include <functional>
 
-#include "../Types.h"
 #include "../Containers/Collection.h"
 #include "../Containers/Hashmap.h"
 #include "../Enum.h"
@@ -16,9 +15,7 @@
 #include "Data.h"
 #include "Exceptions.h"
 
-namespace Gorgon {
-	
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		class Type;
 		class Data;
@@ -179,22 +176,6 @@ namespace Gorgon {
 				this->allownull = allownull;
 			}
 			/// @endcond
-			
-			/// Copy assignment
-			Parameter &operator =(const Parameter &p) {
-				name		= p.name		;
-				help		= p.help		;
-				type		= p.type		;
-				defaultvalue= p.defaultvalue;
-				Options		= p.Options		;
-				optional	= p.optional	;
-				reference	= p.reference	;
-				constant	= p.constant	;
-				variable	= p.variable	;
-				allownull	= p.allownull	;
-				
-				return *this;
-			}
 			
 			/// Compares two parameters, not very reliable, it does not check defaultvalue and options
 			bool operator ==(const Parameter &p) const {
@@ -914,7 +895,7 @@ namespace Gorgon {
 #endif
 				methods.Push(overload);
 			}
-			
+
 			/// Adds the given overload to this function after performing necessary checks
 			virtual void AddOverload(Overload *overload) {
 				ASSERT(overload, "Empty variant\n in function "+name);
@@ -1607,4 +1588,3 @@ namespace Gorgon {
 			}
 		};
 	}
-}

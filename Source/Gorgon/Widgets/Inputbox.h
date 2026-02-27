@@ -12,7 +12,7 @@
 #include "Registry.h"
 #include "../Graphics/Pointer.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /// @cond internal
     namespace internal {        
@@ -423,4 +423,4 @@ namespace Gorgon { namespace Widgets {
     };
     
     
-} }
+}

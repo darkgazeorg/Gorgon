@@ -1,6 +1,6 @@
 #include "Scope.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 	const Instruction *Scope::ReadInstruction(unsigned long line) {
 		if(line<lines.size()) {
@@ -59,7 +59,7 @@ namespace Gorgon { namespace Scripting {
 		}
 	}
 	
-	Scope::Scope(InputProvider &provider, const std::string &name, bool terminal) : provider(&provider), name(name), terminal(terminal) {
+	Scope::Scope(InputProvider &provider, const std::string &name, bool terminal) : name(name), provider(&provider), terminal(terminal) {
 		switch(provider.GetDialect()) {
 			case InputProvider::Intermediate:
 				parser=new Compilers::Intermediate(this);
@@ -72,7 +72,7 @@ namespace Gorgon { namespace Scripting {
 		}
 	}
 	
-	Scope::Scope(Scope& parent, const std::string& name, bool terminal) : parent(&parent), name(name), terminal(terminal) {
+	Scope::Scope(Scope& parent, const std::string& name, bool terminal) : name(name), parent(&parent), terminal(terminal) {
 		
 	}
 
@@ -92,4 +92,4 @@ namespace Gorgon { namespace Scripting {
 		
 		return inst;
 	}
-} }
+}

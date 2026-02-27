@@ -1,13 +1,9 @@
 #pragma once
 
 #include "../UI/ComponentStackWidget.h"
-#include "../Property.h"
-#include "Registry.h"
 #include "../Graphics/Bitmap.h"
 
-#include <limits>
-
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     /**
     * This widget is designed to be used by Listbox, Table, Grid and
@@ -180,4 +176,4 @@ namespace Gorgon { namespace Widgets {
 
     };
 
-} }
+}

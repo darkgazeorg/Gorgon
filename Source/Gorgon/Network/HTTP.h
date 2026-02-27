@@ -11,7 +11,7 @@
 
 //!Add info about Encoding::URI
 
-namespace Gorgon { namespace Network {
+namespace Gorgon :: Network {
 	namespace HTTP {
 		/// Initializes HTTP networking system. It is called automatically
 		void Initialize();
@@ -156,5 +156,5 @@ namespace Gorgon { namespace Network {
 		};
 	}
 
-}}
+}
 

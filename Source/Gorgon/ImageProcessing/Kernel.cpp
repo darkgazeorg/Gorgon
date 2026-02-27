@@ -5,14 +5,14 @@
 #include <iomanip>
 #include <numeric>
 
-namespace Gorgon { namespace ImageProcessing {
+namespace Gorgon :: ImageProcessing {
     
     Kernel::Kernel(const std::initializer_list<std::initializer_list<Float>> &values) {
         *this = values;
     }
 
     Kernel &Kernel::operator = (const std::initializer_list<std::initializer_list<Float>> &values) {
-        int maxlistsize = (int)values.begin()->size();
+        auto maxlistsize = values.begin()->size();
         
         for(auto &list : values) {            
             if(list.size()  > maxlistsize)
@@ -28,8 +28,8 @@ namespace Gorgon { namespace ImageProcessing {
                 kernel.insert(kernel.end(), maxlistsize - list.size(), 0);
         }        
             
-        size.Height = (int)values.size();
-        size.Width = maxlistsize;
+        size.Height = int(values.size());
+        size.Width = int(maxlistsize);
         
         return *this;
     }
@@ -165,4 +165,4 @@ namespace Gorgon { namespace ImageProcessing {
         return out;
     }
 
-} }
+}

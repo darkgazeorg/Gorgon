@@ -4,10 +4,9 @@
 #include "../Graphics/Color.h"
 #include "../Graphics/Font.h"
 #include "../Graphics/Rectangle.h"
-#include "../Graphics/MaskedObject.h"
 #include "Registry.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     /**
     * Generators create templates for widgets. First setup a generator, then
@@ -796,4 +795,4 @@ namespace Gorgon { namespace Widgets {
         std::pair<int, int> lettervsize, asciivsize;
     };
     
-}}
+}

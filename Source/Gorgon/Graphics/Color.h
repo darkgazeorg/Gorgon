@@ -5,16 +5,14 @@
 #include <string.h>
 #include <vector>
 #include <map>
-#include <sstream>
 #include <iostream>
-#include <iomanip>
 #include <stdint.h>
 #include <stdexcept>
 #include <array>
 
 #include <cmath>
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     /// Color modes for images
     enum class ColorMode {
@@ -396,6 +394,8 @@ namespace Gorgon { namespace Graphics {
 
         /// Default constructor does not perform initialization
         RGBAf() { }
+
+        RGBAf(const RGBAf &) = default;
 
         /// Filling constructor
         RGBAf(float r, float g, float b, float a=1.f) : R(r), G(g), B(b), A(a) { }
@@ -1232,4 +1232,4 @@ namespace Gorgon { namespace Graphics {
         using TripletPack = Pack<Triplet<>>;
         using TripletfPack = Pack<Triplet<RGBAf>>;
     }
-} }
+}

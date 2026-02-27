@@ -2,7 +2,7 @@
 #include "WidgetContainer.h"
 #include "../Widgets/Registry.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     bool Widget::Remove() {
         if(!parent)
@@ -387,4 +387,4 @@ namespace Gorgon { namespace UI {
         calculatebounds();
     }
 
-} }
+}

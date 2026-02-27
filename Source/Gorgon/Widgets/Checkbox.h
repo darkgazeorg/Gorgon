@@ -7,7 +7,7 @@
 
 #include "../Graphics/Bitmap.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     class Checkbox : public UI::ComponentStackWidget, public UI::TwoStateControl {
     public:
@@ -191,5 +191,5 @@ namespace Gorgon { namespace Widgets {
 
     };
     
-} }
+}
 

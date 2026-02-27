@@ -1,7 +1,7 @@
 #include "Checkbox.h"
 #include "../UI/WidgetContainer.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     Checkbox::Checkbox(const UI::Template &temp, std::string text, bool state) :
         ComponentStackWidget(temp),
@@ -185,4 +185,4 @@ namespace Gorgon { namespace Widgets {
     void Checkbox::OwnIcon(Graphics::Bitmap &&value) {
         OwnIcon(*new Graphics::Bitmap(std::move(value)));
     }
-} }
+}

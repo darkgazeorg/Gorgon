@@ -4,7 +4,7 @@
 #include "../GL.h"
 #include "../Containers/Collection.h"
 
-namespace Gorgon { namespace GL {
+namespace Gorgon :: GL {
 
 	/**
 	* This is a frame buffer object that can be used for render to texture tasks. This object
@@ -69,7 +69,7 @@ namespace Gorgon { namespace GL {
 		static bool HardwareSupport;
 
 	private:
-#ifdef OPENGL
+#ifdef GORGON_GL_OPENGL
 		Texture  texture = 0;
 		uint32_t buffer  = 0;
 		uint32_t depth   = 0;
@@ -78,4 +78,4 @@ namespace Gorgon { namespace GL {
 		//this is used to resize buffer on a geometry change.
 		static Containers::Collection<FrameBuffer> buffers;
 	};
-} }
+}

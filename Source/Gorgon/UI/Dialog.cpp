@@ -6,15 +6,15 @@
 
 using namespace std::placeholders;
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     bool ShouldBeCollected(Widgets::DialogWindow &wind) {
         return !wind.IsVisible();
     }
     
-} }
+}
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
     
 namespace {
     std::string closetext = "Close";
@@ -512,4 +512,4 @@ namespace internal {
     }
     
     
-} }
+}

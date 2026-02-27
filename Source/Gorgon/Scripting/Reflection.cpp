@@ -1,8 +1,7 @@
 #include "../Scripting.h"
 #include "Reflection.h"
-#include "VirtualMachine.h"
 
-namespace Gorgon { namespace Scripting {	
+namespace Gorgon :: Scripting {	
 	void Function::init() {
 		if(keyword) {
 			KeywordNames.insert(name);
@@ -106,10 +105,13 @@ namespace Gorgon { namespace Scripting {
 
 	
 	Type::Type(const std::string& name, const std::string& help, const Any& defaultvalue, TMP::RTTH *typeinterface, bool isref):
-		Namespace(name, help), InstanceMembers(instancemembers), Constructor(constructor),
-		InheritsFrom(inheritsfrom), defaultvalue(defaultvalue),
-		referencetype(isref), TypeInterface(*typeinterface), Parents(parents), InheritedSymbols(inheritedsymbols),
-		constructor("{}", "Constructs "+name, this, Containers::Collection<Function::Overload>(), StaticTag)
+		Namespace(name, help),
+		Constructor(constructor), Parents(parents),
+		InheritsFrom(inheritsfrom), InheritedSymbols(inheritedsymbols),
+		InstanceMembers(instancemembers), TypeInterface(*typeinterface),
+		defaultvalue(defaultvalue),
+		constructor("{}", "Constructs "+name, this, Containers::Collection<Function::Overload>(), StaticTag),
+		referencetype(isref)
 	{
 		ASSERT(
 			isref ? 
@@ -216,7 +218,6 @@ namespace Gorgon { namespace Scripting {
 		
 		auto inheritance=inheritsfrom.find(type);
 		Inheritance::ConversionFunction fn;
-		bool downcasting=false;
 		
 		//not a direct parent
 		if(inheritance==inheritsfrom.end()) {
@@ -294,7 +295,10 @@ namespace Gorgon { namespace Scripting {
 	
 	void Function::Overload::dochecks(bool ismethod) {
 		int i=0;
+
+		[[maybe_unused]]
 		bool restoptional=false;
+
 		//check params
 		for(const Parameter &p : parameters) {
 			//if optional
@@ -302,7 +306,7 @@ namespace Gorgon { namespace Scripting {
 				restoptional=true;
 				//should either be a repeating parameter or default value should be set
 				ASSERT(
-					p.GetDefaultValue().IsValid() || (i==parameters.size()-1 && repeatlast),
+					p.GetDefaultValue().IsValid() || (i==(int)parameters.size()-1 && repeatlast),
 					"An optional parameter #"+String::From(i+1)+" should have its default value set\n "
 					"in function "+parent->GetName()
 				);
@@ -414,4 +418,4 @@ namespace Gorgon { namespace Scripting {
 		return dynamic_cast<const Scripting::Function&>(elm.Current().second);
 	}
 
-} }
+}

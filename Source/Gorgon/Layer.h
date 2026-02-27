@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Containers/Collection.h"
-#include "ConsumableEvent.h"
 #include "Geometry/Point.h"
 #include "Geometry/Bounds.h"
 #include "Geometry/Transform3D.h"

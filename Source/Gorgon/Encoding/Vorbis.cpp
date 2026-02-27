@@ -5,7 +5,7 @@
 #include <vorbis/vorbisfile.h>
 
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
     
 ///@cond internal
 namespace vorbis {
@@ -33,7 +33,7 @@ namespace vorbis {
     class streamread {
     public:
         streamread(std::istream &stream, size_t len) : stream(stream), len(len) {
-            if(len == -1) {
+            if(len == (size_t)-1) {
                 auto pos = stream.tellg();
                 stream.seekg(0, std::ios::end);
                 this->len = stream.tellg();
@@ -261,4 +261,4 @@ namespace vorbis {
     }
 
     
-} }
+}

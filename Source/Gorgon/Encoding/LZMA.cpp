@@ -1,179 +1,217 @@
 #include "LZMA.h"
 
-#include "../External/LZMA/LzmaEnc.h"
-#include "../External/LZMA/LzmaDec.h"
+#include <lzma.h>
 
 #include <stdexcept>
 #include <memory>
-
+#include <cstring>
+#include <cstdint>
 
 #undef min
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 
-	static void * AllocForLzma(void *p, size_t size) { return malloc(size); }
-	static void FreeForLzma(void *p, void *address) { free(address); }
-	static ISzAlloc SzAllocForLzma = { &AllocForLzma, &FreeForLzma };
-
-	struct MyProgress : ICompressProgress {
-
-		MyProgress(LZMA::ProgressNotification notifier, unsigned long long size) : notifier(notifier), size(size) {
-			Progress=&MyProgress::progress;
-		}
-
-		static SRes progress(void *p, UInt64 inSize, UInt64 outSize) {
-			MyProgress *mp=(MyProgress*)p;
-
-			mp->notifier(float(double(inSize)/mp->size));
-
-			return 0;
-		}
-
-
-		LZMA::ProgressNotification notifier;
-		unsigned long long size;
-	};
+	/// Size of the LZMA property header (1 byte lc/lp/pb + 4 bytes dictionary size)
+	static constexpr int PROPS_SIZE = 5;
+	/// Full .lzma alone header size (properties + 8 bytes uncompressed size)
+	static constexpr int ALONE_HEADER_SIZE = 13;
 
 	void LZMA::encode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long size, LZMA::ProgressNotification *notifier) {
 		std::unique_ptr<lzma::Reader> reader_d(reader);
 		std::unique_ptr<lzma::Writer> writer_d(writer);
 
-		CLzmaEncHandle enc = LzmaEnc_Create(&SzAllocForLzma);
-		if(!enc) {
+		lzma_options_lzma opt;
+		if(lzma_lzma_preset(&opt, LZMA_PRESET_DEFAULT)) {
+			throw std::runtime_error("LZMA preset initialization failed");
+		}
+
+		lzma_stream strm = LZMA_STREAM_INIT;
+		lzma_ret ret = lzma_alone_encoder(&strm, &opt);
+		if(ret != LZMA_OK) {
 			throw std::runtime_error("LZMA creation error");
 		}
 
-		CLzmaEncProps props;
-		LzmaEncProps_Init(&props);
-		props.writeEndMark = 1; // 0 or 1
+		const size_t BUF_SIZE = 10240;
+		std::vector<Byte> inBuf(BUF_SIZE);
+		std::vector<Byte> outBuf(BUF_SIZE);
 
-		SRes res = LzmaEnc_SetProps(enc, &props);
-		if(res != SZ_OK) {
-			throw std::runtime_error("Cannot create LZMA properties");
+		// The .lzma alone encoder outputs a 13-byte header first.
+		// We intercept it to handle UseUncompressedSize and patch the size.
+		bool headerWritten = false;
+		std::vector<Byte> headerAccum;
+
+		unsigned long long totalIn = 0;
+		bool inputDone = false;
+
+		strm.next_in = nullptr;
+		strm.avail_in = 0;
+
+		for(;;) {
+			if(strm.avail_in == 0 && !inputDone) {
+				size_t readSize = BUF_SIZE;
+				reader->Read(reader, &inBuf[0], &readSize);
+
+				if(readSize == 0) {
+					inputDone = true;
+				}
+				else {
+					strm.next_in = &inBuf[0];
+					strm.avail_in = readSize;
+					totalIn += readSize;
+				}
+			}
+
+			lzma_action action = inputDone ? LZMA_FINISH : LZMA_RUN;
+
+			strm.next_out = &outBuf[0];
+			strm.avail_out = BUF_SIZE;
+
+			ret = lzma_code(&strm, action);
+
+			if(ret != LZMA_OK && ret != LZMA_STREAM_END) {
+				lzma_end(&strm);
+				throw std::runtime_error("Cannot encode in LZMA");
+			}
+
+			size_t have = BUF_SIZE - strm.avail_out;
+
+			if(!headerWritten) {
+				// Accumulate output until we have the full 13-byte .lzma header
+				size_t oldSize = headerAccum.size();
+				headerAccum.resize(oldSize + have);
+				if(have > 0)
+					std::memcpy(&headerAccum[oldSize], &outBuf[0], have);
+
+				if(headerAccum.size() >= ALONE_HEADER_SIZE) {
+					headerWritten = true;
+
+					if(UseUncompressedSize) {
+						// Patch the uncompressed size field in the header
+						std::memcpy(&headerAccum[PROPS_SIZE], &size, 8);
+						writer->Write(writer, &headerAccum[0], ALONE_HEADER_SIZE);
+					}
+					else {
+						// Write only the 5-byte property header
+						writer->Write(writer, &headerAccum[0], PROPS_SIZE);
+					}
+
+					// Write any remaining compressed data after the header
+					if(headerAccum.size() > ALONE_HEADER_SIZE) {
+						writer->Write(writer, &headerAccum[ALONE_HEADER_SIZE],
+							headerAccum.size() - ALONE_HEADER_SIZE);
+					}
+				}
+			}
+			else if(have > 0) {
+				writer->Write(writer, &outBuf[0], have);
+			}
+
+			if(notifier) {
+				(*notifier)(float(double(totalIn) / size));
+			}
+
+			if(ret == LZMA_STREAM_END)
+				break;
 		}
 
-		SizeT propsSize = LZMA_PROPS_SIZE;
-		std::vector<Byte> outBuf;
-		if(UseUncompressedSize) {
-			outBuf.resize(propsSize+8);
-			std::memcpy(&outBuf[LZMA_PROPS_SIZE], &size, 8);
-		}
-		res = LzmaEnc_WriteProperties(enc, &outBuf[0], &propsSize);
-		writer->Write(writer, &outBuf[0], propsSize+(UseUncompressedSize ? 8 : 0));
-		if(res != SZ_OK || propsSize != LZMA_PROPS_SIZE) {
-			throw std::runtime_error("Cannot write LZMA properties");
-		}
-
-		MyProgress *cprog=NULL;
-		if(notifier)
-			cprog=new MyProgress(*notifier, size);
-
-		res = LzmaEnc_Encode(enc,
-			(ISeqOutStream*)writer, (ISeqInStream*)reader,
-			cprog, &SzAllocForLzma, &SzAllocForLzma);
-
-		if(cprog)
-			delete cprog;
-
-		if(res != SZ_OK) {
-			throw std::runtime_error("Cannot encode in LZMA");
-		}
-
-		LzmaEnc_Destroy(enc, &SzAllocForLzma, &SzAllocForLzma);
+		lzma_end(&strm);
 	}
 
 	void LZMA::decode(lzma::Reader *reader,lzma::Writer *writer,unsigned long long insize,std::function<void(lzma::Reader*,long long)> seekfn, Byte *cprops, unsigned long long fsize, LZMA::ProgressNotification *notifier) {
 		try {
-			std::vector<Byte> inBuf, outBuf;
+			// Construct 13-byte .lzma alone header for the decoder
+			Byte header[ALONE_HEADER_SIZE];
 
-			CLzmaDec dec;
-			LzmaDec_Construct(&dec);
-
-			size_t size;
-			SRes res;
-			uint64_t fullsize=(unsigned long long)(long long)-1;
-
-			if(cprops==NULL) {
-				size=LZMA_PROPS_SIZE;
+			if(cprops == nullptr) {
+				// Read properties from the stream
+				size_t propSize = PROPS_SIZE;
+				reader->Read(reader, header, &propSize);
 
 				if(UseUncompressedSize) {
-					inBuf.resize(LZMA_PROPS_SIZE+8);
-					size+=8;
+					size_t sizeBytes = 8;
+					reader->Read(reader, header + PROPS_SIZE, &sizeBytes);
 				}
 				else {
-					inBuf.resize(LZMA_PROPS_SIZE);
+					// Write fsize into the header for the decoder
+					uint64_t usize = fsize;
+					std::memcpy(header + PROPS_SIZE, &usize, 8);
 				}
-				reader->Read(reader, &inBuf[0], &size);
-
-				res = LzmaDec_Allocate(&dec, &inBuf[0], LZMA_PROPS_SIZE, &SzAllocForLzma);
-				if(res != SZ_OK) {
-					throw std::runtime_error("Cannot decode LZMA properties");
-				}
-
-				if(UseUncompressedSize)
-					std::memcpy(&fullsize, &inBuf[LZMA_PROPS_SIZE], 8);
-				else
-					fullsize=fsize;
 			}
 			else {
-				SRes res = LzmaDec_Allocate(&dec, cprops, LZMA_PROPS_SIZE, &SzAllocForLzma);
-				if(res != SZ_OK) {
-					throw std::runtime_error("Cannot decode LZMA properties");
-				}
+				// Properties provided externally
+				std::memcpy(header, cprops, PROPS_SIZE);
 
-				if(UseUncompressedSize)
-					std::memcpy(&fullsize, cprops+LZMA_PROPS_SIZE, 8);
-				else
-					fullsize=fsize;
+				if(UseUncompressedSize) {
+					std::memcpy(header + PROPS_SIZE, cprops + PROPS_SIZE, 8);
+				}
+				else {
+					uint64_t usize = fsize;
+					std::memcpy(header + PROPS_SIZE, &usize, 8);
+				}
 			}
 
-			LzmaDec_Init(&dec);
+			lzma_stream strm = LZMA_STREAM_INIT;
+			lzma_ret ret = lzma_alone_decoder(&strm, UINT64_MAX);
+			if(ret != LZMA_OK) {
+				throw std::runtime_error("Cannot decode LZMA properties");
+			}
 
-			const unsigned long long BUF_SIZE = 10240;
+			const size_t BUF_SIZE = 10240;
+			std::vector<Byte> inBuf(BUF_SIZE);
+			std::vector<Byte> outBuf(BUF_SIZE);
 
-			outBuf.resize(BUF_SIZE);
-			inBuf.resize(BUF_SIZE);
+			// Feed the reconstructed header first
+			strm.next_in = header;
+			strm.avail_in = ALONE_HEADER_SIZE;
 
-			ELzmaStatus status;
-			size_t outPos = 0, inPos=LZMA_PROPS_SIZE;
-			if(UseUncompressedSize) inPos+=8;
-			while(outPos < fullsize) {
-				size_t destLen = (size_t)std::min<unsigned long long>(BUF_SIZE, fullsize - outPos);
-				size_t srcLen=BUF_SIZE;
+			unsigned long long inPos = 0;
+			bool inputDone = false;
 
-				reader->Read(reader, &inBuf[0], &srcLen);
+			for(;;) {
+				if(strm.avail_in == 0 && !inputDone) {
+					size_t readSize = BUF_SIZE;
+					reader->Read(reader, &inBuf[0], &readSize);
 
-				size_t srcLenOld = srcLen;
+					if(readSize == 0) {
+						inputDone = true;
+					}
+					else {
+						strm.next_in = &inBuf[0];
+						strm.avail_in = readSize;
+						inPos += readSize;
+					}
+				}
 
+				lzma_action action = inputDone ? LZMA_FINISH : LZMA_RUN;
 
-				res = LzmaDec_DecodeToBuf(&dec,
-					&outBuf[0], &destLen,
-					&inBuf[0], &srcLen,
-					(outPos + destLen == fullsize)
-					? LZMA_FINISH_END : LZMA_FINISH_ANY, &status
-					);
-				if(res != SZ_OK) {
+				strm.next_out = &outBuf[0];
+				strm.avail_out = BUF_SIZE;
+
+				ret = lzma_code(&strm, action);
+
+				size_t have = BUF_SIZE - strm.avail_out;
+				if(have > 0) {
+					writer->Write(writer, &outBuf[0], have);
+				}
+
+				if(ret == LZMA_STREAM_END)
+					break;
+
+				if(ret != LZMA_OK) {
+					lzma_end(&strm);
 					throw std::runtime_error("Extraction error");
 				}
 
-				writer->Write(writer, &outBuf[0], destLen);
-				seekfn(reader, (long long)srcLen-srcLenOld);
+				if(notifier && insize > 0)
+					(*notifier)(float(double(inPos) / insize));
 
-
-				outPos += destLen;
-				inPos  += srcLen;
-
-				if(notifier)
-					(*notifier)(float(double(inPos)/insize));
-
-				if(status == LZMA_STATUS_FINISHED_WITH_MARK)
-					break;
-				if(status==LZMA_STATUS_NEEDS_MORE_INPUT && destLen==0) {
+				if(inputDone && have == 0 && strm.avail_in == 0) {
+					lzma_end(&strm);
 					throw std::runtime_error("Extraction failed, out of data.");
 				}
 			}
 
-			LzmaDec_Free(&dec, &SzAllocForLzma);
+			lzma_end(&strm);
 		}
 		catch(...) {
 			delete reader;
@@ -188,11 +226,11 @@ namespace Gorgon { namespace Encoding {
 
 	int LZMA::PropertySize() {
 		if(UseUncompressedSize)
-			return LZMA_PROPS_SIZE+8;
+			return PROPS_SIZE + 8;
 		else
-			return LZMA_PROPS_SIZE;
+			return PROPS_SIZE;
 	}
 
 	LZMA Lzma;
 
-}}
+}

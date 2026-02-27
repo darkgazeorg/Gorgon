@@ -1,6 +1,6 @@
 #include "Layer.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
     bool needsclip(Input::Mouse::EventType event) {
         switch(event) {
@@ -82,7 +82,7 @@ namespace Gorgon { namespace Input {
             
             return true;
         }
-		else if(event == Input::Mouse::EventType::DownPressed) {
+        else if(event == Input::Mouse::EventType::DownPressed) {
 			if(down) {
 				down(*this, curlocation, button);
 				handlers.Add(this);
@@ -92,7 +92,7 @@ namespace Gorgon { namespace Input {
 				return true;
 			}
 		}
-		else if(event == Input::Mouse::EventType::HitCheck) {
+        else if(event == Input::Mouse::EventType::HitCheck) {
             Gorgon::Layer::propagate_mouseevent(event, curlocation, button, amount, handlers);
         }
         else { //click/scroll/move/down
@@ -165,4 +165,4 @@ namespace Gorgon { namespace Input {
 		return false;
 	}
 
-} }
+}

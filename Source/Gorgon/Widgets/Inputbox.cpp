@@ -2,7 +2,6 @@
 
 #include "../Graphics/Font.h"
 #include "../WindowManager.h"
-#include "../UI.h"
 #include "../Window.h"
 
 namespace Gorgon { namespace Widgets { namespace internal {
@@ -317,7 +316,7 @@ namespace Gorgon { namespace Widgets { namespace internal {
             eraseselected();
         }
 
-        if(selstart.byte == display.size())
+        if(selstart.byte == (int)display.size())
             String::AppendUnicode(display, c);
         else
             String::InsertUnicode(display, selstart.byte, c);
@@ -362,7 +361,7 @@ namespace Gorgon { namespace Widgets { namespace internal {
             sellen = selstart;
         }
         
-        if(selstart.byte > display.size()) { //equal is fine
+        if(selstart.byte > (int)display.size()) { //equal is fine
             selstart = {glyphcount, (int)display.size()};
         }
         if((std::size_t)selstart.byte + sellen.byte >= display.size()) {
@@ -388,13 +387,10 @@ namespace Gorgon { namespace Widgets { namespace internal {
             targetsize = stack.TagBounds(UI::ComponentTemplate::ViewPortTag).GetSize();
         }
         
-        
-        bool inarea = false;
         if(targetsize.Width > textsize.Width) {
             scrolloffset = 0;
 
             stack.SetTagLocation(UI::ComponentTemplate::ContentsTag, {scrolloffset, 0});
-            inarea = true;
         }
         
         if(display == "") {

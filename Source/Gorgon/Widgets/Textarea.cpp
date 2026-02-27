@@ -1,9 +1,8 @@
 #include "Textarea.h"
-#include "Scrollbar.h"
 #include "../Window.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     Textarea::Textarea(const UI::Template &temp, const std::string &value) :
         ScrollingWidget(temp),
@@ -327,7 +326,7 @@ namespace Gorgon { namespace Widgets {
                     return true;
                     
                 case Keycodes::End:
-                    selstart = selstart = {Length(), (int)text.size()};
+                    selstart = {Length(), (int)text.size()};
                     updateselection();
                     return true;
 
@@ -398,7 +397,7 @@ namespace Gorgon { namespace Widgets {
             eraseselected();
         }
 
-        if(selstart.byte == text.size())
+        if(selstart.byte == (int)text.size())
             String::AppendUnicode(text, c);
         else
             String::InsertUnicode(text, selstart.byte, c);
@@ -673,7 +672,7 @@ namespace Gorgon { namespace Widgets {
             sellen = selstart;
         }
         
-        if(selstart.byte > text.size()) { //equal is fine
+        if(selstart.byte > (int)text.size()) { //equal is fine
             selstart = {glyphcount, (int)text.size()};
         }
         if((std::size_t)selstart.byte + sellen.byte >= text.size()) {
@@ -760,4 +759,4 @@ namespace Gorgon { namespace Widgets {
             ScrollTo(0, ScrollOffset().Y);
     }
 
-} }
+}

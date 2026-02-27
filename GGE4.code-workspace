@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"clangd.arguments": [
+        	"--compile-commands-dir=${workspaceFolder}/build/${command:cmake.activeBuildPreset}"
+    	]
+	}
+}

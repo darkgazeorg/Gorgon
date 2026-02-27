@@ -14,7 +14,7 @@
 #include <fcntl.h>
 #include <sys/sendfile.h>
 
-namespace Gorgon { namespace Filesystem {
+namespace Gorgon :: Filesystem {
 	
 	bool CreateDirectory(const std::string &path) {
 		auto pos=path.length();
@@ -459,5 +459,5 @@ test_match:
 		return true;
 	}
 	
-} }
+}
 

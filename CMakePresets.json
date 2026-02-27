@@ -1,270 +1,301 @@
 {
   "version": 3,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
-
   "configurePresets": [
     {
-      "name": "ninja-debug",
-      "displayName": "Ninja Debug",
-      "description": "Configure with Ninja in Debug mode and export compile commands",
+      "name": "linux-base",
+      "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/ninja-debug",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
       }
     },
-
+    
     {
-      "name": "ninja-release",
-      "displayName": "Ninja Release",
-      "description": "Configure with Ninja in Release mode",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/ninja-release",
+      "name": "Quick",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Build",
+      "description": "Documentation is disabled for a quick build and installation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "QuickDebug",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Debug Build",
+      "description": "Quick build with debug configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "QuickRelease",
+      "inherits": "linux-base",
+      "displayName": "Quick Linux Release Build",
+      "description": "Quick build with release configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "Default",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Build",
+      "description": "Standard configuration with all default modules and features enabled.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "DefaultDebug",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Debug Build",
+      "description": "Standard configuration in debug mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "DefaultRelease",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Release Build",
+      "description": "Standard configuration in release mode.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
     },
-
     {
-      "name": "ninja-builtins",
-      "displayName": "Ninja Debug (all externals = BUILTIN)",
-      "inherits": "ninja-debug",
-      "binaryDir": "${sourceDir}/build/ninja-debug-builtins",
+      "name": "Minimal",
+      "inherits": "linux-base",
+      "displayName": "Minimal Linux Build",
+      "description": "Disables all optional modules and external format support for a core-only build.",
       "cacheVariables": {
-        "PNG": "BUILTIN",
-        "FLAC": "BUILTIN",
-        "FREETYPE": "BUILTIN",
-        "VORBIS": "BUILTIN",
-        "FONTCONFIG": "BUILTIN"
+        "CMAKE_BUILD_TYPE": "Release",
+        "AUDIO": "OFF",
+        "SCRIPTING": "OFF",
+        "UI": "OFF",
+        "CGI": "OFF",
+        "HTTP": "OFF",
+        "FLAC": "OFF",
+        "FreeType": "OFF",
+        "OGG": "OFF",
+        "VORBIS": "OFF",
+        "FONTCONFIG": "OFF",
+        "DOCUMENTATION": "OFF"
       }
     },
-
     {
-      "name": "ninja-system",
-      "displayName": "Ninja Debug (all externals = SYSTEM)",
-      "inherits": "ninja-debug",
-      "binaryDir": "${sourceDir}/build/ninja-debug-system",
+      "name": "Testing",
+      "inherits": "linux-base",
+      "displayName": "Testing & Examples",
+      "description": "Enables unit tests, manual tests, and builds example applications.",
       "cacheVariables": {
-        "PNG": "SYSTEM",
-        "FLAC": "SYSTEM",
-        "FREETYPE": "SYSTEM",
-        "VORBIS": "SYSTEM",
-        "FONTCONFIG": "SYSTEM"
-      }
-    },
-
-    {
-      "name": "ninja-builtins-unit-tests",
-      "displayName": "Ninja Debug (BUILTIN + unit tests)",
-      "inherits": "ninja-builtins",
-      "binaryDir": "${sourceDir}/build/ninja-debug-builtins-unit-tests",
-      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "TESTS": "ON",
-        "UNIT_TESTS": "ON"
+        "UNIT_TESTS": "ON",
+        "MANUAL_TESTS": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "EXPORT_BUILD_TREE": "ON"
       }
     },
-
     {
-      "name": "ninja-system-unit-tests",
-      "displayName": "Ninja Debug (SYSTEM + unit tests)",
-      "inherits": "ninja-system",
-      "binaryDir": "${sourceDir}/build/ninja-debug-system-unit-tests",
+      "name": "TestingRelWithDebInfo",
+      "inherits": "Testing",
+      "displayName": "Testing & Examples (RelWithDebInfo)",
+      "description": "Testing build with RelWithDebInfo configuration.",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "Coverage",
+      "inherits": "Testing",
+      "displayName": "Code Coverage",
+      "description": "Testing build with code coverage instrumentation enabled.",
+      "cacheVariables": {
+        "COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "DocumentationMode",
+      "inherits": "linux-base",
+      "displayName": "Documentation Mode",
+      "description": "Builds documentation with strict warning reporting enabled.",
+      "cacheVariables": {
+        "DOCUMENTATION": "ON",
+        "DOCUMENTATION_MODE": "ON"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_MAKE_PROGRAM": "${sourceDir}/.tools/ninja/ninja.exe",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.tools/vcpkg/scripts/buildsystems/vcpkg.cmake",        
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "WindowsQuick",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Build",
+      "description": "Documentation is disabled for a quick build and installation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "WindowsQuickDebug",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Debug Build",
+      "description": "Quick build with debug configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "WindowsQuickRelease",
+      "inherits": "windows-base",
+      "displayName": "Windows Quick Release Build",
+      "description": "Quick build with release configuration and no documentation.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "DOCUMENTATION": "OFF"
+      }
+    },
+    {
+      "name": "WindowsDefault",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl" 
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsDefaultDebug",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Debug Build",
+      "description": "Standard default build in debug mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsDefaultRelease",
+      "inherits": "windows-base",
+      "displayName": "Windows Default Release Build",
+      "description": "Standard default build in release mode.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsMinimal",
+      "inherits": "windows-base",
+      "displayName": "Windows Minimal Build",
+      "description": "Core-only build with optional modules and external formats disabled.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AUDIO": "OFF",
+        "SCRIPTING": "OFF",
+        "UI": "OFF",
+        "CGI": "OFF",
+        "HTTP": "OFF",
+        "FLAC": "OFF",
+        "FreeType": "OFF",
+        "OGG": "OFF",
+        "VORBIS": "OFF",
+        "FONTCONFIG": "OFF",
+        "DOCUMENTATION": "OFF",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": ""
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+      }
+    },
+    {
+      "name": "WindowsTesting",
+      "inherits": "windows-base",
+      "displayName": "Windows Testing & Examples",
+      "description": "Enables unit tests, manual tests, and example applications.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "TESTS": "ON",
-        "UNIT_TESTS": "ON"
-      }
-    },
-
-    {
-      "name": "ninja-manual-tests",
-      "displayName": "Ninja Debug (turn on all manual tests)",
-      "inherits": "ninja-debug",
-      "binaryDir": "${sourceDir}/build/ninja-debug-manual-tests",
-      "cacheVariables": {
-        "TESTS": "ON",
-        "MANUAL_TEST_AdvancedText": "ON",
-        "MANUAL_TEST_Animation": "ON",
-        "MANUAL_TEST_Clipboard": "ON",
-        "MANUAL_TEST_CGI": "ON",
-        "MANUAL_TEST_DnD": "ON",
-        "MANUAL_TEST_Filesystem": "ON",
-        "MANUAL_TEST_FreeType": "ON",
-        "MANUAL_TEST_Gscript": "ON",
-        "MANUAL_TEST_Generic": "ON",
-        "MANUAL_TEST_Audio": "ON",
-        "MANUAL_TEST_PDParser": "ON",
-        "MANUAL_TEST_Scene": "ON",
-        "MANUAL_TEST_Window": "ON",
-        "MANUAL_TEST_Font": "ON",
-        "MANUAL_TEST_HTMLRenderer": "ON",
-        "MANUAL_TEST_UI_Component": "ON",
-        "MANUAL_TEST_UI_Generate": "ON",
-        "MANUAL_TEST_UI_WidgetTest": "ON"
-      }
-    },
-
-    {
-      "name": "ninja-builtins-with-manuals",
-      "displayName": "Ninja Debug (BUILTIN + manual tests)",
-      "inherits": "ninja-builtins",
-      "binaryDir": "${sourceDir}/build/ninja-debug-builtins-with-manuals",
-      "cacheVariables": {
-        "TESTS": "ON",
-        "MANUAL_TEST_AdvancedText": "ON",
-        "MANUAL_TEST_Animation": "ON",
-        "MANUAL_TEST_Clipboard": "ON",
-        "MANUAL_TEST_CGI": "ON",
-        "MANUAL_TEST_DnD": "ON",
-        "MANUAL_TEST_Filesystem": "ON",
-        "MANUAL_TEST_FreeType": "ON",
-        "MANUAL_TEST_Gscript": "ON",
-        "MANUAL_TEST_Generic": "ON",
-        "MANUAL_TEST_Audio": "ON",
-        "MANUAL_TEST_PDParser": "ON",
-        "MANUAL_TEST_Scene": "ON",
-        "MANUAL_TEST_Window": "ON",
-        "MANUAL_TEST_Font": "ON",
-        "MANUAL_TEST_HTMLRenderer": "ON",
-        "MANUAL_TEST_UI_Component": "ON",
-        "MANUAL_TEST_UI_Generate": "ON",
-        "MANUAL_TEST_UI_WidgetTest": "ON"
+        "UNIT_TESTS": "ON",
+        "MANUAL_TESTS": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "EXPORT_BUILD_TREE": "ON",
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl"
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
       }
     },
     {
-      "name": "vs-2022",
-      "displayName": "Visual Studio 17 2022 (x64)",
-      "description": "Multi-config Visual Studio generator (x64)",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "binaryDir": "${sourceDir}/build/vs"
-    },
-    {
-      "name": "vs-2022-builtins",
-      "displayName": "Visual Studio (all externals = BUILTIN)",
-      "inherits": "vs-2022",
-      "binaryDir": "${sourceDir}/build/vs-builtins",
+      "name": "WindowsTestingRelWithDebInfo",
+      "inherits": "WindowsTesting",
+      "displayName": "Windows Testing & Examples (RelWithDebInfo)",
+      "description": "Testing build with RelWithDebInfo configuration.",
       "cacheVariables": {
-        "PNG": "BUILTIN",
-        "FLAC": "BUILTIN",
-        "FREETYPE": "BUILTIN",
-        "VORBIS": "BUILTIN",
-        "FONTCONFIG": "BUILTIN"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
-      "name": "vs-2022-system",
-      "displayName": "Visual Studio (all externals = SYSTEM)",
-      "inherits": "vs-2022",
-      "binaryDir": "${sourceDir}/build/vs-system",
+      "name": "WindowsCoverage",
+      "inherits": "WindowsTesting",
+      "displayName": "Windows Code Coverage",
+      "description": "Testing build with code coverage instrumentation enabled.",
       "cacheVariables": {
-        "PNG": "SYSTEM",
-        "FLAC": "SYSTEM",
-        "FREETYPE": "SYSTEM",
-        "VORBIS": "SYSTEM",
-        "FONTCONFIG": "SYSTEM"
+        "COVERAGE": "ON"
       }
     },
     {
-      "name": "vs-2022-builtins-unit-tests",
-      "displayName": "Visual Studio (BUILTIN + unit tests)",
-      "inherits": "vs-2022-builtins",
-      "binaryDir": "${sourceDir}/build/vs-builtins-unit-tests",
+      "name": "WindowsDocumentationMode",
+      "inherits": "windows-base",
+      "displayName": "Windows Documentation Mode",
+      "description": "Builds documentation with strict warning reporting enabled.",
       "cacheVariables": {
-        "TESTS": "ON",
-        "UNIT_TESTS": "ON"
-      }
-    },
-    {
-      "name": "vs-2022-system-unit-tests",
-      "displayName": "Visual Studio (SYSTEM + unit tests)",
-      "inherits": "vs-2022-system",
-      "binaryDir": "${sourceDir}/build/vs-system-unit-tests",
-      "cacheVariables": {
-        "TESTS": "ON",
-        "UNIT_TESTS": "ON"
-      }
-    },
-    {
-      "name": "vs-2022-manual-tests",
-      "displayName": "Visual Studio (turn on all manual tests)",
-      "inherits": "vs-2022",
-      "binaryDir": "${sourceDir}/build/vs-manual-tests",
-      "cacheVariables": {
-        "TESTS": "ON",
-        "MANUAL_TEST_AdvancedText": "ON",
-        "MANUAL_TEST_Animation": "ON",
-        "MANUAL_TEST_Clipboard": "ON",
-        "MANUAL_TEST_CGI": "ON",
-        "MANUAL_TEST_DnD": "ON",
-        "MANUAL_TEST_Filesystem": "ON",
-        "MANUAL_TEST_FreeType": "ON",
-        "MANUAL_TEST_Gscript": "ON",
-        "MANUAL_TEST_Generic": "ON",
-        "MANUAL_TEST_Audio": "ON",
-        "MANUAL_TEST_PDParser": "ON",
-        "MANUAL_TEST_Scene": "ON",
-        "MANUAL_TEST_Window": "ON",
-        "MANUAL_TEST_Font": "ON",
-        "MANUAL_TEST_HTMLRenderer": "ON",
-        "MANUAL_TEST_UI_Component": "ON",
-        "MANUAL_TEST_UI_Generate": "ON",
-        "MANUAL_TEST_UI_WidgetTest": "ON"
-      }
-    },
-    {
-      "name": "vs-2022-builtins-with-manuals",
-      "displayName": "Visual Studio (BUILTIN + manual tests)",
-      "inherits": "vs-2022-builtins",
-      "binaryDir": "${sourceDir}/build/vs-builtins-with-manuals",
-      "cacheVariables": {
-        "TESTS": "ON",
-        "MANUAL_TEST_AdvancedText": "ON",
-        "MANUAL_TEST_Animation": "ON",
-        "MANUAL_TEST_Clipboard": "ON",
-        "MANUAL_TEST_CGI": "ON",
-        "MANUAL_TEST_DnD": "ON",
-        "MANUAL_TEST_Filesystem": "ON",
-        "MANUAL_TEST_FreeType": "ON",
-        "MANUAL_TEST_Gscript": "ON",
-        "MANUAL_TEST_Generic": "ON",
-        "MANUAL_TEST_Audio": "ON",
-        "MANUAL_TEST_PDParser": "ON",
-        "MANUAL_TEST_Scene": "ON",
-        "MANUAL_TEST_Window": "ON",
-        "MANUAL_TEST_Font": "ON",
-        "MANUAL_TEST_HTMLRenderer": "ON",
-        "MANUAL_TEST_UI_Component": "ON",
-        "MANUAL_TEST_UI_Generate": "ON",
-        "MANUAL_TEST_UI_WidgetTest": "ON"
+        "DOCUMENTATION": "ON",
+        "DOCUMENTATION_MODE": "ON"
       }
     }
-  ],
-
-  "buildPresets": [
-    { "name": "build-ninja-debug", "configurePreset": "ninja-debug" },
-    { "name": "build-ninja-release", "configurePreset": "ninja-release" },
-    { "name": "build-ninja-builtins", "configurePreset": "ninja-builtins" },
-    { "name": "build-ninja-system", "configurePreset": "ninja-system" },
-    { "name": "build-ninja-builtins-unit-tests", "configurePreset": "ninja-builtins-unit-tests" },
-    { "name": "build-ninja-system-unit-tests", "configurePreset": "ninja-system-unit-tests" },
-    { "name": "build-ninja-manual-tests", "configurePreset": "ninja-manual-tests" },
-    { "name": "build-ninja-builtins-with-manuals", "configurePreset": "ninja-builtins-with-manuals" },
-    { "name": "build-vs-debug", "configurePreset": "vs-2022", "configuration": "Debug" },
-    { "name": "build-vs-builtins", "configurePreset": "vs-2022-builtins", "configuration": "Debug" },
-    { "name": "build-vs-system", "configurePreset": "vs-2022-system", "configuration": "Debug" },
-    { "name": "build-vs-builtins-unit-tests", "configurePreset": "vs-2022-builtins-unit-tests", "configuration": "Debug" },
-    { "name": "build-vs-system-unit-tests", "configurePreset": "vs-2022-system-unit-tests", "configuration": "Debug" },
-    { "name": "build-vs-manual-tests", "configurePreset": "vs-2022-manual-tests", "configuration": "Debug" },
-    { "name": "build-vs-builtins-with-manuals", "configurePreset": "vs-2022-builtins-with-manuals", "configuration": "Debug" }
-  ],
-
-  "testPresets": [
-    { "name": "run-unit-tests-builtins", "configurePreset": "ninja-builtins-unit-tests" },
-    { "name": "run-unit-tests-system", "configurePreset": "ninja-system-unit-tests" },
-    { "name": "run-manual-tests", "configurePreset": "ninja-manual-tests" },
-    { "name": "run-unit-tests-vs-builtins", "configurePreset": "vs-2022-builtins-unit-tests" },
-    { "name": "run-unit-tests-vs-system", "configurePreset": "vs-2022-system-unit-tests" },
-    { "name": "run-manual-tests-vs", "configurePreset": "vs-2022-manual-tests" }
   ]
 }

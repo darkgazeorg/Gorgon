@@ -2,7 +2,7 @@
 #include "Helpers.h"
 #include "../Widgets/Scrollbar.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     ScrollingWidget::ScrollingWidget(const Template &temp, std::map<ComponentTemplate::Tag, std::function<Widget *(const Template &)>> generators) :
         ComponentStackWidget(temp, internal::mergegenerators(generators, {
@@ -352,4 +352,4 @@ namespace Gorgon { namespace UI {
         overscrollpx = Convert(overscroll, true);
     }
 
-} }
+}

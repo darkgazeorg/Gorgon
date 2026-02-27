@@ -3,7 +3,7 @@
 #include "Slider.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * This widget is a scrollbar. It is basically a slider without ticks and 
@@ -99,4 +99,4 @@ namespace Gorgon { namespace Widgets {
     template<class T_>
     using VScroller = Scrollbar<T_, FloatDivider<T_>, FloatToValue<T_>, Gorgon::NumericProperty, Registry::Scrollbar_Vertical>;
     
-} }
+}

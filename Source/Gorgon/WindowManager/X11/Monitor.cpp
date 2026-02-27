@@ -3,7 +3,7 @@
 #include <X11/extensions/Xinerama.h>
 #include <X11/extensions/Xrandr.h>
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 
         
     namespace internal {
@@ -50,7 +50,7 @@ namespace Gorgon { namespace WindowManager {
 
         XQueryTree(display, parent, &w, &w, &children, &child_count);
         
-        for(int i=0; i<child_count; i++) {
+        for(std::size_t i=0; i<child_count; i++) {
             Atom actual_type;
             int actual_format;
             unsigned long item_count;
@@ -183,4 +183,4 @@ failsafe: //this should use X11 screen as monitor
     Event<> Monitor::ChangedEvent;
     Containers::Collection<Monitor> Monitor::monitors;
     Monitor *Monitor::primary=nullptr;    
-} }
+}

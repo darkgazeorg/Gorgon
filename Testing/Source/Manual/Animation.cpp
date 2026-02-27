@@ -69,7 +69,7 @@ int main() {
 			exit(0);
 		}
 		else if(state && key == Keycodes::X) {
-			anim[inst+1].Remove();
+			anim[inst+1].RemoveAnimation();
 			inst--;
 			tm = -1;
 		}

@@ -1,91 +1,112 @@
+# Gorgon Game Engine 4.1
 
-GGE 4.x is still in development and is not feature complete.
+Gorgon is a cross-platform framework for games and visual applications. It provides a powerful, flexible, and highly optimized set of tools for creating high-performance ui, graphics, audio, and input handling natively on Windows and Linux. It has a built-in programming language called GScript.
 
 ## Requirements
 
-### Compiler
-* GCC 8+
-* Visual Studio 2019
-* Clang (not fully supported)
+### Compiler (C++17 Support Required)
+* **Visual Studio 2022** (Windows): Recommended for modern CMake integration and `cl.exe`.
+* **GCC 11+** or **Clang 14+** (Linux).
 
-### Tools
-* CMake 3.5
-* Doxygen
+### Common Required Dependencies
+Gorgon uses **vcpkg** on Windows to build purely static libraries, ensuring zero-dependency standalone executables. On Linux, it leverages standard system packages.
+* **Graphics:** OpenGL 2.1+ (Core), GLEW (Static)
+* **Formats:** libpng, libjpeg-turbo, zlib, liblzma
+* **Utils:** cpptrace (Windows-only for stack traces)
 
-### Common
-* OpenGL
+### OS-Specific Requirements
+* **Windows:** DirectWrite (System-native for hardware-accelerated font discovery).
+* **Linux:** libX11, libXinerama, libXrandr, libXext, libpulse (PulseAudio), FontConfig, pkg-config.
 
-### Linux
-* libX11, libXinerama, libXrandr, libXext
-* libpulse
-* pthreads
-* fontconfig
+---
 
-### Optional (built-in available)
-* FreeType2 (For font support, bitmap fonts do not need freetype)
-* libCurl (For HTTP transport, built-in not yet available, disabled by default)
-* FLAC (Lossless audio)
-* Vorbis (Audio)
+## Dependency Installation
 
-----
-
-### Fedora 32/33/34/35/36 on 64bit system dependencies
-Run the command below to install all the dependencies on Fedora distros after Fedora 26.
-
-```$ sudo dnf install gcc g++ cmake cmake-gui libX11-devel libXinerama-devel libXrandr-devel libXext doxygen freetype freetype-devel pulseaudio-libs-devel fontconfig-devel libcurl flac-devel libvorbis-devel ghc-OpenGL-devel```
-
-----
-
-### Ubuntu 18.04 64 bit system dependencies
-Run the command below to install all the dependencies on Ubuntu 18.04.
-
-```$ sudo apt-get install gcc cmake cmake-gui libx11-dev libxinerama-dev libxrandr-dev libxtst-dev doxygen freetype libfifechan-dev libfreetype6-dev libpulse-dev libfontconfig1-dev libflac-dev libvorbis-dev```
-
-### Fontconfig_DIR not found in cmake-gui for Ubuntu 18.04
-There is an issue with cmake v3.20+ versions with fontconfig. Just purge all the cmake you have installed before, after that download cmake-3.16.0.tar.gz from https://github.com/Kitware/CMake/releases/tag/v3.16.0
-after that
-```
-./bootstrap
-make -j32
-sudo make install
+### Ubuntu 24.04+ LTS / Debian
+```bash
+sudo apt-get update && sudo apt-get install build-essential cmake ninja-build pkg-config \
+libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
+libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
+doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
+libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev
 ```
 
-You have installed cmake v3.16.0. This version will solve the issue about fontconfig if you have installed correct fontconfig libraries.
+### Fedora 40+
+```bash
+sudo dnf install gcc g++ cmake ninja-build pkgconf-pkg-config \
+libX11-devel libXinerama-devel libXrandr-devel libXext-devel \
+libpng-devel libjpeg-turbo-devel zlib-devel xz-devel \
+doxygen freetype-devel pulseaudio-libs-devel fontconfig-devel \
+flac-devel libogg-devel libvorbis-devel libcurl-devel
+```
 
-----
-    
-## Install Gorgon using cmake (Linux)
+---
 
- 1. Navigate to the Gorgon directory through terminal.
+## Windows Development Setup (Lightweight)
 
- 2. Inside the Gorgon Directory create a folder called build. 
+While Gorgon fully supports the complete Visual Studio 2022 IDE, **Visual Studio Code (VS Code) is highly recommended** for the most streamlined, cross-platform development experience. 
 
-    ```$ mkdir build```
+You do not need to install the heavy Visual Studio IDE to compile Gorgon on Windows. You only need the raw Microsoft C++ compiler (`cl.exe`) and VS Code.
 
- 3. Then change directory to build.
+### 1. Install the Build Tools
+1. Download the **Build Tools for Visual Studio 2022** from the official Microsoft website.
+2. Run the installer and select the **Desktop development with C++** workload.
+3. Ensure the **MSVC v143 - VS 2022 C++ x64/x86 build tools** and **Windows SDK** are checked on the right-hand side.
+4. Click Install.
 
-    ```$ cd build```
+### 2. Configure VS Code
+1. Download and install **Visual Studio Code**.
+2. Open the Extensions view (`Ctrl+Shift+X`) and install the following extensions:
+   * **C/C++** (by Microsoft)
+   * **CMake Tools** (by Microsoft)
+   * Clangd (Optional)
+3. Open the `Gorgon` source folder in VS Code (`File > Open Folder`).
 
- 4. Next run the command below to open the cmake gui config file
+### 3. Build the Engine
+1. When prompted by CMake Tools, select the **Visual Studio Community 2022 Release - amd64** kit (or similar Build Tools kit).
+2. Click the **CMake: [No Active Kit]** area in the bottom status bar and select your desired `CMakePresets.json` configuration (e.g., `Windows Default Build`).
+3. Press **F7** (or click `Build` in the status bar). CMake will automatically download vcpkg dependencies, compile the static libraries, and build the engine.
+4. **System Installation:** To install Gorgon system-wide, open an **Administrator Command Prompt** in the Gorgon folder and run:
+   ```cmd
+   cmake --install build/WindowsDefault
+   ```
 
-    ```$ cmake-gui ..```
+---
 
-    a. Set CMAKE_BUILD_TYPE TO Debug
-    b. Select desired modules and tools to be installed (optional)
-    c. If you do not want to install libraries, you may select built-in.
-    d. Then click Configure and Generate and close the cmake gui.
+## Linux Setup
+On Linux installation doesn't require an IDE. You could install through the terminal. Simply open a terminal in Gorgon directory and type the following:
 
- 6. Now run the command below to make files.
+1. Configure using the default preset:
+   ```bash
+   cmake --preset Default
+   ```
+2. Build the framework:
+   ```bash
+   cmake --build --preset Default
+   ```
+3. Install Gorgon (requires root):
+   ```bash
+   sudo cmake --install build/Default
+   ```
 
-    ```$ cmake --build .```
-    
-    **Note:** Add -j8, -j4 for the number of CPU cores you would like to use to build Gorgon as it can take time with a sigle core. 
+### Documentation
+Generating documentation requires Doxygen. Upon installation, a shortcut is automatically generated:
+* **Windows:** Look for the "Gorgon Documentation" shortcut on your Desktop.
+* **Linux:** Found in your Application Menu under **Development > Gorgon Documentation**.
 
- 7. Finally install Gorgon using sudo users.
+---
 
-    ```$ sudo cmake --install .```
-    
-## How to start programming using Gorgon
+## Getting Started
 
-In the examples folder there are a few sample programs to get you started. They are not built along with Gorgon. You can compile them in examples folder or you may copy them somewhere else and compile using CMake.
-You may use Visual studio in Windows and KDevelop or VSCode on Linux as IDE. Gorgon based application will probably work with all IDEs that support CMake or supported by CMake build systems.
+Gorgon completely abstracts platform-specific entry points (like `WinMain` vs `main`). Simply include the entry point header and implement your logic using standard C++ vectors:
+
+```cpp
+#include <Gorgon/EntryPoint.h>
+
+int Main(const std::vector<std::string>& args) {
+    // Engine initialization and logic here
+    return 0;
+}
+```
+
+Check the `Examples` folder for sample programs. Copy them to your development directories and load them up using VSCode, compile them in the terminal or use cmake-gui to create project files.

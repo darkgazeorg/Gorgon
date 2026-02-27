@@ -3,7 +3,7 @@
 #include "../Graphics/EmptyImage.h"
 #include "../Encoding/PNG.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
 	Image *Image::LoadResource(std::weak_ptr<File> file, std::shared_ptr<Reader> reader, unsigned long size) {
@@ -218,5 +218,5 @@ namespace Gorgon { namespace Resource {
         }
 	}
 
-} }
+}
 

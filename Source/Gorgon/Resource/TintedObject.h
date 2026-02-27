@@ -4,8 +4,7 @@
 #include "../Graphics/TintedObject.h"
 
 
-namespace Gorgon {
-	namespace Resource {
+namespace Gorgon :: Resource {
 		class File;
 		class Reader;
 
@@ -159,4 +158,3 @@ namespace Gorgon {
 			bool own = false;
 		};
 	}
-}

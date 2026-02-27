@@ -7,8 +7,7 @@
 #include "Base.h"
 #include "../Containers/Wave.h"
 
-namespace Gorgon {
-	namespace Resource {
+namespace Gorgon :: Resource {
 		class File;
 		class Reader;
 
@@ -140,4 +139,3 @@ namespace Gorgon {
 			int bits = 16;
 		};
 	}
-}

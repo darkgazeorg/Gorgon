@@ -1,6 +1,3 @@
-# .gitignore
-# Converted from .hgignore (keeps the same ignore intent)
-
 # Build output and intermediate directories
 Build/
 build/
@@ -38,6 +35,8 @@ CMakeSettings.json
 .vscode/
 GGE.code-workspace
 .idea/
+.clangd
+.tools/
 
 # Compilation and temporary files
 *.obj
@@ -62,6 +61,10 @@ ipch/
 compile_commands.json
 .directory
 .cache
+.git
+
+# clion related
+cmake-build-debug
 
 # Git directory (redundant but mirrors original intent)
 .git/
@@ -69,3 +72,4 @@ compile_commands.json
 # Game-specific build dirs
 Source/Gorgon/Game/bin/
 Source/Gorgon/Game/build/
+^\.idea/

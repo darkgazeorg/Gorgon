@@ -2,15 +2,13 @@
 
 #pragma once
 
-#include "../UI/ComponentStackWidget.h"
 #include "../UI/RadioControl.h"
-#include "../Property.h"
 #include "Checkbox.h"
 #include "../UI/WidgetContainer.h"
 #include "Registry.h"
 #include "Composer.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * Allows the use of radio buttons working together. This widget acts as a container for checkboxes
@@ -328,4 +326,4 @@ namespace Gorgon { namespace Widgets {
         
     };
     
-} }
+}

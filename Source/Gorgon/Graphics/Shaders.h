@@ -4,16 +4,17 @@
 
 #pragma once
 
-#include <map>
 #include <string>
 
 #include "../GL/Shader.h"
 
 #include "../GL/OpenGL.h"
 #include "Color.h"
+#include "../GL.h"
 
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
+
 	enum class ShaderMode {
 		Normal,
 		ToMask
@@ -115,7 +116,7 @@ namespace Gorgon { namespace Graphics {
 		}
 
 		MaskedShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -210,7 +211,7 @@ namespace Gorgon { namespace Graphics {
 
 		/// Sets alpha texture
 		MaskedAlphaShader &SetAlpha(GL::Texture value) {
-			static int id = BindTexture("diffuse", 0);
+			BindTexture("diffuse", 0);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -226,7 +227,7 @@ namespace Gorgon { namespace Graphics {
 		}
 
 		MaskedAlphaShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -299,7 +300,7 @@ namespace Gorgon { namespace Graphics {
 		}
 
 		MaskedFillShader &SetMask(GL::Texture value) {
-			static int id = BindTexture("mask", 1);
+			BindTexture("mask", 1);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, value);
@@ -312,4 +313,4 @@ namespace Gorgon { namespace Graphics {
 	};
 
 
-} }
+}

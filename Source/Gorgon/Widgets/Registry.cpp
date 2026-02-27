@@ -1,8 +1,8 @@
 #include "Registry.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     
     Event<void> Registry::Changed = {};
     
-} }
+}

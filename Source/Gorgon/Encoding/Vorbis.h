@@ -2,7 +2,7 @@
 
 #include "../Containers/Wave.h"
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 /// @cond internal
 namespace vorbis {
     class streamread;
@@ -42,4 +42,4 @@ namespace vorbis {
     };
 
 
-} }
+}

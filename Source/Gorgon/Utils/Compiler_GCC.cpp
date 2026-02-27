@@ -1,9 +1,7 @@
-#include <memory>
-
 #include <cxxabi.h>
 #include "Compiler.h"
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 		
 	std::string demangle(const std::string &name) {
 		int status;
@@ -21,4 +19,4 @@ namespace Gorgon { namespace Utils {
 		}
 	}
 	
-} }
+}

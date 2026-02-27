@@ -3,7 +3,7 @@
 #include "Base.h"
 #include "../Graphics/Animations.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	class Writer;
 
@@ -30,4 +30,4 @@ namespace Gorgon { namespace Resource {
 	/// be saved. In this version, if the object is null, it will be saved as Null object.
 	void SaveAnimation(Writer &writer, const Graphics::RectangularAnimationProvider *object);
 
-}}
+}

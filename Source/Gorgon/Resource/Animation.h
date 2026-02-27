@@ -9,7 +9,7 @@
 #pragma warning(push)
 #pragma warning(disable:4250)
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	class File;
 	class Reader;
 
@@ -77,6 +77,6 @@ namespace Gorgon { namespace Resource {
 		// Two part save system allows objects that are derived from animation to exist.
 		void savedata(Writer &writer) const;
 	};
-} }
+}
 
 #pragma warning(pop)

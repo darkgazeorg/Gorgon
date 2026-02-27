@@ -6,7 +6,7 @@
 #include "../Types.h"
 #include "Point.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
     
     template<class T_>
     class basic_Point3D {
@@ -67,9 +67,9 @@ namespace Gorgon { namespace Geometry {
         
         union {
             struct {
-                T_ X;
-                T_ Y;
-                T_ Z;
+                T_ X = 0;
+                T_ Y = 0;
+                T_ Z = 0;
             };
             
             T_ Vector[3];
@@ -87,4 +87,4 @@ namespace Gorgon { namespace Geometry {
     
     using Point3D = basic_Point3D<Float>;
     
-} }
+}

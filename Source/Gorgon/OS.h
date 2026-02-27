@@ -154,35 +154,7 @@ namespace Gorgon {
         public:
             
             /// Returns the named weight of the font.
-            FontWeight GetWeight() const {
-                if(Weight <= 150) {
-                    return FontWeight::Thin;
-                }
-                else if(Weight <= 250) {
-                    return FontWeight::ExtraLight;
-                }
-                else if(Weight <= 350) {
-                    return FontWeight::Light;
-                }
-                else if(Weight > 850) {
-                    return FontWeight::Heavy;
-                }
-                else if(Weight > 750) {
-                    return FontWeight::ExtraBold;
-                }
-                else if(Weight > 650) {
-                    return FontWeight::Bold;
-                }
-                else if(Weight > 550) {
-                    return FontWeight::SemiBold;
-                }
-                else if(Weight > 450) {
-                    return FontWeight::Medium;
-                }
-                else {
-                    return FontWeight::Regular;
-                }
-            }
+            FontWeight GetWeight() const;
             
             /// Returns CSS usable weight of the font.
             std::string GetCSSWeight() const {
@@ -234,7 +206,17 @@ namespace Gorgon {
             std::vector<Font> Faces;
         };
         
+        /// Returns a list of font families installed in the system. Depending on the operating system,
+        /// this function might be slow as it might need to load each font file to obtain information.
         std::vector<FontFamily> GetFontFamilies();
+
+        /// Returns a font with the given family and style name. Supports type names such as
+        /// "serif", "sans-serif", "monospace" and "cursive" as family names. Style name can be "Regular",
+        /// "Bold", "Italic" or "Bold Italic" or any other style name that the font file contains. 
+        /// If the font is not found a fallback font will be returned. This function is not guaranteed to 
+        /// return the same font for the same family and style name across different calls. Check second
+        /// value of the returned pair to check if the returned font is a fallback or not.
+        std::pair<Font, bool /*exact match*/> GetFont(const std::string &familyname = "", const std::string &stylename = "");
         
         void DumpFontFamilies(std::ostream &out);
 	}

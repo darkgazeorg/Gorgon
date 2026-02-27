@@ -68,48 +68,16 @@ public:
         }
         
         int sz = 13;
-#ifdef WIN32
-        fnt.LoadFile("C:/Windows/Fonts/tahoma.ttf", sz);
-        fntlarge.LoadFile("C:/Windows/Fonts/tahoma.ttf", int(std::round(sz*1.5)));
-        fntsmall.LoadFile("C:/Windows/Fonts/tahoma.ttf", int(std::round(sz*0.8)));
-#else
-        bool found = false;
-        std::streambuf *buf;
-        OS::Start("fc-match", buf, {"-v", "sans"});
-        
-        if(buf) {
-            std::istream in(buf);
-            std::string line;
-            while(getline(in, line)) {
-                line = String::Trim(line);
-                auto name = String::Extract(line, ':', true);
-                if(name == "file") {
-                    String::Extract(line, '"', true);
-                    auto fname = String::Extract(line, '"', true);
-                    std::cout<<fname<<std::endl;
-                    found = fnt.LoadFile(fname, sz);
-                    if(found) 
-                        fntlarge.LoadFile(fname, sz*1.5);
-                    if(found) 
-                        fntsmall.LoadFile(fname, sz*0.7);
-                    break;
-                }
-            }
-            
-            delete buf;
-        }
-        
+
+        auto [font, found] = OS::GetFont();
         if(!found) {
-            fnt.LoadFile("/usr/share/fonts/gnu-free/FreeSans.ttf", sz);
-            fntlarge.LoadFile("/usr/share/fonts/gnu-free/FreeSans.ttf", sz*1.5);
-            fntsmall.LoadFile("/usr/share/fonts/gnu-free/FreeSans.ttf", sz*0.7);
+            std::cerr<<"No fonts found"<<std::endl;
+            exit(1);
         }
-#endif
-        /*if(!fnt.HasKerning()) {
-            auto bmpfnt = new Graphics::BitmapFont(fnt.MoveOutBitmap());
-            sty.SetGlyphRenderer(*bmpfnt);
-            bmpfnt->AutoKern();
-        }*/
+
+        fnt.LoadFile(font.Filename, sz);
+        fntlarge.LoadFile(font.Filename, int(std::round(sz*1.5)));
+        fntsmall.LoadFile(font.Filename, int(std::round(sz*0.8))); 
         
         sty.UseFlatShadow({0.f, 1.0f}, {1.f, 1.f});
         sty.SetColor({0.6f, 1.f, 1.f});

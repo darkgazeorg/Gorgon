@@ -5,13 +5,12 @@
 #include <memory>
 
 #include "../String.h"
-#include "../Scripting.h"
 #include "Instruction.h"
 #include "Input.h"
 #include "Compilers.h"
 #include "Runtime.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 	/// @cond INTERNAL
 	/// This class represents a logical line
@@ -408,7 +407,7 @@ namespace Gorgon { namespace Scripting {
 		std::map<std::string, std::string, String::CaseInsensitiveLess> ambiguoussymbols;
 		
 		/// Constructor requires an input source. Execution scopes can share same input source
-		ScopeInstance(Scope &scope, ScopeInstance *parent) : scope(scope), parent(parent) {
+		ScopeInstance(Scope &scope, ScopeInstance *parent) : parent(parent), scope(scope) {
 			name=scope.GetName()+" #"+String::From(scope.nextid++);
 		}
 		
@@ -428,4 +427,4 @@ namespace Gorgon { namespace Scripting {
 		unsigned long current = 0;
 	};
 	
-} }
+}

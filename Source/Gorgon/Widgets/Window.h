@@ -1,11 +1,12 @@
 #pragma once
 
+#include "Gorgon/ConsumableEvent.h"
 #include "Panel.h"
 #include "../Graphics/Pointer.h"
 
-namespace Gorgon { namespace Graphics { class Bitmap; } }
+namespace Gorgon :: Graphics { class Bitmap; }
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     /**
      * This class will create in system window that can be placed anywhere
@@ -289,4 +290,4 @@ namespace Gorgon { namespace Widgets {
         bool updatingminmax = false;
     };
     
-} }
+}

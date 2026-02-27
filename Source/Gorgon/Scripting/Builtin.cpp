@@ -8,8 +8,7 @@
 	double exp10(double num) { return exp(num)/exp(2); }
 #endif
 
-namespace Gorgon {
-	namespace Scripting {
+namespace Gorgon :: Scripting {
 		
 		Library Integrals("Integrals", "Integral types and functions");
 		Library Keywords("Keywords", "Function like keywords.");
@@ -1219,7 +1218,7 @@ namespace Gorgon {
 					"Replaces all instances of the given substring in this string with another string", String, 
 					{
 						MapFunction(
-							(std::string(*)(const std::string &, const std::string &, const std::string &))&String::Replace, String,
+							(std::string(*)(const std::string, const std::string &, const std::string &))&String::Replace, String,
 							{
 								Parameter("Search", "Search string to be replaced", String),
 								Parameter("Replace", "String to replace, if not specified, "
@@ -1346,11 +1345,22 @@ namespace Gorgon {
 					{
 						MapFunction(
 							[](const std::string &n) -> std::string {
-								char *v=getenv(n.c_str());
+								const char *v = nullptr;
+#ifdef _MSC_VER
+								size_t len = 0;
+								if(_dupenv_s((char**)&v, &len, n.c_str()) == 0 && v != nullptr) {
+									std::string result(v);
+									free((void*)v);
+									return result;
+								}
+								return "";
+#else
+								v = getenv(n.c_str());
 								if(v)
 									return v;
 								else
 									return "";
+#endif
 							}, 
 							Types::String(), 
 							{
@@ -1809,5 +1819,4 @@ namespace Gorgon {
 		}
 		
 	}
-}
 

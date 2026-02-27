@@ -7,7 +7,7 @@
 #include "AnimationStorage.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
     MaskedObject::MaskedObject(Graphics::MaskedBitmapProvider &prov) : prov(&prov)
@@ -237,4 +237,4 @@ namespace Gorgon { namespace Resource {
         return *p;
     }
 
-} }
+}

@@ -4,7 +4,7 @@
 #include "Bezier.h"
 #include "Circle.h"
 
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     template<int S_ = GORGON_DEFAULT_SUBDIVISIONS, class I_, class T_= float, class F1_ = SolidFill<>>
     void DrawBounds(I_ &target, const Geometry::basic_Bounds<T_> &bnds, 
@@ -58,4 +58,4 @@ namespace Gorgon { namespace CGI {
         DrawLines<S_>(target, {curve.P2, curve.P3}, bridgethickness, controlpoints);
     };
     
-} }
+}

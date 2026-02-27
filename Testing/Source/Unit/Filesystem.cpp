@@ -1,6 +1,8 @@
+#include <fstream>
 #define CATCH_CONFIG_RUNNER
 
-#include <catch.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_session.hpp>
 
 #undef CreateDirectory
 
@@ -11,6 +13,7 @@
 #include <string>
 #include <stdlib.h>
 #include <cstring>
+
 
 
 namespace fs=Gorgon::Filesystem;
@@ -122,6 +125,20 @@ TEST_CASE( "Check directory exists", "[IsExists]") {
 TEST_CASE( "Check if the current directory is writable", "[IsWritable]") {
 	REQUIRE( fs::IsWritable(".") );
 }
+
+//forward declare these for windows, so we can use them in the test without including windows.h
+#ifdef WIN32
+extern "C" {
+#	define FILE_ATTRIBUTE_READONLY 0x1
+#	define FILE_ATTRIBUTE_HIDDEN 0x2
+#	define FILE_ATTRIBUTE_NORMAL 0x80
+	typedef int BOOL;
+	typedef const wchar_t* LPCWSTR;
+	typedef unsigned long DWORD;
+	BOOL __stdcall SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes);
+#define SetFileAttributes SetFileAttributesW
+}
+#endif
 
 TEST_CASE( "Check if a file is writable", "[IsWritable]" ) {
 	std::ofstream testfile("testfile.txt");

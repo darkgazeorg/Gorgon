@@ -4,7 +4,7 @@
 
 #include <stdexcept>
 
-namespace Gorgon { namespace String {
+namespace Gorgon :: String {
 	/// This error will be thrown if a parsing function encounters
 	/// with a general error
 	class ParseError : public std::runtime_error {
@@ -32,4 +32,4 @@ namespace Gorgon { namespace String {
 		/// Location of the illegal token in the string
 		size_t Location;
 	};
-} }
+}

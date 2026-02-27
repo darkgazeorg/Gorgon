@@ -2,7 +2,7 @@
 #include "../UI/WidgetContainer.h"
 #include "../Graphics/Bitmap.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     
     
@@ -232,4 +232,4 @@ namespace Gorgon { namespace Widgets {
     }
     
     
-} }
+}

@@ -10,7 +10,7 @@
 #include "../Types.h"
 
 
-namespace Gorgon { namespace Encoding { 
+namespace Gorgon :: Encoding { 
 
 	/// @cond INTERNAL
 	namespace lzma {
@@ -352,4 +352,4 @@ namespace Gorgon { namespace Encoding {
 	/// A default constructed LZMA object
 	extern LZMA Lzma;
 
-	}}
+	}

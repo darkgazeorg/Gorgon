@@ -5,7 +5,7 @@
 #include "../Graphics/Font.h"
 #include "../Utils/Assert.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	class File;
 	class Reader;
 
@@ -93,6 +93,6 @@ namespace Gorgon { namespace Resource {
         bool isowner = false;
     };
 
-} }
+}
 
 

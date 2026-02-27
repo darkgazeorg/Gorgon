@@ -5,7 +5,7 @@
 #include "../Input/KeyRepeater.h"
 #include "Registry.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
     class Panel : public UI::ScrollingWidget, public UI::WidgetContainer {
     public:
@@ -265,5 +265,5 @@ namespace Gorgon { namespace Widgets {
 
     };
     
-} }
+}
 

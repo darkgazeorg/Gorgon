@@ -1,7 +1,7 @@
 #pragma once
 #include "../Scripting.h"
 
-namespace Gorgon { namespace Scripting {
+namespace Gorgon :: Scripting {
 	
 		/// Describes the type of an instruction
 		enum class InstructionType {
@@ -151,9 +151,10 @@ namespace Gorgon { namespace Scripting {
 			Instruction() { }
 			
 			Instruction(const Instruction &inst) :
-			Type(inst.Type), Name(inst.Name), RHS(inst.RHS), Parameters(inst.Parameters), JumpOffset(inst.JumpOffset),
-			Reference(inst.Reference)
+			Type(inst.Type), Name(inst.Name), RHS(inst.RHS), Parameters(inst.Parameters), Reference(inst.Reference), JumpOffset(inst.JumpOffset)
 			{ }
+
+			Instruction &operator=(const Instruction &inst) = default;
 			
 			/// Type of the instruction
 			InstructionType Type = InstructionType::Unknown;
@@ -175,4 +176,4 @@ namespace Gorgon { namespace Scripting {
 				int JumpOffset=0;
 			};
 		};
-} }
+}

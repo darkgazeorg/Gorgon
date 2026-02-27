@@ -2,7 +2,7 @@
 #include "Registry.h"
 
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     Composer::Composer(const UI::UnitSize &size) :
         Widget(Pixels(0, 0)) //Resize is needed to convert unitsize to pixels
@@ -254,4 +254,4 @@ void ComponentStackComposer::Resize(const UI::UnitSize& size, std::pair< bool, b
     ComponentStackWidget::Resize(size);
 }
 
-} }
+}

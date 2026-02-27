@@ -1,9 +1,7 @@
 #include "Generator.h"
 #include "../OS.h"
-#include "../Filesystem.h"
 #include "../Graphics/FreeType.h"
 #include "../Graphics/Color.h"
-#include "../Graphics/BitmapFont.h"
 #include "../Graphics/BlankImage.h"
 #include "../Graphics/Animations.h"
 #include "../CGI/Line.h"
@@ -13,7 +11,7 @@
 #include "../Graphics/EmptyImage.h"
 #include "../UI.h"
 
-#ifdef FONTCONFIG_SUPPORT
+#ifdef GORGON_FONTCONFIG_SUPPORT
 #   include <fontconfig/fontconfig.h>
 #endif
 
@@ -40,9 +38,8 @@
 #define BgC(c) Colors[Graphics::Color::c].Backcolor
 #define BdC(c) Colors[Graphics::Color::c].Bordercolor
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     using UI::UnitSize;
-    using UI::UnitDimension;
     using UI::Units;
     using UI::Pixels;
 
@@ -58,7 +55,7 @@ namespace Gorgon { namespace Widgets {
     }
     
     std::string FindDefaultFontFamily(bool mono, const std::vector<Gorgon::OS::FontFamily> &list) {
-#ifdef FONTCONFIG_SUPPORT
+#ifdef GORGON_FONTCONFIG_SUPPORT
         if(!FcInit())
             goto nofc;
         
@@ -2839,7 +2836,7 @@ namespace Gorgon { namespace Widgets {
         temp.SetSize(defsize);
 
 
-        auto &bg = temp.AddContainer(0, UI::ComponentCondition::Always)
+        temp.AddContainer(0, UI::ComponentCondition::Always)
             .AddIndex(1) //border
             .AddIndex(2) //boxed content
         ;
@@ -2966,4 +2963,4 @@ namespace Gorgon { namespace Widgets {
         return temp;
     }
     
-}}
+}

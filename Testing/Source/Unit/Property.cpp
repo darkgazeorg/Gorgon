@@ -1,7 +1,10 @@
 #define CATCH_CONFIG_MAIN
-#include <catch.h>
+
+#include <catch2/catch_test_macros.hpp>
 
 #include <Gorgon/Property.h>
+
+#include <sstream>
 
 #undef TEST
 

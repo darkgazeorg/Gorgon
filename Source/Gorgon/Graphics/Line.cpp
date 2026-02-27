@@ -1,11 +1,12 @@
 #include "Line.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 	
-	Line::Line(const ILineProvider &prov, bool create /*= true*/) : prov(prov), Gorgon::Animation::Base(create),
+	Line::Line(const ILineProvider &prov, bool create /*= true*/) : Gorgon::Animation::Base(create),
 		start(prov.CreateStart()),
 		middle(prov.CreateMiddle()),
-		end(prov.CreateEnd()) 
+		end(prov.CreateEnd()),
+		prov(prov)
 	{
 		if(HasController()) {
 			start.SetController(GetController());
@@ -14,10 +15,11 @@ namespace Gorgon { namespace Graphics {
 		}
 	}
 
-	Line::Line(const ILineProvider &prov, Gorgon::Animation::ControllerBase &timer) : prov(prov), Gorgon::Animation::Base(timer),
+	Line::Line(const ILineProvider &prov, Gorgon::Animation::ControllerBase &timer) : Gorgon::Animation::Base(timer),
 		start(prov.CreateStart()),
 		middle(prov.CreateMiddle()),
-		end(prov.CreateEnd()) 
+		end(prov.CreateEnd()),
+		prov(prov)
 	{
 		if(HasController()) {
 			start.SetController(GetController());
@@ -80,5 +82,4 @@ namespace Gorgon { namespace Graphics {
 		drawin(target, {p, Geometry::Sizef(getsize())}, color);
 	}
 
-}
 }

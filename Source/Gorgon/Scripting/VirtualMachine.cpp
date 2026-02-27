@@ -3,11 +3,8 @@
 #include "RuntimeFunction.h"
 #include "../Scripting.h"
 
-#include <chrono>
 
-namespace Gorgon {
-	
-	namespace Scripting {		
+namespace Gorgon :: Scripting {
 		
 		Containers::Hashmap<std::thread::id, VirtualMachine> VirtualMachine::activevms;
 		Type *ParameterTemplateType();
@@ -15,8 +12,8 @@ namespace Gorgon {
 		extern Library Math;
 
 		VirtualMachine::VirtualMachine(bool automaticreset, std::ostream &out, std::istream &in) : 
-		Libraries(libraries), output(&out), input(&in), 
-		defoutput(&out), definput(&in), automaticreset(automaticreset), temporaries(300, Data::Invalid())
+		Libraries(libraries), automaticreset(automaticreset),
+		output(&out), input(&in), defoutput(&out), definput(&in), temporaries(300, Data::Invalid())
 		{
 			Activate();
 			init_builtin();
@@ -294,7 +291,6 @@ namespace Gorgon {
 			}
 			
 			if(spec) {
-				bool done=false;
 				if(spechandler) {
 					Data dat=spechandler(name[0], &name[1]);
 					if(dat.IsValid()) {
@@ -890,7 +886,7 @@ namespace Gorgon {
 														"Parameter "+pdef.GetName()+" is not optional."
 						);
 					}
-					else if(!(variant->RepeatLast() && ind==variant->Parameters.size()-1)) {
+					else if(!(variant->RepeatLast() && ind==(int)variant->Parameters.size()-1)) {
 						params.push_back(pdef.GetDefaultValue());
 					}
 					
@@ -1147,7 +1143,6 @@ namespace Gorgon {
 		}
 		
 		void VirtualMachine::execute(const Instruction* inst) {
-			//std::this_thread::sleep_for(std::chrono::milliseconds(200));
 			//std::cout<<" | "<<CurrentScopeInstance().GetName()<<"> "<<Compilers::Disassemble(inst)<<std::endl;
 			
 			// assignment ...
@@ -1390,8 +1385,6 @@ namespace Gorgon {
 					fn->AddMethod(overld);
 				else
 					fn->AddOverload(overld);
-				
-				fn=fn;
 			}
 			
 			else {
@@ -1468,4 +1461,3 @@ namespace Gorgon {
 		
 
 	}
-}

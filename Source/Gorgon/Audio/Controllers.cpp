@@ -1,6 +1,6 @@
 #include "Controllers.h"
 
-namespace Gorgon { namespace Audio {
+namespace Gorgon :: Audio {
     
     Controller::Controller() {
         std::lock_guard<std::mutex> guard(internal::ControllerMtx);
@@ -144,4 +144,4 @@ namespace Gorgon { namespace Audio {
         Containers::Collection<Controller> Controllers;
         std::mutex ControllerMtx;
     }
-} }
+}

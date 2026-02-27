@@ -8,9 +8,9 @@
 #include <cmath>
 
 //TODO uncomment
-//#include "../Widgets/Dialogs/Message.h"
+#include "../UI/Dialog.h"
 
-namespace Gorgon { namespace Time {
+namespace Gorgon :: Time {
 	
 	void Initialize() {
 		internal::framestart=GetTime();
@@ -41,10 +41,15 @@ namespace Gorgon { namespace Time {
 		ret.Weekday	   =Date::WeekdayType(timeinfo.tm_wday);
 	}
 	
-	Date::Date(time_t systemtime) {
-        struct tm inf = *localtime(&systemtime);
-        fromtm(*this, inf);
-    }
+		Date::Date(time_t systemtime) {
+			struct tm inf = {};
+	#ifdef _WIN32
+			localtime_s(&inf, &systemtime);
+	#else
+			localtime_r(&systemtime, &inf);
+	#endif
+			fromtm(*this, inf);
+		}
     
     time_t Date::SystemTime() const {
         auto t = totm(*this);
@@ -315,18 +320,24 @@ namespace Gorgon { namespace Time {
 		return ss.str();
 	}
 	
-	int Date::LocalTimezone() {
-		time_t time_local, time_gm;
-
-		time(&time_local);
-		time_gm    = mktime(gmtime(&time_local));
-
-		double res=difftime(time_local, time_gm);
-
-		
-		
-		return int(std::round(res/60));
-	}
+		int Date::LocalTimezone() {
+			time_t time_local, time_gm;
+			struct tm inf = {};
+	
+			time(&time_local);
+	#ifdef _WIN32
+			gmtime_s(&inf, &time_local);
+	#else
+			gmtime_r(&time_local, &inf);
+	#endif
+			time_gm = mktime(&inf);
+	
+			double res=difftime(time_local, time_gm);
+	
+			
+			
+			return int(std::round(res/60));
+		}
 	
 	bool Date::DetermineWeekday() {
 		struct tm time = totm(*this);
@@ -423,8 +434,11 @@ namespace Gorgon { namespace Time {
 		std::stringstream ss;
 		ss<<name<<": "<<passed;
 
-//TODO uncomment
-		//gge::widgets::dialog::ShowMessage(ss.str(), title).SetIcon("Time");
+#ifdef GORGON_UI_SUPPORT
+		UI::ShowMessage(title, ss.str());
+#else
+		std::cout<<ss.str()<<std::endl;
+#endif
 	}	
-} }
+}
 

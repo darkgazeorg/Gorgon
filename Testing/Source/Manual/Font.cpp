@@ -7,6 +7,7 @@
 #include <Gorgon/Resource/Font.h>
 #include <Gorgon/Graphics/BitmapFont.h>
 #include <Gorgon/Graphics/BlankImage.h>
+#include <Gorgon/Graphics/Font.h>
 #include <Gorgon/Input/Layer.h>
 
 #include "GraphicsHelper.h"
@@ -95,7 +96,7 @@ int main() {
     std::cout<<"is fixed: "<<fnt.IsFixedWidth()<<std::endl;
     std::cout<<"is ASCII: "<<fnt.IsASCII()<<std::endl;
     
-	Graphics::StyledRenderer sty(fnt);
+	Graphics::StyledPrinter sty(fnt);
 	sty.UseFlatShadow({0.f, 1.0f}, {1.f, 1.f});
 	sty.SetColor({0.6f, 1.f, 1.f});
 	sty.JustifyLeft();

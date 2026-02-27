@@ -6,7 +6,7 @@
 #include "Null.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
     StackedObject::StackedObject(Graphics::StackedBitmapProvider &prov) : prov(&prov)
@@ -249,4 +249,4 @@ namespace Gorgon { namespace Resource {
         return *p;
     }
 
-} }
+}

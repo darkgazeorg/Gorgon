@@ -42,7 +42,7 @@ long keysym2ucs(KeySym keysym)
     return 0xfffd;
 }
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
     
 
     std::string osgetkeyname(Input::Keyboard::Key key) {
@@ -479,4 +479,4 @@ namespace Gorgon { namespace WindowManager {
             break;
         }
     }
-} }
+}

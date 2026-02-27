@@ -3,7 +3,7 @@
 
 #include "File.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	void Data::save(Writer& writer) const { 
 		auto start=writer.WriteObjectStart(this);
@@ -25,8 +25,6 @@ namespace Gorgon { namespace Resource {
 			auto size= reader->ReadChunkSize();
 			
 			if(!reader->ReadCommonChunk(*obj, gid, size)) {
-				bool done=false;
-				
 				if(DataItem::DataLoaders.count(gid)) {
 					auto data=DataItem::DataLoaders[gid](file, reader, size);
 					if(data) {
@@ -43,4 +41,4 @@ namespace Gorgon { namespace Resource {
 		return obj;
 	}
 
-} }
+}

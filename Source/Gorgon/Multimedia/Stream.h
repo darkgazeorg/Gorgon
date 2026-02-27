@@ -2,7 +2,7 @@
 
 #include "../Containers/Collection.h"
 
-namespace Gorgon { namespace Multimedia {
+namespace Gorgon :: Multimedia {
    
     /**
      * This class is the base class of all streaming multimedia systems, including the ones that
@@ -27,4 +27,4 @@ namespace Gorgon { namespace Multimedia {
         static Containers::Collection<Stream> streams; //defined in Multimedia.cpp
     };
     
-} }
+}

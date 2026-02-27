@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Gorgon/Graphics/Animations.h"
 #pragma warning(disable:4250)
 
 #include "../Geometry/Size.h"
@@ -9,7 +10,7 @@
 #include "../Containers/Image.h"
 #include "Drawables.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
 	/// This class represents an image depends on a GL texture. Fulfills the requirements of Graphics::TextureSource.
 	/// Unless GL::Texture created by this object, it is not destroyed by constructor. This is because a GL::Texture could be 
@@ -44,7 +45,7 @@ namespace Gorgon { namespace Graphics {
 
 		/// Moves a texture. This newly created texture object will own the texture if the other object
 		/// owns it
-		Texture(Texture &&other) : id(other.id), mode(other.mode), size(other.size), owner(other.owner) {
+		Texture(Texture &&other) : id(other.id), size(other.size), mode(other.mode), owner(other.owner) {
 			memcpy(coordinates, other.coordinates, sizeof(coordinates));
 			other.owner=false;
 		}
@@ -248,10 +249,6 @@ namespace Gorgon { namespace Graphics {
         /// Default constructor, creates an empty texture
         TextureProvider() { }
         
-        /// Copy constructor
-        TextureProvider(TextureProvider &other) : Texture(other) {
-        }
-        
         /// Move constructor
         TextureProvider(TextureProvider &&other) : Texture(std::move(other)) {
         }
@@ -287,4 +284,4 @@ namespace Gorgon { namespace Graphics {
         }
     };
 
-} }
+}

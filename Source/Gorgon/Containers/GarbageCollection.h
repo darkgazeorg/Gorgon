@@ -4,15 +4,9 @@
 
 #pragma warning(error: 4239)
 
-#include <vector>
-#include <stdexcept>
-#include <algorithm>
-
-#include "Iterator.h"
 #include "Collection.h"
 
-namespace Gorgon {
-	namespace Containers {
+namespace Gorgon :: Containers {
 
 		/// This class acts like a regular collection, however, it performs garbage collection over
 		/// its elements. This class requires T_ to have a non member function called ShouldBeCollected
@@ -35,4 +29,3 @@ namespace Gorgon {
 		};
 
 	}
-}

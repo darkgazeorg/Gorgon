@@ -6,7 +6,7 @@
 
 namespace Gorgon { namespace Graphics { class Bitmap; } }
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     class Layerbox : public UI::ComponentStackWidget {
     public:
@@ -103,4 +103,4 @@ namespace Gorgon { namespace Widgets {
 
     };
     
-} }
+}

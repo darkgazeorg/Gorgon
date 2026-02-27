@@ -184,7 +184,7 @@ namespace Multimedia {
         /// Export the data to the given wav file. Returns false if the file cannot be saved.
         bool ExportWav(const std::string &filename);
         
-#ifdef FLAC_SUPPORT
+#ifdef GORGON_FLAC_SUPPORT
         /// Imports the given FLAC file. Returns false if the file cannot be imported.
         bool ImportFLAC(const std::string &filename);
         

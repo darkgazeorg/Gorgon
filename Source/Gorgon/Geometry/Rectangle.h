@@ -11,7 +11,7 @@
 #include "Size.h"
 #include "Bounds.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 	/// Represents a rectangle in a 2D space. Top left corner and the size is
 	/// stored.
@@ -350,16 +350,16 @@ namespace Gorgon { namespace Geometry {
 		}
 
 		/// X coordinate of the top left corner of this rectangle
-		T_ X;
+		T_ X = 0;
 		
 		/// Y coordinate of the top left corner of this rectangle
-		T_ Y;
+		T_ Y = 0;
 		
 		/// Width of the rectangle
-		T_ Width;
+		T_ Width = 0;
 
 		/// Height of the rectangle
-		T_ Height;
+		T_ Height = 0;
 	};
 
 	/// Allows streaming of Rectangle
@@ -447,4 +447,4 @@ namespace Gorgon { namespace Geometry {
 	/// @see basic_Rectangle
 	typedef basic_Rectangle<int> Rectangle;
 
-} }
+}

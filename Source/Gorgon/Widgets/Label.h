@@ -8,7 +8,7 @@
 
 namespace Gorgon { namespace Graphics { class Bitmap; } }
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     /**
      * Label is a widget that can display some text. Regular labels often allow formatted printing
@@ -180,4 +180,4 @@ namespace Gorgon { namespace Widgets {
         Graphics::PointerStack::Token pointertoken;
     };
     
-} }
+}

@@ -8,8 +8,7 @@
 #include "Simple.h"
 #include "../Graphics/Color.h"
 
-namespace Gorgon {
-	namespace GL {
+namespace Gorgon :: GL {
 
 		namespace UBOBindingPoint			{ enum Type { Resolution, }; }
 		namespace TextureUnit				{ enum Type { Diffuse, Normal, Specular, Depth, AlphaMask }; }
@@ -66,4 +65,3 @@ namespace Gorgon {
 		};
 
 	}
-}

@@ -84,10 +84,13 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 				disassemblevalue(instruction->RHS);
 		case InstructionType::FunctionCall:
 			fnmark="fn";
+			[[fallthrough]];
 		case InstructionType::MemberFunctionCall:
 			if(!fnmark) fnmark="fm";
+			[[fallthrough]];
 		case InstructionType::MethodCall:
 			if(!fnmark) fnmark="mn";
+			[[fallthrough]];
 		case InstructionType::MemberMethodCall:
 		{
 			if(!fnmark) fnmark="mm";
@@ -125,6 +128,9 @@ namespace Gorgon { namespace Scripting { namespace Compilers {
 		case InstructionType::JumpFalse:
 			return "jf\"" + String::From(instruction->JumpOffset) + "\"" + disassemblevalue(instruction->RHS);
 			
+		case InstructionType::Unknown:
+		default:
+			throw std::runtime_error("Unknown instruction type");
 		}
 		
 		return "";

@@ -3,7 +3,7 @@
 #include "../../WindowManager.h"
 #include <ShellScalingApi.h>
 
-namespace Gorgon { namespace WindowManager {
+namespace Gorgon :: WindowManager {
 namespace internal {
 	BOOL CALLBACK monitordata::MonitorEnumProc(
 		_In_ HMONITOR hMonitor,
@@ -65,4 +65,4 @@ namespace internal {
 	Containers::Collection<Monitor> Monitor::monitors;
 	Monitor *Monitor::primary = nullptr;
 
-} }
+}

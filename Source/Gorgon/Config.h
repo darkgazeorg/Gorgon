@@ -10,9 +10,7 @@
  * WindowManager namespace, you should define GORGON_WINDOWMANAGER_CLICKTHRESHOLD.
  */
 
-namespace Gorgon {
-
-namespace WindowManager {
+namespace Gorgon :: WindowManager {
     
     /// The maximum distance allowed for mouse to move between the press of the button and
     /// the release for click event to register. Default value is 5.
@@ -21,4 +19,3 @@ namespace WindowManager {
 }
     
     
-}

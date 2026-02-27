@@ -271,8 +271,7 @@ namespace Gorgon {
 		}
 	}
 	
-	namespace Resource {
-		namespace GID {
+	namespace Resource :: GID {
 			/// Inserts a GID to a stream
 			inline std::ostream &operator <<(std::ostream &out, const Resource::GID::Type &value) {
 				out<<String::From(value);
@@ -379,5 +378,4 @@ namespace Gorgon {
 				}
 			}
 		}
-	}
 }

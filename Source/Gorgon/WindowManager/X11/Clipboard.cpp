@@ -14,7 +14,7 @@
 #include <memory>
 #include <thread>
 
-namespace Gorgon { namespace WindowManager { 
+namespace Gorgon :: WindowManager { 
 
     ///@cond internal        
     template<class T_>
@@ -76,7 +76,7 @@ namespace Gorgon { namespace WindowManager {
                 
                 Atom *atoms = (Atom*)data;
                 
-                for(int i=0;i<bytes/4;i++) {
+                for(std::size_t i=0;i<bytes/4;i++) {
                     ret.push_back(atoms[i]);
                 }
                 
@@ -238,10 +238,10 @@ namespace Gorgon { namespace WindowManager {
                 Containers::PushBackUnique(ret, Resource::GID::FileList);
                 Containers::PushBackUnique(ret, Resource::GID::URIList);
             }
-            else
-                ;//std::cout<<GetAtomName(atom)<<std::endl;
+            else {
+                //std::cout<<GetAtomName(atom)<<std::endl;
+            }
         }
-        //std::cout<<std::endl;
         
         return ret;
     }
@@ -593,7 +593,7 @@ namespace Gorgon { namespace WindowManager {
         XIfEvent(display, &event, waitfor_selectionnotify, (char*)windowhandle);
         if (event.xselection.property == XA_CP_PROP) {
             Atom type;
-            unsigned long len, bytes, dummy;
+            unsigned long bytes, dummy;
             unsigned char *data;
             int format;
 
@@ -686,4 +686,4 @@ namespace Gorgon { namespace WindowManager {
         XFlush(display);
     }
 
-} }
+}

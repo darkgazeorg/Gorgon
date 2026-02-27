@@ -12,7 +12,7 @@
 #include "../Geometry/Point.h"
 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
     class File;
 	class Reader;
@@ -67,4 +67,4 @@ namespace Gorgon { namespace Resource {
     };
 
     
-} }
+}

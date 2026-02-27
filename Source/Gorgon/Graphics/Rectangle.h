@@ -7,7 +7,7 @@
 
 #include <set>
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 	/// Interface for RectangleProviders
 	class IRectangleProvider : public RectangularAnimationProvider {
 	public:
@@ -611,4 +611,4 @@ namespace Gorgon { namespace Graphics {
         return SliceHorizontal(source, center.Top, center.Bottom, center.Left, center.Right, center.Left, center.Right, center.Left, center.Right);
     }
     
-} }
+}

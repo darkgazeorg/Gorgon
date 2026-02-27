@@ -4,7 +4,7 @@
 #include "../UI/Window.h"
 #include "../Graphics/Bitmap.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
    
     Window::Window(const UI::Template &temp, const std::string &title, bool autoplace) : 
         Panel(temp),
@@ -608,4 +608,4 @@ namespace Gorgon { namespace Widgets {
         Resize(GetSize(), interiorsized);
     }
 
-} }
+}

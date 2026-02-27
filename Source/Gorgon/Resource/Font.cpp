@@ -2,11 +2,11 @@
 #include "File.h"
 
 #include "../Graphics/BitmapFont.h"
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 #include "../Graphics/FreeType.h"
 #endif
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 
     Font::Font(Graphics::GlyphRenderer& renderer) {
@@ -17,7 +17,7 @@ namespace Gorgon { namespace Resource {
         if(isowner)
             delete data;
         bool ok = dynamic_cast<Graphics::BitmapFont *>(&renderer);
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
         ok = ok || dynamic_cast<Graphics::FreeType *>(&renderer);
 #endif
 
@@ -31,7 +31,7 @@ namespace Gorgon { namespace Resource {
                 if(dynamic_cast<const Graphics::Bitmap*>(p.second.image)) {
                     ASSERT(dynamic_cast<const Graphics::Bitmap*>(p.second.image)->HasData(), "You shouldn't discard bitmap data for Font resource to work.");
                 }
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 				else if(dynamic_cast<Graphics::FreeType*>(&renderer)) {
 					//nothing to check right now
 				}
@@ -50,7 +50,7 @@ namespace Gorgon { namespace Resource {
         auto start = writer.WriteObjectStart(this);
 
 		auto bf = dynamic_cast<Graphics::BitmapFont*>(data);
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 		auto ft = dynamic_cast<Graphics::FreeType*>(data);
 #endif
         
@@ -105,7 +105,7 @@ namespace Gorgon { namespace Resource {
                 Image::SaveThis(writer, *bmp);
             }
         }
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 		else if(ft) {
 			writer.WriteChunkHeader(GID::Font_FreeTypeProps, 4);
 			writer.WriteFloat(ft->size);
@@ -129,12 +129,11 @@ namespace Gorgon { namespace Resource {
 		auto target = reader->Target(totalsize);
         
         auto font = new Font;
-        bool recalc = false;
         float bl = 0;
 		float sz = 0;
 
 		Graphics::BitmapFont *bf = nullptr;
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 		Graphics::FreeType *ft = nullptr;
 #endif
 
@@ -154,10 +153,8 @@ namespace Gorgon { namespace Resource {
                 bf->SetGlyphSpacing(reader->ReadInt32());
                 bf->SetBaseline((float)reader->ReadInt32());
                 bf->SetLineGap(bf->GetBaseLine() + bf->GetLineGap());
-                
-                recalc = true;
             }
-#ifdef FREETYPE_SUPPORT
+#ifdef GORGON_FREETYPE_SUPPORT
 			else if(gid == GID::Font_FreeTypeData) {
 				ft = new Graphics::FreeType();
 				font->AssumeRenderer(*ft);
@@ -274,4 +271,4 @@ namespace Gorgon { namespace Resource {
 
 		tobeprepared.Clear();
     }
-} }
+}

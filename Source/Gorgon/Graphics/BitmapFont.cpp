@@ -1,11 +1,10 @@
 #include "BitmapFont.h"
-#include "../Utils/Assert.h"
 #include "../Filesystem/Iterator.h"
 #include "Bitmap.h"
 #include "../Filesystem.h"
 #include "../Containers/Hashmap.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     BitmapFont::BitmapFont(Graphics::BitmapFont&& other) : BasicPrinter(dynamic_cast<GlyphRenderer &>(*this)) {
         using std::swap;
@@ -85,9 +84,9 @@ namespace Gorgon { namespace Graphics {
             auto glyph = glyphmap.at(chr);
             glyph.image->Draw(target, location + glyph.offset, color);
         }
-		else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
-			auto glyph = glyphmap.at(0);
-			glyph.image->Draw(target, location + glyph.offset, color);
+        else if(glyphmap.count(0) && !internal::isspace(chr) && !internal::isnewline(chr) && chr != '\t') {
+            auto glyph = glyphmap.at(0);
+            glyph.image->Draw(target, location + glyph.offset, color);
 		}
     }
     
@@ -190,9 +189,6 @@ namespace Gorgon { namespace Graphics {
 			bool multichar = false;
 
 			int minval = 0;
-
-			bool searchprefix = true;
-			bool first = true;
 
 			//prefix search
 			if(files.GetSize() != 1 && prefix == "") {
@@ -304,7 +300,7 @@ namespace Gorgon { namespace Graphics {
                     //go through the glyph to check if it has any other pixel color
                     //other than the previous, unless it has 0 alpha
                     p.second.ForAllPixels([&](int x, int y) {
-                        if(p.second.GetAlphaAt(x, y) >= 0) {
+                        if(p.second.GetAlphaAt(x, y) > 0) {
                             if(prevcolor.A == 0) {
                                 prevcolor = p.second.GetRGBAAt(x, y);
                             }
@@ -1121,4 +1117,4 @@ namespace Gorgon { namespace Graphics {
 
         return *this;
     }
-} }
+}

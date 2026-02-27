@@ -2,7 +2,7 @@
 
 #define WINDOWS_LEAN_AND_MEAN
 
-#include <catch.h>
+#include <catch2/catch_test_macros.hpp>
 
 #include <Gorgon/Enum.h>
 #include <Gorgon/String.h>

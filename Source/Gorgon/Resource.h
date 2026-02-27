@@ -1,7 +1,7 @@
 #pragma once 
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 	
 	void Initialize();
 	
-} }
+}

@@ -2,7 +2,7 @@
 
 #include "../Animation.h"
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
 	// Represents an instance of a discrete animation made out of frames
 	class DiscreteAnimation : public virtual Base {
@@ -87,4 +87,4 @@ namespace Gorgon { namespace Animation {
 
 	protected:
 	};
-} }
+}

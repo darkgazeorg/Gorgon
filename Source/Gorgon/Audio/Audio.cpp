@@ -8,10 +8,10 @@
 #include "../Multimedia/Wave.h"
 #include "../Multimedia/AudioStream.h"
     
-#ifdef AUDIO_PULSE
+#ifdef GORGON_AUDIO_PULSE
 #	include "PulseAudio.inc.h"
 #endif
-#ifdef AUDIO_WASAPI
+#ifdef GORGON_AUDIO_WASAPI
 #	include "WASAPI.inc.h"
 #endif
 
@@ -489,8 +489,8 @@ namespace Audio {
                 
             float get(const Multimedia::AudioStream *src, unsigned long int sample, int ch) {
                 int bufferind = -1;
-                for(int i=0; i<src->buffers.size(); i++) {
-                    int j = (src->currentbuffer+i)%src->buffers.size();
+                for(std::size_t i=0; i<src->buffers.size(); i++) {
+                    int j = int((src->currentbuffer+i)%src->buffers.size());
                     auto &cur = src->buffers[j];
                     
                     if(sample >= cur.beg && sample < cur.end) {

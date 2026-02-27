@@ -9,7 +9,7 @@
 #	define WEAKINIT __attribute__((weak))
 #endif
 
-namespace Gorgon { namespace Utils {
+namespace Gorgon :: Utils {
 		
 		/// @cond INTERNAL
 		std::string demangle(const std::string &);
@@ -30,4 +30,4 @@ namespace Gorgon { namespace Utils {
 			return demangle(inf.name());
 		}
 	
-} }
+}

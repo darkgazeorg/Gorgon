@@ -5,16 +5,13 @@
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <iomanip>
-#include <limits>
-#include <sstream>
 
 #include "Point.h"
 #include "Size.h"
 #include "../String.h"
 
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
 	/// This class represents boundaries of 2D objects. A bounds object contains the starting boundary
 	/// but not the ending boundary. Therefore, a bounds that has a Width() of 100 and Left of 0, has Right value
@@ -459,16 +456,16 @@ namespace Gorgon { namespace Geometry {
 		}
 
 		/// Left-most boundary
-		T_ Left;
+		T_ Left = 0;
 
 		/// Top-most boundary
-		T_ Top;
+		T_ Top = 0;
 
 		/// Right-most boundary
-		T_ Right;
+		T_ Right = 0;
 
 		/// Bottom-most boundary
-		T_ Bottom;
+		T_ Bottom = 0;
 	};
 
 
@@ -842,4 +839,4 @@ namespace Gorgon { namespace Geometry {
 	/// @see basic_Bounds
 	typedef basic_Bounds<int>   Bounds;
 
-} }
+}

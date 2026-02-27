@@ -1,0 +1,39 @@
+target_sources(Gorgon
+    PUBLIC
+    FILE_SET HEADERS
+    BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
+    FILES
+		../Scripting.h
+		Data.h
+		Embedding.h
+		Instruction.h
+		Input.h
+		Reflection.h
+		Runtime.h
+		RuntimeFunction.h
+		Scope.h
+		VirtualMachine.h
+		Compilers.h
+		Compilers/AST.h
+		Compilers/Language.h
+		Compilers/Utils.h
+		Types/Array.h
+)
+
+target_sources(Gorgon
+    PRIVATE
+		Scripting.cpp
+		Builtin.cpp
+		Data.cpp
+		Reflection.cpp
+		Runtime.cpp
+		Scope.cpp
+		VirtualMachine.cpp
+		Compilers/AST.cpp
+		Compilers/IL.cpp
+		Compilers/PD.cpp
+		Compilers/Generator.cpp
+		Types/Array.cpp
+		Types/Reflection.cpp
+		Types/Filesystem.cpp
+)

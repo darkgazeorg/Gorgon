@@ -7,7 +7,7 @@
 #include "../Animation.h"
 #include "Keyboard.h"
 
-namespace Gorgon { namespace Input {
+namespace Gorgon :: Input {
 
     namespace internal {
         struct eventunregisterhelper {
@@ -288,5 +288,5 @@ namespace Gorgon { namespace Input {
     }
 
 
-} }
+}
 

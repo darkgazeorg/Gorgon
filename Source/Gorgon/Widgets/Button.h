@@ -6,7 +6,7 @@
 
 namespace Gorgon { namespace Graphics { class Bitmap; } }
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
 
     class Button : public UI::ComponentStackWidget {
     public:
@@ -181,4 +181,4 @@ namespace Gorgon { namespace Widgets {
         }
     };
     
-} }
+}

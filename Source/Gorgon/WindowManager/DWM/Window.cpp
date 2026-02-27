@@ -1,25 +1,20 @@
 
-#include "../../GL/OpenGL.h"
-
 #include "DWM.h"
 
-#include "../../Encoding/PNG.h"
 #include "../../Window.h"
 #include "../../Graphics.h"
 #include "../../Graphics/Layer.h"
 
-#include <locale>
-#include <codecvt>
-
 
 namespace Gorgon { 
-namespace WindowManager { namespace internal {
+
+namespace WindowManager :: internal {
 
 	Gorgon::internal::windowdata *getdata(const Window &w) {
 		return w.data;
 	}
 
-} }
+}
 
 namespace internal {
 
@@ -153,9 +148,8 @@ namespace internal {
 		HINSTANCE instance=GetModuleHandle(NULL);
 
 		HWND hwnd;
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto namew = converter.from_bytes(name);
-		auto titlew = converter.from_bytes(title);
+		auto namew = MByteToUnicode(name);
+		auto titlew = MByteToUnicode(title);
 
 		//Creating window class
 		ZeroMemory(&windclass, sizeof(windclass));
@@ -168,13 +162,13 @@ namespace internal {
 		windclass.lpszClassName = namew.c_str();
 		windclass.hCursor = (HCURSOR)WindowManager::defaultcursor;
 		windclass.style = 3;
-		ATOM ret = RegisterClassEx(&windclass);
+		ATOM ret = RegisterClassExW(&windclass);
 
 		if(ret == 0) {
 			throw std::runtime_error("Cannot create window");
 		}
 		if(allowresize) {
-			hwnd=CreateWindowEx(
+			hwnd=CreateWindowExW(
 				WS_EX_APPWINDOW | WS_EX_WINDOWEDGE, 
 				namew.c_str(), titlew.c_str(),
 				WS_TILEDWINDOW,
@@ -235,11 +229,10 @@ namespace internal {
 		windows.Add(this);
 
 		this->name = name;
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto namew = converter.from_bytes(name);
-		auto titlew = converter.from_bytes(title);
+		auto namew = MByteToUnicode(name);
+		auto titlew = MByteToUnicode(title);
 
-		WNDCLASSEX windclass;
+		WNDCLASSEXW windclass;
 		HINSTANCE instance;
 		HWND hwnd;
 		MSG msg;
@@ -256,11 +249,11 @@ namespace internal {
 		windclass.lpszClassName = namew.c_str();
 		windclass.hCursor = (HCURSOR)WindowManager::defaultcursor;
 		windclass.style = CS_HREDRAW | CS_VREDRAW;
-		windclass.cbSize = (unsigned int)sizeof(WNDCLASSEX);
+		windclass.cbSize = (unsigned int)sizeof(WNDCLASSEXW);
 
-		RegisterClassEx(&windclass);
+		RegisterClassExW(&windclass);
 
-		hwnd = CreateWindowEx(WS_EX_APPWINDOW,
+		hwnd = CreateWindowExW(WS_EX_APPWINDOW,
 			namew.c_str(), titlew.c_str(),
 			WS_OVERLAPPED | WS_POPUP, 0, 0,
 			(int)GetSystemMetrics(SM_CXSCREEN),
@@ -438,9 +431,8 @@ namespace internal {
 	}
 
 	void Window::SetTitle(const std::string &title) {
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		auto titlew = converter.from_bytes(title);
-		SetWindowText(data->handle, titlew.c_str());
+		auto titlew = MByteToUnicode(title);
+		SetWindowTextW(data->handle, titlew.c_str());
 	}
 
 	std::string Window::GetTitle() const {

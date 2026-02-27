@@ -3,9 +3,8 @@
 #pragma once
 
 #include <string>
-#include <sstream>
-#include <iomanip>
 #include <stdexcept>
+#include <iostream>
 
 namespace Gorgon {
 	/// This module contains time related information.

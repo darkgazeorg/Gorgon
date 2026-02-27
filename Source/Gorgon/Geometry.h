@@ -2,7 +2,7 @@
 
 #include "Scripting/Reflection.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 
     extern Scripting::Library LibGeometry;
     
@@ -27,4 +27,4 @@ namespace Gorgon { namespace Geometry {
     
     void InitializeScripting();
     
-} }
+}

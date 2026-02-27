@@ -11,7 +11,7 @@ extern "C" {
 	struct png_struct_def;
 }
 
-namespace Gorgon { namespace Encoding {
+namespace Gorgon :: Encoding {
 
 	/// @cond INTERNAL
 	namespace png {
@@ -223,4 +223,4 @@ namespace Gorgon { namespace Encoding {
 	/// A ready to use PNG class
 	extern PNG Png;
 
-} }
+}

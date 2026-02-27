@@ -2,7 +2,7 @@
 
 #include "../Animation.h"
 
-namespace Gorgon { namespace Animation {
+namespace Gorgon :: Animation {
 
 	/**
 	 * This class is a timer that has its progression strictly 
@@ -84,4 +84,4 @@ namespace Gorgon { namespace Animation {
         int curind = 0;
     };
     
-} }
+}

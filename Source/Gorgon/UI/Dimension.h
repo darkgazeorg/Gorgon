@@ -2,9 +2,8 @@
 
 #include "../Geometry/Margin.h"
 #include "../Geometry/Size.h"
-#include "../Geometry/Bounds.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     /// Dimension data for components. Allows relative position and sizing.
     class Dimension {
@@ -484,4 +483,4 @@ namespace Gorgon { namespace UI {
 
     }
 
-} }
+}

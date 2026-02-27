@@ -2,7 +2,7 @@
 
 #include "Slider.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
 
     /**
@@ -82,4 +82,4 @@ namespace Gorgon { namespace Widgets {
      */
     using Progressbar = Progressor<int>;
     
-} }
+}

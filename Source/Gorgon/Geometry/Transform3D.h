@@ -7,7 +7,7 @@
 #include "Point3D.h"
 #include "Point.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
 	template<class T_>
 	class basic_Transform3D {
 	public:
@@ -157,7 +157,7 @@ namespace Gorgon { namespace Geometry {
 	private:
         union {
             T_ mat[4][4];
-            T_ vec[16];
+            T_ vec[16] = {};
         };
 	};
 
@@ -174,4 +174,4 @@ namespace Gorgon { namespace Geometry {
 	}
 
 	using Transform3D = basic_Transform3D<Float>;
-} }
+}

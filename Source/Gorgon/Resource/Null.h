@@ -3,7 +3,9 @@
 #include "Base.h"
 #include "GID.h"
 
-namespace Gorgon { namespace Resource {
+#include <memory>
+
+namespace Gorgon :: Resource {
    
     class File;
     class Reader;
@@ -30,4 +32,4 @@ namespace Gorgon { namespace Resource {
         
     };
     
-} }
+}

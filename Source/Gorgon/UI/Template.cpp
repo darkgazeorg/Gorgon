@@ -2,7 +2,7 @@
 #include "Template.h"
 #include "../Graphics/Font.h"
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     /**
     * @page ui User interface
@@ -489,4 +489,4 @@ namespace Gorgon { namespace UI {
         return renderer != nullptr && renderer->IsReady();
     }
     
-} }
+}

@@ -4,10 +4,7 @@
 
 #include <iostream>
 #include <string>
-#include <iomanip>
-#include <limits>
 #include <cmath>
-#include <sstream>
 #include <type_traits>
 
 #include "../Types.h"
@@ -371,10 +368,10 @@ namespace Gorgon {
 			union {
                 struct {
                     /// X coordinate
-                    T_ X;
+                    T_ X = 0;
                     
                     /// Y coordinate
-                    T_ Y;
+                    T_ Y = 0;
                 };
                 
                 /// Allows this point to be accessed as a vector

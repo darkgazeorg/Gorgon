@@ -17,8 +17,7 @@
 namespace Gorgon {
 
 	/// @cond INTERNAL
-    namespace internal { 
-        namespace event {
+    namespace internal :: event {
             template<class Source_, typename... Params_>
             struct HandlerBase {
                 virtual void Fire(std::mutex &locker, Source_ *, Params_...) = 0;
@@ -112,7 +111,6 @@ namespace Gorgon {
                 return createhandlerfn<Source_, Params_...>(fn);
             }
         }
-    }
 
 	/// @endcond
 	

@@ -1,6 +1,6 @@
 #include "Pointer.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     void PointerStack::Add(PointerType type, const Pointer &pointer) {
         ASSERT((int)type>(int)PointerType::None && (int)type<=(int)PointerType::Drag, "Invalid pointer type");
@@ -100,4 +100,4 @@ namespace Gorgon { namespace Graphics {
         }
     }
     
-} }
+}

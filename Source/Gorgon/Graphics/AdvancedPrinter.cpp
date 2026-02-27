@@ -3,7 +3,7 @@
 #pragma warning(disable:4003)
 #define MOVEIT(x) ++it; if(it == end) { --it; return x; }
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     std::vector<AdvancedPrinter::Region> AdvancedPrinter::AdvancedPrint(
         TextureTarget &target, const std::string &text, 
@@ -358,4 +358,4 @@ namespace Gorgon { namespace Graphics {
         }
     }
 
-} }
+}

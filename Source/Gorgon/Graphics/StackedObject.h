@@ -4,7 +4,7 @@
 #include "Animations.h"
 #include "TextureAnimation.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     /// For ease of use in resource system
     class IStackedObjectProvider : public RectangularAnimationProvider {
@@ -362,4 +362,4 @@ namespace Gorgon { namespace Graphics {
 	using StackedBitmap = basic_StackedObject<Bitmap>;
 	using StackedBitmapProvider = basic_StackedObjectProvider<Bitmap>;
 
-} }
+}

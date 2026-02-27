@@ -4,7 +4,7 @@
 #include "Size.h"
 #include "../Property.h"
 
-namespace Gorgon { namespace Geometry {
+namespace Gorgon :: Geometry {
     
     /**
     * Property support for point class
@@ -258,4 +258,4 @@ namespace Gorgon { namespace Geometry {
     template<class C_, Sizef(C_::*Getter_)() const, void(C_::*Setter_)(const Sizef &)>
     using SizefProperty = basic_SizeProperty<C_, Sizef, Getter_, Setter_>;
     
-} }
+}

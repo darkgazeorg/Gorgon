@@ -2,7 +2,8 @@
 
 #define WINDOWS_LEAN_AND_MEAN
 
-#include <catch.h>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_session.hpp>
 
 #include <Gorgon/Scripting/Embedding.h>
 #include <Gorgon/Geometry/Point.h>

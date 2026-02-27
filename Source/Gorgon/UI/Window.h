@@ -11,7 +11,7 @@
 #include "TooltipManager.h"
 
 
-namespace Gorgon { namespace UI {
+namespace Gorgon :: UI {
 
     /**
     * UI window allows programmers to create an OS window that will accept
@@ -308,5 +308,5 @@ namespace Gorgon { namespace UI {
         bool issizesset = false;
     };
     
-} }
+}
 

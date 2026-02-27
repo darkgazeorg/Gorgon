@@ -3,7 +3,7 @@
 #include "ColorPlane.h"
 #include "Inputbox.h"
 
-namespace Gorgon { namespace Widgets {
+namespace Gorgon :: Widgets {
     
 
     /**
@@ -112,4 +112,4 @@ namespace Gorgon { namespace Widgets {
     };
     
     
-} }
+}

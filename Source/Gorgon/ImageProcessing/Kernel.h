@@ -8,7 +8,7 @@
 #include <initializer_list>
 
 
-namespace Gorgon { namespace ImageProcessing {
+namespace Gorgon :: ImageProcessing {
     
     /**
      * This class is used in conjunction with Convolution function to apply convolution filter to
@@ -152,4 +152,4 @@ namespace Gorgon { namespace ImageProcessing {
 
     std::ostream &operator <<(std::ostream &out, const Kernel &kernel);
     
-} }
+}

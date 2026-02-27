@@ -3,7 +3,7 @@
 #include "../Utils/Assert.h"
 #include "AnimationServices.h"
 
-namespace Gorgon { namespace Resource {
+namespace Gorgon :: Resource {
 
 	bool Animation::LoadResourceWith(Animation &a, std::weak_ptr<File> file, std::shared_ptr<Reader> reader, unsigned long totalsize, std::function<Base*(std::weak_ptr<File> file, std::shared_ptr<Reader> reader, GID::Type, unsigned long)> loadfn) {
         Animation *anim = &a;
@@ -157,4 +157,4 @@ namespace Gorgon { namespace Resource {
 		return Graphics::RectangularAnimationStorage(anim, true);
 	}
 
-} }
+}

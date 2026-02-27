@@ -2,14 +2,13 @@
 
 #include "../Layer.h"
 #include "TextureTargets.h"
-#include "../Utils/Assert.h"
 #include "../Geometry/Point3D.h"
 #include "../Geometry/Transform3D.h"
 #include "../Geometry/Rectangle.h"
 #include "../GL/Simple.h"
 #include "../GL/FrameBuffer.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
 
     /// @cond INTERNAL
     namespace internal {
@@ -139,13 +138,14 @@ namespace Gorgon { namespace Graphics {
             }
 
         private:
-            TextureTarget::DrawMode drawmode = TextureTarget::Normal;
 
             GL::QuadVertices vertices;
             Geometry::Pointf *texture = nullptr;
 
             const TextureSource *source = nullptr;
             RGBAf color;
+            
+            TextureTarget::DrawMode drawmode = TextureTarget::Normal;
         };
     }
     /// @endcond
@@ -337,4 +337,4 @@ namespace Gorgon { namespace Graphics {
     };
     
 
-} }
+}

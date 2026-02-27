@@ -2,7 +2,7 @@
 
 #include "Graphics/Color.h"
 #include <Gorgon/Geometry/Point.h>
-namespace Gorgon { namespace CGI {
+namespace Gorgon :: CGI {
     
     /**
      * Fills a drawing with a solid color
@@ -39,4 +39,4 @@ namespace Gorgon { namespace CGI {
         return SolidFill<Color_>(color);
     }
     
-} }
+}

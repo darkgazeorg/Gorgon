@@ -1,11 +1,11 @@
 #include "Color.h"
 #include "../String.h"
 
-namespace Gorgon { namespace Graphics {
+namespace Gorgon :: Graphics {
     
     RGBA::operator std::string() const {
         std::stringstream str;
-        str<<std::fixed<<std::setw(8)<<std::setfill('0')<<std::hex<<((const uint32_t)(*this));
+        str<<std::fixed<<std::setw(8)<<std::setfill('0')<<std::hex<<((uint32_t)(*this));
 
         return str.str();
     }
@@ -820,4 +820,4 @@ namespace Color {
 }
 
 
-} }
+}
