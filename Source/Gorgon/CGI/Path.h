@@ -28,7 +28,7 @@ public:
 
   /// Single drawing command stored in the path.
   struct Command {
-    Verb Verb = Close;
+    Verb Verb = Verb::Close;
 
     union {
       Point To;
