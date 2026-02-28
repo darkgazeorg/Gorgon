@@ -107,7 +107,7 @@ int Main(const std::vector<std::string>& args) {
     Gorgon::Initialize("YourProgramName");
 
     // Choose your window type Gorgon::Window, Gorgon::UI::Window, and Gorgon::Scene
-    Gorgon::Window wind({400, 300}, "Your program title");
+    Gorgon::Window window({400, 300}, "Your program title");
 
     // Your program logic here...
 
