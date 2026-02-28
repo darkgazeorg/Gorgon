@@ -112,7 +112,7 @@ namespace Gorgon :: OS {
 
 	void DisplayMessage(const std::string &message) {
 		int pid = fork();
-		
+
 		if(pid == -1) {
 			std::cerr << message << std::endl;
 			return;
@@ -182,7 +182,7 @@ namespace Gorgon :: OS {
 
 			//only arrives here if there is an error
 			if (write(execpipe[1], &errno, sizeof(errno)) == -1) {
-                std::cerr << "Error: Failed to write to pipe" << std::endl;
+                perror("Failed to write to pipe");
             }
 			close(execpipe[1]);
 			exit(-1);

@@ -5,6 +5,7 @@
 #include <map>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include <unistd.h>
 #include <dirent.h>

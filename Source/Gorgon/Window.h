@@ -403,7 +403,7 @@ namespace Gorgon {
 
         /// Closes the window, returning the execution to the
         /// point where Run function is called. It allows current
-        /// frame to be completed before quiting.
+        /// frame to be completed before quitting.
         virtual void Quit() override {
             quiting = true;
         }
