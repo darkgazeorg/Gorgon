@@ -5,6 +5,7 @@
 #include <map>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include <unistd.h>
 #include <dirent.h>
@@ -149,7 +150,9 @@ namespace Gorgon :: Filesystem {
 	std::string CurrentDirectory() {
 		char path[1024];
 		
-		getcwd(path, 1024);
+		if (getcwd(path, 1024) == nullptr) {
+            throw std::runtime_error("Cannot get current working directory");
+        }
 		
 		return path;
 	}

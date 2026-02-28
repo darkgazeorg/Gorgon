@@ -7,6 +7,7 @@
 #include "ConsumableEvent.h"
 #include "Geometry/Rectangle.h"
 #include "Containers/Collection.h"
+#include "Gorgon/Main.h"
 #include "WindowManager.h"
 #include "Event.h"
 #include "Layer.h"
@@ -28,7 +29,7 @@ namespace Gorgon {
 
     /// This class represents a window. 
     /// @nosubgrouping
-    class Window : public Layer {
+    class Window : public Layer, public Runner {
         friend internal::windowdata *WindowManager::internal::getdata(const Window&);
         friend struct internal::windowdata;
         friend class Layer;
@@ -400,6 +401,25 @@ namespace Gorgon {
         /// Pointer system to be used within the window
         Graphics::PointerStack Pointers; 
 
+        /// Closes the window, returning the execution to the
+        /// point where Run function is called. It allows current
+        /// frame to be completed before quitting.
+        virtual void Quit() override {
+            quiting = true;
+        }
+
+        virtual void Run() override {
+            while(!quiting) {
+                Gorgon::NextFrame();
+            }
+
+            Gorgon::Window::Close();
+        }
+
+        virtual void Step() override {
+            Gorgon::NextFrame();
+        }
+        
         /// @name Events 
         /// @{
         
@@ -484,6 +504,7 @@ namespace Gorgon {
 
         virtual void resized() {}
 
+        bool quiting = false;
     private:
         void createglcontext();
 

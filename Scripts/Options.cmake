@@ -14,6 +14,7 @@ option(UI "Enable UI module. Disabling might break the entire build." ON)
 option(CGI "Enable CGI module. UI depends on CGI module." ON)
 
 # Optional Features
+option(MAINTAINER "Enable maintainer mode. Currently enables installation of RelWithDebInfo configuration." OFF)
 option(TESTS "Enable testing mode." OFF)
 if(TESTS)
     option(UNIT_TESTS "Enable unit tests." ON)

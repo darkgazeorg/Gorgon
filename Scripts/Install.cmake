@@ -110,3 +110,105 @@ install(FILES
     "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
     DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )
+
+# ==============================================================================
+# 5. Standalone SDK Bundling (Windows / vcpkg only)
+# ==============================================================================
+# If we are building on Windows using vcpkg, bundle all transitive dependencies
+# directly into the Gorgon installation to prevent per-project disk bloat.
+# Only do this for Windows when vcpkg is actively being used
+if(WIN32 AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg")
+    message(STATUS "Bundling vcpkg dependencies into the Gorgon installation...")
+    
+    # Path to the specific triplet's installed files
+    set(VCPKG_ROOT_DIR "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
+
+    # 1. Copy the headers (zlib.h, png.h, etc.)
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/include/"
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+    # 2. Copy the compiled static libraries (zlib.lib, libpng16.lib, etc.)
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/lib/"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+    # 3. Copy the CMake config files so find_dependency() works without vcpkg
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/share/" 
+            DESTINATION "share")
+            
+    # 4. Copy the debug versions of the libraries if they exist (zlibd.lib, etc.)
+    if(EXISTS "${VCPKG_ROOT_DIR}/debug/lib/")
+        install(DIRECTORY "${VCPKG_ROOT_DIR}/debug/lib/"
+                DESTINATION "debug/lib")
+    endif()
+endif()
+
+
+# ==============================================================================
+# Multi-Config SDK Build & Elevated Installation Target
+# ==============================================================================
+get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
+if(is_multi_config)
+    # 1. Define OS-specific elevation commands for the install phase
+    if(CMAKE_HOST_WIN32)
+        # Windows: Use PowerShell to trigger the UAC Admin prompt
+        set(ELEVATE_CMD_REL powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Release' -Verb RunAs -Wait")
+        set(ELEVATE_CMD_DBG powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Debug' -Verb RunAs -Wait")
+        set(ELEVATE_CMD_RWD powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'RelWithDebInfo' -Verb RunAs -Wait")
+    else()
+        # Linux/macOS: Use PolicyKit for a visual GUI password prompt
+        find_program(PKEXEC_CMD pkexec)
+        
+        # Detect if we are in a GUI environment
+        if(DEFINED ENV{DISPLAY} OR DEFINED ENV{WAYLAND_DISPLAY})
+            if(PKEXEC_CMD)
+                # Modern Linux: Pops up the KDE/GNOME visual password dialog
+                set(ELEVATE_CMD_REL ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
+                set(ELEVATE_CMD_DBG ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+                set(ELEVATE_CMD_RWD ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config RelWithDebInfo)
+            else()
+                # Fallback: Spawn a new KDE Konsole window that asks for sudo password
+                set(ELEVATE_CMD_REL konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Release; read -p 'Press Enter to close...'")
+                set(ELEVATE_CMD_DBG konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Debug; read -p 'Press Enter to close...'")
+                set(ELEVATE_CMD_RWD konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config RelWithDebInfo; read -p 'Press Enter to close...'")    
+            endif()
+        else()
+            # Non-GUI environment: Use simple sudo
+            set(ELEVATE_CMD_REL sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
+            set(ELEVATE_CMD_DBG sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+            set(ELEVATE_CMD_RWD sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config RelWithDebInfo)
+        endif()
+    endif()
+
+    # 2. Create the all-in-one target
+    if(MAINTAINER)
+        add_custom_target(install_sdk
+            # Step A: Force compilation of both configurations first
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config RelWithDebInfo
+            
+            # Step B: Execute the elevated installations
+            COMMAND ${ELEVATE_CMD_REL}
+            COMMAND ${ELEVATE_CMD_DBG}
+            COMMAND ${ELEVATE_CMD_RWD}
+            
+            COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
+        )
+    else()
+        add_custom_target(install_sdk
+            # Step A: Force compilation of both configurations first
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
+            
+            # Step B: Execute the elevated installations
+            COMMAND ${ELEVATE_CMD_REL}
+            COMMAND ${ELEVATE_CMD_DBG}
+            
+            COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
+        )
+    endif()
+endif()

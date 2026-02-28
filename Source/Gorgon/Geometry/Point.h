@@ -11,15 +11,14 @@
 #include "../String.h"
 
 namespace Gorgon {
-	/** This namespace contains geometric element classes. Geometric objects are constructed without
-	 *  value initialization. Most objects can be converted to each other. Non member transformations
-	 * are defined for all objects. However, some transformations cannot be applied to some objects
-	 * and does not exists (e.g. Scale for Size). Necessary operators are defined between the objects
-	 * as well as within the objects. For instance a rectangle can be multiplied by a size. Additionally
-	 * Every geometric object has its unique string representation. They can be streamed as strings, read
-	 * from a stream or converted from/to string. Regardless of type, string constructors allow the use of
-	 * comma separated lists. Additionally, a static parse function exists in all objects that throws in case 
-	 * of a syntax error.
+	/** This namespace contains geometric element classes. Most objects can be converted to each other. 
+	 * Non member transformations are defined for all objects. However, some transformations cannot be 
+	 * applied to some objects and do not exist (e.g. Scale for Size). Necessary operators are defined 
+	 * between the objects as well as within the objects. For instance a rectangle can be multiplied by 
+	 * a size. Additionally, every geometric object has its unique string representation. They can be 
+	 * streamed as strings, read from a stream or converted from/to string. Regardless of type, string 
+	 * constructors allow the use of comma separated lists. Additionally, a static parse function exists 
+	 * in all objects that throws in case of a syntax error.
 	 */
 	namespace Geometry {
 
@@ -32,7 +31,7 @@ namespace Gorgon {
             typedef T_ BaseType;
             
 			/// Default constructor, does not zero initialize point.
-			basic_Point() { }
+			basic_Point() : X{}, Y{} { }
 
 			/// Filling constructor
 			basic_Point(const T_ &X, const T_ &Y) : X(X), Y(Y) { }
@@ -368,10 +367,10 @@ namespace Gorgon {
 			union {
                 struct {
                     /// X coordinate
-                    T_ X = 0;
+                    T_ X;
                     
                     /// Y coordinate
-                    T_ Y = 0;
+                    T_ Y;
                 };
                 
                 /// Allows this point to be accessed as a vector

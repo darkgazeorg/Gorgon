@@ -729,7 +729,7 @@ namespace Gorgon {
 	std::vector<std::string> GetWin32Args() {
         int argc;
 		
-        LPWSTR* argvW = CommandLineToArgv(GetCommandLine(), &argc);
+        LPWSTR* argvW = CommandLineToArgvW(GetCommandLine(), &argc);
         std::vector<std::string> args;
 
         if (argvW) {

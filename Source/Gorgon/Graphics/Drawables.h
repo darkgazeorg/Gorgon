@@ -465,7 +465,7 @@ namespace Gorgon :: Graphics {
 		}
 
 		/// Returns the size of this object
-		const Geometry::Size GetSize() const {
+		virtual Geometry::Size GetSize() const {
 			return getsize();
 		}
 

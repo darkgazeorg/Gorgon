@@ -80,14 +80,10 @@ int Main(const std::vector<std::string> &args) {
     
     //Terminate the application when the window is closed
     window.DestroyedEvent.Register([&]() {
-        exit(0);
+        window.Quit();
     });
-    
-    //until we call quit
-    while(true) {
-        //do what needs to run the system
-        Gorgon::NextFrame();
-    }
+
+    window.Run();
     
     return 0;
 }

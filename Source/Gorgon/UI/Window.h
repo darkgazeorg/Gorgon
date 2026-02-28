@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Event.h"
-#include "../Main.h"
 #include "../Layer.h"
 #include "../Graphics/Layer.h"
 #include "../Window.h"
@@ -17,7 +16,7 @@ namespace Gorgon :: UI {
     * UI window allows programmers to create an OS window that will accept
     * widgets and has the ability to run by its own.
     */
-    class Window : public Gorgon::Window, public Runner, public WidgetContainer {
+    class Window : public Gorgon::Window, public WidgetContainer {
     public:
 
         Window() : Gorgon::Window() {
@@ -169,25 +168,6 @@ namespace Gorgon :: UI {
             return ResizeInterior({interiorsize.Width, size});
         }
 
-        /// Closes the window, returning the execution to the
-        /// point where Run function is called. It allows current
-        /// frame to be completed before quiting.
-        virtual void Quit() override {
-            quiting = true;
-        }
-
-        virtual void Run() override {
-            while(!quiting) {
-                Gorgon::NextFrame();
-            }
-
-            Gorgon::Window::Close();
-        }
-
-        virtual void Step() override {
-            Gorgon::NextFrame();
-        }
-        
         /// Window does not do any scrolling, thus cannot ensure visibility
         bool EnsureVisible(const UI::Widget &) override {
             return true;
@@ -288,7 +268,6 @@ namespace Gorgon :: UI {
 
     private:
         bool autobg = true;
-        bool quiting = false;
         LayerAdapter extenderadapter, windowadapter, baradapter, dialogadapter, underadapter;
         Graphics::Layer *extenderlayer = nullptr;
         Graphics::Layer *dialoglayer = nullptr;

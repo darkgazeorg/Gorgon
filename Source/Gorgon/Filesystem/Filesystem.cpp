@@ -19,7 +19,12 @@ namespace Gorgon :: Filesystem {
 	static std::string startupdir;
 	
 	void Initialize() {
-		startupdir=CurrentDirectory();
+		try {
+			startupdir = CurrentDirectory();
+		}
+		catch(...) {
+			startupdir = "";
+		}
 	}
 	
 	std::string StartupDirectory() {

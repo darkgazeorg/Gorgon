@@ -6,7 +6,123 @@
 	],
 	"settings": {
 		"clangd.arguments": [
-        	"--compile-commands-dir=${workspaceFolder}/build/${command:cmake.activeBuildPreset}"
+        	"--compile-commands-dir=${command:cmake.buildDirectory}"
     	]
-	}
+	},
+	"tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Elevated Install Gorgon",
+                "type": "shell",
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared"
+                },
+                "problemMatcher": [],
+                "windows": {
+                    "command": "powershell",
+                    "args": [
+                        "-NoProfile",
+                        "-Command",
+                        "Start-Process cmake -ArgumentList '--install', '${command:cmake.buildDirectory}', '--config', '${command:cmake.buildType}' -Verb RunAs -Wait"
+                    ]
+                },
+                "linux": {
+                    "command": "sudo",
+                    "args": [
+                        "cmake",
+                        "--install",
+                        "${command:cmake.buildDirectory}",
+                        "--config",
+                        "${command:cmake.buildType}"
+                    ]
+                }
+            },
+            {
+                "label": "Elevated Clean Install Gorgon",
+                "type": "shell",
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared"
+                },
+                "problemMatcher": [],
+                "windows": {
+                    "command": "powershell",
+                    "args": [
+                        "-NoProfile",
+                        "-Command",
+                        "Start-Process powershell -ArgumentList '-NoProfile', '-Command', 'Write-Host \"Wiping old SDK installation...\" -ForegroundColor Cyan; if (Test-Path \"C:\\Program Files (x86)\\Gorgon\") { Remove-Item -Recurse -Force \"C:\\Program Files (x86)\\Gorgon\" }; cmake --install \"${command:cmake.buildDirectory}\" --config ${command:cmake.buildType}; Write-Host \"`nClean Install Complete. Press any key to close...\" -ForegroundColor Green; $null = $Host.UI.RawUI.ReadKey(\"NoEcho,IncludeKeyDown\")' -Verb RunAs"
+                    ]
+                },
+                "linux": {
+                    "command": "sudo",
+                    "args": [
+                        "bash",
+                        "-c",
+                        "echo 'Wiping old installation...'; rm -rf /usr/local/include/Gorgon /usr/local/lib/cmake/Gorgon /usr/local/share/doc/Gorgon /usr/local/lib/libGorgon*; cmake --install '${command:cmake.buildDirectory}' --config '${command:cmake.buildType}'"
+                    ]
+                }
+            },
+            {
+                "label": "Build Active Launch Target",
+                "type": "shell",
+                "command": "cmake",
+                "args": [
+                    "--build",
+                    "${command:cmake.buildDirectory}",
+                    "--target",
+                    "${command:cmake.launchTargetName}"
+                ],
+                "group": "build",
+                "problemMatcher": [
+                    "$gcc",
+                    "$msCompile"
+                ],
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": true
+                },
+                "detail": "Dynamically builds whatever target is selected in the CMake Launch list."
+            }
+        ]
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Windows: Debug Selected Target",
+                "type": "cppvsdbg",
+                "request": "launch",
+                "program": "${command:cmake.launchTargetPath}",
+                "args": [],
+                "stopAtEntry": false,
+                "cwd": "${workspaceFolder}",
+                "environment": [],
+                "externalConsole": false,
+                "preLaunchTask": "Build Active Launch Target"
+            },
+            {
+                "name": "Linux: Debug Selected Target",
+                "type": "cppdbg",
+                "request": "launch",
+                "program": "${command:cmake.launchTargetPath}",
+                "args": [],
+                "stopAtEntry": false,
+                "cwd": "${workspaceFolder}",
+                "environment": [],
+                "externalConsole": false,
+                "MIMode": "gdb",
+                "preLaunchTask": "Build Active Launch Target",
+                "setupCommands": [
+                    {
+                        "description": "Enable pretty-printing for gdb",
+                        "text": "-enable-pretty-printing",
+                        "ignoreFailures": true
+                    }
+                ]
+            }
+        ]
+    }
 }

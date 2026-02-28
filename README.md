@@ -28,7 +28,8 @@ sudo apt-get update && sudo apt-get install build-essential cmake ninja-build pk
 libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
 libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
 doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
-libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev
+libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+libgl1-mesa-dev libglew-dev
 ```
 
 ### Fedora 40+
@@ -37,7 +38,7 @@ sudo dnf install gcc g++ cmake ninja-build pkgconf-pkg-config \
 libX11-devel libXinerama-devel libXrandr-devel libXext-devel \
 libpng-devel libjpeg-turbo-devel zlib-devel xz-devel \
 doxygen freetype-devel pulseaudio-libs-devel fontconfig-devel \
-flac-devel libogg-devel libvorbis-devel libcurl-devel
+flac-devel libogg-devel libvorbis-devel libcurl-devel glew-devel
 ```
 
 ---
@@ -62,32 +63,29 @@ You do not need to install the heavy Visual Studio IDE to compile Gorgon on Wind
    * Clangd (Optional)
 3. Open the `Gorgon` source folder in VS Code (`File > Open Folder`).
 
-### 3. Build the Engine
+### 3. Build and Install the Engine
 1. When prompted by CMake Tools, select the **Visual Studio Community 2022 Release - amd64** kit (or similar Build Tools kit).
-2. Click the **CMake: [No Active Kit]** area in the bottom status bar and select your desired `CMakePresets.json` configuration (e.g., `Windows Default Build`).
-3. Press **F7** (or click `Build` in the status bar). CMake will automatically download vcpkg dependencies, compile the static libraries, and build the engine.
-4. **System Installation:** To install Gorgon system-wide, open an **Administrator Command Prompt** in the Gorgon folder and run:
+2. Click the Configure Preset area in the bottom status bar and select your desired `CMakePresets.json` configuration (e.g., `Windows Default Build`).
+3. **System Installation:** Gorgon includes a built-in target to automatically compile and install both Debug and Release variants simultaneously. In the VS Code terminal, run:
    ```cmd
-   cmake --install build/WindowsDefault
+   cmake --build build/WindowsDefault --target install_sdk
    ```
+   *(Note: This command will automatically trigger a Windows UAC prompt to safely elevate privileges for the installation).*
 
 ---
 
 ## Linux Setup
-On Linux installation doesn't require an IDE. You could install through the terminal. Simply open a terminal in Gorgon directory and type the following:
+On Linux, installation doesn't require an IDE. You can configure, build, and install directly through the terminal. Simply open a terminal in the Gorgon directory and type the following:
 
 1. Configure using the default preset:
    ```bash
    cmake --preset Default
    ```
-2. Build the framework:
+2. Build and Install Gorgon system-wide (this automatically builds and installs both Release and Debug variants):
    ```bash
-   cmake --build --preset Default
+   cmake --build build/Default --target install_sdk
    ```
-3. Install Gorgon (requires root):
-   ```bash
-   sudo cmake --install build/Default
-   ```
+   *(Note: This target automatically handles privilege elevation. A visual GUI prompt or terminal window will appear asking for your sudo password to copy files to `/usr/local`).*
 
 ### Documentation
 Generating documentation requires Doxygen. Upon installation, a shortcut is automatically generated:
@@ -102,11 +100,27 @@ Gorgon completely abstracts platform-specific entry points (like `WinMain` vs `m
 
 ```cpp
 #include <Gorgon/EntryPoint.h>
+#include <Gorgon/Window.h>
 
 int Main(const std::vector<std::string>& args) {
-    // Engine initialization and logic here
+    // Initialize the engine
+    Gorgon::Initialize("YourProgramName");
+
+    // Choose your window type Gorgon::Window, Gorgon::UI::Window, and Gorgon::Scene
+    Gorgon::Window window({400, 300}, "Your program title");
+
+    // Your program logic here...
+
+    // Terminate the application when the window is closed
+    window.DestroyedEvent.Register([&]() {
+        window.Quit();
+    });
+
+    // This will keep your application running until you call quit
+    window.Run();
+
     return 0;
 }
 ```
 
-Check the `Examples` folder for sample programs. Copy them to your development directories and load them up using VSCode, compile them in the terminal or use cmake-gui to create project files.
+Check the `Examples` folder for sample programs. Copy them to your development directories and load them up using VS Code, compile them in the terminal, or use `cmake-gui` to create project files.

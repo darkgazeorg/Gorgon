@@ -15,7 +15,7 @@ namespace Gorgon :: Geometry {
         typedef T_ BaseType;
 
 		/// Default constructor, does not zero initialize point.
-        basic_Point3D() { }
+        basic_Point3D() : X{}, Y{}, Z{} { }
 
         /// Filling constructor
         basic_Point3D(const T_ &X, const T_ &Y, const T_ &Z) : X(X), Y(Y), Z(Z) { }
@@ -67,9 +67,9 @@ namespace Gorgon :: Geometry {
         
         union {
             struct {
-                T_ X = 0;
-                T_ Y = 0;
-                T_ Z = 0;
+                T_ X;
+                T_ Y;
+                T_ Z;
             };
             
             T_ Vector[3];

@@ -1,5 +1,7 @@
 @PACKAGE_INIT@
 
+list(APPEND CMAKE_PREFIX_PATH "${PACKAGE_PREFIX_DIR}")
+
 include(CMakeFindDependencyMacro)
 
 # ==============================================================================
@@ -13,13 +15,20 @@ find_dependency(LibLZMA)
 find_dependency(GLEW)
 
 # ==============================================================================
-# 2. OS-Specific Core Dependencies
+# 2. OS-Specific Core Dependencies & Compiler State
 # ==============================================================================
 if(WIN32)
     # cpptrace is strictly required on Windows
     find_dependency(cpptrace CONFIG)
+    
+    # Force the client application to use the static CRT to match Gorgon's binaries.
+    # This automatically applies /MTd for Debug and /MT for Release.
+    if(POLICY CMP0091)
+        cmake_policy(SET CMP0091 NEW)
+    endif()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
-    # PkgConfig is required on Linux to find system libraries like PulseAudio
+    # PkgConfig is required on Linux
     find_package(PkgConfig REQUIRED)
 endif()
 
@@ -42,6 +51,22 @@ endif()
 
 if(GORGON_HAS_FREETYPE)
     find_dependency(Freetype)
+    
+    # When FreeType is built statically via vcpkg on Windows, it requires 
+    # BZip2 and Brotli. Standard CMake FindFreetype is unaware of this.
+    if(WIN32)
+        find_dependency(BZip2)
+        find_dependency(unofficial-brotli CONFIG)
+        
+        # Patch the imported Freetype target to forcefully link the missing compression libraries
+        if(TARGET Freetype::Freetype)
+            set_property(TARGET Freetype::Freetype APPEND PROPERTY INTERFACE_LINK_LIBRARIES 
+                BZip2::BZip2 
+                unofficial::brotli::brotlidec 
+                unofficial::brotli::brotlicommon
+            )
+        endif()
+    endif()
 endif()
 
 if(GORGON_HAS_FONTCONFIG AND NOT WIN32)

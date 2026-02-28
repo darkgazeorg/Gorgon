@@ -4,7 +4,7 @@
     {
       "name": "linux-base",
       "hidden": true,
-      "generator": "Ninja",
+      "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
@@ -20,7 +20,7 @@
       "inherits": "linux-base",
       "displayName": "Default Linux Build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
       }
     },
     {
@@ -29,41 +29,7 @@
       "displayName": "Quick Linux Build",
       "description": "Documentation is disabled for a quick build and installation.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "DOCUMENTATION": "OFF"
-      }
-    },
-    {
-      "name": "DefaultDebug",
-      "inherits": "linux-base",
-      "displayName": "Default Linux Debug Build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "QuickDebug",
-      "inherits": "linux-base",
-      "displayName": "Quick Linux Debug Build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "DOCUMENTATION": "OFF"
-      }
-    },
-    {
-      "name": "DefaultRelease",
-      "inherits": "linux-base",
-      "displayName": "Default Linux Release Build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "QuickRelease",
-      "inherits": "linux-base",
-      "displayName": "Quick Linux Release Build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
         "DOCUMENTATION": "OFF"
       }
     },
@@ -111,18 +77,14 @@
     {
       "name": "Maintainer",
       "hidden": false,
-      "generator": "Ninja Multi-Config",
+      "inherits": "Testing",
       "displayName": "Maintainer Mode",
       "description": "Multi-config environment for debugging releases and developing the framework.",
       "binaryDir": "${sourceDir}/build/Maintainer",
       "cacheVariables": {
+        "MAINTAINER": "ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
-        "TESTS": "ON",
-        "UNIT_TESTS": "ON",
-        "MANUAL_TESTS": "ON",
-        "BUILD_EXAMPLES": "ON",
-        "EXPORT_BUILD_TREE": "ON"
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo"
       },
       "condition": {
         "type": "equals",
@@ -164,7 +126,7 @@
     },
     {
       "name": "WindowsQuick",
-      "inherits": "windows-base",
+      "inherits": "WindowsDefault",
       "displayName": "Windows Quick Build",
       "cacheVariables": {
         "DOCUMENTATION": "OFF"
@@ -216,6 +178,7 @@
       "displayName": "Windows Maintainer Mode",
       "description": "Includes RelWithDebInfo to catch memory/race issues in optimized builds.",
       "cacheVariables": {
+        "MAINTAINER": "ON",        
         "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo"
       }
     },
@@ -249,6 +212,22 @@
     }
   ],
 "buildPresets": [
+    {
+      "name": "Linux-Install-SDK",
+      "configurePreset": "Default",
+      "displayName": "Install Gorgon SDK (Multi-Config)",
+      "targets": [
+        "install_sdk"
+      ]
+    },
+    {
+      "name": "Windows-Install-SDK",
+      "configurePreset": "WindowsDefault",
+      "displayName": "Install Gorgon SDK (Windows Multi-Config)",
+      "targets": [
+        "install_sdk"
+      ]
+    },
     {
       "name": "Debug",
       "configurePreset": "Maintainer",

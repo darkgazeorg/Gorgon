@@ -36,7 +36,7 @@ function(gorgon_copy_resource target source_file)
     )
     
     # Install to the correct subfolder inside 'bin'
-    install(FILES "${source_file}" DESTINATION "${install_dest}")
+    # install(FILES "${source_file}" DESTINATION "${install_dest}")
 endfunction()
 
 
@@ -49,8 +49,9 @@ function(gorgon_copy_directory target source_dir)
             "$<TARGET_FILE_DIR:${target}>/${source_dir}"
         COMMENT "Syncing directory: ${source_dir}"
     )
+    
     # Also ensure it gets installed
-    install(DIRECTORY "${source_dir}" DESTINATION bin)
+    # install(DIRECTORY "${source_dir}" DESTINATION bin)
 endfunction()
 
 function(copy_commands_to_root TARGET_NAME)
