@@ -156,6 +156,8 @@ if(is_multi_config)
             "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Release' -Verb RunAs -Wait")
         set(ELEVATE_CMD_DBG powershell -NoProfile -Command 
             "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Debug' -Verb RunAs -Wait")
+        set(ELEVATE_CMD_RWD powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'RelWithDebInfo' -Verb RunAs -Wait")
     else()
         # Linux/macOS: Use PolicyKit for a visual GUI password prompt
         find_program(PKEXEC_CMD pkexec)
@@ -166,28 +168,47 @@ if(is_multi_config)
                 # Modern Linux: Pops up the KDE/GNOME visual password dialog
                 set(ELEVATE_CMD_REL ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
                 set(ELEVATE_CMD_DBG ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+                set(ELEVATE_CMD_RWD ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config RelWithDebInfo)
             else()
                 # Fallback: Spawn a new KDE Konsole window that asks for sudo password
                 set(ELEVATE_CMD_REL konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Release; read -p 'Press Enter to close...'")
                 set(ELEVATE_CMD_DBG konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Debug; read -p 'Press Enter to close...'")
+                set(ELEVATE_CMD_RWD konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config RelWithDebInfo; read -p 'Press Enter to close...'")    
             endif()
         else()
             # Non-GUI environment: Use simple sudo
             set(ELEVATE_CMD_REL sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
             set(ELEVATE_CMD_DBG sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+            set(ELEVATE_CMD_RWD sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config RelWithDebInfo)
         endif()
     endif()
 
     # 2. Create the all-in-one target
-    add_custom_target(install_sdk
-        # Step A: Force compilation of both configurations first
-        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
-        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
-        
-        # Step B: Execute the elevated installations
-        COMMAND ${ELEVATE_CMD_REL}
-        COMMAND ${ELEVATE_CMD_DBG}
-        
-        COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
-    )
+    if(MAINTAINER)
+        add_custom_target(install_sdk
+            # Step A: Force compilation of both configurations first
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config RelWithDebInfo
+            
+            # Step B: Execute the elevated installations
+            COMMAND ${ELEVATE_CMD_REL}
+            COMMAND ${ELEVATE_CMD_DBG}
+            COMMAND ${ELEVATE_CMD_RWD}
+            
+            COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
+        )
+    else()
+        add_custom_target(install_sdk
+            # Step A: Force compilation of both configurations first
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
+            COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
+            
+            # Step B: Execute the elevated installations
+            COMMAND ${ELEVATE_CMD_REL}
+            COMMAND ${ELEVATE_CMD_DBG}
+            
+            COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
+        )
+    endif()
 endif()
