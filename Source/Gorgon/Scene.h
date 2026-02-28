@@ -232,13 +232,6 @@ namespace Gorgon {
             return scenes.end();
         }
 
-        /// Quits the scene manager, returning the execution to the
-        /// point where Run function is called. It allows current
-        /// frame to be completed before quiting. It also deactives
-        /// the current scene.
-        void Quit() override {
-            quiting = true;
-        }
         
         //TODO overload resize to resize panels of all scenes
 
@@ -292,7 +285,6 @@ namespace Gorgon {
         Gorgon::Containers::Hashmap<SceneID, Scene> scenes;
         Scene *active = nullptr;
         EventToken inputtoken = init(); //to initialize token after window got constructed
-        bool quiting = false;
     };
 
 

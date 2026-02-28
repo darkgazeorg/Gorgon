@@ -141,3 +141,46 @@ if(WIN32 AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpk
                 DESTINATION "debug/lib")
     endif()
 endif()
+
+
+# ==============================================================================
+# Multi-Config SDK Build & Elevated Installation Target
+# ==============================================================================
+get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
+if(is_multi_config)
+    # 1. Define OS-specific elevation commands for the install phase
+    if(CMAKE_HOST_WIN32)
+        # Windows: Use PowerShell to trigger the UAC Admin prompt
+        set(ELEVATE_CMD_REL powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Release' -Verb RunAs -Wait")
+        set(ELEVATE_CMD_DBG powershell -NoProfile -Command 
+            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Debug' -Verb RunAs -Wait")
+    else()
+        # Linux/macOS: Use PolicyKit for a visual GUI password prompt
+        find_program(PKEXEC_CMD pkexec)
+        
+        if(PKEXEC_CMD)
+            # Modern Linux: Pops up the KDE/GNOME visual password dialog
+            set(ELEVATE_CMD_REL ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
+            set(ELEVATE_CMD_DBG ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+        else()
+            # Fallback: Spawn a new KDE Konsole window that asks for sudo password
+            set(ELEVATE_CMD_REL konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Release; read -p 'Press Enter to close...'")
+            set(ELEVATE_CMD_DBG konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Debug; read -p 'Press Enter to close...'")
+        endif()
+    endif()
+
+    # 2. Create the all-in-one target
+    add_custom_target(install_sdk
+        # Step A: Force compilation of both configurations first
+        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Release
+        COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --config Debug
+        
+        # Step B: Execute the elevated installations
+        COMMAND ${ELEVATE_CMD_REL}
+        COMMAND ${ELEVATE_CMD_DBG}
+        
+        COMMENT "Compiling and Elevated-Installing Multi-Config Gorgon SDK..."
+    )
+endif()

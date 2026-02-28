@@ -58,16 +58,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 gorgon_copy_directory(${PROJECT_NAME} "Resources")
 
 # --- 5. INSTALLATION & PACKAGING ---
-include(GNUInstallDirs)
+#include(GNUInstallDirs)
 
-install(TARGETS ${PROJECT_NAME}
-    RUNTIME_DEPENDENCY_SET app_deps
-    RUNTIME DESTINATION bin
-)
+# install(TARGETS ${PROJECT_NAME}
+#     RUNTIME_DEPENDENCY_SET app_deps
+#     RUNTIME DESTINATION bin
+# )
 
-install(RUNTIME_DEPENDENCY_SET app_deps
-    DESTINATION bin
-)
+# install(RUNTIME_DEPENDENCY_SET app_deps
+#     DESTINATION bin
+# )
 
 # CPack handles the creation of .zip, .tar.gz, or installers
 # You can also create full installers. Refer to CPack documentation 

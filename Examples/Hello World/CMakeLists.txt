@@ -32,16 +32,17 @@ gorgon_copy_resource(${PROJECT_NAME} "Resource/Icon.png")
 # gorgon_copy_directory(${PROJECT_NAME} "Resources/Textures")
 
 # --- 5. INSTALLATION & PACKAGING ---
-include(GNUInstallDirs)
+# REQUIRES MORE WORK, KEEP DISABLED FOR NOW
+# include(GNUInstallDirs)
 
-install(TARGETS ${PROJECT_NAME} 
-    RUNTIME_DEPENDENCY_SET app_deps
-    RUNTIME DESTINATION bin
-)
+# install(TARGETS ${PROJECT_NAME} 
+#     RUNTIME_DEPENDENCY_SET app_deps
+#     RUNTIME DESTINATION bin
+# )
 
-install(RUNTIME_DEPENDENCY_SET app_deps
-    DESTINATION bin
-)
+# install(RUNTIME_DEPENDENCY_SET app_deps
+#     DESTINATION bin
+# )
 
 # CPack handles the creation of .zip, .tar.gz, or installers
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
