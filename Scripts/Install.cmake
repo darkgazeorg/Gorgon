@@ -110,3 +110,34 @@ install(FILES
     "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
     DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )
+
+# ==============================================================================
+# 5. Standalone SDK Bundling (Windows / vcpkg only)
+# ==============================================================================
+# If we are building on Windows using vcpkg, bundle all transitive dependencies
+# directly into the Gorgon installation to prevent per-project disk bloat.
+# Only do this for Windows when vcpkg is actively being used
+if(WIN32 AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg")
+    message(STATUS "Bundling vcpkg dependencies into the Gorgon installation...")
+    
+    # Path to the specific triplet's installed files
+    set(VCPKG_ROOT_DIR "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}")
+
+    # 1. Copy the headers (zlib.h, png.h, etc.)
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/include/"
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+    # 2. Copy the compiled static libraries (zlib.lib, libpng16.lib, etc.)
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/lib/"
+            DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+    # 3. Copy the CMake config files so find_dependency() works without vcpkg
+    install(DIRECTORY "${VCPKG_ROOT_DIR}/share/" 
+            DESTINATION "share")
+            
+    # 4. Copy the debug versions of the libraries if they exist (zlibd.lib, etc.)
+    if(EXISTS "${VCPKG_ROOT_DIR}/debug/lib/")
+        install(DIRECTORY "${VCPKG_ROOT_DIR}/debug/lib/"
+                DESTINATION "debug/lib")
+    endif()
+endif()

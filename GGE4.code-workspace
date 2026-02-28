@@ -6,7 +6,7 @@
 	],
 	"settings": {
 		"clangd.arguments": [
-        	"--compile-commands-dir=${workspaceFolder}/build/${command:cmake.activeBuildPreset}"
+        	"--compile-commands-dir=${command:cmake.buildDirectory}"
     	]
 	},
 	"tasks": {
@@ -25,7 +25,7 @@
                     "args": [
                         "-NoProfile",
                         "-Command",
-                        "Start-Process cmake -ArgumentList '--install', '${workspaceFolder}/build/WindowsMaintainer', '--config', 'RelWithDebInfo' -Verb RunAs -Wait"
+                        "Start-Process cmake -ArgumentList '--install', '${command:cmake.buildDirectory}', '--config', '${command:cmake.buildType}' -Verb RunAs -Wait"
                     ]
                 },
                 "linux": {
@@ -33,9 +33,9 @@
                     "args": [
                         "cmake",
                         "--install",
-                        "${workspaceFolder}/build/LinuxMaintainer",
+                        "${command:cmake.buildDirectory}",
                         "--config",
-                        "RelWithDebInfo"
+                        "${command:cmake.buildType}"
                     ]
                 }
             }

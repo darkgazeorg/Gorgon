@@ -164,7 +164,7 @@
     },
     {
       "name": "WindowsQuick",
-      "inherits": "windows-base",
+      "inherits": "WindowsDefault",
       "displayName": "Windows Quick Build",
       "cacheVariables": {
         "DOCUMENTATION": "OFF"
