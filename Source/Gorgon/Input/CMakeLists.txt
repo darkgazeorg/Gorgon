@@ -5,9 +5,9 @@ target_sources(Gorgon
     FILES
 		../Input.h
 		DnD.h
-		Layer.h
 		Keyboard.h
 		KeyRepeater.h
+		Layer.h
 		Mouse.h
 )
 

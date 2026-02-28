@@ -1,3 +1,88 @@
 @PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# ==============================================================================
+# 1. Mandatory Core Dependencies
+# ==============================================================================
+find_dependency(Threads)
+find_dependency(PNG)
+find_dependency(JPEG)
+find_dependency(ZLIB)
+find_dependency(LibLZMA)
+find_dependency(GLEW)
+
+# ==============================================================================
+# 2. OS-Specific Core Dependencies
+# ==============================================================================
+if(WIN32)
+    # cpptrace is strictly required on Windows
+    find_dependency(cpptrace CONFIG)
+else()
+    # PkgConfig is required on Linux to find system libraries like PulseAudio
+    find_package(PkgConfig REQUIRED)
+endif()
+
+# ==============================================================================
+# 3. Optional Dependencies (Baked in during Gorgon's build)
+# ==============================================================================
+# Capture the toggle states from the Gorgon build
+set(GORGON_HAS_OPENGL "@GORGON_GL_OPENGL@")
+set(GORGON_HAS_FREETYPE "@FreeType@")
+set(GORGON_HAS_FONTCONFIG "@FONTCONFIG@")
+set(GORGON_HAS_FLAC "@FLAC@")
+set(GORGON_HAS_OGG "@OGG@")
+set(GORGON_HAS_VORBIS "@VORBIS@")
+set(GORGON_HAS_HTTP "@HTTP@")
+set(GORGON_AUDIOLIB "@AUDIOLIB@")
+
+if(GORGON_HAS_OPENGL)
+    find_dependency(OpenGL)
+endif()
+
+if(GORGON_HAS_FREETYPE)
+    find_dependency(Freetype)
+endif()
+
+if(GORGON_HAS_FONTCONFIG AND NOT WIN32)
+    find_dependency(Fontconfig)
+endif()
+
+if(GORGON_HAS_FLAC)
+    find_dependency(FLAC)
+endif()
+
+if(GORGON_HAS_OGG)
+    find_dependency(Ogg)
+endif()
+
+if(GORGON_HAS_HTTP)
+    find_dependency(CURL)
+endif()
+
+# ==============================================================================
+# 4. Complex / PkgConfig Dependencies
+# ==============================================================================
+if(GORGON_HAS_VORBIS)
+    if(WIN32)
+        # On Windows (vcpkg), Vorbis provides standard CMake configs
+        find_dependency(Vorbis CONFIG)
+    else()
+        # On Linux, we must use pkg_check_modules to populate PkgConfig::VORBIS
+        pkg_check_modules(VORBIS REQUIRED IMPORTED_TARGET vorbis vorbisfile)
+    endif()
+endif()
+
+if(GORGON_AUDIOLIB STREQUAL "PULSE" AND NOT WIN32)
+    # On Linux, PulseAudio is found via PkgConfig
+    pkg_check_modules(PULSE REQUIRED IMPORTED_TARGET libpulse)
+endif()
+
+# ==============================================================================
+# 5. Exported Targets & Functions
+# ==============================================================================
+# Include the exported targets (the compiled libraries)
 include("${CMAKE_CURRENT_LIST_DIR}/GorgonTargets.cmake")
-check_required_components(Gorgon)
+
+# Include the custom framework functions (e.g., gorgon_copy_directory)
+include("${CMAKE_CURRENT_LIST_DIR}/Public.cmake")

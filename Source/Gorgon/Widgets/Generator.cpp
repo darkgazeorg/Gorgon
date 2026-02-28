@@ -777,7 +777,7 @@ namespace Gorgon :: Widgets {
         
         drawables.Add(bi);
         
-        bi.ForAllPixels([&bi, this](int x, int y) {
+        bi.ForAllPixels([&bi](int x, int y) {
             if((x/6 + y/6) % 2) {
                 bi(x, y, 0) = 102; //0.4f
                 bi(x, y, 1) = 102; //0.4f

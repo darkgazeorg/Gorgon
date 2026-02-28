@@ -29,13 +29,13 @@ target_sources(Gorgon
 		AdvancedPrinterConstants.h
 		Animations.h
 		Bitmap.h
+		BitmapFont.h
 		BlankImage.h
 		Color.h
 		ColorSpaces.h
 		Drawables.h
 		EmptyImage.h
 		Font.h
-		BitmapFont.h
 		Layer.h
 		Line.h
 		MaskedObject.h
@@ -48,7 +48,6 @@ target_sources(Gorgon
 		TextureAnimation.h
 		TextureTargets.h
 		TintedObject.h
-		HTMLRenderer.h
 )
 
 target_sources(Gorgon
@@ -65,7 +64,6 @@ target_sources(Gorgon
 		Pointer.cpp
 		Rectangle.cpp
 		Shaders.cpp
-		HTMLRenderer.cpp
 )
 
 if(FreeType)

@@ -15,7 +15,14 @@
         "rhs": "Linux"
       }
     },
-    
+    {
+      "name": "Default",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
     {
       "name": "Quick",
       "inherits": "linux-base",
@@ -27,57 +34,43 @@
       }
     },
     {
+      "name": "DefaultDebug",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Debug Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
       "name": "QuickDebug",
       "inherits": "linux-base",
       "displayName": "Quick Linux Debug Build",
-      "description": "Quick build with debug configuration and no documentation.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DOCUMENTATION": "OFF"
       }
     },
     {
+      "name": "DefaultRelease",
+      "inherits": "linux-base",
+      "displayName": "Default Linux Release Build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "QuickRelease",
       "inherits": "linux-base",
       "displayName": "Quick Linux Release Build",
-      "description": "Quick build with release configuration and no documentation.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "DOCUMENTATION": "OFF"
       }
     },
     {
-      "name": "Default",
-      "inherits": "linux-base",
-      "displayName": "Default Linux Build",
-      "description": "Standard configuration with all default modules and features enabled.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-      }
-    },
-    {
-      "name": "DefaultDebug",
-      "inherits": "linux-base",
-      "displayName": "Default Linux Debug Build",
-      "description": "Standard configuration in debug mode.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "DefaultRelease",
-      "inherits": "linux-base",
-      "displayName": "Default Linux Release Build",
-      "description": "Standard configuration in release mode.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
       "name": "Minimal",
       "inherits": "linux-base",
       "displayName": "Minimal Linux Build",
-      "description": "Disables all optional modules and external format support for a core-only build.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "AUDIO": "OFF",
@@ -97,7 +90,6 @@
       "name": "Testing",
       "inherits": "linux-base",
       "displayName": "Testing & Examples",
-      "description": "Enables unit tests, manual tests, and builds example applications.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "TESTS": "ON",
@@ -108,37 +100,40 @@
       }
     },
     {
-      "name": "TestingRelWithDebInfo",
-      "inherits": "Testing",
-      "displayName": "Testing & Examples (RelWithDebInfo)",
-      "description": "Testing build with RelWithDebInfo configuration.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-      }
-    },
-    {
-      "name": "Coverage",
-      "inherits": "Testing",
-      "displayName": "Code Coverage",
-      "description": "Testing build with code coverage instrumentation enabled.",
-      "cacheVariables": {
-        "COVERAGE": "ON"
-      }
-    },
-    {
       "name": "DocumentationMode",
       "inherits": "linux-base",
       "displayName": "Documentation Mode",
-      "description": "Builds documentation with strict warning reporting enabled.",
       "cacheVariables": {
         "DOCUMENTATION": "ON",
         "DOCUMENTATION_MODE": "ON"
       }
     },
     {
+      "name": "Maintainer",
+      "hidden": false,
+      "generator": "Ninja Multi-Config",
+      "displayName": "Maintainer Mode",
+      "description": "Multi-config environment for debugging releases and developing the framework.",
+      "binaryDir": "${sourceDir}/build/Maintainer",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo",
+        "TESTS": "ON",
+        "UNIT_TESTS": "ON",
+        "MANUAL_TESTS": "ON",
+        "BUILD_EXAMPLES": "ON",
+        "EXPORT_BUILD_TREE": "ON"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
       "name": "windows-base",
       "hidden": true,
-      "generator": "Ninja",
+      "generator": "Ninja Multi-Config",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
         "CMAKE_C_COMPILER": "cl.exe",
@@ -146,7 +141,8 @@
         "CMAKE_MAKE_PROGRAM": "${sourceDir}/.tools/ninja/ninja.exe",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.tools/vcpkg/scripts/buildsystems/vcpkg.cmake",        
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
       },
       "condition": {
         "type": "equals",
@@ -155,41 +151,10 @@
       }
     },
     {
-      "name": "WindowsQuick",
-      "inherits": "windows-base",
-      "displayName": "Windows Quick Build",
-      "description": "Documentation is disabled for a quick build and installation.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "DOCUMENTATION": "OFF"
-      }
-    },
-    {
-      "name": "WindowsQuickDebug",
-      "inherits": "windows-base",
-      "displayName": "Windows Quick Debug Build",
-      "description": "Quick build with debug configuration and no documentation.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "DOCUMENTATION": "OFF"
-      }
-    },
-    {
-      "name": "WindowsQuickRelease",
-      "inherits": "windows-base",
-      "displayName": "Windows Quick Release Build",
-      "description": "Quick build with release configuration and no documentation.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "DOCUMENTATION": "OFF"
-      }
-    },
-    {
       "name": "WindowsDefault",
       "inherits": "windows-base",
       "displayName": "Windows Default Build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "VCPKG_MANIFEST_FEATURES": {
           "type": "STRING",
           "value": "flac;ogg;vorbis;freetype;curl" 
@@ -198,40 +163,18 @@
       }
     },
     {
-      "name": "WindowsDefaultDebug",
+      "name": "WindowsQuick",
       "inherits": "windows-base",
-      "displayName": "Windows Default Debug Build",
-      "description": "Standard default build in debug mode.",
+      "displayName": "Windows Quick Build",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "VCPKG_MANIFEST_FEATURES": {
-          "type": "STRING",
-          "value": "flac;ogg;vorbis;freetype;curl"
-        },
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
-      }
-    },
-    {
-      "name": "WindowsDefaultRelease",
-      "inherits": "windows-base",
-      "displayName": "Windows Default Release Build",
-      "description": "Standard default build in release mode.",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_MANIFEST_FEATURES": {
-          "type": "STRING",
-          "value": "flac;ogg;vorbis;freetype;curl"
-        },
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+        "DOCUMENTATION": "OFF"
       }
     },
     {
       "name": "WindowsMinimal",
       "inherits": "windows-base",
       "displayName": "Windows Minimal Build",
-      "description": "Core-only build with optional modules and external formats disabled.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
         "AUDIO": "OFF",
         "SCRIPTING": "OFF",
         "UI": "OFF",
@@ -254,9 +197,7 @@
       "name": "WindowsTesting",
       "inherits": "windows-base",
       "displayName": "Windows Testing & Examples",
-      "description": "Enables unit tests, manual tests, and example applications.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "TESTS": "ON",
         "UNIT_TESTS": "ON",
         "MANUAL_TESTS": "ON",
@@ -270,42 +211,79 @@
       }
     },
     {
-      "name": "WindowsTestingRelWithDebInfo",
+      "name": "WindowsMaintainer",
       "inherits": "WindowsTesting",
-      "displayName": "Windows Testing & Examples (RelWithDebInfo)",
-      "description": "Testing build with RelWithDebInfo configuration.",
+      "displayName": "Windows Maintainer Mode",
+      "description": "Includes RelWithDebInfo to catch memory/race issues in optimized builds.",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release;RelWithDebInfo"
       }
     },
     {
-      "name": "WindowsCoverage",
-      "inherits": "WindowsTesting",
-      "displayName": "Windows Code Coverage",
-      "description": "Testing build with code coverage instrumentation enabled.",
+      "name": "windows-vs2022-base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "COVERAGE": "ON"
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/.tools/vcpkg/scripts/buildsystems/vcpkg.cmake",        
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
       }
     },
     {
-      "name": "WindowsDocumentationMode",
-      "inherits": "windows-base",
-      "displayName": "Windows Documentation Mode",
-      "description": "Builds documentation with strict warning reporting enabled.",
+      "name": "WindowsVS2022",
+      "inherits": "windows-vs2022-base",
+      "displayName": "Windows Visual Studio 2022",
       "cacheVariables": {
-        "DOCUMENTATION": "ON",
-        "DOCUMENTATION_MODE": "ON"
+        "VCPKG_MANIFEST_FEATURES": {
+          "type": "STRING",
+          "value": "flac;ogg;vorbis;freetype;curl" 
+        },
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
       }
     }
   ],
-  "buildPresets": [
+"buildPresets": [
     {
-      "name": "Default",
-      "configurePreset": "Default"
+      "name": "Debug",
+      "configurePreset": "Maintainer",
+      "displayName": "Build Debug",
+      "configuration": "Debug"
     },
     {
-      "name": "Quick",
-      "configurePreset": "Quick"
+      "name": "Release",
+      "configurePreset": "Maintainer",
+      "displayName": "Build Release",
+      "configuration": "Release"
+    },
+    {
+      "name": "RelWithDebInfo",
+      "configurePreset": "Maintainer",
+      "displayName": "Build RelWithDebInfo",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "Win-Debug",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build Debug (Windows)",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Win-Release",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build Release (Windows)",
+      "configuration": "Release"
+    },
+    {
+      "name": "Win-RelWithDebInfo",
+      "configurePreset": "WindowsMaintainer",
+      "displayName": "Build RelWithDebInfo (Windows)",
+      "configuration": "RelWithDebInfo"
     }
   ]
 }

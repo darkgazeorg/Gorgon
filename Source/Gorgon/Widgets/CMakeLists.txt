@@ -5,28 +5,30 @@ target_sources(Gorgon
     FILES
 		Button.h
 		Checkbox.h
-		Common.h
-		ColorPlane.h
 		ColorPicker.h
+		ColorPlane.h
+		Common.h
 		Composer.h
+		DialogWindow.h
 		Dropdown.h
 		Generator.h
+		GeometryBoxes.h
 		Inputbox.h
-		Textbox.h
 		Label.h
 		Layerbox.h
 		Listbox.h
 		ListItem.h
+		Numberbox.h
 		Panel.h
 		Progressbar.h
 		RadioButtons.h
 		Registry.h
-		Slider.h
 		Scrollbar.h
-		Window.h
-		DialogWindow.h
+		Slider.h
 		TabPanel.h
 		Textarea.h
+		Textbox.h
+		Window.h
 )
 
 target_sources(Gorgon

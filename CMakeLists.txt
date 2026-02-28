@@ -39,16 +39,6 @@ endif()
 include(Documentation)
 include(Install)
 
-if(EXPORT_BUILD_TREE)
-    export(EXPORT GorgonTargets 
-           FILE "${CMAKE_CURRENT_BINARY_DIR}/GorgonConfig.cmake"
-           NAMESPACE Gorgon::)
-           
-    export(PACKAGE Gorgon)
-    
-    message(STATUS "Gorgon Build Tree Exported for Local Discovery")
-endif()
-
 target_include_directories(Gorgon PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source>
     $<INSTALL_INTERFACE:include> 
@@ -57,6 +47,7 @@ target_include_directories(Gorgon PUBLIC
 include(Dependencies)
 
 if(BUILD_EXAMPLES)
+    include(Scripts/Public.cmake)
     add_subdirectory(Examples)
 endif()
 

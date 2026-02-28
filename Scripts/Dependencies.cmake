@@ -44,6 +44,15 @@ if(WIN32)
     target_link_libraries(Gorgon PUBLIC cpptrace::cpptrace)
 endif()
 
+# Graphics library
+if(GORGON_GL_OPENGL)
+    find_package(OpenGL REQUIRED)
+    if(TARGET OpenGL::GL)
+        target_link_libraries(Gorgon PUBLIC OpenGL::GL)
+    else()
+        target_link_libraries(Gorgon PUBLIC ${OPENGL_LIBRARIES})
+    endif()
+endif()
 
 # GLEW provides an imported target with all the necessary include paths and libraries
 find_package(GLEW REQUIRED)
