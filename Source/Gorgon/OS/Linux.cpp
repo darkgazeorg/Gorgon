@@ -111,8 +111,18 @@ namespace Gorgon :: OS {
 	}
 
 	void DisplayMessage(const std::string &message) {
-        if (std::system( std::string("xmessage -center \""+message+"\"").c_str() ) == -1) {
+		int pid = fork();
+		
+		if(pid == -1) {
+			std::cerr << message << std::endl;
+			return;
+		}
+
+		if(pid == 0) {
+			execlp("xmessage", "xmessage", "-center", message.c_str(), nullptr);
+			// If execlp fails, fallback to console output
             std::cerr << message << std::endl;
+			exit(0);
         }
     }
 
