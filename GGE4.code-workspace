@@ -8,5 +8,37 @@
 		"clangd.arguments": [
         	"--compile-commands-dir=${workspaceFolder}/build/${command:cmake.activeBuildPreset}"
     	]
-	}
+	},
+	"tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Elevated Install Gorgon",
+                "type": "shell",
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared"
+                },
+                "problemMatcher": [],
+                "windows": {
+                    "command": "powershell",
+                    "args": [
+                        "-NoProfile",
+                        "-Command",
+                        "Start-Process cmake -ArgumentList '--install', '${workspaceFolder}/build/WindowsMaintainer', '--config', 'RelWithDebInfo' -Verb RunAs -Wait"
+                    ]
+                },
+                "linux": {
+                    "command": "sudo",
+                    "args": [
+                        "cmake",
+                        "--install",
+                        "${workspaceFolder}/build/LinuxMaintainer",
+                        "--config",
+                        "RelWithDebInfo"
+                    ]
+                }
+            }
+        ]
+    }
 }
