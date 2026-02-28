@@ -160,14 +160,21 @@ if(is_multi_config)
         # Linux/macOS: Use PolicyKit for a visual GUI password prompt
         find_program(PKEXEC_CMD pkexec)
         
-        if(PKEXEC_CMD)
-            # Modern Linux: Pops up the KDE/GNOME visual password dialog
-            set(ELEVATE_CMD_REL ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
-            set(ELEVATE_CMD_DBG ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+        # Detect if we are in a GUI environment
+        if(DEFINED ENV{DISPLAY} OR DEFINED ENV{WAYLAND_DISPLAY})
+            if(PKEXEC_CMD)
+                # Modern Linux: Pops up the KDE/GNOME visual password dialog
+                set(ELEVATE_CMD_REL ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
+                set(ELEVATE_CMD_DBG ${PKEXEC_CMD} "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
+            else()
+                # Fallback: Spawn a new KDE Konsole window that asks for sudo password
+                set(ELEVATE_CMD_REL konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Release; read -p 'Press Enter to close...'")
+                set(ELEVATE_CMD_DBG konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Debug; read -p 'Press Enter to close...'")
+            endif()
         else()
-            # Fallback: Spawn a new KDE Konsole window that asks for sudo password
-            set(ELEVATE_CMD_REL konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Release; read -p 'Press Enter to close...'")
-            set(ELEVATE_CMD_DBG konsole -e bash -c "sudo \"${CMAKE_COMMAND}\" --install \"${CMAKE_BINARY_DIR}\" --config Debug; read -p 'Press Enter to close...'")
+            # Non-GUI environment: Use simple sudo
+            set(ELEVATE_CMD_REL sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Release)
+            set(ELEVATE_CMD_DBG sudo "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}" --config Debug)
         endif()
     endif()
 
