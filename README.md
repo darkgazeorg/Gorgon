@@ -1,4 +1,4 @@
-# Gorgon Game Engine 4.1
+# Gorgon Library 4.1
 
 Gorgon is a cross-platform framework for games and visual applications. It provides a powerful, flexible, and easy to use set of tools for creating games, GUI, computer graphics and image processing applications. Gorgon abstracts OS, graphics, audio, and input handling natively on Windows and Linux. It has a built-in programming language called GScript which has a similar syntax to Basic/Fortran.
 
