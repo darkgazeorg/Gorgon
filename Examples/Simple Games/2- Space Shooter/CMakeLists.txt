@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.25)
 
 project(SpaceShooter LANGUAGES CXX)
 
+# Only enable Debug and Release builds
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 # --- 1. Source files ---
 # You need to list all your source files here so CMake can compile them.
 set(APP_SOURCES

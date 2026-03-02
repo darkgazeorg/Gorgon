@@ -17,6 +17,9 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Only enable Debug and Release builds
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 # --- 3. THE EXECUTABLE ---
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(${PROJECT_NAME} WIN32 ${APP_SOURCES})

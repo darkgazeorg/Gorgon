@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.25)
 # Replace GorgonApp with your application name
 project(GorgonApp LANGUAGES CXX)
 
+# Only enable Debug and Release builds
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 # --- 1. Source files ---
 # You can add your source files here.
 # You can list them manually (recommended) or use the GLOB approach below.

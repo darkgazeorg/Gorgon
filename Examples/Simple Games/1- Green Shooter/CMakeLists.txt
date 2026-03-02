@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.25)
 
 project(GreenShooter LANGUAGES CXX)
 
+# Only enable Debug and Release builds
+set(CMAKE_CONFIGURATION_TYPES Debug Release)
+
 # --- 1. Source files ---
 set(APP_SOURCES
     Source/Main.cpp
