@@ -27,6 +27,7 @@ set(UnitTests
 	GarbageCollection
 	Geometry
 	Hashmap
+	HTTP
 	KeyRepeater
 	Layer
 	Logging
