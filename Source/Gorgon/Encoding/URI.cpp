@@ -79,7 +79,7 @@ namespace Gorgon :: Encoding {
 		for(auto c : src) {
 			if(pcte) {
 				auto digit = hextodec[c<0 ? 255 : (int)c];
-				if(digit==-1) {
+				if(digit==char(-1)) {
 					throw URIError(String::Concat("Non-hex character at URI: '", c, "'"));
 				}
 
@@ -210,6 +210,7 @@ namespace Gorgon :: Encoding {
 
 							if(it==str.end()) return;
 
+							c = *it;
 							if(c==':')  {
 								doingport=true;
 								host=temp;
@@ -480,10 +481,6 @@ namespace Gorgon :: Encoding {
 			if(otherport==0) otherport=21;
 		}
 		else if(scheme=="sftp" || scheme=="ssh") {
-			if(thisport==0) thisport=22;
-			if(otherport==0) otherport=22;
-		}
-		else if(scheme=="ssh") {
 			if(thisport==0) thisport=22;
 			if(otherport==0) otherport=22;
 		}
