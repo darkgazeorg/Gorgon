@@ -224,14 +224,15 @@ namespace Gorgon :: Encoding {
 
 	std::ostream &operator <<(std::ostream &out, const URIPath &path);
 
-	/// Decodes a given URI string according to RFC 3986. May throw URIError.
-	std::string URIDecode(const std::string &str);
+	/// Decodes a percent-encoded URI string (RFC 3986).
+	/// Set plusasspace=true for application/x-www-form-urlencoded input where '+' means space.
+	std::string URIDecode(const std::string &str, bool plusasspace = false);
 
-	/// Encodes a given URI string according to RFC 3986.
+	/// Encodes a URI string, percent-encoding any character not in the unreserved set (RFC 3986).
 	std::string URIEncode(const std::string &str);
 
-	/// Customized percentage encoding. Some URI components have different
-	/// characters that are allowed
-	std::string PCTEncode(const std::string &str, const std::set<char> &allowed, bool allowalpha=true, bool allownum=true);
+	/// Customized percentage encoding. Some URI components have different characters that are allowed.
+	/// Set spacetoplus=true for application/x-www-form-urlencoded encoding where space becomes '+'.
+	std::string PCTEncode(const std::string &str, const std::set<char> &allowed, bool allowalpha=true, bool allownum=true, bool spacetoplus=false);
 	
 }

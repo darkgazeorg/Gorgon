@@ -1,37 +1,36 @@
 #include <string>
 #include <cstring>
-#include <algorithm>
 #include "URI.h"
 #include "../String.h"
 
 namespace Gorgon :: Encoding { 
 
+	// Builds a 256-entry lookup table: ASCII char -> hex digit value, -1 for invalid chars.
 	inline static char *buildhextodec() {
 		auto ret = new char[256];
 
-		std::memset(ret, -1, 256);
+		std::memset(ret, -1, 256); // default: invalid
 
 		for(int i=0; i<=9; i++)
-			ret[i+'0']=i;
+			ret[i+'0']=i;			// '0'-'9'
 
 		for(int i=10;i<16;i++)
-			ret[i-10+'a']=ret[i-10+'A']=i;
+			ret[i-10+'a']=ret[i-10+'A']=i; // 'a'-'f' and 'A'-'F'
 
 		return ret;
 	}
 
+	// Builds a 256-entry lookup: true for RFC 3986 unreserved chars (alpha, digit, - . _ ~).
 	inline static bool *buildsafelist() {
 		auto ret = new bool[256];
 
 		std::memset(ret, 0, 256);
 
-		for(int i=0x41; i<=0x5a; i++)
-			ret[i] = true;
-		for(int i=0x61; i<=0x7a; i++)
-			ret[i] = true;
-		for(int i=0x30; i<=0x39; i++)
-			ret[i] = true;
+		for(int i=0x41; i<=0x5a; i++) ret[i] = true; // A-Z
+		for(int i=0x61; i<=0x7a; i++) ret[i] = true; // a-z
+		for(int i=0x30; i<=0x39; i++) ret[i] = true; // 0-9
 
+		// - . _ ~
 		ret[0x2d] = true;
 		ret[0x2e] = true;
 		ret[0x5f] = true;
@@ -44,6 +43,7 @@ namespace Gorgon :: Encoding {
 	static const     bool *safelist		= buildsafelist();
 	static constexpr char  dectohex[]	= "0123456789ABCDEF";
 
+	// Merge two character sets.
 	static std::set<char> appendtoset(std::set<char> base, std::initializer_list<char> chars) {
 		base.insert(chars.begin(), chars.end());
 
@@ -56,9 +56,10 @@ namespace Gorgon :: Encoding {
 		return base;
 	}
 
+	// RFC 3986 character class sets used for selective percent-encoding per component.
 	static const     std::set<char> subdelims		= {'!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '='};
 	static const     std::set<char> unreservedchars	= {'-', '.', '_', '~'};
-	static const     std::set<char> userinfochars	= appendtoset(appendtoset(subdelims, unreservedchars), 
+	static const     std::set<char> userinfochars	= appendtoset(appendtoset(subdelims, unreservedchars),
 																  {':'}
 													  );
 	static const     std::set<char> hostchars		= appendtoset(appendtoset(subdelims, unreservedchars), 
@@ -70,15 +71,19 @@ namespace Gorgon :: Encoding {
 	static const     std::set<char> pathchars		= appendtoset(pchar, {'/'});
 	static const     std::set<char> querychars		= appendtoset(pchar, {'?', '/'});
 
-	std::string URIDecode(const std::string &src)	{
+	// Decodes a percent-encoded URI string.
+	// RFC 3986 does not treat '+' as space; set plusasspace=true only for
+	// application/x-www-form-urlencoded (HTML query strings).
+	std::string URIDecode(const std::string &src, bool plusasspace)	{
 		std::string result;
 		result.reserve(src.length());
 
-		int pcte = 0;
+		int pcte = 0;        // remaining hex digits expected after '%'
 		unsigned char build = 0;
 		for(auto c : src) {
 			if(pcte) {
-				auto digit = hextodec[c<0 ? 255 : (int)c];
+				// Use unsigned index; guard against signed-char platforms.
+				auto digit = hextodec[(unsigned char)c];
 				if(digit==char(-1)) {
 					throw URIError(String::Concat("Non-hex character at URI: '", c, "'"));
 				}
@@ -92,6 +97,8 @@ namespace Gorgon :: Encoding {
 			else {
 				if(c == '%')
 					pcte=2;
+				else if(plusasspace && c == '+') // form-encoded: '+' means space
+					result.push_back(' ');
 				else
 					result.push_back(c);
 			}
@@ -104,17 +111,26 @@ namespace Gorgon :: Encoding {
 		return result;
 	}
 
-	std::string PCTEncode(const std::string &src, const std::set<char> &allowed, bool allowalpha, bool allownum) {
+	// Percent-encodes src, leaving allowed chars (and optionally alpha/digits) as-is.
+	// set spacetoplus=true for application/x-www-form-urlencoded encoding of spaces.
+	std::string PCTEncode(const std::string &src, const std::set<char> &allowed, bool allowalpha, bool allownum, bool spacetoplus) {
 		std::string result;
 		result.reserve(src.length());
 
 		for(auto c : src) {
-			if(allowed.count((unsigned char)c) || (isalpha((unsigned char)c) && allowalpha) || (isdigit((unsigned char)c) && allownum) )
+			unsigned char uc = (unsigned char)c;
+			if(spacetoplus && c == ' ') {
+				// form-encoded: space as '+'
+				result.push_back('+');
+			}
+			else if(allowed.count(uc) || (isalpha(uc) && allowalpha) || (isdigit(uc) && allownum)) {
 				result.push_back(c);
+			}
 			else {
+				// percent-encode: use unsigned cast to avoid sign-extension on high-bit chars
 				result.push_back('%');
-				result.push_back(dectohex[c>>4]);
-				result.push_back(dectohex[c&15]);
+				result.push_back(dectohex[uc >> 4]);
+				result.push_back(dectohex[uc & 15]);
 			}
 		}
 
@@ -125,6 +141,7 @@ namespace Gorgon :: Encoding {
 		return PCTEncode(src, unreservedchars);
 	}
 
+	// Direct-construction from pre-known components; no encoding is applied.
 	URI::URI(const std::string &scheme, const std::string &host,
 			 const std::string &path,   const std::string &query, 
 			 const std::string &fragment) : 
@@ -133,6 +150,7 @@ namespace Gorgon :: Encoding {
 	{
 	}
 
+	// Same as above with explicit port.
 	URI::URI(const std::string &scheme, const std::string &host, 
 			 int port, const std::string &path, 
 			 const std::string &query, const std::string &fragment) :
@@ -383,12 +401,14 @@ namespace Gorgon :: Encoding {
 	}
 
 	bool URI::IsValid() const {
+		// Scheme must start with alpha and contain only alpha/digit/+/-/.
 		if(scheme.length()==0)  return false;
 
 		if(!isalpha((unsigned char)scheme[0])) return false;
 
 		if(PCTEncode(scheme, {'+', '-', '.'})!=scheme) return false;
 
+		// These schemes require a host.
 		if(scheme=="http" || scheme=="https" || scheme=="ftp")
 			if(host=="") return false;
 
@@ -442,22 +462,30 @@ namespace Gorgon :: Encoding {
 				}
 
 				if(relative) {
-					path=URIPath(path)+uriform.path;
-					query=uriform.query;
+					// Append relative path then normalize away . and .. segments
+					auto newpath = URIPath(path) + URIPath(uriform.path);
+					newpath.Normalize();
+					path  = newpath;
+					query = uriform.query;
 				}
 				else {
-					path=uriform.path;
-					query=uriform.query;
+					// Absolute path - still normalize . and .. segments
+					auto newpath = URIPath(uriform.path);
+					newpath.Normalize();
+					path  = newpath;
+					query = uriform.query;
 				}
 			}
 		}
 	}
 
+	// Fragment is intentionally excluded from comparison (RFC 3986 §6.2).
 	bool URI::operator==(const URI &other) const {
 		if(String::ToLower(scheme) != String::ToLower(other.scheme)) return false;
 
 		if(userinfo!=other.userinfo) return false;
 
+		// RFC: file://localhost/ == file:///
 		if(scheme == "file" && ( 
 			(host=="" && String::ToLower(other.host)=="localhost") || 
 			(other.host=="" && String::ToLower(host)=="localhost") )) {
@@ -465,6 +493,7 @@ namespace Gorgon :: Encoding {
 		}
 		else  if(String::ToLower(host) != String::ToLower(other.host)) return false;
 
+		// Expand default ports so port 0 compares correctly against explicit defaults.
 		int thisport = port;
 		int otherport = other.port;
 
@@ -496,27 +525,25 @@ namespace Gorgon :: Encoding {
 		data(std::move(init))
 	{ }
 
+	// Serialises to application/x-www-form-urlencoded format (RFC 1866):
+	// spaces become '+', everything else is percent-encoded.
 	HTTPQuery::operator std::string() const {
 		std::string ret;
 
 		for(auto p : data) {
-			std::string temp;
-			
 			if(ret!="")
 				ret+="&";
 
-			temp = PCTEncode(String::FixLineEndings(p.first), {' '});
-			std::replace(temp.begin(), temp.end(), ' ', '+');
-			ret+=temp+"=";
-
-			temp = PCTEncode(String::FixLineEndings(p.second), {' '});
-			std::replace(temp.begin(), temp.end(), ' ', '+');
-			ret+=temp;
+			// Encode key and value: space -> '+', other special chars -> %XX
+			ret += PCTEncode(String::FixLineEndings(p.first),  {}, true, true, true) + "=";
+			ret += PCTEncode(String::FixLineEndings(p.second), {}, true, true, true);
 		}
 
 		return ret;
 	}
 
+	// Parses an application/x-www-form-urlencoded query string.
+	// '+' is treated as space per RFC 1866; percent-sequences are decoded.
 	HTTPQuery::HTTPQuery(const std::string &query) {
 		std::string temp;
 		bool invalue = false;
@@ -524,24 +551,20 @@ namespace Gorgon :: Encoding {
 
 		for(auto c : query) {
 			if(c=='&' || c==';') {
+				// end of pair; flush key if we never saw '='
 				if(!invalue) {
-					key=temp;
-					std::replace(key.begin(), key.end(), '+', ' ');
-					key=URIDecode(key);
+					key = URIDecode(temp, true);
 					temp="";
 				}
 
-				std::replace(temp.begin(), temp.end(), '+', ' ');
-				data.insert({key, URIDecode(temp)});
+				data.insert({key, URIDecode(temp, true)});
 
 				temp="";
 				invalue=false;
 			}
 			else if(!invalue && c=='=') {
-				key=temp;
-				std::replace(key.begin(), key.end(), '+', ' ');
-				key=URIDecode(key);
-
+				// separator between key and value
+				key = URIDecode(temp, true);
 				temp="";
 				invalue=true;
 			}
@@ -550,15 +573,12 @@ namespace Gorgon :: Encoding {
 			}
 		}
 
+		// flush last pair
 		if(temp!="" || key!="") {
-			if(!invalue) {
-				key=temp;
-				std::replace(key.begin(), key.end(), '+', ' ');
-				key=URIDecode(key);
-			}
+			if(!invalue)
+				key = URIDecode(temp, true);
 
-			std::replace(temp.begin(), temp.end(), '+', ' ');
-			data.insert({key, URIDecode(temp)});
+			data.insert({key, URIDecode(temp, true)});
 		}
 	}
 
@@ -566,15 +586,15 @@ namespace Gorgon :: Encoding {
 		segments(std::move(init))
 	{ }
 
+	// Parse a path string into segments, ignoring the leading '/'.
 	URIPath::URIPath(const std::string &path) {
 		std::string temp;
 		bool first=true;
 
-
 		for(auto c : path) {
 			if(c=='/') {
 				if(!first)
-					segments.push_back(temp);
+					segments.push_back(temp); // push segment between slashes
 
 				temp="";
 			}
@@ -584,15 +604,17 @@ namespace Gorgon :: Encoding {
 			first=false;
 		}
 
-		if(temp!="")
+		if(temp!="")      // last segment has no trailing '/'
 			segments.push_back(temp);
 	}
 
+	// Resolves '.' (current) and '..' (parent) segments in-place.
 	void URIPath::Normalize() {
-		for(unsigned i = 0; i<segments.size(); i++) {
-			auto seg = segments[i];
+		for(int i = 0; i<(int)segments.size(); i++) {
+			auto &seg = segments[i];
 
 			if(seg==".") {
+				// drop current-directory reference
 				segments.erase(segments.begin()+i);
 				i--;
 			}
@@ -601,6 +623,7 @@ namespace Gorgon :: Encoding {
 					throw URIError("Parent directory directive at the top segment.");
 				}
 
+				// remove parent and '..' together
 				segments.erase(segments.begin()+i-1, segments.begin()+i+1);
 				i-=2;
 			}
@@ -634,7 +657,7 @@ namespace Gorgon :: Encoding {
 		if(t1.segments != t2.segments)
 			return false;		
 
-		return std::equal(t1.segments.begin(), t1.segments.end(), t2.segments.begin());
+		return true;
 	}
 
 	std::ostream &operator <<(std::ostream &out, const URI &uri) {
