@@ -263,6 +263,12 @@ public:
     }
   }
 
+  /// Get read-only access to the commands.
+  const std::vector<Command>& GetCommands() const { return Commands; }
+
+  /// Get read-only access to the contours.
+  const std::vector<Contour>& GetContours() const { return Contours; }
+  
 private:
   std::vector<Command> Commands;
   std::vector<Contour> Contours;
