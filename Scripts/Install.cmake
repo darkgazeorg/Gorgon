@@ -64,6 +64,12 @@ if(EXPORT_BUILD_TREE)
     export(EXPORT GorgonTargets 
            FILE "${CMAKE_CURRENT_BINARY_DIR}/GorgonTargets.cmake"
            NAMESPACE Gorgon::)
+
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/Public.cmake"
+        COPYONLY
+    )
            
     # Generate the local config file from the template
     configure_file(
