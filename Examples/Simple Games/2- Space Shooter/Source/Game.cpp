@@ -100,10 +100,11 @@ void Game::render() {
             // Modulo wraps the index so we never go out of bounds in the
             // assets array even if astroidType is a large random number.
             int type = astroid.GetType();
-            auto &image = Assets::Astroid::Get(type % Assets::Astroid::GetTypeCount()).GetImage();
+            auto &image = astroid.GetAnimation();
 
             float w = 64;
             float h = 64;
+            
             // DrawStretched draws the sprite at the given top-left position
             // and scales it to the given {w, h} dimensions.
             image.DrawStretched(graphics, astroid.GetPosition() - Pointf(w/2.f, h/2.f), {w, h});

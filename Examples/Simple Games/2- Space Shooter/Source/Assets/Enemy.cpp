@@ -8,6 +8,10 @@
 
 #include "Enemy.h"
 
+#include <Gorgon/Filesystem.h>
+#include <Gorgon/Graphics/Bitmap.h>
+#include <Gorgon/Graphics/TextureAnimation.h>
+
 namespace Assets {
 
     // Load a single asteroid image.
@@ -16,12 +20,56 @@ namespace Assets {
     // the filename.  This is a common off-by-one adjustment worth remembering.
     void Astroid::Load(int type) {
         this->type = type;
-        image.Import("Resources/astroid" + std::to_string(type+1) + ".png");
+
+        // Partial file path
+        std::string path = "Resources/astroid" + std::to_string(type+1);
+
+        // If file without frame number exists, load it as a static image.
+        if(Gorgon::Filesystem::IsFile(path + ".png")) {
+            //load the bitmap
+            Gorgon::Graphics::Bitmap bmp;
+            bmp.Import(path + ".png");
+            bmp.Prepare();
+
+            // move the data so that it will keep on living inside the
+            // animation storage.
+            image.SetAnimation(std::move(bmp));
+        }
+        // Otherwise, load frames one by one
+        else {
+            Gorgon::Graphics::BitmapAnimationProvider anim;
+
+            // Loop through frame numbers until we find a missing file, which signals
+            // the end of the animation sequence.
+            for(int frame = 1; ; frame++) {
+                // Check if the file for this frame exists. If not, we have loaded all frames
+                // and can break out of the loop.
+                std::string framePath = path + "_" + std::to_string(frame) + ".png";
+                if(!Gorgon::Filesystem::IsFile(framePath)) break;
+
+                // Load the frame
+                Gorgon::Graphics::Bitmap bmp;
+                bmp.Import(framePath);
+
+                // Add animation frame with 250ms duration.
+                anim.Add(std::move(bmp), 250);
+            }
+            anim.Prepare();
+
+            image.SetAnimation(std::move(anim));
+        }
     }
 
     // Send this asteroid's image to the GPU.
     void Astroid::Prepare() {
-        image.Prepare();
+        auto &anim = image.GetAnimation();
+
+        if(auto *bmp = dynamic_cast<Gorgon::Graphics::Bitmap*>(&anim)) {
+            bmp->Prepare();
+        }
+        else if(auto *bmpAnim = dynamic_cast<Gorgon::Graphics::BitmapAnimationProvider*>(&anim)) {
+            bmpAnim->Prepare();
+        }
     }
 
     // Convenience: load every variant in one call so the caller does not need

@@ -29,6 +29,7 @@ set(APP_SOURCES
     Source/Mechanics/Player.h
     Source/Mechanics/Player.cpp
     Source/Mechanics/Enemy.h
+    Source/Mechanics/Enemy.cpp
 )
 
 # --- 2. GORGON FRAMEWORK ---

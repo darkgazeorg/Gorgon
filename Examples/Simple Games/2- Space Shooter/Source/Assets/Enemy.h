@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <Gorgon/Graphics/Bitmap.h>
+#include <Gorgon/Graphics/Animations.h>
 #include <Gorgon/Containers/Collection.h>  // A dynamic list (similar to std::vector)
 
 namespace Assets {
@@ -55,8 +55,8 @@ public:
     }
 
 private:
-    int type;                        // Which variant index this instance represents
-    Gorgon::Graphics::Bitmap image;  // The pixel data for this variant
+    int type;                                  // Which variant index this instance represents
+    Gorgon::Graphics::RectangularAnimationStorage image;  // The pixel data for this variant
 
     // One shared collection of all loaded variants.  Declared static so all
     // instances of Astroid (and the entire game) see the same pool of images.

@@ -19,6 +19,8 @@
 
 #include "../Types.h"  // For Pointf and RandomFloat
 
+#include <Gorgon/Graphics/Animations.h>
+
 namespace Mechanics {
 
 
@@ -69,36 +71,11 @@ public:
     // In the constructor we randomize position and velocity so that every
     // asteroid enters the screen differently. Using the random helpers from
     // Types.h keeps the code compact and readable.
-    Astroid() {
-        // Start somewhere above the visible screen (Y = -100).
-        // X can be a bit off-screen on either side for a more natural look.
-        position = Pointf(RandomFloat(-200, 1920+200), -100);
-
-        // Random sideways drift and a random downward speed.
-        // A higher Y velocity means the asteroid falls faster.
-        velocity = Pointf(RandomFloat(-150, 150), RandomFloat(500, 1200));
-
-        // Pick a random visual variant (sprite type) for this asteroid.
-        // The renderer will use this number (with a modulo) to select which image to draw.
-        astroidType = rand();
-    }
+    Astroid();
 
     // Move the asteroid according to its velocity. Also count down the
     // pre-check timer so fresh asteroids are not immediately removed.
-    void DoFrame(unsigned delta) override {
-        // Same delta-time formula as the player movement.
-        position += velocity * delta / 1000;
-
-        // preCheckTime prevents an asteroid from being marked as destroyable
-        // the instant it is created. Without this guard, an asteroid that
-        // spawns at Y = -100 could be incorrectly flagged as off-screen.
-        if(preCheckTime > delta) {
-            preCheckTime -= delta;
-        }
-        else {
-            preCheckTime = 0;
-        }
-    }
+    void DoFrame(unsigned delta) override;
 
     // An asteroid can be removed once it is old enough AND has left the screen
     // through the bottom (Y > 1080).  Deleting off-screen objects is important
@@ -117,6 +94,10 @@ public:
         return Enemy::Astroid;
     }
 
+    auto &GetAnimation() {
+        return anim;
+    }
+
 private:
     Pointf velocity;  // Direction and speed as a 2D vector (pixels per second)
 
@@ -125,6 +106,9 @@ private:
     unsigned long preCheckTime = 1000;
 
     int astroidType;  // Which visual variant to use (randomized at birth)
+
+    // Store an independent animation instance for this particular asteroid.
+    Gorgon::Graphics::Instance anim;
 };
 
 
