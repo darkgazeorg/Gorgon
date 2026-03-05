@@ -1,16 +1,20 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <algorithm>
 
 #include "../Utils/Assert.h"
 
 #include "HTTP.h"
 #include "../Main.h"
+#include "Gorgon/String.h"
 
 #define WINDOWS_LEAN_AND_MEAN
 #include <curl/curl.h>
 
 namespace Gorgon ::Network {
+
+// ---- Static helpers ----
 
 void HTTP::Initialize() {
     if(isinitialized)
@@ -45,14 +49,79 @@ static size_t vectorwriter(void *ptr, size_t size, size_t nmemb, void *vec) {
     return size * nmemb;
 }
 
+// ---- Cookie parsing / building ----
+
+HTTP::Cookie HTTP::Cookie::Parse(const std::string &setCookieValue) {
+    Cookie c;
+    // Split on semicolons
+    std::string remaining = setCookieValue;
+    bool first = true;
+    while(!remaining.empty()) {
+        std::string part;
+        auto semi = remaining.find(';');
+        if(semi != std::string::npos) {
+            part = remaining.substr(0, semi);
+            remaining = remaining.substr(semi + 1);
+        } else {
+            part = remaining;
+            remaining.clear();
+        }
+        part = String::Trim(part);
+        if(part.empty()) continue;
+
+        if(first) {
+            // First part is name=value
+            auto eq = part.find('=');
+            if(eq != std::string::npos) {
+                c.name = String::Trim(part.substr(0, eq));
+                c.value = String::Trim(part.substr(eq + 1));
+            } else {
+                c.name = String::Trim(part);
+            }
+            first = false;
+            continue;
+        }
+
+        // Attribute
+        auto eq = part.find('=');
+        std::string attrName, attrValue;
+        if(eq != std::string::npos) {
+            attrName = String::Trim(part.substr(0, eq));
+            attrValue = String::Trim(part.substr(eq + 1));
+        } else {
+            attrName = String::Trim(part);
+        }
+
+        // Case-insensitive attribute matching
+        std::string lower = String::ToLower(attrName);
+
+        if(lower == "domain") c.domain = attrValue;
+        else if(lower == "path") c.path = attrValue;
+        else if(lower == "expires") c.expires = attrValue;
+        else if(lower == "max-age") {
+            try { c.maxAge = std::stoi(attrValue); } catch(...) {}
+        }
+        else if(lower == "secure") c.secure = true;
+        else if(lower == "httponly") c.httpOnly = true;
+        else if(lower == "samesite") c.sameSite = attrValue;
+    }
+    return c;
+}
+
+std::string HTTP::Cookie::Build() const {
+    return name + "=" + value;
+}
+
+// ---- Response header callback ----
+
 size_t HTTP::headerwriter(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
     HTTP *self = (HTTP *)userdata;
     std::string header((char *)ptr, size * nmemb);
 
-    // protect headers with its own mutex to avoid locking mtx (which is held by
-    // operation()) and causing a deadlock when the callback is invoked during
-    // curl_easy_perform.
+    // protect response headers with its own mutex to avoid locking mtx (which
+    // is held by operation()) and causing a deadlock when the callback is
+    // invoked during curl_easy_perform.
     std::lock_guard<std::mutex> guard(self->headerMutex);
 
     // empty line indicates end of headers
@@ -72,11 +141,18 @@ size_t HTTP::headerwriter(void *ptr, size_t size, size_t nmemb, void *userdata)
         while(!value.empty() && value.front() == ' ')
             value.erase(value.begin());
 
-        self->headers[name] = value;
+        self->responseHeaders[name] = value;
+
+        // Collect Set-Cookie headers for cookie storage
+        if(String::ToLower(name) == "set-cookie") {
+            self->pendingSetCookies.push_back(value);
+        }
     }
 
     return size * nmemb;
 }
+
+// ---- Error translation ----
 
 static HTTP::Error translateerror(CURLcode res) {
   HTTP::Error err;
@@ -116,8 +192,10 @@ static HTTP::Error translateerror(CURLcode res) {
   return err;
 }
 
+// ---- Constructor / Destructor ----
+
 HTTP::HTTP() : TextTransferCompletedEvent(this), 
-               HeadersReceivedEvent(this),
+               ResponseHeadersReceivedEvent(this),
                DataTransferCompletedEvent(this),
                FileTransferCompletedEvent(this), 
                TransferErrorEvent(this) 
@@ -142,6 +220,128 @@ HTTP::~HTTP() {
 
     curl_easy_cleanup(curl);
 }
+
+// ---- Request header management ----
+
+void HTTP::SetHeader(const std::string &name, const std::string &value) {
+    globalHeaders[name] = value;
+}
+
+void HTTP::RemoveHeader(const std::string &name) {
+    globalHeaders.erase(name);
+}
+
+void HTTP::ClearHeaders() {
+    globalHeaders.clear();
+}
+
+// ---- Cookie management ----
+
+void HTTP::StoreCookies(bool state) {
+    storecookies = state;
+}
+
+void HTTP::ClearCookies() {
+    cookies.clear();
+}
+
+std::vector<HTTP::Cookie> HTTP::GetCookies() const {
+    std::vector<Cookie> result;
+    result.reserve(cookies.size());
+    for(auto &[name, cookie] : cookies)
+        result.push_back(cookie);
+    return result;
+}
+
+std::string HTTP::GetCookie(const std::string &name) const {
+    auto it = cookies.find(name);
+    if(it != cookies.end())
+        return it->second.value;
+    return "";
+}
+
+HTTP::Cookie HTTP::GetCookieInfo(const std::string &name) const {
+    auto it = cookies.find(name);
+    if(it != cookies.end())
+        return it->second;
+    return Cookie{};
+}
+
+bool HTTP::HasCookie(const std::string &name) const {
+    return cookies.find(name) != cookies.end();
+}
+
+void HTTP::SetCookie(const Cookie &cookie) {
+    cookies[cookie.name] = cookie;
+}
+
+void HTTP::SetCookie(const std::string &name, const std::string &value) {
+    Cookie c;
+    c.name = name;
+    c.value = value;
+    cookies[name] = c;
+}
+
+// ---- Curl setup helpers ----
+
+curl_slist *HTTP::buildRequestHeaders(const HeaderMap &overrideHeaders) {
+    curl_slist *headerList = nullptr;
+
+    // Start with global headers (HeaderStorage)
+    HeaderStorage merged = globalHeaders;
+
+    // Override/add with per-request headers
+    for(auto &[name, value] : overrideHeaders)
+        merged[name] = value;
+
+    // Build cookie header from stored cookies
+    if(!cookies.empty()) {
+        std::string cookieStr;
+        for(auto &[name, cookie] : cookies) {
+            if(!cookieStr.empty()) cookieStr += "; ";
+            cookieStr += cookie.Build();
+        }
+        // Only set if user hasn't explicitly overridden Cookie header
+        if(merged.find("Cookie") == merged.end())
+            merged["Cookie"] = cookieStr;
+    }
+
+    // Store the headers we will actually send
+    lastRequestHeaders = merged;
+
+    // Convert to curl_slist
+    for(auto &[name, value] : merged) {
+        std::string line = name + ": " + value;
+        headerList = curl_slist_append(headerList, line.c_str());
+    }
+
+    return headerList;
+}
+
+void HTTP::setupCurl(const std::string &URL, const HeaderMap &overrideHeaders,
+                     const std::string &postData) {
+    curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
+    // Set request headers
+    requestHeaderList = buildRequestHeaders(overrideHeaders);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, (curl_slist *)requestHeaderList);
+
+    // POST vs GET
+    if(!postData.empty()) {
+        tempPostData = postData;
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, tempPostData.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)tempPostData.size());
+    } else {
+        tempPostData.clear();
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    }
+}
+
+// ---- Blocking operations ----
 
 std::string HTTP::BlockingGetText(const std::string &URL) {
   CURL *curl_handle = curl_easy_init();
@@ -170,77 +370,91 @@ std::string HTTP::BlockingGetText(const std::string &URL) {
   return s;
 }
 
-void HTTP::GetText(const std::string &URL) {
+// ---- Shared operation runner ----
+
+void HTTP::operation() {
+  std::lock_guard<std::mutex> guard(mtx);
+  CURLcode res = curl_easy_perform(curl);
+
+  // Free the request header list now that perform is done
+  if(requestHeaderList) {
+    curl_slist_free_all((curl_slist *)requestHeaderList);
+    requestHeaderList = nullptr;
+  }
+  // Reset POST state so next request doesn't accidentally POST
+  curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, nullptr);
+
+  // should sync with main thread
+  err = translateerror(res);
+  isrunning = false;
+}
+
+// ---- Start operation helpers ----
+
+void HTTP::startTextOperation(const std::string &URL, const HeaderMap &overrideHeaders,
+                              const std::string &postData) {
   tempstr = "";
 
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
 
-  // reset header storage now that we hold mtx and know no other operation is
-  // in progress. isrunning will be true until operation() clears it, so this
-  // guarantee prevents concurrent headerwriter activity.
-  headers.clear();
+  responseHeaders.clear();
+  pendingSetCookies.clear();
   headersAvailable = false;
 
   isrunning = true;
   currentoperation = Text;
 
-  curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
-  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+  setupCurl(URL, overrideHeaders, postData);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, stringwriter);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&tempstr);
-  curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
-  // ifrunning is false, which it was to reach this point,
-  // the thread is about to end, wait for it to finish
   if(runner.joinable())
     runner.join();
 
   runner = std::thread(&HTTP::operation, this);
 }
 
-void HTTP::GetFile(const std::string &URL, const std::string &filename) {
-  tempfile.open(filename, std::ios::binary);
+void HTTP::startOperation(const std::string &URL, std::vector<Byte> &vec,
+                          const HeaderMap &overrideHeaders, const std::string &postData) {
+  setupCurl(URL, overrideHeaders, postData);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, vectorwriter);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&vec);
 
-  std::lock_guard<std::mutex> guard(mtx);
-  if(isrunning)
-    throw std::runtime_error("Running another task at the moment.");
-
-  headers.clear();
-  headersAvailable = false;
-
-  isrunning = true;
-  currentoperation = File;
-
-  stream(URL, tempfile);
+  if(runner.joinable())
+    runner.join();
+  runner = std::thread(&HTTP::operation, this);
 }
 
-void HTTP::GetStream(const std::string &URL, std::ostream &stream) {
-  std::lock_guard<std::mutex> guard(mtx);
-  if(isrunning)
-    throw std::runtime_error("Running another task at the moment.");
+void HTTP::startOperation(const std::string &URL, std::ostream &stream,
+                          const HeaderMap &overrideHeaders, const std::string &postData) {
+  setupCurl(URL, overrideHeaders, postData);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &streamwriter);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&stream);
 
-  headers.clear();
-  headersAvailable = false;
-
-  isrunning = true;
-  currentoperation = Stream;
-
-  this->stream(URL, stream);
+  if(runner.joinable())
+    runner.join();
+  runner = std::thread(&HTTP::operation, this);
 }
 
-void HTTP::GetData(const std::string &URL) {
+// ---- GET requests ----
+
+void HTTP::GetText(const std::string &URL, const HeaderMap &overrideHeaders) {
+  startTextOperation(URL, overrideHeaders);
+}
+
+void HTTP::GetData(const std::string &URL, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
 
-  if(currentoperation == Data) {
+  if(currentoperation == Data)
     tempvec.reset();
-  }
 
-  headers.clear();
+  responseHeaders.clear();
+  pendingSetCookies.clear();
   headersAvailable = false;
 
   isrunning = true;
@@ -248,19 +462,19 @@ void HTTP::GetData(const std::string &URL) {
 
   tempvec.reset(new std::vector<Byte>);
 
-  getdata(URL, *tempvec);
+  startOperation(URL, *tempvec, overrideHeaders);
 }
 
-void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec) {
+void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
 
-  if(currentoperation == Data) {
+  if(currentoperation == Data)
     tempvec.reset();
-  }
 
-  headers.clear();
+  responseHeaders.clear();
+  pendingSetCookies.clear();
   headersAvailable = false;
 
   isrunning = true;
@@ -268,27 +482,143 @@ void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec) {
 
   tempvec.reset(&vec);
 
-  getdata(URL, vec);
+  startOperation(URL, vec, overrideHeaders);
 }
 
-void HTTP::operation() {
+void HTTP::GetFile(const std::string &URL, const std::string &filename, const HeaderMap &overrideHeaders) {
+  tempfile.open(filename, std::ios::binary);
+
   std::lock_guard<std::mutex> guard(mtx);
-  CURLcode res = curl_easy_perform(curl);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
 
-  // should sync with main thread
-  err = translateerror(res);
-  isrunning = false;
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = File;
+
+  startOperation(URL, tempfile, overrideHeaders);
 }
+
+void HTTP::GetStream(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders) {
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = Stream;
+
+  startOperation(URL, stream, overrideHeaders);
+}
+
+// ---- POST requests ----
+
+void HTTP::PostText(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders) {
+  startTextOperation(URL, overrideHeaders, postData);
+}
+
+void HTTP::PostData(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders) {
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  if(currentoperation == Data)
+    tempvec.reset();
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = Data;
+
+  tempvec.reset(new std::vector<Byte>);
+
+  startOperation(URL, *tempvec, overrideHeaders, postData);
+}
+
+void HTTP::PostData(const std::string &URL, const std::string &postData,
+                    std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  if(currentoperation == Data)
+    tempvec.reset();
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = OwnedData;
+
+  tempvec.reset(&vec);
+
+  startOperation(URL, vec, overrideHeaders, postData);
+}
+
+void HTTP::PostFile(const std::string &URL, const std::string &postData,
+                    const std::string &filename, const HeaderMap &overrideHeaders) {
+  tempfile.open(filename, std::ios::binary);
+
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = File;
+
+  startOperation(URL, tempfile, overrideHeaders, postData);
+}
+
+void HTTP::PostStream(const std::string &URL, const std::string &postData,
+                      std::ostream &stream, const HeaderMap &overrideHeaders) {
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  isrunning = true;
+  currentoperation = Stream;
+
+  startOperation(URL, stream, overrideHeaders, postData);
+}
+
+// ---- Frame handler ----
 
 void HTTP::onframe() {
-    // handle headers first using header mutex only; this can run even while
-    // the operation thread is performing a request since it doesn't lock mtx.
+    // handle response headers first using header mutex only; this can run even
+    // while the operation thread is performing a request since it doesn't lock mtx.
     {
         std::lock_guard<std::mutex> hguard(headerMutex);
         if(headersAvailable) {
-            HeadersReceivedEvent(headers);
+            // Process pending cookies before firing the event
+            if(storecookies) {
+                for(auto &raw : pendingSetCookies) {
+                    Cookie c = Cookie::Parse(raw);
+                    if(!c.name.empty())
+                        cookies[c.name] = c;
+                }
+            }
+            pendingSetCookies.clear();
+
+            ResponseHeadersReceivedEvent(responseHeaders);
             headersAvailable = false;
-            // keep headers map around until cleared by next request
+            // keep response headers map around until cleared by next request
         }
     }
 
@@ -300,6 +630,20 @@ void HTTP::onframe() {
     // if operation is set but not running this means the operation
     // has finished but the event has not been fired yet
     if(currentoperation != None && !isrunning) {
+        // Process any remaining pending cookies (in case headers arrived
+        // after the last onframe but before operation finished)
+        {
+            std::lock_guard<std::mutex> hguard(headerMutex);
+            if(storecookies) {
+                for(auto &raw : pendingSetCookies) {
+                    Cookie c = Cookie::Parse(raw);
+                    if(!c.name.empty())
+                        cookies[c.name] = c;
+                }
+            }
+            pendingSetCookies.clear();
+        }
+
         if(err.error != 0) {
             TransferErrorEvent(err);
         }
@@ -336,34 +680,6 @@ void HTTP::onframe() {
         if(!isrunning)
             currentoperation = None;
     }
-}
-
-void HTTP::getdata(const std::string &URL, std::vector<Byte> &vec) {
-  curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
-  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, vectorwriter);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&vec);
-  curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
-  // ifrunning is false, the thread is about to end, wait for it to finish
-  if(runner.joinable())
-    runner.join();
-  runner = std::thread(&HTTP::operation, this);
-}
-
-void HTTP::stream(const std::string &URL, std::ostream &stream) {
-  curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
-  curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
-  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &streamwriter);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&stream);
-  curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
-  // ifrunning is false, the thread is about to end, wait for it to finish
-  if(runner.joinable())
-    runner.join();
-  runner = std::thread(&HTTP::operation, this);
 }
 
 void HTTP::deletevec(std::vector<Byte> *vec) {
