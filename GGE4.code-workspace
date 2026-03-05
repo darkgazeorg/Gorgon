@@ -7,7 +7,10 @@
 	"settings": {
 		"clangd.arguments": [
         	"--compile-commands-dir=${command:cmake.buildDirectory}"
-    	]
+        ],
+        "chat.tools.terminal.autoApprove": {
+            "ctest": true
+        }
 	},
 	"tasks": {
         "version": "2.0.0",

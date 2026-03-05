@@ -2,6 +2,7 @@
 
 #include <string>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -89,6 +90,12 @@ namespace Gorgon :: Network {
 
         /// Executed when GetText operation is completed.
         Event<HTTP, std::string&> TextTransferCompletedEvent;
+
+        /// Fired when request headers are available (non-blocking operations only).
+        /// The provided map contains header names and values. The map is owned by
+        /// the HTTP instance and valid only during the event call; copy it if you
+        /// need to keep it.
+        Event<HTTP, std::map<std::string,std::string>&> HeadersReceivedEvent;
         
         /// Fired when GetData operation is completed. The given vector is temporary, 
         /// it will be destroyed after used. You may swap its data if you need it
@@ -122,12 +129,20 @@ namespace Gorgon :: Network {
         /// Check if the process is still running
         bool IsRunning() const { return isrunning; }
 
+        /// Access to the most recently received headers. Valid only while
+        /// `HeadersReceivedEvent` is being handled or immediately afterward
+        /// (before the next request starts).
+        const std::map<std::string,std::string>& GetHeaders() const { return headers; }
+
         /// Should only be called if Gorgon main loop is not running.
         /// Otherwise it will be called automatically by the main.
         void onframe();
 
     private:
       void deletevec(std::vector<Byte> *vec);
+
+      // callback invoked by libcurl for each header line received
+      static size_t headerwriter(void *ptr, size_t size, size_t nmemb, void *userdata);
 
       void operation();
 
@@ -145,12 +160,17 @@ namespace Gorgon :: Network {
       Event<>::Token token;
 
       std::mutex mtx;
+      std::mutex headerMutex; // protects headers map and availability flag
       std::thread runner;
 
       bool isrunning = false;
       inline static bool isinitialized = false;
 
       enum { None, Text, Data, OwnedData, File, Stream } currentoperation;
+
+      // headers storage filled by headerwriter callback
+      std::map<std::string,std::string> headers;
+      bool headersAvailable = false;
     };
 }
 

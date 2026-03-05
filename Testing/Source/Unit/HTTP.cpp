@@ -21,9 +21,19 @@ TEST_CASE("HTTP Non-Blocking GetText", "[HTTP]") {
 
     Gorgon::Network::HTTP http;
     bool completed = false;
+    bool headersReceived = false;
+
+    http.HeadersReceivedEvent.Register([&](std::map<std::string,std::string> &hdrs) {
+        // we expect at least one header (could be status line or others)
+        REQUIRE(!hdrs.empty());
+        REQUIRE(hdrs["content-type"].find("text/plain") != std::string::npos);
+        headersReceived = true;
+    });
 
     http.TextTransferCompletedEvent.Register([&](std::string &content) {
         REQUIRE(content == expected_content);
+        // ensure headers arrived before completion
+        REQUIRE(headersReceived);
         completed = true;
     });
 
@@ -33,6 +43,7 @@ TEST_CASE("HTTP Non-Blocking GetText", "[HTTP]") {
         // Simulate main loop
         http.onframe();
     }
+    REQUIRE(headersReceived);
 }
 
 TEST_CASE("HTTP GetData Owned Vector", "[HTTP]") {

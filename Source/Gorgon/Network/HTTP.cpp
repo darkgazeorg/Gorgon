@@ -45,6 +45,39 @@ static size_t vectorwriter(void *ptr, size_t size, size_t nmemb, void *vec) {
     return size * nmemb;
 }
 
+size_t HTTP::headerwriter(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    HTTP *self = (HTTP *)userdata;
+    std::string header((char *)ptr, size * nmemb);
+
+    // protect headers with its own mutex to avoid locking mtx (which is held by
+    // operation()) and causing a deadlock when the callback is invoked during
+    // curl_easy_perform.
+    std::lock_guard<std::mutex> guard(self->headerMutex);
+
+    // empty line indicates end of headers
+    if(header == "\r\n" || header == "\n") {
+        self->headersAvailable = true;
+        return size * nmemb;
+    }
+
+    auto colon = header.find(':');
+    if(colon != std::string::npos) {
+        std::string name = header.substr(0, colon);
+        std::string value = header.substr(colon + 1);
+
+        // trim whitespace and trailing CRLF
+        while(!value.empty() && (value.back() == '\r' || value.back() == '\n'))
+            value.pop_back();
+        while(!value.empty() && value.front() == ' ')
+            value.erase(value.begin());
+
+        self->headers[name] = value;
+    }
+
+    return size * nmemb;
+}
+
 static HTTP::Error translateerror(CURLcode res) {
   HTTP::Error err;
 
@@ -84,6 +117,7 @@ static HTTP::Error translateerror(CURLcode res) {
 }
 
 HTTP::HTTP() : TextTransferCompletedEvent(this), 
+               HeadersReceivedEvent(this),
                DataTransferCompletedEvent(this),
                FileTransferCompletedEvent(this), 
                TransferErrorEvent(this) 
@@ -92,6 +126,10 @@ HTTP::HTTP() : TextTransferCompletedEvent(this),
 
   curl = curl_easy_init();
   ASSERT(curl, "Cannot create curl handle. Initialization failed?");
+
+  // register callbacks that are common across operations
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HTTP::headerwriter);
+  curl_easy_setopt(curl, CURLOPT_HEADERDATA, this);
 
   token = BeforeFrameEvent.Register(*this, &HTTP::onframe);
 }
@@ -135,8 +173,15 @@ std::string HTTP::BlockingGetText(const std::string &URL) {
 void HTTP::GetText(const std::string &URL) {
   tempstr = "";
 
+  std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
+
+  // reset header storage now that we hold mtx and know no other operation is
+  // in progress. isrunning will be true until operation() clears it, so this
+  // guarantee prevents concurrent headerwriter activity.
+  headers.clear();
+  headersAvailable = false;
 
   isrunning = true;
   currentoperation = Text;
@@ -159,8 +204,12 @@ void HTTP::GetText(const std::string &URL) {
 void HTTP::GetFile(const std::string &URL, const std::string &filename) {
   tempfile.open(filename, std::ios::binary);
 
+  std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
+
+  headers.clear();
+  headersAvailable = false;
 
   isrunning = true;
   currentoperation = File;
@@ -169,8 +218,12 @@ void HTTP::GetFile(const std::string &URL, const std::string &filename) {
 }
 
 void HTTP::GetStream(const std::string &URL, std::ostream &stream) {
+  std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
+
+  headers.clear();
+  headersAvailable = false;
 
   isrunning = true;
   currentoperation = Stream;
@@ -179,12 +232,16 @@ void HTTP::GetStream(const std::string &URL, std::ostream &stream) {
 }
 
 void HTTP::GetData(const std::string &URL) {
+  std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
 
   if(currentoperation == Data) {
     tempvec.reset();
   }
+
+  headers.clear();
+  headersAvailable = false;
 
   isrunning = true;
   currentoperation = Data;
@@ -195,12 +252,16 @@ void HTTP::GetData(const std::string &URL) {
 }
 
 void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec) {
+  std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
 
   if(currentoperation == Data) {
     tempvec.reset();
   }
+
+  headers.clear();
+  headersAvailable = false;
 
   isrunning = true;
   currentoperation = OwnedData;
@@ -220,8 +281,20 @@ void HTTP::operation() {
 }
 
 void HTTP::onframe() {
-  if(!mtx.try_lock())
-      return;
+    // handle headers first using header mutex only; this can run even while
+    // the operation thread is performing a request since it doesn't lock mtx.
+    {
+        std::lock_guard<std::mutex> hguard(headerMutex);
+        if(headersAvailable) {
+            HeadersReceivedEvent(headers);
+            headersAvailable = false;
+            // keep headers map around until cleared by next request
+        }
+    }
+
+    if(!mtx.try_lock())
+        return;
+      
     std::lock_guard<std::mutex> guard(mtx, std::adopt_lock);
 
     // if operation is set but not running this means the operation
