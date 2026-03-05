@@ -21,20 +21,27 @@ TEST_CASE("URI Encode/Decode", "[URI]") {
 	REQUIRE(URIEncode("\x11\x12\x13\x14\x41!&") == "%11%12%13%14A%21%26");
 	REQUIRE(URIEncode("0123456789") == "0123456789");
 
-	REQUIRE(URIDecode(URIEncode("ABC")) == "ABC");
-	REQUIRE(URIDecode(URIEncode("abc")) == "abc");
+	// round-trip valid strings
+	REQUIRE(URIDecode("ABC") == "ABC");
+	REQUIRE(URIDecode("abc") == "abc");
 
-	REQUIRE(URIDecode(URIEncode("")) == "");
-	REQUIRE(URIDecode(URIEncode("%")) == "%");
-	REQUIRE(URIDecode(URIEncode("A%b")) == "A%b");
-	REQUIRE(URIDecode(URIEncode("~_-.")) == "~_-.");
-	REQUIRE(URIDecode(URIEncode(" ")) == " ");
-	REQUIRE(URIDecode(URIEncode("\x11\x12\x13\x14\x41!&")) == "\x11\x12\x13\x14\x41!&");
-	REQUIRE(URIDecode(URIEncode("0123456789")) == "0123456789");
-	
+	REQUIRE(URIDecode("") == "");
+	REQUIRE(URIDecode("%25") == "%");
+	REQUIRE(URIDecode("A%25b") == "A%b");
+	REQUIRE(URIDecode("~_-.") == "~_-.");
+	REQUIRE(URIDecode("%20") == " ");
+	REQUIRE(URIDecode("%11%12%13%14A%21%26") == "\x11\x12\x13\x14\x41!&");
+	REQUIRE(URIDecode("0123456789") == "0123456789");
+
+	// strict mode errors
 	REQUIRE_THROWS(URIDecode("%1"));
 	REQUIRE_THROWS(URIDecode("%"));
 	REQUIRE_THROWS(URIDecode("%r"));
+
+	// best-effort decoding doesn't throw
+	REQUIRE(URIDecode("%1", false, false) == "%1");
+	REQUIRE(URIDecode("%", false, false) == "%");
+	REQUIRE(URIDecode("%r", false, false) == "%r");
 }
 
 
@@ -241,38 +248,87 @@ TEST_CASE("Combine URI", "[URI]") {
 	t.Combine("../c");
 	REQUIRE(t == "http://darkgaze.org/a/c");
 
-	t.Combine("ftp://kl.com");
-	REQUIRE(t == "ftp://kl.com");
+	t.Combine("ftp://example.com");
+	REQUIRE(t == "ftp://example.com");
 
 	t.Combine("path?x=y");
-	REQUIRE(t == "ftp://kl.com/path/?x=y");
+	REQUIRE(t == "ftp://example.com/path/?x=y");
 
 	t.Combine("..#a");
-	REQUIRE(t == "ftp://kl.com/#a");
+	REQUIRE(t == "ftp://example.com/#a");
 }
 
 TEST_CASE("HTTP Query", "[URI]") {
+	// Basic encoding
 	REQUIRE((std::string)HTTPQuery({{"a", "11"},{"b", "45"}}) == "a=11&b=45");
 	REQUIRE(HTTPQuery({{"a", "a b c"},{"b", "45"}}).Convert() == "a=a+b+c&b=45");
 	REQUIRE(HTTPQuery({{"a", "a b c"},{"b", "x&y"}}).Convert() == "a=a+b+c&b=x%26y");
 	REQUIRE(HTTPQuery({{"a", "a=b+c"},{"b", "x&y"}}).Convert() == "a=a%3Db%2Bc&b=x%26y");
 	REQUIRE(HTTPQuery({{"a", "a""\x0a""b""\x0d""c"},{"b", "x&y"}}).Convert() == "a=a%0D%0Ab%0D%0Ac&b=x%26y");
 
+	// Basic parsing
 	auto t = HTTPQuery("a=11&b=45");
-	REQUIRE(t.data["a"] == "11");
-	REQUIRE(t.data["b"] == "45");
+	REQUIRE(t.Get("a") == "11");
+	REQUIRE(t.Get("b") == "45");
 	REQUIRE(t.data.size() == 2);
 
 	t = HTTPQuery("a=a+b+c&b&c=");
-	REQUIRE(t.data["a"] == "a b c");
-	REQUIRE( (t.data.count("b") && t.data["b"] == "") );
-	REQUIRE( (t.data.count("c") && t.data["c"] == "") );
+	REQUIRE(t.Get("a") == "a b c");
+	REQUIRE((t.Exists("b") && t.Get("b") == ""));
+	REQUIRE((t.Exists("c") && t.Get("c") == ""));
 	REQUIRE(t.data.size() == 3);
 
 	t = HTTPQuery("a=a%3Db%2Bc&b=x%26y");
-	REQUIRE(t.data["a"] == "a=b+c");
-	REQUIRE(t.data["b"] == "x&y");
+	REQUIRE(t.Get("a") == "a=b+c");
+	REQUIRE(t.Get("b") == "x&y");
 	REQUIRE(t.data.size() == 2);
+
+	// Insertion order is preserved
+	REQUIRE(HTTPQuery("b=2&a=1").Convert() == "b=2&a=1");
+
+	// Get returns the last value for a key
+	t = HTTPQuery("a=first&b=x&a=last");
+	REQUIRE(t.Get("a") == "last");
+	REQUIRE(t.Get("b") == "x");
+	REQUIRE(t.Get("missing").has_value() == false);
+
+	// Count
+	REQUIRE(t.Count("a") == 2);
+	REQUIRE(t.Count("b") == 1);
+	REQUIRE(t.Count("missing") == 0);
+
+	// GetAll returns values in insertion order
+	auto all = t.GetAll("a");
+	REQUIRE(all.size() == 2);
+	REQUIRE(all[0] == "first");
+	REQUIRE(all[1] == "last");
+	REQUIRE(t.GetAll("missing").empty());
+
+	// Exists
+	REQUIRE(t.Exists("a"));
+	REQUIRE(!t.Exists("missing"));
+
+	// Add appends duplicate key, preserving order
+	t = HTTPQuery("a=1");
+	t.Add("b", "2");
+	t.Add("a", "3");
+	REQUIRE(t.Count("a") == 2);
+	REQUIRE(t.Get("a") == "3");
+	REQUIRE(t.GetAll("a")[0] == "1");
+	REQUIRE(t.GetAll("a")[1] == "3");
+	REQUIRE(t.Convert() == "a=1&b=2&a=3"); // order preserved
+
+	// operator[] modifies the first occurrence
+	t = HTTPQuery("a=1&b=2");
+	t["a"] = "modified";
+	REQUIRE(t.Get("a") == "modified");
+	REQUIRE(t.data.size() == 2); // no new entry added
+
+	// operator[] inserts when key is missing
+	t["c"] = "new";
+	REQUIRE(t.Exists("c"));
+	REQUIRE(t.Get("c") == "new");
+	REQUIRE(t.data.size() == 3);
 }
 
 TEST_CASE("URIPath", "[URI]") {
@@ -287,26 +343,25 @@ TEST_CASE("URIPath", "[URI]") {
 
 	REQUIRE(t.Convert() == "/b");
 
+	// constructor input is expected percent-encoded; Convert() escapes segments again
 	t = URIPath("a/@b:%25/c/d/../.");
 	t.Normalize();
 
-
-	result = std::vector<std::string>{"a", "@b:%25", "c"};
+	result = std::vector<std::string>{"a", "@b:%", "c"};
 	REQUIRE((t.segments.size()==result.size() && std::equal(t.segments.begin(), t.segments.end(), result.begin())));
-	REQUIRE(t.Convert() == "/a/@b:%25/c");
+	REQUIRE(t.Convert() == "/a/" + URIEncode("@b:%") + "/c");
 
-
-	result = std::vector<std::string>{"a", "@b:%25", "c"};
+	result = std::vector<std::string>{"a", "@b:%", "c"};
 	REQUIRE((t.segments.size()==result.size() && std::equal(t.segments.begin(), t.segments.end(), result.begin())));
-	REQUIRE(t.Convert() == "/a/@b:%25/c");
+	REQUIRE(t.Convert() == "/a/" + URIEncode("@b:%") + "/c");
 
 	t += "..";
 	t.Normalize();
 
-	result = std::vector<std::string>{"a", "@b:%25"};
+	result = std::vector<std::string>{"a", "@b:%"};
 	REQUIRE((t.segments.size()==result.size() && std::equal(t.segments.begin(), t.segments.end(), result.begin())));
 
-	auto t2 = t + ".././b%";
+	auto t2 = t + URIPath(".././b%", false);
 	t2.Normalize();
 
 	result = std::vector<std::string>{"a", "b%"};
@@ -319,9 +374,15 @@ TEST_CASE("URIPath", "[URI]") {
 
 	REQUIRE(t2 != t);
 
-	REQUIRE(t2 == "/a/b%/c");
+	REQUIRE(t2 == "/a/b%25/c");
 
-	REQUIRE(t2 == "a/b/../b%/c");
+	REQUIRE(t2 == "a/b/../b%25/c");
 
-	REQUIRE(t2 != "/a/b%/../c");
+	REQUIRE(t2 != "/a/b%25/../c");
+
+	REQUIRE_THROWS(URIPath("%", true));
+	REQUIRE_THROWS(URIPath("a%1", true));
+	REQUIRE_THROWS(URIPath("n%xa", true));
+	REQUIRE_THROWS(URIPath("/%1/", true));
+	REQUIRE_NOTHROW(URIPath("/a/b/.././/%25", true));
 }

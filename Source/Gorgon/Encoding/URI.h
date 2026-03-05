@@ -1,8 +1,9 @@
- #pragma once
+#pragma once
 
+#include <optional>
 #include <stdexcept>
 #include <set>
-#include <map>
+#include <utility>
 #include <vector>
 
 namespace Gorgon :: Encoding {
@@ -13,6 +14,10 @@ namespace Gorgon :: Encoding {
 	};
 
 	/// Represents an unfolded URI. Can be used to parse a URI string or build one according to RFC 3986.
+	/// All parts are assumed to be properly encoded and escaped. Use URIDecode and URIEncode functions to
+	/// encode and decode URI strings. Paths can be built using URIPath and queries can be built using HTTPQuery.
+	/// Note that URI does not check if the URI is really valid. Use IsValid function for this purpose. Also note that
+	/// URI does not check if the path is really valid. Use URIPath for this purpose.
 	/// @code
 	/// #include <Gorgon/Network/HTTP.h>
 	/// ...
@@ -23,11 +28,24 @@ namespace Gorgon :: Encoding {
 		/// Empty constructor. Does not set scheme thus would not be a valid URI
 		URI() = default;
 
-		/// Creates a new URI by filling in fields
-		URI(const std::string &scheme, const std::string &host, const std::string &path, const std::string &query = "", const std::string &fragment="");
+		/// Creates a new URI by filling in fields. Fields are assumed to be properly encoded.
+		URI(
+			const std::string &scheme, 
+			const std::string &host, 
+			const std::string &path, 
+			const std::string &query = "", 
+			const std::string &fragment=""
+		);
 
-		/// Creates a new URI by filling in fields
-		URI(const std::string &scheme, const std::string &host, int port, const std::string &path, const std::string &query = "", const std::string &fragment="");
+		/// Creates a new URI by filling in fields. Fields are assumed to be properly encoded.
+		URI(
+			const std::string &scheme, 
+			const std::string &host, 
+			int port, 
+			const std::string &path, 
+			const std::string &query = "", 
+			const std::string &fragment=""
+		);
 
 		/// Builds a new URI from the given string. May throw URIError. This constructor will not check if the URI is 
 		/// really valid. Use IsValid function for this purpose. If this URI is embedded inside another URI and possibly
@@ -76,6 +94,14 @@ namespace Gorgon :: Encoding {
 			return t; 
 		}
 
+		/// Normalizes this URI in-place: lowercases scheme and host, resolves . and .. in path.
+		/// Port defaults are NOT applied; use GetPortNumber() for that.
+		void Normalize(bool removeempty=true);
+
+		/// Returns the effective port: the stored port if non-zero, otherwise the default for the scheme.
+		/// Returns 0 if no port is set and the scheme has no known default.
+		int GetPortNumber() const;
+
 		/// Scheme of the URI, ex: http. Scheme cannot be encoded, thus should only start with an alpha character and 
 		/// should only contain Alphanumeric characters as well as +, - and . 
 		std::string scheme;
@@ -90,7 +116,7 @@ namespace Gorgon :: Encoding {
 		/// The port number, 0 means it is not defined.
 		int port = 0;
 
-		/// Path of the resource. Segments must be separated by /. You may use URIPath to construct a path
+		/// Path of the resource. Segments must be separated by /. You may use URIPath to construct a path.
 		std::string path;
 
 		/// Query for the resource, must be properly escaped and encoded, you may use HTTPQuery to build http query string.
@@ -100,15 +126,22 @@ namespace Gorgon :: Encoding {
 		std::string fragment;
 	};
 
-	/// Represents and HTTP query that might be send to page using POST or embedded in URI
+	/// Represents an HTTP query that might be sent to a page using POST or embedded in a URI.
+	/// RFC 3986 places no restriction on duplicate keys. Insertion order is preserved.
+	/// Use Add() to append a second value for an existing key.
 	class HTTPQuery {
 	public:
+		/// A single key-value pair
+		using KeyPair = std::pair<std::string, std::string>;
+
+		/// Underlying storage: vector of pairs preserving insertion order
+		using Storage = std::vector<KeyPair>;
 
 		/// Empty constructor
 		HTTPQuery() = default;
 
 		/// Creates a new HTTP query using the given pairs
-		HTTPQuery(std::initializer_list<std::pair<const std::string, std::string>> init);
+		HTTPQuery(std::initializer_list<KeyPair> init);
 
 		/// Parses the given query
 		HTTPQuery(const std::string &query);
@@ -118,26 +151,70 @@ namespace Gorgon :: Encoding {
 
 		/// Converts this query system to string
 		std::string Convert() const { return *this; }
-		
-		/// Returns the value that is stored within key. If key does not exist, an empty string will be returned.
-		std::string Get(const std::string &key) const {
-            if(data.count(key) == 0) return "";
-            
-            return data.at(key);
-        }
-        
-		/// Returns the value that is stored within key. If key does not exist, an empty value with the given key is created.
-        std::string &operator[](const std::string &key) {
-            return data[key];
-        }
-        
-        /// Returns if the given key exists
-        bool Exists(const std::string &key) const {
-            return data.count(key) != 0;
-        }
 
-		/// Key-value pairs for this HTTP query
-		std::map<std::string, std::string> data;
+		/// Returns the last value stored for key.
+		std::optional<std::string> Get(const std::string &key) const {
+			std::string result;
+			bool found=false;
+
+			for(auto &p : data) {
+				if(p.first==key) { result = p.second; found=true; }
+			}
+
+			if(!found) return std::nullopt;
+
+			return {result};
+		}
+
+		/// Returns all values stored for key, in insertion order.
+		std::vector<std::string> GetAll(const std::string &key) const {
+			std::vector<std::string> result;
+			for(auto &p : data) {
+				if(p.first==key) result.push_back(p.second);
+			}
+			return result;
+		}
+
+		/// Returns a reference to the first value for key. Inserts an empty entry if key is missing.
+		/// To append a second value for the same key, use Add().
+		std::string &operator[](const std::string &key) {
+			for(auto &p : data)
+				if(p.first == key) return p.second;
+			data.push_back({key, ""});
+			return data.back().second;
+		}
+
+		/// Adds a new key/value pair, even if key already exists (allows duplicate keys).
+		void Add(const std::string &key, const std::string &value) {
+			data.push_back({key, value});
+		}
+
+		/// Returns the number of values stored for key.
+		size_t Count(const std::string &key) const {
+			size_t n = 0;
+			for(auto &p : data)
+				if(p.first == key) n++;
+			return n;
+		}
+
+		/// Returns if the given key exists
+		bool Exists(const std::string &key) const {
+			for(auto &p : data)
+				if(p.first == key) return true;
+			return false;
+		}
+
+		/// Iterators @{
+
+		auto begin() { return data.begin(); }
+		auto end() { return data.end(); }
+		auto begin() const { return data.begin(); }
+		auto end() const { return data.end(); }
+
+		/// @}
+
+		/// Key-value pairs for this HTTP query. Insertion order is preserved.
+		Storage data;
 	};
 
 	/// Helps to manage URIPaths. Note that the URI paths are always absolute. Allows normalization as 
@@ -152,10 +229,10 @@ namespace Gorgon :: Encoding {
 		URIPath(std::initializer_list<std::string> init);
 
 		/// Parses the given path.
-		URIPath(const std::string &path);
+		URIPath(const std::string &path, bool strict = false);
 
 		/// Parses the given path.
-		URIPath(const char *path) : URIPath(std::string(path)) { }
+		URIPath(const char *path, bool strict = false) : URIPath(std::string(path), strict) { }
 
 		/// Converts the path to string properly escaping for URI
 		operator std::string() const;
@@ -211,8 +288,27 @@ namespace Gorgon :: Encoding {
 			return *this;
 		}
 
-		/// Normalizes any relative references in the path. May throw URIError
-		void Normalize();
+		/// Combines this path with another, using this path as the root.
+		URIPath operator /(const URIPath &another) const { 
+			auto newp = *this; 
+			newp.Combine(another); 
+			return newp;
+		}
+
+
+		/// Combines another URIPath into this one, using this path as the root
+		URIPath &operator /=(const URIPath &another) {
+			Combine(another);
+			return *this;
+		}
+
+		/// Normalizes any relative references in the path. May throw URIError.
+		/// Also removes empty segments (from //) per common implementation practice.
+		void Normalize(bool removeempty=true);
+
+		/// Returns true if this path can be safely normalized without throwing.
+		/// A path is invalid if any '..' segment would pop past the root.
+		bool IsValid() const;
 
 		/// List of segments
 		std::vector<std::string> segments;
@@ -226,7 +322,9 @@ namespace Gorgon :: Encoding {
 
 	/// Decodes a percent-encoded URI string (RFC 3986).
 	/// Set plusasspace=true for application/x-www-form-urlencoded input where '+' means space.
-	std::string URIDecode(const std::string &str, bool plusasspace = false);
+	/// Decodes percent-escapes. strict=true throws on malformed escape; strict=false
+	/// returns input unchanged for bad sequences (best-effort). plusasspace=true treats '+' as space.
+	std::string URIDecode(const std::string &str, bool plusasspace = false, bool strict = true);
 
 	/// Encodes a URI string, percent-encoding any character not in the unreserved set (RFC 3986).
 	std::string URIEncode(const std::string &str);
