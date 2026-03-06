@@ -1,12 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_all.hpp>
-#include "../../../Source/Gorgon/Network/HTTP.h"
+#include <Gorgon/Network/HTTP.h>
 #include <fstream>
 #include <sstream>
 #include <vector>
-#include <thread>
-#include <chrono>
-#include <algorithm>
 
 static std::string testfile_content = "This is a test text file.\n";
 static std::string testphp_base = "https://darkgaze.org/testing/gorgontest.php";
@@ -38,7 +35,7 @@ TEST_CASE("HTTP Non-Blocking GetText", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(url);
+    http.Get(url);
 
     while (!completed) {
         http.onframe();
@@ -59,7 +56,7 @@ TEST_CASE("HTTP GetData Owned Vector", "[HTTP]") {
         completed = true;
     });
 
-    http.GetData(url);
+    http.Get(url, Gorgon::Network::HTTP::ObtainData);
 
     while (!completed) {
         http.onframe();
@@ -80,7 +77,7 @@ TEST_CASE("HTTP GetData Non-Owned Vector", "[HTTP]") {
         completed = true;
     });
 
-    http.GetData(url, data);
+    http.Get(url, data);
 
     while (!completed) {
         http.onframe();
@@ -100,7 +97,7 @@ TEST_CASE("HTTP GetStream", "[HTTP]") {
         completed = true;
     });
 
-    http.GetStream(url, stream);
+    http.Get(url, stream);
 
     while (!completed) {
         http.onframe();
@@ -128,7 +125,7 @@ TEST_CASE("HTTP GetFile", "[HTTP]") {
         completed = true;
     });
 
-    http.GetFile(url, filename);
+    http.Get(url, filename);
 
     while (!completed) {
         http.onframe();
@@ -150,7 +147,7 @@ TEST_CASE("HTTP Global Request Headers", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=echo_headers");
+    http.Get(testphp_base + "?action=echo_headers");
 
     while (!completed) {
         http.onframe();
@@ -175,7 +172,7 @@ TEST_CASE("HTTP Per-Request Override Headers", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=echo_headers", overrides);
+    http.Get(testphp_base + "?action=echo_headers", overrides);
 
     while (!completed) {
         http.onframe();
@@ -197,7 +194,7 @@ TEST_CASE("HTTP Per-Request Headers Do Not Persist", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=echo_headers", overrides);
+        http.Get(testphp_base + "?action=echo_headers", overrides);
         while (!completed) http.onframe();
     }
 
@@ -210,7 +207,7 @@ TEST_CASE("HTTP Per-Request Headers Do Not Persist", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=echo_headers");
+        http.Get(testphp_base + "?action=echo_headers");
         while (!completed) http.onframe();
     }
 }
@@ -226,7 +223,7 @@ TEST_CASE("HTTP PostText", "[HTTP]") {
         completed = true;
     });
 
-    http.PostText(testphp_base + "?action=echo_post", postBody);
+    http.Post(testphp_base + "?action=echo_post", postBody);
 
     while (!completed) {
         http.onframe();
@@ -242,7 +239,7 @@ TEST_CASE("HTTP PostText Method Check", "[HTTP]") {
         completed = true;
     });
 
-    http.PostText(testphp_base + "?action=echo_method", "data");
+    http.Post(testphp_base + "?action=echo_method", "data");
 
     while (!completed) {
         http.onframe();
@@ -260,7 +257,7 @@ TEST_CASE("HTTP GET After POST Resets Method", "[HTTP]") {
             completed = true;
         });
 
-        http.PostText(testphp_base + "?action=echo_method", "data");
+        http.Post(testphp_base + "?action=echo_method", "data");
         while (!completed) http.onframe();
     }
 
@@ -273,7 +270,7 @@ TEST_CASE("HTTP GET After POST Resets Method", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=echo_method");
+        http.Get(testphp_base + "?action=echo_method");
         while (!completed) http.onframe();
     }
 }
@@ -296,7 +293,7 @@ TEST_CASE("HTTP PostText Echo All", "[HTTP]") {
         completed = true;
     });
 
-    http.PostText(testphp_base + "?action=echo_all", postBody);
+    http.Post(testphp_base + "?action=echo_all", postBody);
 
     while (!completed) {
         http.onframe();
@@ -314,7 +311,7 @@ TEST_CASE("HTTP PostData", "[HTTP]") {
         completed = true;
     });
 
-    http.PostData(testphp_base + "?action=echo_post", postBody);
+    http.Post(testphp_base + "?action=echo_post", postBody, Gorgon::Network::HTTP::ObtainData);
 
     while (!completed) {
         http.onframe();
@@ -333,7 +330,7 @@ TEST_CASE("HTTP Cookie Storage", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=set_cookie&name=gorgon_test&value=hello123");
+        http.Get(testphp_base + "?action=set_cookie&name=gorgon_test&value=hello123");
         while (!completed) http.onframe();
     }
 
@@ -349,7 +346,7 @@ TEST_CASE("HTTP Cookie Storage", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=check_cookie&name=gorgon_test");
+        http.Get(testphp_base + "?action=check_cookie&name=gorgon_test");
         while (!completed) http.onframe();
     }
 }
@@ -441,7 +438,7 @@ TEST_CASE("HTTP Manual Cookie Sent With Request", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=echo_cookies");
+    http.Get(testphp_base + "?action=echo_cookies");
 
     while (!completed) {
         http.onframe();
@@ -459,7 +456,7 @@ TEST_CASE("HTTP StoreCookies Disabled By Default", "[HTTP]") {
             completed = true;
         });
 
-        http.GetText(testphp_base + "?action=set_cookie&name=nostorecookie&value=noval");
+        http.Get(testphp_base + "?action=set_cookie&name=nostorecookie&value=noval");
         while (!completed) http.onframe();
     }
 
@@ -480,7 +477,7 @@ TEST_CASE("HTTP RemoveHeader and ClearHeaders", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=echo_headers");
+    http.Get(testphp_base + "?action=echo_headers");
     while (!completed) http.onframe();
 
     // Now clear all headers
@@ -493,7 +490,7 @@ TEST_CASE("HTTP RemoveHeader and ClearHeaders", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=echo_headers");
+    http.Get(testphp_base + "?action=echo_headers");
     while (!completed) http.onframe();
 }
 
@@ -509,7 +506,7 @@ TEST_CASE("HTTP PostData With Vec", "[HTTP]") {
         completed = true;
     });
 
-    http.PostData(testphp_base + "?action=echo_post", postBody, result);
+    http.Post(testphp_base + "?action=echo_post", postBody, result);
 
     while (!completed) {
         http.onframe();
@@ -527,7 +524,7 @@ TEST_CASE("HTTP PostStream", "[HTTP]") {
         completed = true;
     });
 
-    http.PostStream(testphp_base + "?action=echo_post", postBody, stream);
+    http.Post(testphp_base + "?action=echo_post", postBody, stream);
 
     while (!completed) {
         http.onframe();
@@ -551,7 +548,7 @@ TEST_CASE("HTTP PostFile", "[HTTP]") {
         completed = true;
     });
 
-    http.PostFile(testphp_base + "?action=echo_post", postBody, filename);
+    http.Post(testphp_base + "?action=echo_post", postBody, filename);
 
     while (!completed) {
         http.onframe();
@@ -581,7 +578,7 @@ TEST_CASE("HTTP GetResponseHeaders", "[HTTP]") {
         completed = true;
     });
 
-    http.GetText(testphp_base + "?action=set_response_header&name=X-Test-Response&value=ResponseVal");
+    http.Get(testphp_base + "?action=set_response_header&name=X-Test-Response&value=ResponseVal");
 
     while (!completed) {
         http.onframe();

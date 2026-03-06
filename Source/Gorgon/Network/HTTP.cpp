@@ -441,11 +441,11 @@ void HTTP::startOperation(const std::string &URL, std::ostream &stream,
 
 // ---- GET requests ----
 
-void HTTP::GetText(const std::string &URL, const HeaderMap &overrideHeaders) {
+void HTTP::Get(const std::string &URL, const HeaderMap &overrideHeaders) {
   startTextOperation(URL, overrideHeaders);
 }
 
-void HTTP::GetData(const std::string &URL, const HeaderMap &overrideHeaders) {
+void HTTP::Get(const std::string &URL, DataTag, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
@@ -465,7 +465,7 @@ void HTTP::GetData(const std::string &URL, const HeaderMap &overrideHeaders) {
   startOperation(URL, *tempvec, overrideHeaders);
 }
 
-void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
+void HTTP::Get(const std::string &URL, std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
@@ -485,7 +485,7 @@ void HTTP::GetData(const std::string &URL, std::vector<Byte> &vec, const HeaderM
   startOperation(URL, vec, overrideHeaders);
 }
 
-void HTTP::GetFile(const std::string &URL, const std::string &filename, const HeaderMap &overrideHeaders) {
+void HTTP::Get(const std::string &URL, const std::string &filename, const HeaderMap &overrideHeaders) {
   tempfile.open(filename, std::ios::binary);
 
   std::lock_guard<std::mutex> guard(mtx);
@@ -502,7 +502,7 @@ void HTTP::GetFile(const std::string &URL, const std::string &filename, const He
   startOperation(URL, tempfile, overrideHeaders);
 }
 
-void HTTP::GetStream(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders) {
+void HTTP::Get(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
@@ -519,11 +519,11 @@ void HTTP::GetStream(const std::string &URL, std::ostream &stream, const HeaderM
 
 // ---- POST requests ----
 
-void HTTP::PostText(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders) {
+void HTTP::Post(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders) {
   startTextOperation(URL, overrideHeaders, postData);
 }
 
-void HTTP::PostData(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders) {
+void HTTP::Post(const std::string &URL, const std::string &postData, DataTag, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
@@ -543,8 +543,8 @@ void HTTP::PostData(const std::string &URL, const std::string &postData, const H
   startOperation(URL, *tempvec, overrideHeaders, postData);
 }
 
-void HTTP::PostData(const std::string &URL, const std::string &postData,
-                    std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
+void HTTP::Post(const std::string &URL, const std::string &postData,
+                std::vector<Byte> &vec, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");
@@ -564,8 +564,8 @@ void HTTP::PostData(const std::string &URL, const std::string &postData,
   startOperation(URL, vec, overrideHeaders, postData);
 }
 
-void HTTP::PostFile(const std::string &URL, const std::string &postData,
-                    const std::string &filename, const HeaderMap &overrideHeaders) {
+void HTTP::Post(const std::string &URL, const std::string &postData,
+                const std::string &filename, const HeaderMap &overrideHeaders) {
   tempfile.open(filename, std::ios::binary);
 
   std::lock_guard<std::mutex> guard(mtx);
@@ -582,8 +582,8 @@ void HTTP::PostFile(const std::string &URL, const std::string &postData,
   startOperation(URL, tempfile, overrideHeaders, postData);
 }
 
-void HTTP::PostStream(const std::string &URL, const std::string &postData,
-                      std::ostream &stream, const HeaderMap &overrideHeaders) {
+void HTTP::Post(const std::string &URL, const std::string &postData,
+                std::ostream &stream, const HeaderMap &overrideHeaders) {
   std::lock_guard<std::mutex> guard(mtx);
   if(isrunning)
     throw std::runtime_error("Running another task at the moment.");

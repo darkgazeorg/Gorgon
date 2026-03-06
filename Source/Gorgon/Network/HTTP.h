@@ -130,6 +130,13 @@ namespace Gorgon :: Network {
         using HeaderStorage = std::map<std::string, std::string, Gorgon::String::CaseInsensitiveLess>;
         /// Convenience alias used by request methods for per-request overrides
         using HeaderMap = std::map<std::string, std::string>;
+
+        /// Tag type used to select the Get/Post overload that stores response
+        /// data in a temporary internal vector passed to DataTransferCompletedEvent.
+        struct DataTag {};
+
+        /// Convenience tag instance for the temporary-vector Get/Post overloads.
+        inline static constexpr DataTag ObtainData{};
     
         HTTP();
         ~HTTP();
@@ -220,40 +227,40 @@ namespace Gorgon :: Network {
 
         /// Requests text data from the given URL (GET request).
         /// @param overrideHeaders Optional per-request headers (not persisted)
-        void GetText(const std::string &URL, const HeaderMap &overrideHeaders = {});
-        
+        void Get(const std::string &URL, const HeaderMap &overrideHeaders = {});
+
         /// Requests data from the given URL (GET request). Received data will be stored 
         /// in a temporary vector which will be passed to the event handler.
-        void GetData(const std::string &URL, const HeaderMap &overrideHeaders = {});
-        
+        void Get(const std::string &URL, DataTag, const HeaderMap &overrideHeaders = {});
+
         /// Requests data from the given URL (GET request). Received data will be stored 
         /// in the supplied vector. Ensure the vector lifetime is longer than the operation.
-        void GetData(const std::string &URL, std::vector<Byte> &vec, const HeaderMap &overrideHeaders = {});
-        
+        void Get(const std::string &URL, std::vector<Byte> &vec, const HeaderMap &overrideHeaders = {});
+
         /// Downloads the given URL to the supplied filename (GET request).
-        void GetFile(const std::string &URL, const std::string &filename, const HeaderMap &overrideHeaders = {});
-        
+        void Get(const std::string &URL, const std::string &filename, const HeaderMap &overrideHeaders = {});
+
         /// Streams the data to the given output stream (GET request).
-        void GetStream(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders = {});
+        void Get(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders = {});
 
         // ---- POST requests ----
 
         /// Posts data and retrieves the response as text.
         /// @param postData Raw POST body (e.g. from HTTPQuery::Convert() or JSON)
         /// @param overrideHeaders Optional per-request headers (not persisted)
-        void PostText(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders = {});
+        void Post(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders = {});
 
         /// Posts data and retrieves the response in a temporary vector.
-        void PostData(const std::string &URL, const std::string &postData, const HeaderMap &overrideHeaders = {});
+        void Post(const std::string &URL, const std::string &postData, DataTag, const HeaderMap &overrideHeaders = {});
 
         /// Posts data and retrieves the response in the supplied vector.
-        void PostData(const std::string &URL, const std::string &postData, std::vector<Byte> &vec, const HeaderMap &overrideHeaders = {});
+        void Post(const std::string &URL, const std::string &postData, std::vector<Byte> &vec, const HeaderMap &overrideHeaders = {});
 
         /// Posts data and saves the response to a file.
-        void PostFile(const std::string &URL, const std::string &postData, const std::string &filename, const HeaderMap &overrideHeaders = {});
+        void Post(const std::string &URL, const std::string &postData, const std::string &filename, const HeaderMap &overrideHeaders = {});
 
         /// Posts data and streams the response to the given output stream.
-        void PostStream(const std::string &URL, const std::string &postData, std::ostream &stream, const HeaderMap &overrideHeaders = {});
+        void Post(const std::string &URL, const std::string &postData, std::ostream &stream, const HeaderMap &overrideHeaders = {});
 
         /// Check if the process is still running
         bool IsRunning() const { return isrunning; }
