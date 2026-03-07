@@ -48,7 +48,17 @@ jobs:
 
       - name: Install SDK and Prepare Distribution
         run: |
-          cmake --build build/Default --target install_sdk -- DESTDIR=dist
+          mkdir -p dist
+          cmake --install build/Default --prefix dist
+
+          # Copy headers if install target doesn't handle them
+          cp -r Source/Gorgon/* dist/include/
+
+          # Copy Doxygen documentation if available
+          if [ -d Docs/html ]; then
+            mkdir -p dist/Docs
+            cp -r Docs/html/* dist/Docs/
+          fi
 
       - name: Package SDK
         run: tar -czf Gorgon-Linux-SDK.tar.gz -C dist .
