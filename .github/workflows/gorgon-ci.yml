@@ -99,7 +99,9 @@ jobs:
 
       - name: Setup vcpkg
         run: |
-          git clone https://github.com/microsoft/vcpkg.git
+          if not exist vcpkg (
+            git clone https://github.com/microsoft/vcpkg.git
+          )
           .\vcpkg\bootstrap-vcpkg.bat
           .\vcpkg\vcpkg install ^
             zlib:x64-windows ^
@@ -114,6 +116,7 @@ jobs:
         run: |
           cmake -S . -B build ^
             -G Ninja ^
+            -A x64 ^
             -DCMAKE_BUILD_TYPE=Release ^
             -DCMAKE_TOOLCHAIN_FILE=%CD%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DVCPKG_TARGET_TRIPLET=x64-windows
@@ -128,15 +131,15 @@ jobs:
           REM Create dist folder
           mkdir dist
 
-          REM Install all build artifacts to dist
+          REM Install build artifacts
           cmake --install build --config Release --prefix dist
 
-          REM Copy headers if install target didn't copy them
+          REM Copy headers if not installed by CMake
           if exist Source\Gorgon (
             xcopy Source\Gorgon dist\include /E /I /Y
           )
 
-          REM Copy Doxygen docs if available
+          REM Copy Doxygen documentation if available
           if exist Docs\HTML (
             mkdir dist\Docs
             xcopy Docs\HTML dist\Docs /E /I /Y
