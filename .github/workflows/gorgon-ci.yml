@@ -40,28 +40,31 @@ jobs:
           libgl1-mesa-dev libglew-dev
 
     - name: Configure
-      run: |
-        cmake --preset Default
+      run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G Ninja
 
     - name: Build
-      run: |
-        cmake --build build/Default --parallel
+      run: cmake --build build/Default --parallel
 
-    - name: Install Gorgon SDK
+    - name: Install SDK (Linux Fix)
       run: |
-        mkdir dist
-        cmake --install build/Default --prefix dist
+        # Prepare dist folder
+        mkdir -p dist/lib
+        mkdir -p dist/include
 
-    - name: Package
-      run: |
-        tar -czf Gorgon-Linux-SDK.tar.gz dist
+        # Copy static library (Linux output)
+        cp build/Default/libGorgon.a dist/lib/
+
+        # Copy headers
+        cp -r Source/Gorgon/* dist/include/
+
+    - name: Package SDK
+      run: tar -czf Gorgon-Linux-SDK.tar.gz dist
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Gorgon-Linux-SDK
         path: Gorgon-Linux-SDK.tar.gz
-
 
 # WINDOWS BUILD
   windows-build:
@@ -99,14 +102,14 @@ jobs:
       run: |
         git clone https://github.com/microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
-
         .\vcpkg\vcpkg install ^
-          zlib:x64-windows ^
-          libpng:x64-windows ^
-          libjpeg-turbo:x64-windows ^
-          glew:x64-windows
+        zlib:x64-windows ^
+        libpng:x64-windows ^
+        libjpeg-turbo:x64-windows ^
+        glew:x64-windows ^
+        freetype:x64-windows
       shell: cmd
-
+      
     # Configure
     - name: Configure CMake
       run: |
