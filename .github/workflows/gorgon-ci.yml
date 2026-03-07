@@ -106,7 +106,8 @@ jobs:
             libpng:x64-windows ^
             libjpeg-turbo:x64-windows ^
             glew:x64-windows ^
-            freetype:x64-windows
+            freetype:x64-windows ^
+            liblzma:x64-windows
         shell: cmd
 
       - name: Configure CMake
@@ -114,7 +115,7 @@ jobs:
           cmake -S . -B build ^
             -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+            -DCMAKE_TOOLCHAIN_FILE=%CD%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DVCPKG_TARGET_TRIPLET=x64-windows
         shell: cmd
 
@@ -126,6 +127,17 @@ jobs:
         run: |
           mkdir dist
           cmake --install build --prefix dist
+
+          # Copy headers (if not already installed)
+          if exist Source\Gorgon (
+            xcopy Source\Gorgon dist\include /E /I /Y
+          )
+
+          # Copy Doxygen documentation
+          if exist Docs\HTML (
+            mkdir dist\Docs
+            xcopy Docs\HTML dist\Docs /E /I /Y
+          )
         shell: cmd
 
       - name: Package Gorgon SDK
