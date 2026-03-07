@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -8,7 +9,7 @@
 #include "../Utils/Assert.h"
 #include "Bezier.h"
 
-namespace Gorgon :: CGI {
+namespace Gorgon ::CGI {
 
 /// Path builder that records drawing commands and can flatten curves.
 template <class Point_> class basic_Path {
@@ -17,12 +18,28 @@ public:
   using PointList = Geometry::PointList<Point>;
 
   /// Drawing commands supported by the path.
-  enum Verb { MoveTo, LineTo, CubicTo, Close };
+  enum Verb { MoveTo, LineTo, QuadraticTo, CubicTo, ArcTo, Close };
+
+  /// Quadratic Bezier segment control point.
+  struct Quadratic {
+    Point C;
+    Point To;
+  };
 
   /// Cubic Bezier segment control points.
   struct Cubic {
     Point C1;
     Point C2;
+    Point To;
+  };
+
+  /// SVG elliptical arc segment parameters.
+  struct Arc {
+    Float Rx;
+    Float Ry;
+    Float XAxisRotation;
+    bool LargeArc;
+    bool Sweep;
     Point To;
   };
 
@@ -32,7 +49,9 @@ public:
 
     union {
       Point To;
+      Quadratic Quadratic;
       Cubic Cubic;
+      Arc Arc;
     };
 
     Command() : To() {}
@@ -53,11 +72,28 @@ public:
       return cmd;
     }
 
+    /// Create a quadratic Bezier command with one control and an endpoint.
+    static Command QuadraticTo(Point c, Point to) {
+      Command cmd;
+      cmd.Verb = Verb::QuadraticTo;
+      cmd.Quadratic = {c, to};
+      return cmd;
+    }
+
     /// Create a cubic Bezier command with two controls and an endpoint.
     static Command CubicTo(Point c1, Point c2, Point to) {
       Command cmd;
       cmd.Verb = Verb::CubicTo;
       cmd.Cubic = {c1, c2, to};
+      return cmd;
+    }
+
+    /// Create an SVG elliptical arc command.
+    static Command ArcTo(Float rx, Float ry, Float xAxisRotation, bool largeArc,
+                         bool sweep, Point to) {
+      Command cmd;
+      cmd.Verb = Verb::ArcTo;
+      cmd.Arc = {rx, ry, xAxisRotation, largeArc, sweep, to};
       return cmd;
     }
 
@@ -110,11 +146,26 @@ public:
     PushCommand(Command::LineTo(to));
   }
 
+  /// Append a quadratic Bezier segment to the active contour.
+  void AddQuadraticTo(Point c, Point to) {
+    ASSERT(ActiveContourIndex >= 0 && !ExpectsMoveTo,
+           "QuadraticTo requires an active contour started by MoveTo");
+    PushCommand(Command::QuadraticTo(c, to));
+  }
+
   /// Append a cubic Bezier segment to the active contour.
   void AddCubicTo(Point c1, Point c2, Point to) {
     ASSERT(ActiveContourIndex >= 0 && !ExpectsMoveTo,
            "CubicTo requires an active contour started by MoveTo");
     PushCommand(Command::CubicTo(c1, c2, to));
+  }
+
+  /// Append an SVG elliptical arc segment to the active contour.
+  void AddArcTo(Float rx, Float ry, Float xAxisRotation, bool largeArc,
+                bool sweep, Point to) {
+    ASSERT(ActiveContourIndex >= 0 && !ExpectsMoveTo,
+           "ArcTo requires an active contour started by MoveTo");
+    PushCommand(Command::ArcTo(rx, ry, xAxisRotation, largeArc, sweep, to));
   }
 
   /// Close the active contour, marking it as finished.
@@ -186,6 +237,27 @@ public:
             points.Push(current);
           break;
         }
+        case Verb::QuadraticTo: {
+          ASSERT(haveCurrent, "QuadraticTo requires MoveTo");
+          const Point c1 =
+              current + (cmd.Quadratic.C - current) * (2.0f / 3.0f);
+          const Point c2 = cmd.Quadratic.To +
+                           (cmd.Quadratic.C - cmd.Quadratic.To) * (2.0f / 3.0f);
+
+          basic_Bezier<Point> bez(current, c1, c2, cmd.Quadratic.To);
+          auto seg = bez.Flatten(tolerance);
+          auto sz = seg.GetSize();
+          if (sz > 0) {
+            for (std::size_t pi = 1; pi < sz; pi++) {
+              const auto &p = seg[pi];
+              if (points.IsEmpty() || points.Back() != p)
+                points.Push(p);
+            }
+          }
+
+          current = cmd.Quadratic.To;
+          break;
+        }
         case Verb::CubicTo: {
           ASSERT(haveCurrent, "CubicTo requires MoveTo");
           basic_Bezier<Point> bez(current, cmd.Cubic.C1, cmd.Cubic.C2,
@@ -201,6 +273,12 @@ public:
             }
           }
           current = cmd.Cubic.To;
+          break;
+        }
+        case Verb::ArcTo: {
+          ASSERT(haveCurrent, "ArcTo requires MoveTo");
+          AppendArcAsPolyline(points, current, cmd.Arc, tolerance);
+          current = cmd.Arc.To;
           break;
         }
         case Verb::Close: {
@@ -252,16 +330,29 @@ public:
       case Verb::LineTo:
         fn(cmd.To);
         break;
+      case Verb::QuadraticTo:
+        fn(cmd.Quadratic.C);
+        fn(cmd.Quadratic.To);
+        break;
       case Verb::CubicTo:
         fn(cmd.Cubic.C1);
         fn(cmd.Cubic.C2);
         fn(cmd.Cubic.To);
+        break;
+      case Verb::ArcTo:
+        fn(cmd.Arc.To);
         break;
       case Verb::Close:
         break;
       }
     }
   }
+
+  /// Get read-only access to the commands.
+  const std::vector<Command> &GetCommands() const { return Commands; }
+
+  /// Get read-only access to the contours.
+  const std::vector<Contour> &GetContours() const { return Contours; }
 
 private:
   std::vector<Command> Commands;
@@ -301,9 +392,133 @@ private:
     }
     return a;
   }
+
+  static void AppendArcAsPolyline(PointList &points, const Point &start,
+                                  const Arc &arc, Float tolerance) {
+    if (std::abs(arc.Rx) < 0.001f || std::abs(arc.Ry) < 0.001f) {
+      if (points.IsEmpty() || points.Back() != arc.To)
+        points.Push(arc.To);
+      return;
+    }
+
+    Float rx = std::abs(arc.Rx);
+    Float ry = std::abs(arc.Ry);
+    const Float rotation = arc.XAxisRotation * (Float)PI / 180.0f;
+
+    const Float dx = (start.X - arc.To.X) / 2.0f;
+    const Float dy = (start.Y - arc.To.Y) / 2.0f;
+
+    const Float cosRot = std::cos(rotation);
+    const Float sinRot = std::sin(rotation);
+
+    const Float x1p = cosRot * dx + sinRot * dy;
+    const Float y1p = -sinRot * dx + cosRot * dy;
+
+    const Float lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+    if (lambda > 1.0f) {
+      const Float scale = std::sqrt(lambda);
+      rx *= scale;
+      ry *= scale;
+    }
+
+    const Float denom = rx * rx * y1p * y1p + ry * ry * x1p * x1p;
+    if (denom <= 0.0f) {
+      if (points.IsEmpty() || points.Back() != arc.To)
+        points.Push(arc.To);
+      return;
+    }
+
+    const Float sq = std::max(
+        0.0f, (rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p) /
+                  denom);
+    Float coef = std::sqrt(sq);
+    if (arc.LargeArc == arc.Sweep)
+      coef = -coef;
+
+    const Float cxp = coef * rx * y1p / ry;
+    const Float cyp = -coef * ry * x1p / rx;
+
+    const Float cx = cosRot * cxp - sinRot * cyp + (start.X + arc.To.X) / 2.0f;
+    const Float cy = sinRot * cxp + cosRot * cyp + (start.Y + arc.To.Y) / 2.0f;
+
+    const Float theta1 = VectorAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+    Float dtheta = VectorAngle((x1p - cxp) / rx, (y1p - cyp) / ry,
+                               (-x1p - cxp) / rx, (-y1p - cyp) / ry);
+
+    if (arc.Sweep && dtheta < 0)
+      dtheta += (Float)2 * (Float)PI;
+    else if (!arc.Sweep && dtheta > 0)
+      dtheta -= (Float)2 * (Float)PI;
+
+    const int numSegments =
+        std::max(1, (int)std::ceil(std::abs(dtheta) / ((Float)PI / 2.0f)));
+    const Float segmentAngle = dtheta / numSegments;
+
+    Point segmentStart = start;
+
+    for (int i = 0; i < numSegments; i++) {
+      const Float startAngle = theta1 + i * segmentAngle;
+      const Float endAngle = startAngle + segmentAngle;
+
+      const Float tanHalf = std::tan(segmentAngle / 2.0f);
+      const Float alpha = std::sin(segmentAngle) *
+                          (std::sqrt(4.0f + 3.0f * tanHalf * tanHalf) - 1.0f) /
+                          3.0f;
+
+      const Float cos1 = std::cos(startAngle), sin1 = std::sin(startAngle);
+      const Float cos2 = std::cos(endAngle), sin2 = std::sin(endAngle);
+
+      const Float p0x = rx * cos1, p0y = ry * sin1;
+      const Float p3x = rx * cos2, p3y = ry * sin2;
+
+      const Float p1x = p0x - alpha * rx * sin1;
+      const Float p1y = p0y + alpha * ry * cos1;
+      const Float p2x = p3x + alpha * rx * sin2;
+      const Float p2y = p3y - alpha * ry * cos2;
+
+      auto transform = [&](Float x, Float y) -> Point {
+        return Point(cosRot * x - sinRot * y + cx,
+                     sinRot * x + cosRot * y + cy);
+      };
+
+      const Point c1 = transform(p1x, p1y);
+      const Point c2 = transform(p2x, p2y);
+      const Point to = transform(p3x, p3y);
+
+      basic_Bezier<Point> bez(segmentStart, c1, c2, to);
+      auto seg = bez.Flatten(tolerance);
+      const auto sz = seg.GetSize();
+      for (std::size_t pi = 1; pi < sz; pi++) {
+        const auto &p = seg[pi];
+        if (points.IsEmpty() || points.Back() != p)
+          points.Push(p);
+      }
+
+      segmentStart = to;
+    }
+  }
+
+  static Float VectorAngle(Float ux, Float uy, Float vx, Float vy) {
+    const Float dot = ux * vx + uy * vy;
+    const Float len =
+        std::sqrt(ux * ux + uy * uy) * std::sqrt(vx * vx + vy * vy);
+    if (len <= 0.0f)
+      return 0.0f;
+
+    Float cosValue = dot / len;
+    if (cosValue < -1.0f)
+      cosValue = -1.0f;
+    else if (cosValue > 1.0f)
+      cosValue = 1.0f;
+
+    Float angle = std::acos(cosValue);
+    if (ux * vy - uy * vx < 0)
+      angle = -angle;
+    return angle;
+  }
 };
 
 using Path = basic_Path<Geometry::Pointf>;
 
-} // namespace CGI
- // namespace Gorgon
+} // namespace Gorgon::CGI
+  // namespace Gorgon
