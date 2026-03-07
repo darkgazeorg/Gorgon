@@ -6,6 +6,7 @@ on:
       - main          # main branch
       - 'fix/*'       # any branch starting with fix/
       - 'feature/*'   # any branch starting with feature/
+      - 'ci/*'
   pull_request:
     branches:
       - main          # PRs targeting main
