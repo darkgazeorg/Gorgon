@@ -5,7 +5,6 @@ target_sources(Gorgon
     FILES
 		../Scripting.h
 		Data.h
-		Exceptions.h
 		Embedding.h
 		Input.h
 		Instruction.h
