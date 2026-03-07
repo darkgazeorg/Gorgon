@@ -64,15 +64,9 @@ message(STATUS "Found GLEW.")
 
 # FreeType
 if(FreeType)
-if(WIN32 AND DEFINED CMAKE_TOOLCHAIN_FILE)
-    # Use vcpkg CONFIG package on Windows
-    find_package(freetype CONFIG REQUIRED)
-else()
-    # Use module mode on Linux/macOS
     find_package(Freetype REQUIRED)
-endif()
     target_link_libraries(Gorgon PUBLIC Freetype::Freetype)
-    message(STATUS "FreeType: SYSTEM")
+    message(STATUS "FreeType: system provided library")
 endif()
 
 # Font enumation

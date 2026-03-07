@@ -84,7 +84,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            vcpkg/installed
+            vcpkg/installed/x64-windows
             vcpkg/packages
           key: vcpkg-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
           restore-keys: |
@@ -125,15 +125,18 @@ jobs:
 
       - name: Install Gorgon SDK
         run: |
+          REM Create dist folder
           mkdir dist
-          cmake --install build --prefix dist
 
-          # Copy headers (if not already installed)
+          REM Install all build artifacts to dist
+          cmake --install build --config Release --prefix dist
+
+          REM Copy headers if install target didn't copy them
           if exist Source\Gorgon (
             xcopy Source\Gorgon dist\include /E /I /Y
           )
 
-          # Copy Doxygen documentation
+          REM Copy Doxygen docs if available
           if exist Docs\HTML (
             mkdir dist\Docs
             xcopy Docs\HTML dist\Docs /E /I /Y
@@ -141,7 +144,8 @@ jobs:
         shell: cmd
 
       - name: Package Gorgon SDK
-        run: 7z a Gorgon-Windows-SDK.zip .\dist\*
+        run: |
+          7z a Gorgon-Windows-SDK.zip .\dist\*
         shell: cmd
 
       - name: Upload Artifact
