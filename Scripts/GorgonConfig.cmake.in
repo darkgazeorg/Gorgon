@@ -74,11 +74,7 @@ if(GORGON_HAS_FONTCONFIG AND NOT WIN32)
 endif()
 
 if(GORGON_HAS_FLAC)
-    if(WIN32)
-        find_dependency(FLAC)
-    else()
-        pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
-    endif()
+    find_dependency(FLAC)
 endif()
 
 if(GORGON_HAS_OGG)
