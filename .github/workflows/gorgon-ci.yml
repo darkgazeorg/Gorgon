@@ -3,144 +3,127 @@ name: Gorgon CI
 on:
   push:
     branches:
-      - main          # main branch
-      - 'fix/*'       # any branch starting with fix/
-      - 'feature/*'   # any branch starting with feature/
+      - main
+      - 'fix/*'
+      - 'feature/*'
       - 'ci/*'
   pull_request:
     branches:
-      - main          # PRs targeting main
-      - 'fix/*'       # PRs targeting any fix/* branch
-      - 'feature/*'   # PRs targeting any feature/* branch
+      - main
+      - 'fix/*'
+      - 'feature/*'
+
 env:
   BUILD_TYPE: Release
 
 jobs:
 
-# LINUX BUILD
+  # LINUX BUILD
   linux-build:
     name: Linux (GCC)
     runs-on: ubuntu-24.04
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: Install Linux Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential cmake ninja-build pkg-config \
-          libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
-          libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
-          doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
-          libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
-          libgl1-mesa-dev libglew-dev
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
+            libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
+            doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
+            libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libglew-dev
 
-    - name: Configure
-      run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G Ninja
+      - name: Configure
+        run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G Ninja
 
-    - name: Build
-      run: cmake --build build/Default --parallel
+      - name: Build
+        run: cmake --build build/Default --parallel
 
-    - name: Install SDK (Linux Fix)
-      run: |
-        # Prepare dist folder
-        mkdir -p dist/lib
-        mkdir -p dist/include
+      - name: Install SDK and Prepare Distribution
+        run: |
+          cmake --build build/Default --target install_sdk -- DESTDIR=dist
 
-        # Copy static library (Linux output)
-        cp build/Default/libGorgon.a dist/lib/
+      - name: Package SDK
+        run: tar -czf Gorgon-Linux-SDK.tar.gz -C dist .
 
-        # Copy headers
-        cp -r Source/Gorgon/* dist/include/
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gorgon-Linux-SDK
+          path: Gorgon-Linux-SDK.tar.gz
 
-    - name: Package SDK
-      run: tar -czf Gorgon-Linux-SDK.tar.gz dist
-
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Gorgon-Linux-SDK
-        path: Gorgon-Linux-SDK.tar.gz
-
-# WINDOWS BUILD
+  # WINDOWS BUILD
   windows-build:
     name: Windows (MSVC + vcpkg)
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg/installed
+            vcpkg/packages
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
 
-    # Cache vcpkg
-    - name: Cache vcpkg packages
-      uses: actions/cache@v4
-      with:
-        path: |
-          vcpkg/installed
-          vcpkg/packages
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
-        restore-keys: |
-          vcpkg-${{ runner.os }}-
+      - name: Install Tools
+        run: |
+          choco install ninja -y
+          choco install doxygen.install -y
+          choco install 7zip -y
+        shell: cmd
 
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          .\vcpkg\bootstrap-vcpkg.bat
+          .\vcpkg\vcpkg install ^
+            zlib:x64-windows ^
+            libpng:x64-windows ^
+            libjpeg-turbo:x64-windows ^
+            glew:x64-windows ^
+            freetype:x64-windows
+        shell: cmd
 
-    # Install build tools
-    - name: Install Tools
-      run: |
-        choco install ninja -y
-        choco install doxygen.install -y
-        choco install 7zip -y
-      shell: cmd
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build ^
+            -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+        shell: cmd
 
-    - name: Setup vcpkg
-      run: |
-        git clone https://github.com/microsoft/vcpkg.git
-        .\vcpkg\bootstrap-vcpkg.bat
-        .\vcpkg\vcpkg install ^
-        zlib:x64-windows ^
-        libpng:x64-windows ^
-        libjpeg-turbo:x64-windows ^
-        glew:x64-windows ^
-        freetype:x64-windows
-      shell: cmd
-      
-    # Configure
-    - name: Configure CMake
-      run: |
-        cmake -S . -B build ^
-          -G Ninja ^
-          -DCMAKE_BUILD_TYPE=Release ^
-          -DCMAKE_TOOLCHAIN_FILE=.\vcpkg\scripts\buildsystems\vcpkg.cmake
-      shell: cmd
+      - name: Build
+        run: cmake --build build --parallel
+        shell: cmd
 
-    - name: Build
-      run: |
-        cmake --build build --parallel
-      shell: cmd
+      - name: Install Gorgon SDK
+        run: |
+          mkdir dist
+          cmake --install build --prefix dist
+        shell: cmd
 
-    - name: Install Gorgon SDK
-      run: |
-        mkdir dist
-        cmake --install build --prefix dist
-      shell: cmd
+      - name: Package Gorgon SDK
+        run: 7z a Gorgon-Windows-SDK.zip .\dist\*
+        shell: cmd
 
-
-    # Package Gorgon SDK
-    - name: Package
-      run: |
-        7z a Gorgon-Windows-SDK.zip .\dist\*
-      shell: cmd
-
-
-    # Upload Artifact
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Gorgon-Windows-SDK
-        path: Gorgon-Windows-SDK.zip
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gorgon-Windows-SDK
+          path: Gorgon-Windows-SDK.zip
