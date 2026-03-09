@@ -17,12 +17,10 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-
   # LINUX BUILD
   linux-build:
     name: Linux (GCC)
     runs-on: ubuntu-24.04
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -48,14 +46,13 @@ jobs:
 
       - name: Install SDK and Prepare Distribution
         run: |
-          mkdir -p dist
+          mkdir -p dist/include
           cmake --install build/Default --prefix dist
-
-          # Copy headers if install target doesn't handle them
-          cp -r Source/Gorgon/* dist/include/
-
-          # Copy Doxygen documentation if available
-          if [ -d Docs/html ]; then
+          # Check if directory exists before copying to avoid errors
+          if [ -d "Source/Gorgon" ]; then
+            cp -r Source/Gorgon/* dist/include/
+          fi
+          if [ -d "Docs/html" ]; then
             mkdir -p dist/Docs
             cp -r Docs/html/* dist/Docs/
           fi
@@ -73,7 +70,6 @@ jobs:
   windows-build:
     name: Windows (MSVC + vcpkg)
     runs-on: windows-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -90,19 +86,12 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-
 
-      - name: Install Tools
-        run: |
-          choco install ninja -y
-          choco install doxygen.install -y
-          choco install 7zip -y
-        shell: cmd
-
-      - name: Setup vcpkg
+      - name: Install Dependencies (vcpkg)
         run: |
           if not exist vcpkg (
             git clone https://github.com/microsoft/vcpkg.git
           )
-          .\vcpkg\bootstrap-vcpkg.bat
+          call .\vcpkg\bootstrap-vcpkg.bat
           .\vcpkg\vcpkg install ^
             zlib:x64-windows ^
             libpng:x64-windows ^
@@ -112,43 +101,29 @@ jobs:
             liblzma:x64-windows
         shell: cmd
 
-      - name: Configure CMake
+      - name: Configure and Build
         run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           cmake -S . -B build ^
             -G Ninja ^
-            -A x64 ^
-            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
             -DCMAKE_TOOLCHAIN_FILE=%CD%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DVCPKG_TARGET_TRIPLET=x64-windows
-        shell: cmd
-
-      - name: Build
-        run: cmake --build build --parallel
+          cmake --build build --parallel
         shell: cmd
 
       - name: Install Gorgon SDK
         run: |
-          REM Create dist folder
-          mkdir dist
-
-          REM Install build artifacts
+          if not exist dist mkdir dist
           cmake --install build --config Release --prefix dist
-
-          REM Copy headers if not installed by CMake
           if exist Source\Gorgon (
+            if not exist dist\include mkdir dist\include
             xcopy Source\Gorgon dist\include /E /I /Y
-          )
-
-          REM Copy Doxygen documentation if available
-          if exist Docs\HTML (
-            mkdir dist\Docs
-            xcopy Docs\HTML dist\Docs /E /I /Y
           )
         shell: cmd
 
       - name: Package Gorgon SDK
-        run: |
-          7z a Gorgon-Windows-SDK.zip .\dist\*
+        run: 7z a Gorgon-Windows-SDK.zip .\dist\*
         shell: cmd
 
       - name: Upload Artifact
