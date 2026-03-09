@@ -48,7 +48,6 @@ jobs:
         run: |
           mkdir -p dist/include
           cmake --install build/Default --prefix dist
-          # Check if directory exists before copying to avoid errors
           if [ -d "Source/Gorgon" ]; then
             cp -r Source/Gorgon/* dist/include/
           fi
@@ -92,13 +91,15 @@ jobs:
             git clone https://github.com/microsoft/vcpkg.git
           )
           call .\vcpkg\bootstrap-vcpkg.bat
-          .\vcpkg\vcpkg install ^
-            zlib:x64-windows ^
-            libpng:x64-windows ^
-            libjpeg-turbo:x64-windows ^
-            glew:x64-windows ^
-            freetype:x64-windows ^
-            liblzma:x64-windows
+          
+          :: Manifest mode: Uses vcpkg.json automatically.
+          :: We use --x-feature to enable the optional bits in your vcpkg.json
+          .\vcpkg\vcpkg install --triplet x64-windows ^
+            --x-feature=freetype ^
+            --x-feature=flac ^
+            --x-feature=ogg ^
+            --x-feature=vorbis ^
+            --x-feature=curl
         shell: cmd
 
       - name: Configure and Build
