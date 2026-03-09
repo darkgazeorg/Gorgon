@@ -4,14 +4,11 @@ on:
   push:
     branches:
       - main
-      - 'fix/*'
-      - 'feature/*'
-      - 'ci/*'
+      - dev
   pull_request:
     branches:
       - main
-      - 'fix/*'
-      - 'feature/*'
+      - dev
 
 env:
   BUILD_TYPE: Release
