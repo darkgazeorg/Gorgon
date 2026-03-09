@@ -66,71 +66,89 @@ jobs:
           path: Gorgon-Linux-SDK.tar.gz
 
   # WINDOWS BUILD
-  windows-build:
-    name: Windows (MSVC + vcpkg)
+  build-windows:
+    name: Build on Windows
     runs-on: windows-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: recursive 
 
-      - name: Cache vcpkg packages
+      # Cache tools (.tools) and vcpkg installed binaries to speed up workflow
+      - name: Cache Tools and vcpkg
         uses: actions/cache@v4
         with:
           path: |
-            vcpkg/installed/x64-windows
-            vcpkg/packages
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+            .tools
+            vcpkg_installed
+          key: ${{ runner.os }}-tools-${{ hashFiles('vcpkg.json', 'Setup.ps1') }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-
+            ${{ runner.os }}-tools-
 
-      - name: Install Dependencies (vcpkg)
+      - name: Run Setup Script
         run: |
-          if not exist vcpkg (
-            git clone https://github.com/microsoft/vcpkg.git
-          )
-          call .\vcpkg\bootstrap-vcpkg.bat
-          
-          :: Manifest mode: Uses vcpkg.json automatically.
-          :: We use --x-feature to enable the optional bits in your vcpkg.json
-          .\vcpkg\vcpkg install --triplet x64-windows ^
-            --x-feature=freetype ^
-            --x-feature=flac ^
-            --x-feature=ogg ^
-            --x-feature=vorbis ^
-            --x-feature=curl
+          # Use custom PowerShell script to download Ninja and bootstrap vcpkg
+          powershell -ExecutionPolicy Bypass -File ./Setup.ps1
+        shell: pwsh
+
+      - name: Install System Tools
+        run: |
+          choco install doxygen.install -y
         shell: cmd
 
       - name: Configure and Build
         run: |
+          :: 1. Initialize MSVC Environment for x64
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          
+          :: 2. Add locally downloaded Ninja to PATH
+          set "PATH=%CD%\.tools\ninja;%PATH%"
+          
+          :: 3. Configure with vcpkg Manifest Mode
+          :: We enable features explicitly as defined in your vcpkg.json
           cmake -S . -B build ^
             -G Ninja ^
-            -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
-            -DCMAKE_TOOLCHAIN_FILE=%CD%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
-            -DVCPKG_TARGET_TRIPLET=x64-windows
-            -DVCPKG_MANIFEST_MODE=ON
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE="%CD%\.tools\vcpkg\scripts\buildsystems\vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET=x64-windows ^
+            -DVCPKG_MANIFEST_MODE=ON ^
+            -DVCPKG_MANIFEST_FEATURES="freetype;flac;ogg;vorbis;curl"
           
+          :: 4. Build Project
           cmake --build build --parallel
         shell: cmd
 
-      - name: Install Gorgon SDK
+      - name: Prepare Artifacts
         run: |
           if not exist dist mkdir dist
+          
+          :: Install build artifacts to the dist folder
           cmake --install build --config Release --prefix dist
+          
+          :: Copy Header files manually if not handled by CMake Install
           if exist Source\Gorgon (
             if not exist dist\include mkdir dist\include
             xcopy Source\Gorgon dist\include /E /I /Y
           )
+          
+          :: Copy Documentation
+          if not exist dist\Docs mkdir dist\Docs
+          if exist Docs\HTML xcopy Docs\HTML dist\Docs /E /I /Y
+          
+          :: Create a self-extracting installer (SFX)
+          7z a -sfx Gorgon-Installer.exe .\dist\*
+          move Gorgon-Installer.exe dist\
         shell: cmd
 
-      - name: Package Gorgon SDK
-        run: 7z a Gorgon-Windows-SDK.zip .\dist\*
+      - name: Create Final Zip Package
+        run: |
+          7z a Gorgon-Windows-Package.zip .\dist\*
         shell: cmd
 
-      - name: Upload Artifact
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Gorgon-Windows-SDK
-          path: Gorgon-Windows-SDK.zip
+          name: Gorgon-Windows-Package
+          path: Gorgon-Windows-Package.zip
+          if-no-files-found: error
