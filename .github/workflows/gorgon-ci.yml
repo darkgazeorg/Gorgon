@@ -1,0 +1,151 @@
+name: Gorgon CI
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # LINUX BUILD
+  linux-build:
+    name: Linux (GCC)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
+            libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
+            doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
+            libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+            libgl1-mesa-dev libglew-dev
+
+      - name: Configure
+        run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G Ninja
+
+      - name: Build
+        run: cmake --build build/Default --parallel
+
+      - name: Install SDK and Prepare Distribution
+        run: |
+          mkdir -p dist/include
+          cmake --install build/Default --prefix dist
+          if [ -d "Source/Gorgon" ]; then
+            cp -r Source/Gorgon/* dist/include/
+          fi
+          if [ -d "Docs/html" ]; then
+            mkdir -p dist/Docs
+            cp -r Docs/html/* dist/Docs/
+          fi
+
+      - name: Package SDK
+        run: tar -czf Gorgon-Linux-SDK.tar.gz -C dist .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gorgon-Linux-SDK
+          path: Gorgon-Linux-SDK.tar.gz
+
+  # WINDOWS BUILD
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive 
+
+      # Cache tools (.tools) and vcpkg installed binaries to speed up workflow
+      - name: Cache Tools and vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tools
+            vcpkg_installed
+          key: ${{ runner.os }}-tools-${{ hashFiles('vcpkg.json', 'Setup.ps1') }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+
+      - name: Run Setup Script
+        run: |
+          # Use custom PowerShell script to download Ninja and bootstrap vcpkg
+          powershell -ExecutionPolicy Bypass -File ./Setup.ps1
+        shell: pwsh
+
+      - name: Install System Tools
+        run: |
+          choco install doxygen.install -y
+        shell: cmd
+
+      - name: Configure and Build
+        run: |
+          :: 1. Initialize MSVC Environment for x64
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          
+          :: 2. Add locally downloaded Ninja to PATH
+          set "PATH=%CD%\.tools\ninja;%PATH%"
+          
+          :: 3. Configure with vcpkg Manifest Mode
+          :: We enable features explicitly as defined in your vcpkg.json
+          cmake -S . -B build ^
+            -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE="%CD%\.tools\vcpkg\scripts\buildsystems\vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET=x64-windows ^
+            -DVCPKG_MANIFEST_MODE=ON ^
+            -DVCPKG_MANIFEST_FEATURES="freetype;flac;ogg;vorbis;curl"
+          
+          :: 4. Build Project
+          cmake --build build --parallel
+        shell: cmd
+
+      - name: Prepare Artifacts
+        run: |
+          if not exist dist mkdir dist
+          
+          :: Install build artifacts to the dist folder
+          cmake --install build --config Release --prefix dist
+          
+          :: Copy Header files manually if not handled by CMake Install
+          if exist Source\Gorgon (
+            if not exist dist\include mkdir dist\include
+            xcopy Source\Gorgon dist\include /E /I /Y
+          )
+          
+          :: Copy Documentation
+          if not exist dist\Docs mkdir dist\Docs
+          if exist Docs\HTML xcopy Docs\HTML dist\Docs /E /I /Y
+          
+          :: Create a self-extracting installer (SFX)
+          7z a -sfx Gorgon-Installer.exe .\dist\*
+          move Gorgon-Installer.exe dist\
+        shell: cmd
+
+      - name: Create Final Zip Package
+        run: |
+          7z a Gorgon-Windows-Package.zip .\dist\*
+        shell: cmd
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gorgon-Windows-Package
+          path: Gorgon-Windows-Package.zip
+          if-no-files-found: error

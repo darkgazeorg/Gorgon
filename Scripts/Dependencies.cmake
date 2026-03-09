@@ -66,7 +66,7 @@ message(STATUS "Found GLEW.")
 if(FreeType)
     find_package(Freetype REQUIRED)
     target_link_libraries(Gorgon PUBLIC Freetype::Freetype)
-    message(STATUS "FreeType: SYSTEM")
+    message(STATUS "FreeType: system provided library")
 endif()
 
 # Font enumation
