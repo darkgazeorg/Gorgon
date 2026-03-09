@@ -110,6 +110,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
             -DCMAKE_TOOLCHAIN_FILE=%CD%\vcpkg\scripts\buildsystems\vcpkg.cmake ^
             -DVCPKG_TARGET_TRIPLET=x64-windows
+            -DVCPKG_MANIFEST_MODE=ON
+          
           cmake --build build --parallel
         shell: cmd
 
