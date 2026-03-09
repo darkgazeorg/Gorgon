@@ -1,0 +1,125 @@
+name: Enforce issue checklist & create extra subtasks
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  handle-issue-close:
+    name: Check closed issue for incomplete tasks and handle [extra]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse issue body and enforce rules
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue = context.payload.issue;
+            if (!issue) {
+              core.info("No issue in payload — exiting.");
+              return;
+            }
+
+            const issueNumber = issue.number;
+            const repoOwner = context.repo.owner;
+            const repoName = context.repo.repo;
+            const body = issue.body || "";
+
+            // Negative gate: if label 'no-subtask-automation' present, exit
+            const labels = (issue.labels || []).map(l => (typeof l === 'string') ? l.toLowerCase() : (l.name || '').toLowerCase());
+            if (labels.includes('no-subtask-automation')) {
+              core.info("Issue has 'no-subtask-automation' label — skipping automation.");
+              return;
+            }
+
+            // Extract checklist lines like "- [ ] task text [extra]"
+            const checklistRegex = /^\s*[-*]\s+\[\s\]\s*(.+?)(?:\s*\[(extra|optional|cancelled)\])?\s*$/i;
+            const lines = body.split(/\r?\n/);
+
+            const uncheckedNonExempt = [];
+            const uncheckedExtra = [];
+
+            for (const line of lines) {
+              const m = line.match(checklistRegex);
+              if (m) {
+                const taskText = m[1].trim();
+                const marker = (m[2] || "").toLowerCase();
+                if (marker === "extra") {
+                  uncheckedExtra.push(taskText);
+                } else if (marker === "optional" || marker === "cancelled") {
+                  // exempt — do nothing
+                } else {
+                  // no exempt marker — treat as required
+                  uncheckedNonExempt.push(taskText);
+                }
+              }
+            }
+
+            // If there are required incomplete tasks, reopen and comment.
+            if (uncheckedNonExempt.length > 0) {
+              const commentBody = [
+                `:warning: This issue was closed but contains ${uncheckedNonExempt.length} incomplete required task(s). The issue will be reopened until these are completed.`,
+                "",
+                "Incomplete required tasks:",
+                ...uncheckedNonExempt.map(t => `- ${t}`),
+                "",
+                "If some of these should be considered optional, cancelled, or extra subtasks, append `[optional]`, `[cancelled]`, or `[extra]` to the checklist item line so the automation will ignore them on close.",
+              ].join("\n");
+
+              await github.rest.issues.createComment({
+                owner: repoOwner,
+                repo: repoName,
+                issue_number: issueNumber,
+                body: commentBody,
+              });
+
+              // Reopen the issue
+              await github.rest.issues.update({
+                owner: repoOwner,
+                repo: repoName,
+                issue_number: issueNumber,
+                state: "open",
+              });
+
+              core.info(`Reopened issue #${issueNumber} because of ${uncheckedNonExempt.length} required incomplete tasks.`);
+              return;
+            }
+
+            // All required tasks are complete — create issues for unchecked [extra] items (if any)
+            if (uncheckedExtra.length > 0) {
+              for (const t of uncheckedExtra) {
+                const title = `Subtask (auto-created): ${t}`;
+                const subBody = [
+                  `Auto-created subtask from parent issue #${issueNumber} (${issue.title}).`,
+                  "",
+                  `Original task: ${t}`,
+                  "",
+                  `Parent issue: ${issue.html_url}`
+                ].join("\n");
+
+                await github.rest.issues.create({
+                  owner: repoOwner,
+                  repo: repoName,
+                  title,
+                  body: subBody,
+                });
+                core.info(`Created new issue for extra task: ${t}`);
+              }
+
+              // Add a comment summarizing created subtasks
+              const createdList = uncheckedExtra.map(t => `- ${t}`).join("\n");
+              await github.rest.issues.createComment({
+                owner: repoOwner,
+                repo: repoName,
+                issue_number: issueNumber,
+                body: [
+                  `The following unchecked checklist items marked with ` + "`[extra]`" + ` were auto-created as new issues:`,
+                  "",
+                  createdList,
+                ].join("\n"),
+              });
+            } else {
+              core.info("No unchecked [extra] tasks to create.");
+            }
