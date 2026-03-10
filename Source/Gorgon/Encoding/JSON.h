@@ -10,6 +10,11 @@
 #include <tuple>
 #include <ostream>
 #include "../TMP.h"
+#include "../Geometry/Point.h"
+#include "../Geometry/Size.h"
+#include "../Geometry/Rectangle.h"
+#include "../Geometry/Bounds.h"
+#include "../Geometry/Margin.h"
 
 namespace Gorgon :: Encoding {
 
@@ -267,6 +272,72 @@ namespace Gorgon :: Encoding {
 	typename std::enable_if<std::is_same<T_, std::string>::value, T_>::type
 	FromJSONValue(const JSONValue &v) { return v.Get<std::string>(); }
 
+	/// Fallback FromJSONValue for types not covered by the arithmetic/string overloads
+	/// (e.g. Geometry types). Delegates to Get<T_>() which must have a specialization.
+	template<class T_>
+	typename std::enable_if<
+		!std::is_arithmetic<T_>::value &&
+		!std::is_same<T_, std::string>::value,
+		T_
+	>::type
+	FromJSONValue(const JSONValue &v) { return v.Get<T_>(); }
+
+	/// @endcond
+
+	// --- Geometry type support ---
+	/// @cond
+
+	/// Encodes a basic_Point to a JSON object with X and Y fields.
+	template<class T_>
+	inline JSONValue ToJSONValue(const Geometry::basic_Point<T_> &v) {
+		JSONObject obj;
+		obj["X"] = ToJSONValue(v.X);
+		obj["Y"] = ToJSONValue(v.Y);
+		return JSONValue(std::move(obj));
+	}
+
+	/// Encodes a basic_Size to a JSON object with Width and Height fields.
+	template<class T_>
+	inline JSONValue ToJSONValue(const Geometry::basic_Size<T_> &v) {
+		JSONObject obj;
+		obj["Width"]  = ToJSONValue(v.Width);
+		obj["Height"] = ToJSONValue(v.Height);
+		return JSONValue(std::move(obj));
+	}
+
+	/// Encodes a basic_Rectangle to a JSON object with X, Y, Width and Height fields.
+	template<class T_>
+	inline JSONValue ToJSONValue(const Geometry::basic_Rectangle<T_> &v) {
+		JSONObject obj;
+		obj["X"]      = ToJSONValue(v.X);
+		obj["Y"]      = ToJSONValue(v.Y);
+		obj["Width"]  = ToJSONValue(v.Width);
+		obj["Height"] = ToJSONValue(v.Height);
+		return JSONValue(std::move(obj));
+	}
+
+	/// Encodes a basic_Bounds to a JSON object with Left, Top, Right and Bottom fields.
+	template<class T_>
+	inline JSONValue ToJSONValue(const Geometry::basic_Bounds<T_> &v) {
+		JSONObject obj;
+		obj["Left"]   = ToJSONValue(v.Left);
+		obj["Top"]    = ToJSONValue(v.Top);
+		obj["Right"]  = ToJSONValue(v.Right);
+		obj["Bottom"] = ToJSONValue(v.Bottom);
+		return JSONValue(std::move(obj));
+	}
+
+	/// Encodes a basic_Margin to a JSON object with Left, Top, Right and Bottom fields.
+	template<class T_>
+	inline JSONValue ToJSONValue(const Geometry::basic_Margin<T_> &v) {
+		JSONObject obj;
+		obj["Left"]   = ToJSONValue(v.Left);
+		obj["Top"]    = ToJSONValue(v.Top);
+		obj["Right"]  = ToJSONValue(v.Right);
+		obj["Bottom"] = ToJSONValue(v.Bottom);
+		return JSONValue(std::move(obj));
+	}
+
 	/// @endcond
 
 
@@ -322,4 +393,18 @@ namespace Gorgon :: Encoding {
 	template<> std::string JSONValue::Get<std::string>() const;
 	template<> JSONArray JSONValue::Get<JSONArray>() const;
 	template<> JSONObject JSONValue::Get<JSONObject>() const;
+
+	/// Geometry Get<> specializations — duck typed: reads matching keys from a JSON object.
+	/// For integer types (Point, Size, etc.) numeric values are truncated to int.
+	/// For float types (Pointf, Sizef, etc.) any numeric value is cast to float without warnings.
+	template<> Geometry::Point      JSONValue::Get<Geometry::Point>()      const;
+	template<> Geometry::Pointf     JSONValue::Get<Geometry::Pointf>()     const;
+	template<> Geometry::Size       JSONValue::Get<Geometry::Size>()       const;
+	template<> Geometry::Sizef      JSONValue::Get<Geometry::Sizef>()      const;
+	template<> Geometry::Rectangle  JSONValue::Get<Geometry::Rectangle>()  const;
+	template<> Geometry::Rectanglef JSONValue::Get<Geometry::Rectanglef>() const;
+	template<> Geometry::Bounds     JSONValue::Get<Geometry::Bounds>()     const;
+	template<> Geometry::Boundsf    JSONValue::Get<Geometry::Boundsf>()    const;
+	template<> Geometry::Margin     JSONValue::Get<Geometry::Margin>()     const;
+	template<> Geometry::Marginf    JSONValue::Get<Geometry::Marginf>()    const;
 }

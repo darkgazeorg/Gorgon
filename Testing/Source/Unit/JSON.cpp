@@ -8,6 +8,11 @@
 
 #include <Gorgon/Encoding/JSON.h>
 #include <Gorgon/Struct.h>
+#include <Gorgon/Geometry/Point.h>
+#include <Gorgon/Geometry/Size.h>
+#include <Gorgon/Geometry/Rectangle.h>
+#include <Gorgon/Geometry/Bounds.h>
+#include <Gorgon/Geometry/Margin.h>
 
 using namespace Gorgon::Encoding;
 
@@ -409,4 +414,168 @@ TEST_CASE("ostream operator", "[JSON]") {
 	std::ostringstream oss;
 	oss << JSONValue(42);
 	REQUIRE(oss.str() == "42");
+}
+
+// =====================================================================
+//  Geometry type serialization / deserialization
+// =====================================================================
+
+using namespace Gorgon::Geometry;
+
+TEST_CASE("Geometry Point encode/decode", "[JSON][Geometry]") {
+	Point p{3, 7};
+	auto json = ToJSONValue(p);
+	REQUIRE(json["X"].Get<int>() == 3);
+	REQUIRE(json["Y"].Get<int>() == 7);
+
+	auto back = json.Get<Point>();
+	REQUIRE(back.X == 3);
+	REQUIRE(back.Y == 7);
+}
+
+TEST_CASE("Geometry Pointf encode/decode", "[JSON][Geometry]") {
+	Pointf p{1.5f, 2.5f};
+	auto json = ToJSONValue(p);
+	// float stored as double in JSON; value precise enough
+	REQUIRE(json["X"].Get<double>() == Catch::Approx(1.5));
+	REQUIRE(json["Y"].Get<double>() == Catch::Approx(2.5));
+
+	auto back = json.Get<Pointf>();
+	REQUIRE(back.X == Catch::Approx(1.5f));
+	REQUIRE(back.Y == Catch::Approx(2.5f));
+}
+
+TEST_CASE("Geometry Pointf from integer JSON values", "[JSON][Geometry]") {
+	// Duck-typing: integer fields converted to float without warning
+	auto json = JSONParse(R"({"X": 10, "Y": 20})");
+	auto p = json.Get<Pointf>();
+	REQUIRE(p.X == Catch::Approx(10.0f));
+	REQUIRE(p.Y == Catch::Approx(20.0f));
+}
+
+TEST_CASE("Geometry Size encode/decode", "[JSON][Geometry]") {
+	Size s{640, 480};
+	auto json = ToJSONValue(s);
+	REQUIRE(json["Width"].Get<int>() == 640);
+	REQUIRE(json["Height"].Get<int>() == 480);
+
+	auto back = json.Get<Size>();
+	REQUIRE(back.Width == 640);
+	REQUIRE(back.Height == 480);
+}
+
+TEST_CASE("Geometry Sizef encode/decode", "[JSON][Geometry]") {
+	Sizef s{1.0f, 0.5f};
+	auto json = ToJSONValue(s);
+	auto back = json.Get<Sizef>();
+	REQUIRE(back.Width  == Catch::Approx(1.0f));
+	REQUIRE(back.Height == Catch::Approx(0.5f));
+}
+
+TEST_CASE("Geometry Rectangle encode/decode", "[JSON][Geometry]") {
+	Rectangle r{10, 20, 100, 200};
+	auto json = ToJSONValue(r);
+	REQUIRE(json["X"].Get<int>() == 10);
+	REQUIRE(json["Y"].Get<int>() == 20);
+	REQUIRE(json["Width"].Get<int>() == 100);
+	REQUIRE(json["Height"].Get<int>() == 200);
+
+	auto back = json.Get<Rectangle>();
+	REQUIRE(back.X == 10);
+	REQUIRE(back.Y == 20);
+	REQUIRE(back.Width == 100);
+	REQUIRE(back.Height == 200);
+}
+
+TEST_CASE("Geometry Rectanglef encode/decode", "[JSON][Geometry]") {
+	Rectanglef r{0.1f, 0.2f, 0.8f, 0.6f};
+	auto json = ToJSONValue(r);
+	auto back = json.Get<Rectanglef>();
+	REQUIRE(back.X      == Catch::Approx(0.1f));
+	REQUIRE(back.Y      == Catch::Approx(0.2f));
+	REQUIRE(back.Width  == Catch::Approx(0.8f));
+	REQUIRE(back.Height == Catch::Approx(0.6f));
+}
+
+TEST_CASE("Geometry Bounds encode/decode", "[JSON][Geometry]") {
+	Bounds b{0, 0, 100, 50};
+	auto json = ToJSONValue(b);
+	REQUIRE(json["Left"].Get<int>()   == 0);
+	REQUIRE(json["Top"].Get<int>()    == 0);
+	REQUIRE(json["Right"].Get<int>()  == 100);
+	REQUIRE(json["Bottom"].Get<int>() == 50);
+
+	auto back = json.Get<Bounds>();
+	REQUIRE(back.Left   == 0);
+	REQUIRE(back.Top    == 0);
+	REQUIRE(back.Right  == 100);
+	REQUIRE(back.Bottom == 50);
+}
+
+TEST_CASE("Geometry Boundsf encode/decode", "[JSON][Geometry]") {
+	Boundsf b{0.1f, 0.2f, 0.9f, 0.8f};
+	auto json = ToJSONValue(b);
+	auto back = json.Get<Boundsf>();
+	REQUIRE(back.Left   == Catch::Approx(0.1f));
+	REQUIRE(back.Top    == Catch::Approx(0.2f));
+	REQUIRE(back.Right  == Catch::Approx(0.9f));
+	REQUIRE(back.Bottom == Catch::Approx(0.8f));
+}
+
+TEST_CASE("Geometry Margin encode/decode", "[JSON][Geometry]") {
+	Margin m{5, 10, 5, 10};
+	auto json = ToJSONValue(m);
+	REQUIRE(json["Left"].Get<int>()   == 5);
+	REQUIRE(json["Top"].Get<int>()    == 10);
+	REQUIRE(json["Right"].Get<int>()  == 5);
+	REQUIRE(json["Bottom"].Get<int>() == 10);
+
+	auto back = json.Get<Margin>();
+	REQUIRE(back.Left   == 5);
+	REQUIRE(back.Top    == 10);
+	REQUIRE(back.Right  == 5);
+	REQUIRE(back.Bottom == 10);
+}
+
+TEST_CASE("Geometry Marginf encode/decode", "[JSON][Geometry]") {
+	Marginf m{0.1f, 0.2f, 0.1f, 0.2f};
+	auto json = ToJSONValue(m);
+	auto back = json.Get<Marginf>();
+	REQUIRE(back.Left   == Catch::Approx(0.1f));
+	REQUIRE(back.Top    == Catch::Approx(0.2f));
+	REQUIRE(back.Right  == Catch::Approx(0.1f));
+	REQUIRE(back.Bottom == Catch::Approx(0.2f));
+}
+
+TEST_CASE("Geometry: struct with geometry fields roundtrips", "[JSON][Geometry]") {
+	struct Sprite {
+		Pointf position;
+		Sizef  size;
+		DefineStructMembers(Sprite, position, size)
+	};
+
+	Sprite s;
+	s.position = {10.0f, 20.0f};
+	s.size     = {64.0f, 64.0f};
+
+	auto json = JSONValue::FromStruct(s);
+	REQUIRE(json["position"]["X"].Get<double>() == Catch::Approx(10.0));
+	REQUIRE(json["size"]["Width"].Get<double>()  == Catch::Approx(64.0));
+
+	auto back = json.ToStruct<Sprite>();
+	REQUIRE(back.position.X      == Catch::Approx(10.0f));
+	REQUIRE(back.position.Y      == Catch::Approx(20.0f));
+	REQUIRE(back.size.Width      == Catch::Approx(64.0f));
+	REQUIRE(back.size.Height     == Catch::Approx(64.0f));
+}
+
+TEST_CASE("Geometry: error on missing field", "[JSON][Geometry]") {
+	auto json = JSONParse(R"({"X": 1})");
+	REQUIRE_THROWS_AS(json.Get<Point>(), JSONError);   // missing Y
+	REQUIRE_THROWS_AS(json.Get<Size>(), JSONError);    // missing Width/Height
+}
+
+TEST_CASE("Geometry: error on non-object JSON", "[JSON][Geometry]") {
+	REQUIRE_THROWS_AS(JSONValue(42).Get<Point>(), JSONError);
+	REQUIRE_THROWS_AS(JSONValue("pos").Get<Pointf>(), JSONError);
 }

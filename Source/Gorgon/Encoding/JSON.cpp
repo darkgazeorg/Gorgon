@@ -561,8 +561,110 @@ namespace Gorgon :: Encoding {
 	}
 
 	// ------------------------------------------------------------------
-	//  Schema Validation
+	//  Geometry Get<> specializations
 	// ------------------------------------------------------------------
+
+	namespace {
+
+		/// Extracts a numeric JSON field from an object, casting the result to T_.
+		/// Accepts both int and double stored values. Throws JSONError if missing or non-numeric.
+		template<class T_>
+		T_ geomField(const JSONObject &obj, const char *key) {
+			auto it = obj.find(key);
+			if(it == obj.end())
+				throw JSONError(std::string("Missing JSON field: ") + key);
+			const auto &v = it->second;
+			if(v.IsInteger()) return static_cast<T_>(v.Get<int>());
+			if(v.IsNumber())  return static_cast<T_>(v.Get<double>());
+			throw JSONError(std::string("JSON field '") + key + "' is not numeric");
+		}
+
+		const JSONObject &expectObjectFor(const JSONVariant &data, const char *type) {
+			if(auto *obj = std::get_if<JSONObject>(&data)) return *obj;
+			throw JSONError(std::string("Cannot convert non-object JSON to ") + type);
+		}
+
+	} // anonymous namespace
+
+	template<>
+	Geometry::Point JSONValue::Get<Geometry::Point>() const {
+		auto &obj = expectObjectFor(data, "Point");
+		return {geomField<int>(obj, "X"), geomField<int>(obj, "Y")};
+	}
+
+	template<>
+	Geometry::Pointf JSONValue::Get<Geometry::Pointf>() const {
+		auto &obj = expectObjectFor(data, "Pointf");
+		return {geomField<float>(obj, "X"), geomField<float>(obj, "Y")};
+	}
+
+	template<>
+	Geometry::Size JSONValue::Get<Geometry::Size>() const {
+		auto &obj = expectObjectFor(data, "Size");
+		return {geomField<int>(obj, "Width"), geomField<int>(obj, "Height")};
+	}
+
+	template<>
+	Geometry::Sizef JSONValue::Get<Geometry::Sizef>() const {
+		auto &obj = expectObjectFor(data, "Sizef");
+		return {geomField<float>(obj, "Width"), geomField<float>(obj, "Height")};
+	}
+
+	template<>
+	Geometry::Rectangle JSONValue::Get<Geometry::Rectangle>() const {
+		auto &obj = expectObjectFor(data, "Rectangle");
+		return {
+			geomField<int>(obj, "X"),     geomField<int>(obj, "Y"),
+			geomField<int>(obj, "Width"), geomField<int>(obj, "Height")
+		};
+	}
+
+	template<>
+	Geometry::Rectanglef JSONValue::Get<Geometry::Rectanglef>() const {
+		auto &obj = expectObjectFor(data, "Rectanglef");
+		return {
+			geomField<float>(obj, "X"),     geomField<float>(obj, "Y"),
+			geomField<float>(obj, "Width"), geomField<float>(obj, "Height")
+		};
+	}
+
+	template<>
+	Geometry::Bounds JSONValue::Get<Geometry::Bounds>() const {
+		auto &obj = expectObjectFor(data, "Bounds");
+		return {
+			geomField<int>(obj, "Left"), geomField<int>(obj, "Top"),
+			geomField<int>(obj, "Right"), geomField<int>(obj, "Bottom")
+		};
+	}
+
+	template<>
+	Geometry::Boundsf JSONValue::Get<Geometry::Boundsf>() const {
+		auto &obj = expectObjectFor(data, "Boundsf");
+		return {
+			geomField<float>(obj, "Left"), geomField<float>(obj, "Top"),
+			geomField<float>(obj, "Right"), geomField<float>(obj, "Bottom")
+		};
+	}
+
+	template<>
+	Geometry::Margin JSONValue::Get<Geometry::Margin>() const {
+		auto &obj = expectObjectFor(data, "Margin");
+		return {
+			geomField<int>(obj, "Left"), geomField<int>(obj, "Top"),
+			geomField<int>(obj, "Right"), geomField<int>(obj, "Bottom")
+		};
+	}
+
+	template<>
+	Geometry::Marginf JSONValue::Get<Geometry::Marginf>() const {
+		auto &obj = expectObjectFor(data, "Marginf");
+		return {
+			geomField<float>(obj, "Left"), geomField<float>(obj, "Top"),
+			geomField<float>(obj, "Right"), geomField<float>(obj, "Bottom")
+		};
+	}
+
+
 
 	JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
 		if(!value.IsObject())
