@@ -4,7 +4,6 @@
 #include <cassert>
 #include <limits>
 #include "JSON.h"
-#include "../String.h"
 
 namespace Gorgon :: Encoding {
 

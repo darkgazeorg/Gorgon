@@ -4,7 +4,6 @@
 #include <vector>
 #include <map>
 #include <variant>
-#include <optional>
 #include <stdexcept>
 #include <initializer_list>
 #include <tuple>
