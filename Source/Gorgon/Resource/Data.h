@@ -5,7 +5,6 @@
 #include "DataItems.h"
 #include "../TMP.h"
 
-#include <functional>
 
 namespace Gorgon :: Resource {
 	
@@ -422,7 +421,7 @@ namespace Gorgon :: Resource {
 		}
 
 	private:
-		virtual void save(Writer &writer) const;
+		virtual void save(Writer &writer) const override;
 		
 		Containers::Collection<DataItem> items;
 		

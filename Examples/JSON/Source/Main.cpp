@@ -93,7 +93,7 @@ int main() {
 	JSONValue built;
 	built.Set("id", 1);
 	built.Set("active", true);
-	built.Set("tags", JSONArray{JSONValue("fast"), JSONValue("strong")});
+	built.Set("tags", JSONArray{"fast", "strong"});
 	std::cout << JSONEncode(built) << std::endl;
 
 	return 0;
