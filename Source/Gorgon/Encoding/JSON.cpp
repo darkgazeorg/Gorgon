@@ -4,6 +4,7 @@
 #include <cassert>
 #include <limits>
 #include "JSON.h"
+#include "../Encoding.h"
 
 namespace Gorgon :: Encoding {
 
@@ -567,6 +568,7 @@ namespace Gorgon :: Encoding {
 
 		/// Extracts a numeric JSON field from an object, casting the result to T_.
 		/// Accepts both int and double stored values. Throws JSONError if missing or non-numeric.
+		/// Emits a Notice-level log message if a double value is narrowed to an integer type.
 		template<class T_>
 		T_ geomField(const JSONObject &obj, const char *key) {
 			auto it = obj.find(key);
@@ -574,7 +576,17 @@ namespace Gorgon :: Encoding {
 				throw JSONError(std::string("Missing JSON field: ") + key);
 			const auto &v = it->second;
 			if(v.IsInteger()) return static_cast<T_>(v.Get<int>());
-			if(v.IsNumber())  return static_cast<T_>(v.Get<double>());
+			if(v.IsNumber()) {
+#ifndef NDEBUG
+				if constexpr (std::is_integral<T_>::value) {
+					Log.Log(
+						std::string("JSON field '") + key + "' is stored as double but geometry type expects integer; value will be truncated",
+						Utils::Logger::Notice
+					);
+				}
+#endif
+				return static_cast<T_>(v.Get<double>());
+			}
 			throw JSONError(std::string("JSON field '") + key + "' is not numeric");
 		}
 

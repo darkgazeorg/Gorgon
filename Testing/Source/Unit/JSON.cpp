@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include <Gorgon/Encoding/JSON.h>
+#include <Gorgon/Encoding.h>
 #include <Gorgon/Struct.h>
 #include <Gorgon/Geometry/Point.h>
 #include <Gorgon/Geometry/Size.h>
@@ -578,4 +579,82 @@ TEST_CASE("Geometry: error on missing field", "[JSON][Geometry]") {
 TEST_CASE("Geometry: error on non-object JSON", "[JSON][Geometry]") {
 	REQUIRE_THROWS_AS(JSONValue(42).Get<Point>(), JSONError);
 	REQUIRE_THROWS_AS(JSONValue("pos").Get<Pointf>(), JSONError);
+}
+
+// =====================================================================
+//  Encoding logger / double-to-int warning
+// =====================================================================
+
+TEST_CASE("Geometry: double-to-int emits notice log", "[JSON][Geometry][Logging]") {
+	std::ostringstream oss;
+	Log.InitializeStream(oss);
+
+	// Both fields are stored as double in JSON
+	auto json = JSONParse(R"({"X": 1.7, "Y": 2.9})");
+	auto p = json.Get<Point>();
+
+	Log.CleanUp();
+
+	// A notice should have been emitted for each truncated field
+	REQUIRE(!oss.str().empty());
+	REQUIRE(oss.str().find("X") != std::string::npos);
+	// Values must be truncated (not rounded)
+	REQUIRE(p.X == 1);
+	REQUIRE(p.Y == 2);
+}
+
+TEST_CASE("Geometry: int-to-float conversion logs nothing", "[JSON][Geometry][Logging]") {
+	std::ostringstream oss;
+	Log.InitializeStream(oss);
+
+	// Integer fields requested as float geometry type – no warning expected
+	auto json = JSONParse(R"({"X": 3, "Y": 4})");
+	auto p = json.Get<Pointf>();
+
+	Log.CleanUp();
+
+	REQUIRE(oss.str().empty());
+	REQUIRE(p.X == Catch::Approx(3.0f));
+	REQUIRE(p.Y == Catch::Approx(4.0f));
+}
+
+TEST_CASE("Geometry: double-to-double logs nothing", "[JSON][Geometry][Logging]") {
+	std::ostringstream oss;
+	Log.InitializeStream(oss);
+
+	// Double fields requested as float type – no warning
+	auto json = JSONParse(R"({"X": 1.5, "Y": 2.5})");
+	auto p = json.Get<Pointf>();
+
+	Log.CleanUp();
+
+	REQUIRE(oss.str().empty());
+	REQUIRE(p.X == Catch::Approx(1.5f));
+	REQUIRE(p.Y == Catch::Approx(2.5f));
+}
+
+TEST_CASE("Geometry: double-to-int emits notice for all integer types", "[JSON][Geometry][Logging]") {
+	// Rectangle and Bounds also use integer fields; verify warnings are emitted
+	{
+		std::ostringstream oss;
+		Log.InitializeStream(oss);
+		auto json = JSONParse(R"({"Width": 10.6, "Height": 5.1})");
+		auto s = json.Get<Size>();
+		Log.CleanUp();
+		REQUIRE(!oss.str().empty());
+		REQUIRE(s.Width  == 10);
+		REQUIRE(s.Height == 5);
+	}
+	{
+		std::ostringstream oss;
+		Log.InitializeStream(oss);
+		auto json = JSONParse(R"({"Left": 0.5, "Top": 1.5, "Right": 9.9, "Bottom": 8.8})");
+		auto b = json.Get<Bounds>();
+		Log.CleanUp();
+		REQUIRE(!oss.str().empty());
+		REQUIRE(b.Left   == 0);
+		REQUIRE(b.Top    == 1);
+		REQUIRE(b.Right  == 9);
+		REQUIRE(b.Bottom == 8);
+	}
 }

@@ -3,6 +3,7 @@ target_sources(Gorgon
     FILE_SET HEADERS
     BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
     FILES
+        ../Encoding.h
         JSON.h
         LZMA.h
         PNG.h
@@ -12,6 +13,7 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
+        Encoding.cpp
         JSON.cpp
         LZMA.cpp
         PNG.cpp
