@@ -5,6 +5,16 @@
 
 using namespace Gorgon::Encoding;
 
+// Example structs used for reflection. The `DefineStructMembers` macro
+// generates metadata about the member names and types, enabling
+// automatic conversion between JSON and C++ objects via
+// `JSONValue::FromStruct` and `ToStruct`. Simply list the type and
+// the member identifiers you want exposed.
+//
+// These structs are plain-old-data; the macro does not alter their
+// layout or semantics, it only registers the fields for the
+// reflection system.
+
 // --- Reflected structs ---
 struct Vec2 {
     float x = 0.f, y = 0.f;
@@ -19,6 +29,8 @@ struct PlayerConfig {
 };
 
 int main() {
+    // 1. Parsing a JSON string into a JSONValue. The result is a
+    // hierarchical variant type that can be queried by index or key.
     std::cout << "=== 1. Parsing JSON ===" << std::endl;
     auto data = JSONParse(R"({
         "player": {
@@ -35,12 +47,16 @@ int main() {
     std::cout << "Alive: " << (data["alive"].Get<bool>() ? "yes" : "no") << std::endl;
     std::cout << "First item: " << data["inventory"][0].Get<std::string>() << std::endl;
 
-    // --- 2. Tuple extraction ---
+    // 2. Tuple extraction from an object. Useful when you need several
+    // sibling values at once; the types are specified as template
+    // parameters in the order of the keys provided.
     std::cout << "\n=== 2. Tuple Extraction ===" << std::endl;
     auto [name, health, speed] = data["player"].GetMultiple<std::string, int, int>("name", "health", "speed");
     std::cout << name << " - HP:" << health << " SPD:" << speed << std::endl;
 
-    // --- 3. Schema validation ---
+    // 3. Schema validation. A schema describes the expected keys and
+    // types for an object; missing optional fields are filled with a
+    // default value. Validation throws a JSONError on failure.
     std::cout << "\n=== 3. Schema Validation ===" << std::endl;
     JSONSchema schema = {
         {"name",   {JSONType::String,  true}},
@@ -53,7 +69,9 @@ int main() {
     std::cout << "Armor (defaulted): " << validated["armor"].Get<int>() << std::endl;
     std::cout << "Speed (present):   " << validated["speed"].Get<int>() << std::endl;
 
-    // --- 4. Struct reflection ---
+    // 4. Struct reflection. Convert between reflected C++ structs and
+    // JSON values. This leverages the metadata created by
+    // `DefineStructMembers` above.
     std::cout << "\n=== 4. Struct Reflection ===" << std::endl;
     
     // Struct to JSON
@@ -74,7 +92,9 @@ int main() {
     auto posBack = posJson.ToStruct<Vec2>();
     std::cout << "Vec2 roundtrip: (" << posBack.x << ", " << posBack.y << ")" << std::endl;
 
-    // --- 5. Encoding ---
+    // 5. Encoding values back to JSON text. When an indent > 0 is
+    // provided the output is formatted with newlines and spaces, making
+    // it easier to read.
     std::cout << "\n=== 5. Pretty-print Encoding ===" << std::endl;
     JSONValue output(JSONObject{});
     output.Set("title", "Game Save");
@@ -88,7 +108,9 @@ int main() {
     
     std::cout << JSONEncode(output, 2) << std::endl;
 
-    // --- 6. Building JSON programmatically ---
+    // 6. Building a JSON object programmatically. This shows how to
+    // construct an object/array tree using Set/Append, similar to a
+    // dynamic DOM.
     std::cout << "\n=== 6. Building JSON ===" << std::endl;
     JSONValue built;
     built.Set("id", 1);
@@ -96,8 +118,9 @@ int main() {
     built.Set("tags", JSONArray{"fast", "strong"});
     std::cout << JSONEncode(built) << std::endl;
 
-    // --- 7. Comment support in parsing ---
-    // The parser now supports // and /* */ comments, which are silently skipped.
+    // 7. Comment support when parsing. You can include C++/Java-style
+    // comments in the input and they will be ignored, allowing the JSON
+    // to be annotated for humans without breaking the parser.
     std::cout << "\n=== 7. Comment Support ===" << std::endl;
     auto commented = JSONParse(R"(
         // Game configuration file
@@ -114,9 +137,9 @@ int main() {
     std::cout << "Resolution: " << commented["width"].Get<int>() 
               << "x" << commented["height"].Get<int>() << std::endl;
 
-    // --- 8. Nested schema validation ---
-    // Schemas can now validate nested objects and typed arrays, including
-    // arrays of objects where each element is validated against a sub-schema.
+    // 8. Nested schema validation. A schema may itself contain other
+    // schemas to check sub‑objects or array elements. This example shows
+    // validating a complex structure with nested objects and arrays.
     std::cout << "\n=== 8. Nested Schema Validation ===" << std::endl;
     JSONSchema gameSchema = {
         {"title", {JSONType::String}},
@@ -151,9 +174,10 @@ int main() {
     std::cout << "Enemy 0 loot (default): " << validated2["enemies"][0]["loot"].Get<std::string>() << std::endl;
     std::cout << "Enemy 1 loot (present): " << validated2["enemies"][1]["loot"].Get<std::string>() << std::endl;
 
-    // --- 9. Geometry schema types ---
-    // Schema fields can require geometry shapes (Point, Size, Rectangle, etc.)
-    // which are validated by checking for the correct object keys.
+    // 9. Geometry schema types. For convenience the schema supports
+    // several geometry-related types; during validation the presence of
+    // the appropriate coordinate keys is checked. The values themselves
+    // can be cast to the corresponding geometry structs.
     std::cout << "\n=== 9. Geometry Schema Types ===" << std::endl;
     JSONSchema spriteSchema = {
         {"name",     {JSONType::String}},
@@ -174,9 +198,10 @@ int main() {
               << " at (" << pos2.X << "," << pos2.Y << ")"
               << " size " << sz.Width << "x" << sz.Height << std::endl;
 
-    // --- 10. Structured error handling ---
-    // JSONError now carries a JSONErrorCode enum and an optional field name.
-    // This makes programmatic error handling much cleaner than parsing strings.
+    // 10. Structured error handling. When something goes wrong the
+    // library throws a JSONError which includes a typed error code and
+    // an optional field name. Catching and inspecting these properties
+    // allows more robust error reporting.
     std::cout << "\n=== 10. Structured Error Handling ===" << std::endl;
 
     // Demonstrate catching a missing-field error
@@ -188,13 +213,7 @@ int main() {
         JSONValidate(JSONParse(R"({"id": 1})"), strictSchema);
     }
     catch(const JSONError &e) {
-        std::cout << "Caught error code: ";
-        switch(e.GetCode()) {
-            case JSONErrorCode::MissingField:      std::cout << "MissingField"; break;
-            case JSONErrorCode::SchemaTypeMismatch: std::cout << "SchemaTypeMismatch"; break;
-            case JSONErrorCode::NestedValidation:   std::cout << "NestedValidation"; break;
-            default:                                std::cout << "Other"; break;
-        }
+        std::cout << "Caught error code: " << e.GetCode();
         std::cout << ", field: \"" << e.GetField() << "\"" << std::endl;
         std::cout << "Message: " << e.what() << std::endl;
     }
