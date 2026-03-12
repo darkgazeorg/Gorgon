@@ -29,38 +29,38 @@ JSONType JSONValue::GetType() const {
 template<>
 bool JSONValue::Get<bool>() const {
     if(auto *v = std::get_if<bool>(&data)) return *v;
-    throw JSONError("JSON value is not a bool");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not a bool");
 }
 
 template<>
 int JSONValue::Get<int>() const {
     if(auto *v = std::get_if<int>(&data)) return *v;
-    throw JSONError("JSON value is not an integer");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an integer");
 }
 
 template<>
 double JSONValue::Get<double>() const {
     if(auto *v = std::get_if<double>(&data)) return *v;
     if(auto *v = std::get_if<int>(&data))    return (double)*v;
-    throw JSONError("JSON value is not a number");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not a number");
 }
 
 template<>
 std::string JSONValue::Get<std::string>() const {
     if(auto *v = std::get_if<std::string>(&data)) return *v;
-    throw JSONError("JSON value is not a string");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not a string");
 }
 
 template<>
 JSONArray JSONValue::Get<JSONArray>() const {
     if(auto *v = std::get_if<JSONArray>(&data)) return *v;
-    throw JSONError("JSON value is not an array");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
 template<>
 JSONObject JSONValue::Get<JSONObject>() const {
     if(auto *v = std::get_if<JSONObject>(&data)) return *v;
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 // ------------------------------------------------------------------
@@ -71,38 +71,38 @@ JSONValue &JSONValue::operator[](const std::string &key) {
     if(auto *obj = std::get_if<JSONObject>(&data)) {
         auto it = obj->find(key);
         if(it == obj->end())
-            throw JSONError("Key not found: " + key);
+            throw JSONError(JSONErrorCode::KeyNotFound, key, "Key not found: " + key);
         return it->second;
     }
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 const JSONValue &JSONValue::operator[](const std::string &key) const {
     if(auto *obj = std::get_if<JSONObject>(&data)) {
         auto it = obj->find(key);
         if(it == obj->end())
-            throw JSONError("Key not found: " + key);
+            throw JSONError(JSONErrorCode::KeyNotFound, key, "Key not found: " + key);
         return it->second;
     }
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 JSONValue &JSONValue::operator[](int index) {
     if(auto *arr = std::get_if<JSONArray>(&data)) {
         if(index < 0 || index >= (int)arr->size())
-            throw JSONError("Array index out of bounds");
+            throw JSONError(JSONErrorCode::IndexOutOfBounds, "Array index out of bounds");
         return (*arr)[index];
     }
-    throw JSONError("JSON value is not an array");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
 const JSONValue &JSONValue::operator[](int index) const {
     if(auto *arr = std::get_if<JSONArray>(&data)) {
         if(index < 0 || index >= (int)arr->size())
-            throw JSONError("Array index out of bounds");
+            throw JSONError(JSONErrorCode::IndexOutOfBounds, "Array index out of bounds");
         return (*arr)[index];
     }
-    throw JSONError("JSON value is not an array");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
 const JSONValue &JSONValue::GetOr(const std::string &key, const JSONValue &defaultval) const {
@@ -111,7 +111,7 @@ const JSONValue &JSONValue::GetOr(const std::string &key, const JSONValue &defau
         if(it != obj->end()) return it->second;
         return defaultval;
     }
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 bool JSONValue::Has(const std::string &key) const {
@@ -125,7 +125,7 @@ int JSONValue::GetCount() const {
         return (int)arr->size();
     if(auto *obj = std::get_if<JSONObject>(&data))
         return (int)obj->size();
-    throw JSONError("JSON value is not an array or object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array or object");
 }
 
 void JSONValue::Set(const std::string &key, JSONValue value) {
@@ -134,7 +134,7 @@ void JSONValue::Set(const std::string &key, JSONValue value) {
         (*obj)[key] = std::move(value);
         return;
     }
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 void JSONValue::Append(JSONValue value) {
@@ -143,7 +143,7 @@ void JSONValue::Append(JSONValue value) {
         arr->push_back(std::move(value));
         return;
     }
-    throw JSONError("JSON value is not an array");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
 void JSONValue::Remove(const std::string &key) {
@@ -151,17 +151,17 @@ void JSONValue::Remove(const std::string &key) {
         obj->erase(key);
         return;
     }
-    throw JSONError("JSON value is not an object");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an object");
 }
 
 void JSONValue::Remove(int index) {
     if(auto *arr = std::get_if<JSONArray>(&data)) {
         if(index < 0 || index >= (int)arr->size())
-            throw JSONError("Array index out of bounds");
+            throw JSONError(JSONErrorCode::IndexOutOfBounds, "Array index out of bounds");
         arr->erase(arr->begin() + index);
         return;
     }
-    throw JSONError("JSON value is not an array");
+    throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
 // ------------------------------------------------------------------
@@ -178,30 +178,55 @@ namespace {
 
         char peek() const {
             skipwhitespace();
-            if(pos >= (int)input.size()) throw JSONError("Unexpected end of JSON input");
+            if(pos >= (int)input.size()) throw JSONError(JSONErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
             return input[pos];
         }
 
         void skipwhitespace() const {
-            while(pos < (int)input.size()) {
-                char c = input[pos];
-                if(c == ' ' || c == '\t' || c == '\n' || c == '\r')
-                    const_cast<Parser*>(this)->pos++;
-                else
+            auto &p = const_cast<Parser*>(this)->pos;
+            while(p < (int)input.size()) {
+                char c = input[p];
+                if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+                    p++;
+                }
+                else if(c == '/' && p + 1 < (int)input.size()) {
+                    if(input[p + 1] == '/') {
+                        // Single-line comment: skip to end of line
+                        p += 2;
+                        while(p < (int)input.size() && input[p] != '\n') p++;
+                        if(p < (int)input.size()) p++; // skip the newline
+                    }
+                    else if(input[p + 1] == '*') {
+                        // Multi-line comment: skip to */
+                        p += 2;
+                        while(p + 1 < (int)input.size()) {
+                            if(input[p] == '*' && input[p + 1] == '/') {
+                                p += 2;
+                                break;
+                            }
+                            p++;
+                        }
+                    }
+                    else {
+                        break;
+                    }
+                }
+                else {
                     break;
+                }
             }
         }
 
         char next() {
             skipwhitespace();
-            if(pos >= (int)input.size()) throw JSONError("Unexpected end of JSON input");
+            if(pos >= (int)input.size()) throw JSONError(JSONErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
             return input[pos++];
         }
 
         void expect(char c) {
             char got = next();
             if(got != c)
-                throw JSONError(std::string("Expected '") + c + "' but got '" + got + "' at position " + std::to_string(pos - 1));
+                throw JSONError(JSONErrorCode::UnexpectedCharacter, std::string("Expected '") + c + "' but got '" + got + "' at position " + std::to_string(pos - 1));
         }
 
         JSONValue parseValue() {
@@ -215,7 +240,7 @@ namespace {
                 default:
                     if(c == '-' || (c >= '0' && c <= '9'))
                         return parseNumber();
-                    throw JSONError(std::string("Unexpected character '") + c + "' at position " + std::to_string(pos));
+                    throw JSONError(JSONErrorCode::UnexpectedCharacter, std::string("Unexpected character '") + c + "' at position " + std::to_string(pos));
             }
         }
 
@@ -227,7 +252,7 @@ namespace {
                 if(c == '"') return result;
                 if(c == '\\') {
                     if(pos >= (int)input.size())
-                        throw JSONError("Unexpected end of string escape");
+                        throw JSONError(JSONErrorCode::UnexpectedEnd, "Unexpected end of string escape");
                     char esc = input[pos++];
                     switch(esc) {
                         case '"':  result += '"';  break;
@@ -240,7 +265,7 @@ namespace {
                         case 't':  result += '\t'; break;
                         case 'u': {
                             if(pos + 4 > (int)input.size())
-                                throw JSONError("Invalid unicode escape");
+                                throw JSONError(JSONErrorCode::InvalidUnicode, "Invalid unicode escape");
                             std::string hex = input.substr(pos, 4);
                             pos += 4;
                             unsigned int cp = 0;
@@ -250,12 +275,12 @@ namespace {
                                 if(h >= '0' && h <= '9')      cp |= (h - '0');
                                 else if(h >= 'a' && h <= 'f') cp |= (h - 'a' + 10);
                                 else if(h >= 'A' && h <= 'F') cp |= (h - 'A' + 10);
-                                else throw JSONError("Invalid hex digit in unicode escape");
+                                else throw JSONError(JSONErrorCode::InvalidUnicode, "Invalid hex digit in unicode escape");
                             }
                             // Handle surrogate pairs
                             if(cp >= 0xD800 && cp <= 0xDBFF) {
                                 if(pos + 6 > (int)input.size() || input[pos] != '\\' || input[pos + 1] != 'u')
-                                    throw JSONError("Expected low surrogate pair");
+                                    throw JSONError(JSONErrorCode::InvalidUnicode, "Expected low surrogate pair");
                                 pos += 2;
                                 std::string hex2 = input.substr(pos, 4);
                                 pos += 4;
@@ -266,10 +291,10 @@ namespace {
                                     if(h >= '0' && h <= '9')      cp2 |= (h - '0');
                                     else if(h >= 'a' && h <= 'f') cp2 |= (h - 'a' + 10);
                                     else if(h >= 'A' && h <= 'F') cp2 |= (h - 'A' + 10);
-                                    else throw JSONError("Invalid hex digit in surrogate pair");
+                                    else throw JSONError(JSONErrorCode::InvalidUnicode, "Invalid hex digit in surrogate pair");
                                 }
                                 if(cp2 < 0xDC00 || cp2 > 0xDFFF)
-                                    throw JSONError("Invalid low surrogate");
+                                    throw JSONError(JSONErrorCode::InvalidUnicode, "Invalid low surrogate");
                                 cp = 0x10000 + ((cp - 0xD800) << 10) + (cp2 - 0xDC00);
                             }
                             // Encode as UTF-8
@@ -294,17 +319,17 @@ namespace {
                             break;
                         }
                         default:
-                            throw JSONError(std::string("Invalid escape sequence: \\") + esc);
+                            throw JSONError(JSONErrorCode::InvalidEscape, std::string("Invalid escape sequence: \\") + esc);
                     }
                 }
                 else {
                     // RFC 8259: control characters (U+0000 through U+001F) must be escaped
                     if(static_cast<unsigned char>(c) < 0x20)
-                        throw JSONError("Unescaped control character in string");
+                        throw JSONError(JSONErrorCode::UnescapedControl, "Unescaped control character in string");
                     result += c;
                 }
             }
-            throw JSONError("Unterminated string");
+            throw JSONError(JSONErrorCode::UnterminatedString, "Unterminated string");
         }
 
         JSONValue parseNumber() {
@@ -314,13 +339,13 @@ namespace {
             if(pos < (int)input.size() && input[pos] == '-') pos++;
 
             if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9')
-                throw JSONError("Invalid number at position " + std::to_string(start));
+                throw JSONError(JSONErrorCode::InvalidNumber, "Invalid number at position " + std::to_string(start));
 
             if(input[pos] == '0') {
                 pos++;
                 // Leading zeros not allowed (except 0 itself or 0.x)
                 if(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9')
-                    throw JSONError("Leading zeros not allowed at position " + std::to_string(start));
+                    throw JSONError(JSONErrorCode::LeadingZero, "Leading zeros not allowed at position " + std::to_string(start));
             }
             else {
                 while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
@@ -330,7 +355,7 @@ namespace {
                 isFloat = true;
                 pos++;
                 if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9')
-                    throw JSONError("Expected digit after decimal point");
+                    throw JSONError(JSONErrorCode::InvalidNumber, "Expected digit after decimal point");
                 while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
             }
 
@@ -339,7 +364,7 @@ namespace {
                 pos++;
                 if(pos < (int)input.size() && (input[pos] == '+' || input[pos] == '-')) pos++;
                 if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9')
-                    throw JSONError("Expected digit in exponent");
+                    throw JSONError(JSONErrorCode::InvalidNumber, "Expected digit in exponent");
                 while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
             }
 
@@ -369,7 +394,7 @@ namespace {
                 pos += 5;
                 return JSONValue(false);
             }
-            throw JSONError("Invalid value at position " + std::to_string(pos));
+            throw JSONError(JSONErrorCode::InvalidLiteral, "Invalid boolean at position " + std::to_string(pos));
         }
 
         JSONValue parseNull() {
@@ -377,7 +402,7 @@ namespace {
                 pos += 4;
                 return JSONValue(JSONNull{});
             }
-            throw JSONError("Invalid value at position " + std::to_string(pos));
+            throw JSONError(JSONErrorCode::InvalidLiteral, "Invalid null at position " + std::to_string(pos));
         }
 
         JSONValue parseArray() {
@@ -388,7 +413,7 @@ namespace {
                 arr.push_back(parseValue());
                 char c = next();
                 if(c == ']') return JSONValue(std::move(arr));
-                if(c != ',') throw JSONError("Expected ',' or ']' in array at position " + std::to_string(pos - 1));
+                if(c != ',') throw JSONError(JSONErrorCode::UnexpectedCharacter, "Expected ',' or ']' in array at position " + std::to_string(pos - 1));
             }
         }
 
@@ -398,13 +423,13 @@ namespace {
             if(peek() == '}') { pos++; return JSONValue(std::move(obj)); }
             while(true) {
                 if(peek() != '"')
-                    throw JSONError("Expected string key at position " + std::to_string(pos));
+                    throw JSONError(JSONErrorCode::UnexpectedCharacter, "Expected string key at position " + std::to_string(pos));
                 std::string key = parseString();
                 expect(':');
                 obj[key] = parseValue();
                 char c = next();
                 if(c == '}') return JSONValue(std::move(obj));
-                if(c != ',') throw JSONError("Expected ',' or '}' in object at position " + std::to_string(pos - 1));
+                if(c != ',') throw JSONError(JSONErrorCode::UnexpectedCharacter, "Expected ',' or '}' in object at position " + std::to_string(pos - 1));
             }
         }
     };
@@ -416,7 +441,7 @@ JSONValue JSONParse(const std::string &str) {
     JSONValue result = parser.parseValue();
     parser.skipwhitespace();
     if(parser.pos != (int)str.size())
-        throw JSONError("Trailing content after JSON value at position " + std::to_string(parser.pos));
+        throw JSONError(JSONErrorCode::TrailingContent, "Trailing content after JSON value at position " + std::to_string(parser.pos));
     return result;
 }
 
@@ -544,6 +569,15 @@ namespace {
                 out << '}';
                 break;
             }
+
+            // Geometry types are stored as objects; they should never appear as a
+            // GetType() result, but silence the compiler warning.
+            case JSONType::Point:
+            case JSONType::Size:
+            case JSONType::Rectangle:
+            case JSONType::Bounds:
+            case JSONType::Margin:
+                break;
         }
     }
 
@@ -573,7 +607,7 @@ namespace {
     T_ geomField(const JSONObject &obj, const char *key) {
         auto it = obj.find(key);
         if(it == obj.end())
-            throw JSONError(std::string("Missing JSON field: ") + key);
+            throw JSONError(JSONErrorCode::KeyNotFound, key, std::string("Missing JSON field: ") + key);
         const auto &v = it->second;
         if(v.IsInteger()) return static_cast<T_>(v.Get<int>());
         if(v.IsNumber()) {
@@ -587,12 +621,12 @@ namespace {
 #endif
             return static_cast<T_>(v.Get<double>());
         }
-        throw JSONError(std::string("JSON field '") + key + "' is not numeric");
+        throw JSONError(JSONErrorCode::TypeMismatch, key, std::string("JSON field '") + key + "' is not numeric");
     }
 
     const JSONObject &expectObjectFor(const JSONVariant &data, const char *type) {
         if(auto *obj = std::get_if<JSONObject>(&data)) return *obj;
-        throw JSONError(std::string("Cannot convert non-object JSON to ") + type);
+        throw JSONError(JSONErrorCode::TypeMismatch, std::string("Cannot convert non-object JSON to ") + type);
     }
 
 } // anonymous namespace
@@ -679,7 +713,7 @@ Geometry::Marginf JSONValue::Get<Geometry::Marginf>() const {
 
 JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
     if(!value.IsObject())
-        throw JSONError("JSON schema validation requires an object value");
+        throw JSONError(JSONErrorCode::SchemaNotObject, "JSON schema validation requires an object value");
 
     auto &obj = std::get<JSONObject>(value.GetVariant());
     JSONObject result = obj;
@@ -688,7 +722,7 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
         auto it = result.find(name);
         if(it == result.end()) {
             if(field.required)
-                throw JSONError("Missing required field: " + name);
+                throw JSONError(JSONErrorCode::MissingField, name, "Missing required field: " + name);
             result[name] = field.defaultValue;
             continue;
         }
@@ -719,10 +753,81 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
             case JSONType::Object:
                 match = (actual == JSONType::Object);
                 break;
+
+            // Geometry types: must be an object with the correct fields
+            case JSONType::Point:
+                match = (actual == JSONType::Object && it->second.Has("X") && it->second.Has("Y"));
+                break;
+            case JSONType::Size:
+                match = (actual == JSONType::Object && it->second.Has("Width") && it->second.Has("Height"));
+                break;
+            case JSONType::Rectangle:
+                match = (actual == JSONType::Object && it->second.Has("X") && it->second.Has("Y")
+                         && it->second.Has("Width") && it->second.Has("Height"));
+                break;
+            case JSONType::Bounds:
+                match = (actual == JSONType::Object && it->second.Has("Left") && it->second.Has("Top")
+                         && it->second.Has("Right") && it->second.Has("Bottom"));
+                break;
+            case JSONType::Margin:
+                match = (actual == JSONType::Object && it->second.Has("Left") && it->second.Has("Top")
+                         && it->second.Has("Right") && it->second.Has("Bottom"));
+                break;
         }
 
         if(!match)
-            throw JSONError("Field '" + name + "' has wrong type");
+            throw JSONError(JSONErrorCode::SchemaTypeMismatch, name, "Field '" + name + "' has wrong type");
+
+        // Nested object validation
+        if(field.type == JSONType::Object && !field.subSchema.empty()) {
+            try {
+                result[name] = JSONValidate(it->second, field.subSchema);
+            }
+            catch(const JSONError &e) {
+                throw JSONError(JSONErrorCode::NestedValidation, name,
+                    "Validation failed in nested object '" + name + "': " + e.what());
+            }
+        }
+
+        // Typed array validation
+        if(field.type == JSONType::Array && field.elementType != JSONType::Null) {
+            auto &arr = std::get<JSONArray>(it->second.GetVariant());
+            JSONArray validatedArr;
+            for(int i = 0; i < (int)arr.size(); i++) {
+                JSONType elemActual = arr[i].GetType();
+                bool elemMatch = false;
+
+                switch(field.elementType) {
+                    case JSONType::Null:    elemMatch = true; break;
+                    case JSONType::Bool:    elemMatch = (elemActual == JSONType::Bool); break;
+                    case JSONType::Integer: elemMatch = (elemActual == JSONType::Integer); break;
+                    case JSONType::Number:  elemMatch = (elemActual == JSONType::Integer || elemActual == JSONType::Number); break;
+                    case JSONType::String:  elemMatch = (elemActual == JSONType::String); break;
+                    case JSONType::Array:   elemMatch = (elemActual == JSONType::Array); break;
+                    case JSONType::Object:  elemMatch = (elemActual == JSONType::Object); break;
+                    default: elemMatch = false; break;
+                }
+
+                if(!elemMatch)
+                    throw JSONError(JSONErrorCode::SchemaTypeMismatch, name,
+                        "Array '" + name + "' element [" + std::to_string(i) + "] has wrong type");
+
+                // Validate array elements against element schema
+                if(field.elementType == JSONType::Object && !field.elementSchema.empty()) {
+                    try {
+                        validatedArr.push_back(JSONValidate(arr[i], field.elementSchema));
+                    }
+                    catch(const JSONError &e) {
+                        throw JSONError(JSONErrorCode::NestedValidation, name,
+                            "Validation failed in array '" + name + "' element [" + std::to_string(i) + "]: " + e.what());
+                    }
+                }
+                else {
+                    validatedArr.push_back(arr[i]);
+                }
+            }
+            result[name] = JSONValue(std::move(validatedArr));
+        }
     }
 
     return JSONValue(std::move(result));

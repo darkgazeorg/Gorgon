@@ -17,10 +17,77 @@
 
 namespace Gorgon :: Encoding {
 
-/// Error thrown during JSON parsing or access.
+/// Structured error codes for JSON operations.
+enum class JSONErrorCode {
+	/// Generic / unclassified error.
+	Generic,
+
+	// --- Parse errors ---
+	/// Unexpected end of JSON input.
+	UnexpectedEnd,
+	/// Unexpected character encountered during parsing.
+	UnexpectedCharacter,
+	/// Invalid escape sequence in a string.
+	InvalidEscape,
+	/// Invalid unicode escape in a string.
+	InvalidUnicode,
+	/// Invalid number literal.
+	InvalidNumber,
+	/// Leading zeros are not allowed in numbers.
+	LeadingZero,
+	/// Trailing content after the root JSON value.
+	TrailingContent,
+	/// Unterminated string literal.
+	UnterminatedString,
+	/// Unescaped control character in a string.
+	UnescapedControl,
+	/// Invalid JSON value literal (e.g. malformed true/false/null).
+	InvalidLiteral,
+
+	// --- Access / type errors ---
+	/// The value is not the expected type.
+	TypeMismatch,
+	/// Requested object key was not found.
+	KeyNotFound,
+	/// Array index is out of bounds.
+	IndexOutOfBounds,
+
+	// --- Schema validation errors ---
+	/// A required field is missing.
+	MissingField,
+	/// A field has the wrong type during schema validation.
+	SchemaTypeMismatch,
+	/// Schema validation requires an object value.
+	SchemaNotObject,
+	/// A nested schema validation failed.
+	NestedValidation,
+};
+
+/// Error thrown during JSON parsing, access, or validation.
+/// Carries a structured error code and an optional field name.
 class JSONError : public std::runtime_error {
 public:
-	using std::runtime_error::runtime_error;
+	/// Constructs an error with only a message (Generic code, no field).
+	explicit JSONError(const std::string &message)
+		: std::runtime_error(message), code(JSONErrorCode::Generic) { }
+
+	/// Constructs an error with a code and message.
+	JSONError(JSONErrorCode code, const std::string &message)
+		: std::runtime_error(message), code(code) { }
+
+	/// Constructs an error with a code, field name, and message.
+	JSONError(JSONErrorCode code, const std::string &field, const std::string &message)
+		: std::runtime_error(message), code(code), field(field) { }
+
+	/// Returns the error code.
+	JSONErrorCode GetCode() const { return code; }
+
+	/// Returns the field name associated with this error, if any.
+	const std::string &GetField() const { return field; }
+
+private:
+	JSONErrorCode code;
+	std::string field;
 };
 
 class JSONValue;
@@ -49,6 +116,12 @@ enum class JSONType {
 	String,
 	Array,
 	Object,
+	// Geometry types (for schema validation only)
+	Point,
+	Size,
+	Rectangle,
+	Bounds,
+	Margin,
 };
 
 /// Represents a single JSON value. Supports null, bool, int, double, string, array, and object values.
@@ -224,15 +297,110 @@ std::ostream &operator <<(std::ostream &out, const JSONValue &value);
 
 // --- Schema Validation ---
 
-/// Defines a schema entry for a single field.
+struct JSONSchemaField;
+
+/// A JSON schema is a map of field names to their schema definitions.
+using JSONSchema = std::map<std::string, JSONSchemaField>;
+
+/// Defines a schema entry for a single field. Supports flat types, nested objects,
+/// and typed arrays (including arrays of objects validated against a sub-schema).
 struct JSONSchemaField {
 	JSONType type;
 	bool required = true;
 	JSONValue defaultValue = JSONNull{};
-};
 
-/// A JSON schema is a map of field names to their schema definitions.
-using JSONSchema = std::map<std::string, JSONSchemaField>;
+	/// Optional sub-schema for nested object validation (when type == Object),
+	/// or for validating each element of an array (when type == Array and
+	/// elementSchema is set).
+	JSONSchema subSchema;
+
+	/// For typed arrays: the expected type of every array element.
+	/// Ignored when type != Array. Defaults to Null (meaning any element type is allowed).
+	JSONType elementType = JSONType::Null;
+
+	/// For typed arrays whose elements are objects: the schema applied to each element.
+	/// Populated via the Array(JSONSchema) factory.
+	JSONSchema elementSchema;
+
+	// --- Constructors ---
+
+	/// Default constructor – creates a Null/required field.
+	JSONSchemaField() : type(JSONType::Null) { }
+
+	/// Convenient constructor matching the original aggregate style.
+	JSONSchemaField(JSONType type, bool required = true, JSONValue defaultValue = JSONNull{})
+		: type(type), required(required), defaultValue(std::move(defaultValue)) { }
+
+	// --- Factory helpers ---
+
+	/// Creates a schema field for a nested object validated against a sub-schema.
+	static JSONSchemaField Object(JSONSchema schema, bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Object;
+		f.required = required;
+		f.subSchema = std::move(schema);
+		return f;
+	}
+
+	/// Creates a schema field for a typed array (every element must be elementType).
+	static JSONSchemaField Array(JSONType elementType, bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Array;
+		f.required = required;
+		f.elementType = elementType;
+		return f;
+	}
+
+	/// Creates a schema field for an array of objects, each validated against a sub-schema.
+	static JSONSchemaField Array(JSONSchema elementSchema, bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Array;
+		f.required = required;
+		f.elementType = JSONType::Object;
+		f.elementSchema = std::move(elementSchema);
+		return f;
+	}
+
+	/// Creates a schema field for a Point geometry type.
+	static JSONSchemaField PointField(bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Point;
+		f.required = required;
+		return f;
+	}
+
+	/// Creates a schema field for a Size geometry type.
+	static JSONSchemaField SizeField(bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Size;
+		f.required = required;
+		return f;
+	}
+
+	/// Creates a schema field for a Rectangle geometry type.
+	static JSONSchemaField RectangleField(bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Rectangle;
+		f.required = required;
+		return f;
+	}
+
+	/// Creates a schema field for a Bounds geometry type.
+	static JSONSchemaField BoundsField(bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Bounds;
+		f.required = required;
+		return f;
+	}
+
+	/// Creates a schema field for a Margin geometry type.
+	static JSONSchemaField MarginField(bool required = true) {
+		JSONSchemaField f;
+		f.type = JSONType::Margin;
+		f.required = required;
+		return f;
+	}
+};
 
 /// Validates and normalizes a JSON object against a schema. Missing optional fields are
 /// filled with their default values. Throws JSONError on validation failure.
@@ -369,7 +537,7 @@ void JSONValue::jsonToStruct(T_ &values, const JSONObject &obj, const R_ &ref, T
 template<class T_, class R_>
 T_ JSONValue::ToStruct(const R_ &reflectionobj) const {
 	if(!IsObject())
-		throw JSONError("Cannot convert non-object JSON to struct");
+		throw JSONError(JSONErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
 	
 	T_ result{};
 	jsonToStruct(result, std::get<JSONObject>(data), reflectionobj, 

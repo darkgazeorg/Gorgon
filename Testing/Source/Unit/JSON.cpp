@@ -658,3 +658,404 @@ TEST_CASE("Geometry: double-to-int emits notice for all integer types", "[JSON][
         REQUIRE(b.Bottom == 8);
     }
 }
+
+// =====================================================================
+//  Comment parsing
+// =====================================================================
+
+TEST_CASE("Parse with single-line comments", "[JSON][Comments]") {
+    auto v = JSONParse(R"(
+        // This is a comment
+        {
+            "x": 10, // inline comment
+            "y": 20
+        }
+    )");
+    REQUIRE(v["x"].Get<int>() == 10);
+    REQUIRE(v["y"].Get<int>() == 20);
+}
+
+TEST_CASE("Parse with multi-line comments", "[JSON][Comments]") {
+    auto v = JSONParse(R"(
+        /* header comment */
+        {
+            "name": /* inline */ "test",
+            "value": 42
+        }
+    )");
+    REQUIRE(v["name"].Get<std::string>() == "test");
+    REQUIRE(v["value"].Get<int>() == 42);
+}
+
+TEST_CASE("Parse with mixed comments", "[JSON][Comments]") {
+    auto v = JSONParse(R"(
+        // single line
+        /* multi
+           line */
+        [1, /* mid */ 2, 3] // trailing
+    )");
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 3);
+    REQUIRE(v[0].Get<int>() == 1);
+    REQUIRE(v[1].Get<int>() == 2);
+    REQUIRE(v[2].Get<int>() == 3);
+}
+
+TEST_CASE("Parse comment-only before value", "[JSON][Comments]") {
+    auto v = JSONParse("// comment\n42");
+    REQUIRE(v.Get<int>() == 42);
+}
+
+// =====================================================================
+//  Structured error codes
+// =====================================================================
+
+TEST_CASE("Error code: TypeMismatch on Get", "[JSON][Error]") {
+    auto v = JSONParse("42");
+    try {
+        v.Get<std::string>();
+        REQUIRE(false); // should not reach
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::TypeMismatch);
+    }
+}
+
+TEST_CASE("Error code: KeyNotFound", "[JSON][Error]") {
+    auto v = JSONParse(R"({"a": 1})");
+    try {
+        v["missing"];
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::KeyNotFound);
+        REQUIRE(e.GetField() == "missing");
+    }
+}
+
+TEST_CASE("Error code: IndexOutOfBounds", "[JSON][Error]") {
+    auto v = JSONParse("[1, 2]");
+    try {
+        v[5];
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::IndexOutOfBounds);
+    }
+}
+
+TEST_CASE("Error code: UnexpectedEnd", "[JSON][Error]") {
+    try {
+        JSONParse("");
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::UnexpectedEnd);
+    }
+}
+
+TEST_CASE("Error code: LeadingZero", "[JSON][Error]") {
+    try {
+        JSONParse("01");
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::LeadingZero);
+    }
+}
+
+TEST_CASE("Error code: TrailingContent", "[JSON][Error]") {
+    try {
+        JSONParse("1 2");
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::TrailingContent);
+    }
+}
+
+TEST_CASE("Error code: MissingField in schema", "[JSON][Error]") {
+    JSONSchema schema = {
+        {"required_field", {JSONType::Integer, true}},
+    };
+    auto input = JSONParse(R"({})");
+    try {
+        JSONValidate(input, schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::MissingField);
+        REQUIRE(e.GetField() == "required_field");
+    }
+}
+
+TEST_CASE("Error code: SchemaTypeMismatch", "[JSON][Error]") {
+    JSONSchema schema = {
+        {"x", {JSONType::Integer, true}},
+    };
+    auto input = JSONParse(R"({"x": "wrong"})");
+    try {
+        JSONValidate(input, schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::SchemaTypeMismatch);
+        REQUIRE(e.GetField() == "x");
+    }
+}
+
+TEST_CASE("Error code: SchemaNotObject", "[JSON][Error]") {
+    JSONSchema schema = {{"x", {JSONType::Integer}}};
+    try {
+        JSONValidate(JSONValue(42), schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::SchemaNotObject);
+    }
+}
+
+// =====================================================================
+//  Nested schema validation
+// =====================================================================
+
+TEST_CASE("Schema: nested object validation", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"name", {JSONType::String}},
+        {"position", JSONSchemaField::Object({
+            {"x", {JSONType::Number}},
+            {"y", {JSONType::Number}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"name": "hero", "position": {"x": 1.5, "y": 2.5}})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["name"].Get<std::string>() == "hero");
+    REQUIRE(result["position"]["x"].Get<double>() == Catch::Approx(1.5));
+    REQUIRE(result["position"]["y"].Get<double>() == Catch::Approx(2.5));
+}
+
+TEST_CASE("Schema: nested object with defaults", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"pos", JSONSchemaField::Object({
+            {"x", {JSONType::Integer, true}},
+            {"y", {JSONType::Integer, false, JSONValue(0)}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"pos": {"x": 5}})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["pos"]["x"].Get<int>() == 5);
+    REQUIRE(result["pos"]["y"].Get<int>() == 0);
+}
+
+TEST_CASE("Schema: nested object validation failure", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"data", JSONSchemaField::Object({
+            {"id", {JSONType::Integer}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"data": {"id": "wrong"}})");
+    try {
+        JSONValidate(input, schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::NestedValidation);
+        REQUIRE(e.GetField() == "data");
+    }
+}
+
+TEST_CASE("Schema: typed array of integers", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"scores", JSONSchemaField::Array(JSONType::Integer)},
+    };
+
+    auto input = JSONParse(R"({"scores": [10, 20, 30]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["scores"][0].Get<int>() == 10);
+    REQUIRE(result["scores"][2].Get<int>() == 30);
+}
+
+TEST_CASE("Schema: typed array of strings", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"tags", JSONSchemaField::Array(JSONType::String)},
+    };
+
+    auto input = JSONParse(R"({"tags": ["a", "b"]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["tags"].GetCount() == 2);
+}
+
+TEST_CASE("Schema: typed array wrong element type", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"nums", JSONSchemaField::Array(JSONType::Integer)},
+    };
+
+    auto input = JSONParse(R"({"nums": [1, "two", 3]})");
+    try {
+        JSONValidate(input, schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::SchemaTypeMismatch);
+    }
+}
+
+TEST_CASE("Schema: array of objects", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"enemies", JSONSchemaField::Array(JSONSchema{
+            {"name",   {JSONType::String}},
+            {"health", {JSONType::Integer}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"enemies": [
+        {"name": "Goblin", "health": 50},
+        {"name": "Dragon", "health": 500}
+    ]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["enemies"][0]["name"].Get<std::string>() == "Goblin");
+    REQUIRE(result["enemies"][1]["health"].Get<int>() == 500);
+}
+
+TEST_CASE("Schema: array of objects with defaults", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"items", JSONSchemaField::Array(JSONSchema{
+            {"name", {JSONType::String}},
+            {"count", {JSONType::Integer, false, JSONValue(1)}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"items": [{"name": "sword"}, {"name": "shield", "count": 3}]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["items"][0]["count"].Get<int>() == 1);
+    REQUIRE(result["items"][1]["count"].Get<int>() == 3);
+}
+
+TEST_CASE("Schema: array of objects validation failure", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"list", JSONSchemaField::Array(JSONSchema{
+            {"id", {JSONType::Integer}},
+        })},
+    };
+
+    auto input = JSONParse(R"({"list": [{"id": 1}, {"id": "bad"}]})");
+    try {
+        JSONValidate(input, schema);
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::NestedValidation);
+        REQUIRE(e.GetField() == "list");
+    }
+}
+
+// =====================================================================
+//  Geometry schema validation
+// =====================================================================
+
+TEST_CASE("Schema: Point field", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"pos", JSONSchemaField::PointField()},
+    };
+
+    auto input = JSONParse(R"({"pos": {"X": 10, "Y": 20}})");
+    auto result = JSONValidate(input, schema);
+    auto p = result["pos"].Get<Point>();
+    REQUIRE(p.X == 10);
+    REQUIRE(p.Y == 20);
+}
+
+TEST_CASE("Schema: Point field wrong shape", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"pos", JSONSchemaField::PointField()},
+    };
+
+    // Missing Y field
+    auto input = JSONParse(R"({"pos": {"X": 10}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Size field", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"dim", JSONSchemaField::SizeField()},
+    };
+
+    auto input = JSONParse(R"({"dim": {"Width": 640, "Height": 480}})");
+    auto result = JSONValidate(input, schema);
+    auto s = result["dim"].Get<Size>();
+    REQUIRE(s.Width == 640);
+    REQUIRE(s.Height == 480);
+}
+
+TEST_CASE("Schema: Rectangle field", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"rect", JSONSchemaField::RectangleField()},
+    };
+
+    auto input = JSONParse(R"({"rect": {"X": 0, "Y": 0, "Width": 100, "Height": 50}})");
+    auto result = JSONValidate(input, schema);
+    auto r = result["rect"].Get<Rectangle>();
+    REQUIRE(r.Width == 100);
+    REQUIRE(r.Height == 50);
+}
+
+TEST_CASE("Schema: Bounds field", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"bounds", JSONSchemaField::BoundsField()},
+    };
+
+    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": 2, "Right": 3, "Bottom": 4}})");
+    auto result = JSONValidate(input, schema);
+    auto b = result["bounds"].Get<Bounds>();
+    REQUIRE(b.Left == 1);
+    REQUIRE(b.Right == 3);
+}
+
+TEST_CASE("Schema: Margin field", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"margin", JSONSchemaField::MarginField()},
+    };
+
+    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": 10, "Right": 5, "Bottom": 10}})");
+    auto result = JSONValidate(input, schema);
+    auto m = result["margin"].Get<Margin>();
+    REQUIRE(m.Left == 5);
+    REQUIRE(m.Top == 10);
+}
+
+TEST_CASE("Schema: Geometry field not an object", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"pos", JSONSchemaField::PointField()},
+    };
+
+    auto input = JSONParse(R"({"pos": 42})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: optional array field", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"name", {JSONType::String}},
+        {"tags", JSONSchemaField::Array(JSONType::String, false)},
+    };
+
+    auto input = JSONParse(R"({"name": "test"})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["name"].Get<std::string>() == "test");
+    // tags gets null default since missing
+    REQUIRE(result["tags"].IsNull());
+}
+
+TEST_CASE("Schema: optional nested object with default", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"config", JSONSchemaField::Object({
+            {"debug", {JSONType::Bool, false, JSONValue(false)}},
+        }, false)},
+    };
+
+    auto input = JSONParse(R"({})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["config"].IsNull());
+}
