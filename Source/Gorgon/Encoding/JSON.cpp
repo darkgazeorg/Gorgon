@@ -5,6 +5,7 @@
 #include <limits>
 #include "JSON.h"
 #include "../Encoding.h"
+#include "Gorgon/String.h"
 
 namespace Gorgon :: Encoding {
 
@@ -606,8 +607,14 @@ namespace {
     template<class T_>
     T_ geomField(const JSONObject &obj, const char *key) {
         auto it = obj.find(key);
-        if(it == obj.end())
-            throw JSONError(JSONErrorCode::KeyNotFound, key, std::string("Missing JSON field: ") + key);
+        if(it == obj.end()) {
+            //try lowercase key for case-insensitive match
+            it = obj.find(String::ToLower(key));
+
+            if(it == obj.end())
+                throw JSONError(JSONErrorCode::KeyNotFound, key, std::string("Missing JSON field: ") + key);
+        }
+
         const auto &v = it->second;
         if(v.IsInteger()) return static_cast<T_>(v.Get<int>());
         if(v.IsNumber()) {

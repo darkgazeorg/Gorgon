@@ -581,6 +581,36 @@ TEST_CASE("Geometry: error on non-object JSON", "[JSON][Geometry]") {
     REQUIRE_THROWS_AS(JSONValue("pos").Get<Pointf>(), JSONError);
 }
 
+TEST_CASE("Geometry: lowercase field names accepted", "[JSON][Geometry]") {
+    // Objects may use all-lowercase keys instead of upper-case names
+    auto pjson = JSONParse(R"({"x":3,"y":4})");
+    auto p = pjson.Get<Point>();
+    REQUIRE(p.X == 3);
+    REQUIRE(p.Y == 4);
+
+    auto sjson = JSONParse(R"({"width":10,"height":20})");
+    auto s = sjson.Get<Size>();
+    REQUIRE(s.Width == 10);
+    REQUIRE(s.Height == 20);
+
+    // also ensure rectangle works when all fields are lowercase
+    auto rjson = JSONParse(R"({"x":1,"y":2,"width":5,"height":6})");
+    auto r = rjson.Get<Rectangle>();
+    REQUIRE(r.X == 1);
+    REQUIRE(r.Y == 2);
+    REQUIRE(r.Width == 5);
+    REQUIRE(r.Height == 6);
+}
+
+TEST_CASE("Geometry: random-case field names rejected", "[JSON][Geometry]") {
+    // only exact lowercase is supported; other irregular casing should fail
+    auto j1 = JSONParse(R"({"wiDTH":100,"height":200})");
+    REQUIRE_THROWS_AS(j1.Get<Size>(), JSONError);
+
+    auto j2 = JSONParse(R"({"X":1,"y":2,"HeIgHt":3})");
+    REQUIRE_THROWS_AS(j2.Get<Rectangle>(), JSONError);
+}
+
 // =====================================================================
 //  Encoding logger / double-to-int warning
 // =====================================================================
