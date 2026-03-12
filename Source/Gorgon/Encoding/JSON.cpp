@@ -578,6 +578,11 @@ namespace {
             case JSONType::Rectangle:
             case JSONType::Bounds:
             case JSONType::Margin:
+            case JSONType::Pointf:
+            case JSONType::Sizef:
+            case JSONType::Rectanglef:
+            case JSONType::Boundsf:
+            case JSONType::Marginf:
                 break;
         }
     }
@@ -618,14 +623,9 @@ namespace {
         const auto &v = it->second;
         if(v.IsInteger()) return static_cast<T_>(v.Get<int>());
         if(v.IsNumber()) {
-#ifndef NDEBUG
             if constexpr (std::is_integral<T_>::value) {
-                Log.Log(
-                    std::string("JSON field '") + key + "' is stored as double but geometry type expects integer; value will be truncated",
-                    Utils::Logger::Notice
-                );
+                throw JSONError(JSONErrorCode::TypeMismatch, key, std::string("JSON field '") + key + "' is not an integer");
             }
-#endif
             return static_cast<T_>(v.Get<double>());
         }
         throw JSONError(JSONErrorCode::TypeMismatch, key, std::string("JSON field '") + key + "' is not numeric");
@@ -647,7 +647,7 @@ Geometry::Point JSONValue::Get<Geometry::Point>() const {
 template<>
 Geometry::Pointf JSONValue::Get<Geometry::Pointf>() const {
     auto &obj = expectObjectFor(data, "Pointf");
-    return {geomField<float>(obj, "X"), geomField<float>(obj, "Y")};
+    return {geomField<Gorgon::Float>(obj, "X"), geomField<Gorgon::Float>(obj, "Y")};
 }
 
 template<>
@@ -659,7 +659,7 @@ Geometry::Size JSONValue::Get<Geometry::Size>() const {
 template<>
 Geometry::Sizef JSONValue::Get<Geometry::Sizef>() const {
     auto &obj = expectObjectFor(data, "Sizef");
-    return {geomField<float>(obj, "Width"), geomField<float>(obj, "Height")};
+    return {geomField<Gorgon::Float>(obj, "Width"), geomField<Gorgon::Float>(obj, "Height")};
 }
 
 template<>
@@ -675,8 +675,8 @@ template<>
 Geometry::Rectanglef JSONValue::Get<Geometry::Rectanglef>() const {
     auto &obj = expectObjectFor(data, "Rectanglef");
     return {
-        geomField<float>(obj, "X"),     geomField<float>(obj, "Y"),
-        geomField<float>(obj, "Width"), geomField<float>(obj, "Height")
+        geomField<Gorgon::Float>(obj, "X"),     geomField<Gorgon::Float>(obj, "Y"),
+        geomField<Gorgon::Float>(obj, "Width"), geomField<Gorgon::Float>(obj, "Height")
     };
 }
 
@@ -693,8 +693,8 @@ template<>
 Geometry::Boundsf JSONValue::Get<Geometry::Boundsf>() const {
     auto &obj = expectObjectFor(data, "Boundsf");
     return {
-        geomField<float>(obj, "Left"), geomField<float>(obj, "Top"),
-        geomField<float>(obj, "Right"), geomField<float>(obj, "Bottom")
+        geomField<Gorgon::Float>(obj, "Left"), geomField<Gorgon::Float>(obj, "Top"),
+        geomField<Gorgon::Float>(obj, "Right"), geomField<Gorgon::Float>(obj, "Bottom")
     };
 }
 
@@ -711,8 +711,8 @@ template<>
 Geometry::Marginf JSONValue::Get<Geometry::Marginf>() const {
     auto &obj = expectObjectFor(data, "Marginf");
     return {
-        geomField<float>(obj, "Left"), geomField<float>(obj, "Top"),
-        geomField<float>(obj, "Right"), geomField<float>(obj, "Bottom")
+        geomField<Gorgon::Float>(obj, "Left"), geomField<Gorgon::Float>(obj, "Top"),
+        geomField<Gorgon::Float>(obj, "Right"), geomField<Gorgon::Float>(obj, "Bottom")
     };
 }
 
@@ -739,6 +739,7 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
         bool match = false;
 
         switch(field.type) {
+            default: break;
             case JSONType::Null:
                 match = (actual == JSONType::Null);
                 break;
@@ -762,23 +763,391 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
                 break;
 
             // Geometry types: must be an object with the correct fields
-            case JSONType::Point:
-                match = (actual == JSONType::Object && it->second.Has("X") && it->second.Has("Y"));
+            case JSONType::Pointf:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("X")) {
+                        match = match && (it->second["X"].IsInteger() || it->second["X"].IsNumber());
+                    }
+                    else if(it->second.Has("x")) {
+                        match = match && (it->second["x"].IsInteger() || it->second["x"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Y")) {
+                        match = match && (it->second["Y"].IsInteger() || it->second["Y"].IsNumber());
+                    }
+                    else if(it->second.Has("y")) {
+                        match = match && (it->second["y"].IsInteger() || it->second["y"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
                 break;
+
+            case JSONType::Point:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("X")) {
+                        match = match && it->second["X"].IsInteger();
+                    }
+                    else if(it->second.Has("x")) {
+                        match = match && it->second["x"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Y")) {
+                        match = match && it->second["Y"].IsInteger();
+                    }
+                    else if(it->second.Has("y")) {
+                        match = match && it->second["y"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                break;
+
+            case JSONType::Sizef:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Width")) {
+                        match = match && (it->second["Width"].IsInteger() || it->second["Width"].IsNumber());
+                    }
+                    else if(it->second.Has("width")) {
+                        match = match && (it->second["width"].IsInteger() || it->second["width"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Height")) {
+                        match = match && (it->second["Height"].IsInteger() || it->second["Height"].IsNumber());
+                    }
+                    else if(it->second.Has("height")) {
+                        match = match && (it->second["height"].IsInteger() || it->second["height"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                break;
+
             case JSONType::Size:
-                match = (actual == JSONType::Object && it->second.Has("Width") && it->second.Has("Height"));
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Width")) {
+                        match = match && it->second["Width"].IsInteger();
+                    }
+                    else if(it->second.Has("width")) {
+                        match = match && it->second["width"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Height")) {
+                        match = match && it->second["Height"].IsInteger();
+                    }
+                    else if(it->second.Has("height")) {
+                        match = match && it->second["height"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                break;
+
+            case JSONType::Rectanglef:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("X")) {
+                        match = match && (it->second["X"].IsInteger() || it->second["X"].IsNumber());
+                    }
+                    else if(it->second.Has("x")) {
+                        match = match && (it->second["x"].IsInteger() || it->second["x"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Y")) {
+                        match = match && (it->second["Y"].IsInteger() || it->second["Y"].IsNumber());
+                    }
+                    else if(it->second.Has("y")) {
+                        match = match && (it->second["y"].IsInteger() || it->second["y"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Width")) {
+                        match = match && (it->second["Width"].IsInteger() || it->second["Width"].IsNumber());
+                    }
+                    else if(it->second.Has("width")) {
+                        match = match && (it->second["width"].IsInteger() || it->second["width"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Height")) {
+                        match = match && (it->second["Height"].IsInteger() || it->second["Height"].IsNumber());
+                    }
+                    else if(it->second.Has("height")) {
+                        match = match && (it->second["height"].IsInteger() || it->second["height"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
                 break;
             case JSONType::Rectangle:
-                match = (actual == JSONType::Object && it->second.Has("X") && it->second.Has("Y")
-                         && it->second.Has("Width") && it->second.Has("Height"));
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("X")) {
+                        match = match && it->second["X"].IsInteger();
+                    }
+                    else if(it->second.Has("x")) {
+                        match = match && it->second["x"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Y")) {
+                        match = match && it->second["Y"].IsInteger();
+                    }
+                    else if(it->second.Has("y")) {
+                        match = match && it->second["y"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Width")) {
+                        match = match && it->second["Width"].IsInteger();
+                    }
+                    else if(it->second.Has("width")) {
+                        match = match && it->second["width"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Height")) {
+                        match = match && it->second["Height"].IsInteger();
+                    }
+                    else if(it->second.Has("height")) {
+                        match = match && it->second["height"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                break;
+            case JSONType::Boundsf:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Left")) {
+                        match = match && (it->second["Left"].IsInteger() || it->second["Left"].IsNumber());
+                    }
+                    else if(it->second.Has("left")) {
+                        match = match && (it->second["left"].IsInteger() || it->second["left"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Top")) {
+                        match = match && (it->second["Top"].IsInteger() || it->second["Top"].IsNumber());
+                    }
+                    else if(it->second.Has("top")) {
+                        match = match && (it->second["top"].IsInteger() || it->second["top"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Right")) {
+                        match = match && (it->second["Right"].IsInteger() || it->second["Right"].IsNumber());
+                    }
+                    else if(it->second.Has("right")) {
+                        match = match && (it->second["right"].IsInteger() || it->second["right"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Bottom")) {
+                        match = match && (it->second["Bottom"].IsInteger() || it->second["Bottom"].IsNumber());
+                    }
+                    else if(it->second.Has("bottom")) {
+                        match = match && (it->second["bottom"].IsInteger() || it->second["bottom"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
                 break;
             case JSONType::Bounds:
-                match = (actual == JSONType::Object && it->second.Has("Left") && it->second.Has("Top")
-                         && it->second.Has("Right") && it->second.Has("Bottom"));
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Left")) {
+                        match = match && it->second["Left"].IsInteger();
+                    }
+                    else if(it->second.Has("left")) {
+                        match = match && it->second["left"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Top")) {
+                        match = match && it->second["Top"].IsInteger();
+                    }
+                    else if(it->second.Has("top")) {
+                        match = match && it->second["top"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Right")) {
+                        match = match && it->second["Right"].IsInteger();
+                    }
+                    else if(it->second.Has("right")) {
+                        match = match && it->second["right"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Bottom")) {
+                        match = match && it->second["Bottom"].IsInteger();
+                    }
+                    else if(it->second.Has("bottom")) {
+                        match = match && it->second["bottom"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                break;
+            case JSONType::Marginf:
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Left")) {
+                        match = match && (it->second["Left"].IsInteger() || it->second["Left"].IsNumber());
+                    }
+                    else if(it->second.Has("left")) {
+                        match = match && (it->second["left"].IsInteger() || it->second["left"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Top")) {
+                        match = match && (it->second["Top"].IsInteger() || it->second["Top"].IsNumber());
+                    }
+                    else if(it->second.Has("top")) {
+                        match = match && (it->second["top"].IsInteger() || it->second["top"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Right")) {
+                        match = match && (it->second["Right"].IsInteger() || it->second["Right"].IsNumber());
+                    }
+                    else if(it->second.Has("right")) {
+                        match = match && (it->second["right"].IsInteger() || it->second["right"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Bottom")) {
+                        match = match && (it->second["Bottom"].IsInteger() || it->second["Bottom"].IsNumber());
+                    }
+                    else if(it->second.Has("bottom")) {
+                        match = match && (it->second["bottom"].IsInteger() || it->second["bottom"].IsNumber());
+                    }
+                    else {
+                        match = false;
+                    }
+                }
                 break;
             case JSONType::Margin:
-                match = (actual == JSONType::Object && it->second.Has("Left") && it->second.Has("Top")
-                         && it->second.Has("Right") && it->second.Has("Bottom"));
+                match = actual == JSONType::Object;
+                if(match) {
+                    if(it->second.Has("Left")) {
+                        match = match && it->second["Left"].IsInteger();
+                    }
+                    else if(it->second.Has("left")) {
+                        match = match && it->second["left"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Top")) {
+                        match = match && it->second["Top"].IsInteger();
+                    }
+                    else if(it->second.Has("top")) {
+                        match = match && it->second["top"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Right")) {
+                        match = match && it->second["Right"].IsInteger();
+                    }
+                    else if(it->second.Has("right")) {
+                        match = match && it->second["right"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
+                if(match) {
+                    if(it->second.Has("Bottom")) {
+                        match = match && it->second["Bottom"].IsInteger();
+                    }
+                    else if(it->second.Has("bottom")) {
+                        match = match && it->second["bottom"].IsInteger();
+                    }
+                    else {
+                        match = false;
+                    }
+                }
                 break;
         }
 

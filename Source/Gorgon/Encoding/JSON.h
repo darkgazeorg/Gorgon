@@ -161,7 +161,12 @@ enum class JSONType {
     Size,
     Rectangle,
     Bounds,
-    Margin,
+    Margin,    
+	Pointf,
+    Sizef,
+    Rectanglef,
+    Boundsf,
+    Marginf,
 };
 
 // Reflection strings for JSONType (sentence-case primary)
@@ -177,8 +182,12 @@ DefineEnumStrings(JSONType,
     {JSONType::Size, "Size"},
     {JSONType::Rectangle, "Rectangle"},
     {JSONType::Bounds, "Bounds"},
-    {JSONType::Margin, "Margin"}
-);
+    {JSONType::Margin, "Margin"},
+    {JSONType::Pointf, "Point (real)"},
+    {JSONType::Sizef, "Size (real)"},
+    {JSONType::Rectanglef, "Rectangle (real)"},
+    {JSONType::Boundsf, "Bounds (real)"},
+    {JSONType::Marginf, "Margin (real)"});
 
 /// Represents a single JSON value. Supports null, bool, int, double, string, array, and object values.
 /// Usage:
@@ -456,11 +465,52 @@ struct JSONSchemaField {
         f.required = required;
         return f;
     }
+
+    /// Creates a schema field for a float Point geometry type.
+    static JSONSchemaField PointfField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Pointf;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for a float Size geometry type.
+    static JSONSchemaField SizefField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Sizef;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for a float Rectangle geometry type.
+    static JSONSchemaField RectanglefField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Rectanglef;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for a float Bounds geometry type.
+    static JSONSchemaField BoundsfField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Boundsf;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for a float Margin geometry type.
+    static JSONSchemaField MarginfField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Marginf;
+        f.required = required;
+        return f;
+    }
 };
 
 /// Validates and normalizes a JSON object against a schema. Missing optional fields are
 /// filled with their default values. Throws JSONError on validation failure.
-/// Returns the validated and normalized object.
+/// Returns the validated and normalized object. Strict forces validation to fail if
+/// a number is provided where an integer is expected.
 JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema);
 
 

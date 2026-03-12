@@ -615,24 +615,6 @@ TEST_CASE("Geometry: random-case field names rejected", "[JSON][Geometry]") {
 //  Encoding logger / double-to-int warning
 // =====================================================================
 
-TEST_CASE("Geometry: double-to-int emits notice log", "[JSON][Geometry][Logging]") {
-    std::ostringstream oss;
-    Log.InitializeStream(oss);
-
-    // Both fields are stored as double in JSON
-    auto json = JSONParse(R"({"X": 1.7, "Y": 2.9})");
-    auto p = json.Get<Point>();
-
-    Log.CleanUp();
-
-    // A notice should have been emitted for each truncated field
-    REQUIRE(!oss.str().empty());
-    REQUIRE(oss.str().find("X") != std::string::npos);
-    // Values must be truncated (not rounded)
-    REQUIRE(p.X == 1);
-    REQUIRE(p.Y == 2);
-}
-
 TEST_CASE("Geometry: int-to-float conversion logs nothing", "[JSON][Geometry][Logging]") {
     std::ostringstream oss;
     Log.InitializeStream(oss);
@@ -663,29 +645,27 @@ TEST_CASE("Geometry: double-to-double logs nothing", "[JSON][Geometry][Logging]"
     REQUIRE(p.Y == Catch::Approx(2.5f));
 }
 
-TEST_CASE("Geometry: double-to-int emits notice for all integer types", "[JSON][Geometry][Logging]") {
-    // Rectangle and Bounds also use integer fields; verify warnings are emitted
+TEST_CASE("Geometry: double-to-int throws", "[JSON][Geometry]") {
+    // Rectangle and Bounds also use integer fields; verify errors are emitted
+    {
+        std::ostringstream oss;
+        Log.InitializeStream(oss);
+
+        // Both fields are stored as double in JSON
+        auto json = JSONParse(R"({"X": 1.7, "Y": 2.9})");
+        REQUIRE_THROWS_AS(json.Get<Point>(), JSONError);
+    }
     {
         std::ostringstream oss;
         Log.InitializeStream(oss);
         auto json = JSONParse(R"({"Width": 10.6, "Height": 5.1})");
-        auto s = json.Get<Size>();
-        Log.CleanUp();
-        REQUIRE(!oss.str().empty());
-        REQUIRE(s.Width  == 10);
-        REQUIRE(s.Height == 5);
+        REQUIRE_THROWS_AS(json.Get<Size>(), JSONError);
     }
     {
         std::ostringstream oss;
         Log.InitializeStream(oss);
         auto json = JSONParse(R"({"Left": 0.5, "Top": 1.5, "Right": 9.9, "Bottom": 8.8})");
-        auto b = json.Get<Bounds>();
-        Log.CleanUp();
-        REQUIRE(!oss.str().empty());
-        REQUIRE(b.Left   == 0);
-        REQUIRE(b.Top    == 1);
-        REQUIRE(b.Right  == 9);
-        REQUIRE(b.Bottom == 8);
+        REQUIRE_THROWS_AS(json.Get<Bounds>(), JSONError);
     }
 }
 
@@ -1062,6 +1042,90 @@ TEST_CASE("Schema: Geometry field not an object", "[JSON][Schema][Geometry]") {
     };
 
     auto input = JSONParse(R"({"pos": 42})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Geometry field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"pos", JSONSchemaField::PointField()},
+    };
+
+    // X field is a string instead of a number
+    auto input = JSONParse(R"({"pos": {"X": "not a number", "Y": 20}})");
+
+    // Validation should reject this
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Size field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"dim", JSONSchemaField::SizeField()},
+    };
+
+    auto input = JSONParse(R"({"dim": {"Width": "wide", "Height": 10}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Sizef field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"dim", JSONSchemaField::SizefField()},
+    };
+
+    auto input = JSONParse(R"({"dim": {"Width": "wide", "Height": 10}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Rectangle field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"rect", JSONSchemaField::RectangleField()},
+    };
+
+    auto input = JSONParse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Rectanglef field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"rect", JSONSchemaField::RectanglefField()},
+    };
+
+    auto input = JSONParse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Boundsf field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"bounds", JSONSchemaField::BoundsfField()},
+    };
+
+    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": 2, "Right": "three", "Bottom": 4}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Marginf field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"margin", JSONSchemaField::MarginfField()},
+    };
+
+    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Bounds field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"bounds", JSONSchemaField::BoundsField()},
+    };
+
+    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": "two", "Right": 3, "Bottom": 4}})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: Margin field wrong subtypes", "[JSON][Schema][Geometry]") {
+    JSONSchema schema = {
+        {"margin", JSONSchemaField::MarginField()},
+    };
+
+    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
     REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
 }
 
