@@ -1153,3 +1153,26 @@ TEST_CASE("Schema: optional nested object with default", "[JSON][Schema]") {
     auto result = JSONValidate(input, schema);
     REQUIRE(result["config"].IsNull());
 }
+
+TEST_CASE("Schema: extra field warning", "[JSON][Schema][Logging]") {
+    std::ostringstream oss;
+    Log.InitializeStream(oss);
+
+    JSONSchema schema = {
+        {"x", {JSONType::Integer}},
+    };
+    auto input = JSONParse(R"({"x":1,"y":2})");
+    auto result = JSONValidate(input, schema); // allowExtra defaults to true
+
+    Log.CleanUp();
+    REQUIRE(result["x"].Get<int>() == 1);
+    REQUIRE(oss.str().find("Extra field 'y'") != std::string::npos);
+}
+
+TEST_CASE("Schema: extra field error", "[JSON][Schema]") {
+    JSONSchema schema = {
+        {"x", {JSONType::Integer}},
+    };
+    auto input = JSONParse(R"({"x":1,"y":2})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema, false), JSONError);
+}

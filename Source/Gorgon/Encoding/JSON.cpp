@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cassert>
 #include <limits>
+#include <unordered_set>
 #include "JSON.h"
 #include "../Encoding.h"
 #include "Gorgon/String.h"
@@ -718,14 +719,16 @@ Geometry::Marginf JSONValue::Get<Geometry::Marginf>() const {
 
 
 
-JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
+JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema, bool allowextra) {
     if(!value.IsObject())
         throw JSONError(JSONErrorCode::SchemaNotObject, "JSON schema validation requires an object value");
 
     auto &obj = std::get<JSONObject>(value.GetVariant());
     JSONObject result = obj;
 
+    std::unordered_set<std::string> seen;
     for(auto &[name, field] : schema) {
+        seen.insert(name);
         auto it = result.find(name);
         if(it == result.end()) {
             if(field.required)
@@ -1203,6 +1206,17 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema) {
                 }
             }
             result[name] = JSONValue(std::move(validatedArr));
+        }
+    }
+
+    // After processing schema, check for extra keys
+    for(auto &kv : obj) {
+        if(seen.find(kv.first) == seen.end()) {
+            std::string msg = std::string("Extra field '") + kv.first + "' not defined in schema";
+            if(!allowextra) {
+                throw JSONError(JSONErrorCode::SchemaTypeMismatch, kv.first, msg);
+            }
+            Log.Log(msg, Utils::Logger::Notice);
         }
     }
 

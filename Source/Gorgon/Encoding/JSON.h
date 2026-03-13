@@ -511,7 +511,7 @@ struct JSONSchemaField {
 /// filled with their default values. Throws JSONError on validation failure.
 /// Returns the validated and normalized object. Strict forces validation to fail if
 /// a number is provided where an integer is expected.
-JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema);
+JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema, bool allowExtra = true);
 
 
 // --- Reflection helpers: converting member types to/from JSON ---
