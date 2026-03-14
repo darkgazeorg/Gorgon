@@ -2,6 +2,7 @@
 
 #include "AnimationStorage.h"
 #include "../Graphics/MaskedObject.h"
+#include <memory>
 
 
 namespace Gorgon :: Resource {

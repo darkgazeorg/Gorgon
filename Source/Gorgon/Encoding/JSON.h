@@ -15,6 +15,9 @@
 #include "../Geometry/Rectangle.h"
 #include "../Geometry/Bounds.h"
 #include "../Geometry/Margin.h"
+#include "../Graphics/Bitmap.h"
+#include "../Graphics/TextureAnimation.h"
+#include "../Graphics/Animations.h"
 
 namespace Gorgon :: Encoding {
 
@@ -62,6 +65,10 @@ enum class JSONErrorCode {
     SchemaNotObject,
     /// A nested schema validation failed.
     NestedValidation,
+
+    // --- Resource errors ---
+    /// A referenced resource file (e.g. image) could not be found or opened.
+    ResourceNotFound,
 };
 
 // Reflection strings for JSONErrorCode (sentence-case primary, secondary original when different)
@@ -100,7 +107,9 @@ DefineEnumStrings(JSONErrorCode,
     {JSONErrorCode::SchemaNotObject, "Schema not object"},
     {JSONErrorCode::SchemaNotObject, "SchemaNotObject"},
     {JSONErrorCode::NestedValidation, "Nested validation"},
-    {JSONErrorCode::NestedValidation, "NestedValidation"}
+    {JSONErrorCode::NestedValidation, "NestedValidation"},
+    {JSONErrorCode::ResourceNotFound, "Resource not found"},
+    {JSONErrorCode::ResourceNotFound, "ResourceNotFound"}
 );
 
 /// Error thrown during JSON parsing, access, or validation.
@@ -167,6 +176,12 @@ enum class JSONType {
     Rectanglef,
     Boundsf,
     Marginf,
+    /// A single bitmap image loaded from a file path string.
+    Bitmap,
+    /// A bitmap animation loaded from an array of file path strings.
+    BitmapAnimation,
+    /// An animation storage loaded from a string (single image) or array of strings.
+    AnimationStorage,
 };
 
 // Reflection strings for JSONType (sentence-case primary)
@@ -187,7 +202,12 @@ DefineEnumStrings(JSONType,
     {JSONType::Sizef, "Size (real)"},
     {JSONType::Rectanglef, "Rectangle (real)"},
     {JSONType::Boundsf, "Bounds (real)"},
-    {JSONType::Marginf, "Margin (real)"});
+    {JSONType::Marginf, "Margin (real)"},
+    {JSONType::Bitmap, "Bitmap"},
+    {JSONType::BitmapAnimation, "Bitmap animation"},
+    {JSONType::BitmapAnimation, "BitmapAnimation"},
+    {JSONType::AnimationStorage, "Animation storage"},
+    {JSONType::AnimationStorage, "AnimationStorage"});
 
 /// Represents a single JSON value. Supports null, bool, int, double, string, array, and object values.
 /// Usage:
@@ -505,6 +525,30 @@ struct JSONSchemaField {
         f.required = required;
         return f;
     }
+
+    /// Creates a schema field for a Bitmap loaded from a file path string.
+    static JSONSchemaField BitmapField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::Bitmap;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for a BitmapAnimationProvider loaded from an array of file path strings.
+    static JSONSchemaField BitmapAnimationField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::BitmapAnimation;
+        f.required = required;
+        return f;
+    }
+
+    /// Creates a schema field for an AnimationStorage loaded from a string (single image) or array of strings.
+    static JSONSchemaField AnimationStorageField(bool required = true) {
+        JSONSchemaField f;
+        f.type = JSONType::AnimationStorage;
+        f.required = required;
+        return f;
+    }
 };
 
 /// Validates and normalizes a JSON object against a schema. Missing optional fields are
@@ -680,5 +724,31 @@ template<> Geometry::Bounds     JSONValue::Get<Geometry::Bounds>()     const;
 template<> Geometry::Boundsf    JSONValue::Get<Geometry::Boundsf>()    const;
 template<> Geometry::Margin     JSONValue::Get<Geometry::Margin>()     const;
 template<> Geometry::Marginf    JSONValue::Get<Geometry::Marginf>()    const;
+
+/// Graphics Get<> specializations — loads image files from JSON string values.
+/// A Bitmap is loaded by importing the file named by the string value.
+/// A BitmapAnimationProvider is loaded from an array of file path strings.
+/// A RectangularAnimationStorage is loaded from a string (single bitmap) or array of strings (animation).
+/// By default, loaded bitmaps are prepared for drawing. Pass prepare=false to skip.
+/// @note Encoding bitmaps back to JSON is not directly supported since saving images is
+/// non-trivial. To store a bitmap in JSON, export the image to a file and record the file
+/// path as a string value in the JSON object.
+template<> Graphics::Bitmap                     JSONValue::Get<Graphics::Bitmap>()                     const;
+template<> Graphics::BitmapAnimationProvider     JSONValue::Get<Graphics::BitmapAnimationProvider>()     const;
+template<> Graphics::RectangularAnimationStorage JSONValue::Get<Graphics::RectangularAnimationStorage>() const;
+
+/// Parses a JSON string into a JSONValue with an option to prepare bitmaps.
+/// When prepareBitmaps is true (default), any Bitmap values obtained via Get<>
+/// will be automatically prepared for drawing.
+/// @see JSONParse(const std::string &)
+JSONValue JSONParseFile(const std::string &filename, bool prepareBitmaps = true);
+
+/// Controls whether Get<Bitmap>, Get<BitmapAnimationProvider>, and
+/// Get<RectangularAnimationStorage> automatically prepare bitmaps for drawing.
+/// Defaults to true. Set to false before Get calls if manual preparation is preferred.
+void JSONSetPrepareBitmaps(bool prepare);
+
+/// Returns the current prepare-bitmaps setting.
+bool JSONGetPrepareBitmaps();
 
 }

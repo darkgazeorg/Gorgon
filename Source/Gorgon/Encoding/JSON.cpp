@@ -4,6 +4,7 @@
 #include <cassert>
 #include <limits>
 #include <unordered_set>
+#include <fstream>
 #include "JSON.h"
 #include "../Encoding.h"
 #include "Gorgon/String.h"
@@ -585,6 +586,10 @@ namespace {
             case JSONType::Boundsf:
             case JSONType::Marginf:
                 break;
+            case JSONType::Bitmap:
+            case JSONType::BitmapAnimation:
+            case JSONType::AnimationStorage:
+                break;
         }
     }
 
@@ -1152,6 +1157,38 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema, bool al
                     }
                 }
                 break;
+
+            // Graphics types: Bitmap expects a string, BitmapAnimation expects
+            // an array of strings, AnimationStorage accepts either.
+            case JSONType::Bitmap:
+                match = (actual == JSONType::String);
+                break;
+            case JSONType::BitmapAnimation:
+                match = (actual == JSONType::Array);
+                if(match) {
+                    auto &arr = std::get<JSONArray>(it->second.GetVariant());
+                    for(auto &elem : arr) {
+                        if(!elem.IsString() && !elem.IsObject()) { match = false; break; }
+                        if(elem.IsObject() && !elem.Has("file")) { match = false; break; }
+                    }
+                }
+                break;
+            case JSONType::AnimationStorage:
+                if(actual == JSONType::String) {
+                    match = true;
+                }
+                else if(actual == JSONType::Array) {
+                    match = true;
+                    auto &arr = std::get<JSONArray>(it->second.GetVariant());
+                    for(auto &elem : arr) {
+                        if(!elem.IsString() && !elem.IsObject()) { match = false; break; }
+                        if(elem.IsObject() && !elem.Has("file")) { match = false; break; }
+                    }
+                }
+                else {
+                    match = false;
+                }
+                break;
         }
 
         if(!match)
@@ -1221,6 +1258,122 @@ JSONValue JSONValidate(const JSONValue &value, const JSONSchema &schema, bool al
     }
 
     return JSONValue(std::move(result));
+}
+
+// ------------------------------------------------------------------
+//  Bitmap/Animation Get<> specializations
+// ------------------------------------------------------------------
+
+namespace {
+    bool prepareBitmapsSetting = true;
+} // anonymous namespace
+
+void JSONSetPrepareBitmaps(bool prepare) {
+    prepareBitmapsSetting = prepare;
+}
+
+bool JSONGetPrepareBitmaps() {
+    return prepareBitmapsSetting;
+}
+
+template<>
+Graphics::Bitmap JSONValue::Get<Graphics::Bitmap>() const {
+    if(!IsString())
+        throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Bitmap)");
+
+    Graphics::Bitmap bmp;
+    auto path = Get<std::string>();
+    if(!bmp.Import(path))
+        throw JSONError(JSONErrorCode::ResourceNotFound, "Failed to import bitmap from: " + path);
+
+    if(prepareBitmapsSetting)
+        bmp.Prepare();
+
+    return bmp;
+}
+
+template<>
+Graphics::BitmapAnimationProvider JSONValue::Get<Graphics::BitmapAnimationProvider>() const {
+    if(!IsArray())
+        throw JSONError(JSONErrorCode::TypeMismatch, "JSON value is not an array (expected array of file paths for BitmapAnimation)");
+
+    auto &arr = std::get<JSONArray>(GetVariant());
+    Graphics::BitmapAnimationProvider prov;
+
+    for(int i = 0; i < (int)arr.size(); i++) {
+        if(arr[i].IsString()) {
+            Graphics::Bitmap bmp;
+            auto path = arr[i].Get<std::string>();
+            if(!bmp.Import(path))
+                throw JSONError(JSONErrorCode::ResourceNotFound,
+                    "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
+
+            prov.Add(std::move(bmp));
+        }
+        else if(arr[i].IsObject()) {
+            auto &obj = arr[i];
+            if(!obj["file"].IsString())
+                throw JSONError(JSONErrorCode::TypeMismatch,
+                    "BitmapAnimation array element [" + std::to_string(i) + "] object missing string 'file' key");
+
+            Graphics::Bitmap bmp;
+            auto path = obj["file"].Get<std::string>();
+            if(!bmp.Import(path))
+                throw JSONError(JSONErrorCode::ResourceNotFound,
+                    "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
+
+            unsigned dur = 42;
+            if(obj.Has("duration"))
+                dur = static_cast<unsigned>(obj["duration"].Get<int>());
+
+            prov.Add(std::move(bmp), dur);
+        }
+        else {
+            throw JSONError(JSONErrorCode::TypeMismatch,
+                "BitmapAnimation array element [" + std::to_string(i) + "] is not a string or object");
+        }
+    }
+
+    if(prepareBitmapsSetting)
+        prov.Prepare();
+
+    return prov;
+}
+
+template<>
+Graphics::RectangularAnimationStorage JSONValue::Get<Graphics::RectangularAnimationStorage>() const {
+    if(IsString()) {
+        // Single image -> Bitmap wrapped in storage
+        auto *bmp = new Graphics::Bitmap(Get<Graphics::Bitmap>());
+        Graphics::RectangularAnimationStorage storage;
+        storage.SetAnimation(*bmp, true);
+        return storage;
+    }
+    else if(IsArray()) {
+        // Array of images -> BitmapAnimationProvider wrapped in storage
+        auto *prov = new Graphics::BitmapAnimationProvider(Get<Graphics::BitmapAnimationProvider>());
+        Graphics::RectangularAnimationStorage storage;
+        storage.SetAnimation(*prov, true);
+        return storage;
+    }
+
+    throw JSONError(JSONErrorCode::TypeMismatch,
+        "JSON value is not a string or array (expected file path or array of file paths for AnimationStorage)");
+}
+
+JSONValue JSONParseFile(const std::string &filename, bool prepareBitmaps) {
+    std::ifstream file(filename);
+    if(!file.is_open())
+        throw JSONError(JSONErrorCode::ResourceNotFound, "Failed to open JSON file: " + filename);
+
+    std::string content((std::istreambuf_iterator<char>(file)),
+                         std::istreambuf_iterator<char>());
+
+    bool prev = prepareBitmapsSetting;
+    prepareBitmapsSetting = prepareBitmaps;
+    auto result = JSONParse(content);
+    prepareBitmapsSetting = prev;
+    return result;
 }
 
 }

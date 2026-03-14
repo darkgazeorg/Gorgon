@@ -5,15 +5,21 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 #include <sstream>
+#include <fstream>
 
 #include <Gorgon/Encoding/JSON.h>
 #include <Gorgon/Encoding.h>
+#include <Gorgon/Encoding/PNG.h>
 #include <Gorgon/Struct.h>
 #include <Gorgon/Geometry/Point.h>
 #include <Gorgon/Geometry/Size.h>
 #include <Gorgon/Geometry/Rectangle.h>
 #include <Gorgon/Geometry/Bounds.h>
 #include <Gorgon/Geometry/Margin.h>
+#include <Gorgon/Containers/Image.h>
+#include <Gorgon/Graphics/Bitmap.h>
+#include <Gorgon/Graphics/TextureAnimation.h>
+#include <Gorgon/Graphics/Animations.h>
 
 using namespace Gorgon::Encoding;
 
@@ -1175,4 +1181,398 @@ TEST_CASE("Schema: extra field error", "[JSON][Schema]") {
     };
     auto input = JSONParse(R"({"x":1,"y":2})");
     REQUIRE_THROWS_AS(JSONValidate(input, schema, false), JSONError);
+}
+
+// =====================================================================
+//  Bitmap / Animation helpers and tests
+// =====================================================================
+
+namespace {
+    /// Creates a small test PNG file at the given path using the CPU-side encoder.
+    void createTestPNG(const std::string &path, int w = 4, int h = 4) {
+        Gorgon::Containers::Image img({w, h}, Gorgon::Graphics::ColorMode::RGBA);
+        for(int y = 0; y < h; y++)
+            for(int x = 0; x < w; x++) {
+                img({x, y}, 0) = static_cast<Gorgon::Byte>(x * 60);
+                img({x, y}, 1) = static_cast<Gorgon::Byte>(y * 60);
+                img({x, y}, 2) = 128;
+                img({x, y}, 3) = 255;
+            }
+        Gorgon::Encoding::Png.Encode(img, path);
+    }
+} // anonymous namespace
+
+// -- JSONSetPrepareBitmaps / JSONGetPrepareBitmaps -------------------------
+
+TEST_CASE("PrepareBitmaps flag default", "[JSON][Bitmap]") {
+    // Default should be true
+    REQUIRE(JSONGetPrepareBitmaps() == true);
+}
+
+TEST_CASE("PrepareBitmaps flag set/get", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+    REQUIRE(JSONGetPrepareBitmaps() == false);
+    JSONSetPrepareBitmaps(true);
+    REQUIRE(JSONGetPrepareBitmaps() == true);
+}
+
+// -- Get<Bitmap> -----------------------------------------------------------
+
+TEST_CASE("Get<Bitmap> from string", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_bmp.png", 8, 8);
+    auto val = JSONParse(R"("json_test_bmp.png")");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 8);
+    REQUIRE(bmp.GetHeight() == 8);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<Bitmap> from non-string throws", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse("42");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::Bitmap>(), JSONError);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<Bitmap> missing file throws ResourceNotFound", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse(R"("nonexistent_file_12345.png")");
+    try {
+        val.Get<Gorgon::Graphics::Bitmap>();
+        REQUIRE(false); // should not reach here
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    }
+
+    JSONSetPrepareBitmaps(true);
+}
+
+// -- Get<BitmapAnimationProvider> -----------------------------------------
+
+TEST_CASE("Get<BitmapAnimationProvider> from array", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_fr1.png", 4, 4);
+    createTestPNG("json_test_fr2.png", 4, 4);
+    createTestPNG("json_test_fr3.png", 4, 4);
+
+    auto val = JSONParse(R"(["json_test_fr1.png", "json_test_fr2.png", "json_test_fr3.png"])");
+    auto prov = val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
+
+    REQUIRE(prov.GetCount() == 3);
+    REQUIRE(prov.GetSize() == Gorgon::Geometry::Size(4, 4));
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> from non-array throws", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse(R"("single_string.png")");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> non-string element throws", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse(R"(["json_test_fr1.png", 42])");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> from object array", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_obj1.png", 4, 4);
+    createTestPNG("json_test_obj2.png", 4, 4);
+
+    auto val = JSONParse(R"([
+        {"file": "json_test_obj1.png", "duration": 100},
+        {"file": "json_test_obj2.png", "duration": 200}
+    ])");
+    auto prov = val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
+
+    REQUIRE(prov.GetCount() == 2);
+    REQUIRE(prov.GetDuration() == 300);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> from mixed array", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_mix1.png", 4, 4);
+    createTestPNG("json_test_mix2.png", 4, 4);
+
+    auto val = JSONParse(R"([
+        "json_test_mix1.png",
+        {"file": "json_test_mix2.png", "duration": 500}
+    ])");
+    auto prov = val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
+
+    REQUIRE(prov.GetCount() == 2);
+    // First frame uses default 42ms, second uses 500ms
+    REQUIRE(prov.GetDuration() == 542);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> object without file key throws", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse(R"([{"duration": 100}])");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<BitmapAnimationProvider> object with missing file throws ResourceNotFound", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse(R"([{"file": "nonexistent_99999.png"}])");
+    try {
+        val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    }
+
+    JSONSetPrepareBitmaps(true);
+}
+
+// -- Get<RectangularAnimationStorage> -------------------------------------
+
+TEST_CASE("Get<RectangularAnimationStorage> from string", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_ras.png", 6, 6);
+    auto val = JSONParse(R"("json_test_ras.png")");
+    auto storage = val.Get<Gorgon::Graphics::RectangularAnimationStorage>();
+
+    REQUIRE(storage.HasAnimation());
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<RectangularAnimationStorage> from array", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    createTestPNG("json_test_ras1.png", 5, 5);
+    createTestPNG("json_test_ras2.png", 5, 5);
+
+    auto val = JSONParse(R"(["json_test_ras1.png", "json_test_ras2.png"])");
+    auto storage = val.Get<Gorgon::Graphics::RectangularAnimationStorage>();
+
+    REQUIRE(storage.HasAnimation());
+
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("Get<RectangularAnimationStorage> from integer throws", "[JSON][Bitmap]") {
+    JSONSetPrepareBitmaps(false);
+
+    auto val = JSONParse("123");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::RectangularAnimationStorage>(), JSONError);
+
+    JSONSetPrepareBitmaps(true);
+}
+
+// -- Schema validation for Bitmap types ------------------------------------
+
+TEST_CASE("Schema: Bitmap field accepts string", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"img", JSONSchemaField::BitmapField()},
+    };
+
+    auto input = JSONParse(R"({"img": "test.png"})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["img"].Get<std::string>() == "test.png");
+}
+
+TEST_CASE("Schema: Bitmap field rejects non-string", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"img", JSONSchemaField::BitmapField()},
+    };
+
+    auto input = JSONParse(R"({"img": 42})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: BitmapAnimation field accepts array of strings", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": ["a.png", "b.png"]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["anim"].IsArray());
+}
+
+TEST_CASE("Schema: BitmapAnimation field accepts array of objects", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": [{"file": "a.png", "duration": 100}]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["anim"].IsArray());
+}
+
+TEST_CASE("Schema: BitmapAnimation field accepts mixed array", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": ["a.png", {"file": "b.png"}]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["anim"].IsArray());
+}
+
+TEST_CASE("Schema: BitmapAnimation field rejects object without file key", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": [{"duration": 100}]})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: BitmapAnimation field rejects string", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": "a.png"})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: BitmapAnimation field rejects array with non-string", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"anim", JSONSchemaField::BitmapAnimationField()},
+    };
+
+    auto input = JSONParse(R"({"anim": ["a.png", 123]})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: AnimationStorage field accepts string", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": "image.png"})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["store"].Get<std::string>() == "image.png");
+}
+
+TEST_CASE("Schema: AnimationStorage field accepts array of strings", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": ["a.png", "b.png"]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["store"].IsArray());
+}
+
+TEST_CASE("Schema: AnimationStorage field accepts array of objects", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": [{"file": "a.png", "duration": 50}]})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["store"].IsArray());
+}
+
+TEST_CASE("Schema: AnimationStorage field rejects object without file key", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": [{"duration": 50}]})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: AnimationStorage field rejects integer", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": 99})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: AnimationStorage field rejects array with non-string element", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"store", JSONSchemaField::AnimationStorageField()},
+    };
+
+    auto input = JSONParse(R"({"store": ["a.png", true]})");
+    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+}
+
+TEST_CASE("Schema: optional Bitmap field", "[JSON][Schema][Bitmap]") {
+    JSONSchema schema = {
+        {"name", {JSONType::String}},
+        {"img", JSONSchemaField::BitmapField(false)},
+    };
+
+    auto input = JSONParse(R"({"name": "test"})");
+    auto result = JSONValidate(input, schema);
+    REQUIRE(result["name"].Get<std::string>() == "test");
+    REQUIRE(result["img"].IsNull());
+}
+
+// -- JSONParseFile ---------------------------------------------------------
+
+TEST_CASE("JSONParseFile reads and parses a JSON file", "[JSON][Bitmap]") {
+    {
+        std::ofstream f("json_test_parsefile.json");
+        f << R"({"key": "value", "num": 42})";
+    }
+    auto val = JSONParseFile("json_test_parsefile.json");
+    REQUIRE(val["key"].Get<std::string>() == "value");
+    REQUIRE(val["num"].Get<int>() == 42);
+}
+
+TEST_CASE("JSONParseFile sets prepareBitmaps flag", "[JSON][Bitmap]") {
+    {
+        std::ofstream f("json_test_pflag.json");
+        f << R"({"x": 1})";
+    }
+    // Should restore previous flag after call
+    JSONSetPrepareBitmaps(true);
+    JSONParseFile("json_test_pflag.json", false);
+    REQUIRE(JSONGetPrepareBitmaps() == true);
+
+    JSONSetPrepareBitmaps(false);
+    JSONParseFile("json_test_pflag.json", true);
+    REQUIRE(JSONGetPrepareBitmaps() == false);
+
+    // Restore default
+    JSONSetPrepareBitmaps(true);
+}
+
+TEST_CASE("JSONParseFile missing file throws ResourceNotFound", "[JSON][Bitmap]") {
+    try {
+        JSONParseFile("nonexistent_12345.json");
+        REQUIRE(false);
+    }
+    catch(const JSONError &e) {
+        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    }
 }
