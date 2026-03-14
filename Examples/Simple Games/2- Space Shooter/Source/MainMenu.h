@@ -59,16 +59,26 @@ protected:
     // the main menu, so the body is empty.
 	virtual void KeyEvent(Gorgon::Input::Key, float) override;
 
+    // Hides the settings pop-up, tells the Game scene to reset itself
+    // at the chosen difficulty level, then switches to the gameplay scene.
+    // Difficulty is an integer where 0 = easy and higher values are harder.
     void StartNewGame(int difficulty);
     
 
 private:
 
-    W::Button start;  // "Start Game" button
-    W::Button quit;   // "Quit" button
+    W::Button start;  // "Start Game" button — opens the settings pop-up
+    W::Button quit;   // "Quit" button — exits the application
 
+    // A floating pop-up window that lets the player choose a difficulty level
+    // before starting.  It is hidden by default and shown when Start is clicked.
     W::Window game_settings;
+
+    // Descriptive text inside the settings pop-up (e.g. "Choose a difficulty").
     W::Label  game_settings_info;
+
+    // The three difficulty buttons and a close button inside the settings pop-up.
+    // Each difficulty button calls StartNewGame() with a different value.
     W::Button easy, medium, hard, close_settings;
 
 };

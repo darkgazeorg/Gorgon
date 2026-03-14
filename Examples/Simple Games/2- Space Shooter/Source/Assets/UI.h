@@ -28,6 +28,15 @@ namespace Assets {
         // can tile and scroll it each frame.
         Gorgon::Graphics::Bitmap &GetBackground();
 
+        // Returns the one shared UI instance for the whole application.
+        // This is the Singleton pattern: instead of passing a UI object around
+        // to every class that needs it, we let any piece of code call UI::Get()
+        // and get back the same object every time.
+        //
+        // How it works: "static UI instance" inside a function keeps a single
+        // object alive for the entire lifetime of the program.  The very first
+        // call constructs it; every subsequent call just returns a reference to
+        // the same object.  This is thread-safe in C++11 and later.
         static UI &Get() {
             static UI instance;
             return instance;

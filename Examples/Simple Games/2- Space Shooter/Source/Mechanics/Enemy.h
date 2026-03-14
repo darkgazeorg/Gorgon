@@ -56,6 +56,10 @@ public:
         return position;
     }
 
+    // Returns the number of score points this enemy is worth.
+    // By making this pure virtual, we force every enemy type to declare
+    // how many points it grants, which prevents accidentally returning 0
+    // for a new enemy added later.
     virtual float GetPoints() const = 0;
 
 protected:
@@ -96,10 +100,18 @@ public:
         return Enemy::Astroid;
     }
 
+    // Returns the animation instance for this asteroid so the renderer can
+    // draw it.  Each asteroid owns its own Instance (created from a shared
+    // provider), which means every asteroid can be at a different frame of
+    // its looping spin animation simultaneously.
     auto &GetAnimation() {
         return anim;
     }
 
+    // How many score points destroying (i.e. dodging past) this asteroid awards.
+    // Faster asteroids are worth more — the velocity vector's length (distance
+    // from origin) measures the total speed regardless of direction.
+    // We divide by 1000 to keep the numbers in a player-friendly range.
     virtual float GetPoints() const override {
         return velocity.Distance() / 1000.f;
     }
@@ -113,7 +125,10 @@ private:
 
     int astroidType;  // Which visual variant to use (randomized at birth)
 
-    // Store an independent animation instance for this particular asteroid.
+    // Each asteroid has its own animation Instance.  An Instance is a
+    // lightweight handle that tracks playback state (current frame, elapsed
+    // time) while sharing the actual pixel data with all other asteroids of
+    // the same type. This avoids duplicating image data in memory.
     Gorgon::Graphics::Instance anim;
 };
 
