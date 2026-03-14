@@ -19,7 +19,6 @@
 #pragma once
 
 #include "Assets/Player.h"   // Loads and stores the ship sprite
-#include "Assets/UI.h"       // Loads and stores the scrolling background
 #include "Mechanics/Game.h" // Runs frame-by-frame game logic
 
 #include <Gorgon/Scene.h>   // Base class for all scenes
@@ -40,7 +39,7 @@ public:
         scrollSpeed = 700 - difficulty * 300;
     }
 
-    static Game &GetCurrent() {
+    static auto &GetCurrent() {
         assert(current != nullptr);  // We should have already created the game in NewGame()
         
         return *current;
@@ -85,7 +84,6 @@ private:
     // Visual assets (sprites / images).  The string "red" selects which ship
     // color variant to load from disk.
     Assets::Player playerAssets{"red"};
-	Assets::UI uiAssets;  // Background image
 
     // The game logic object. All positions, velocities, and collision checks
     // live here. Separating logic from the scene keeps this file focused on

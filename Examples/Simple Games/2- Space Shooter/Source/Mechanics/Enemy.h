@@ -56,6 +56,8 @@ public:
         return position;
     }
 
+    virtual float GetPoints() const = 0;
+
 protected:
     // All enemies have a position.  It is protected (not private) so that
     // subclasses can modify it directly in their DoFrame() implementations.
@@ -71,7 +73,7 @@ public:
     // In the constructor we randomize position and velocity so that every
     // asteroid enters the screen differently. Using the random helpers from
     // Types.h keeps the code compact and readable.
-    Astroid();
+    explicit Astroid(int difficulty);
 
     // Move the asteroid according to its velocity. Also count down the
     // pre-check timer so fresh asteroids are not immediately removed.
@@ -96,6 +98,10 @@ public:
 
     auto &GetAnimation() {
         return anim;
+    }
+
+    virtual float GetPoints() const override {
+        return velocity.Distance() / 1000.f;
     }
 
 private:

@@ -12,8 +12,16 @@
 // =============================================================================
 
 #include "Game.h"
+#include "EndGame.h"
+#include "Gorgon/Graphics.h"
+#include "Gorgon/Graphics/Font.h"
 #include "Scenes.h"
 #include "Assets/Enemy.h"  // Needed so we can load/prepare asteroid images
+#include "Assets/UI.h"       // Loads and stores the scrolling background
+
+#include <Gorgon/Widgets/Registry.h>
+
+namespace W = Gorgon::Widgets;
 
 // Constructor: just calls the parent Scene constructor to register this scene
 // with the scene manager.  No heavy work here - the engine creates all scenes
@@ -36,8 +44,8 @@ void Game::first_activation() {
     playerAssets.Load();
     playerAssets.Prepare();
 
-    uiAssets.Load();
-    uiAssets.Prepare();
+    Assets::UI::Get().Load();
+    Assets::UI::Get().Prepare();
 
     // Asteroids are shared across the whole game (hence the static helpers).
     Assets::Astroid::LoadAll();
@@ -51,7 +59,11 @@ void Game::first_activation() {
 void Game::doframe(unsigned delta) {
     // Let the mechanics layer update player position, spawn asteroids, and
     // check for collisions.
-    game->DoFrame(delta);
+    if(!game->DoFrame(delta)) {
+        EndGame::GetCurrent().SetScore(game->GetScore());
+        parent->SwitchScene(END_GAME);
+        return;
+    }
 
     // Advance the background scroll position. Dividing by 1000 converts
     // milliseconds to seconds, so scrollSpeed is in pixels-per-second.
@@ -73,12 +85,12 @@ void Game::render() {
     //      the old one moves off the top, giving a seamless loop.
     //   2. Use fmod (floating-point modulo) to prevent scroll from growing
     //      forever - once it equals bgHeight we reset to 0.
-    int bgHeight = uiAssets.GetBackground().GetHeight();
+    int bgHeight = Assets::UI::Get().GetBackground().GetHeight();
     auto layerSize = graphics.GetCalculatedSize();
     layerSize.Height += bgHeight;  // Extend the draw area so the bottom copy is fully visible
 
     scroll = std::fmod(scroll, float(bgHeight));  // Wrap around when we complete one cycle
-    uiAssets.GetBackground().DrawIn(graphics, 0, int(scroll) - bgHeight, layerSize);
+    Assets::UI::Get().GetBackground().DrawIn(graphics, 0, int(scroll) - bgHeight, layerSize);
 
     // --- Player ship ---
     // We draw the ship centered on the player's position.
@@ -107,6 +119,17 @@ void Game::render() {
             image.Draw(graphics, astroid.GetPosition() - Pointf(w/2.f, h/2.f));
         }
     }
+
+    auto font = W::Registry::Active().Printer(Gorgon::Graphics::NamedFont::H1);
+    font.SetColor(Gorgon::Graphics::Color::White);
+
+    font.Print(
+        graphics, 
+        "Score: " + std::to_string((int)std::round(game->GetScore())), 
+        10, 10, 
+        this->parent->GetWidth() - 20,
+        Gorgon::Graphics::TextAlignment::Center
+    );
 }
 
 // KeyEvent() is called by the engine whenever a key is pressed or released.

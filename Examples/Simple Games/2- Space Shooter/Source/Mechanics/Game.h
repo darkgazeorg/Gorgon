@@ -43,8 +43,9 @@ public:
         enemies.Destroy();
     }
 
-    // Advance the whole simulation by one frame.
-    void DoFrame(unsigned delta);
+    // Advance the whole simulation by one frame. Returns false if the game is
+    // ended
+    bool DoFrame(unsigned delta);
 
     // Expose the player object so the scene can read its position for
     // rendering, and so KeyEvent() can toggle movement flags.
@@ -56,6 +57,10 @@ public:
     // each enemy at its current position.
     auto &GetEnemies() {
         return enemies;
+    }
+
+    auto GetScore() const {
+        return score;
     }
 
 private:
@@ -75,7 +80,9 @@ private:
     // game harder; raising it makes it easier.
     const unsigned long spawnTimeout = 100;
 
-    int difficulty = 0;  
+    int difficulty = 0;
+
+    float score = 0;
 };
 
 }

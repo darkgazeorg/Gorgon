@@ -28,6 +28,11 @@ namespace Assets {
         // can tile and scroll it each frame.
         Gorgon::Graphics::Bitmap &GetBackground();
 
+        static UI &Get() {
+            static UI instance;
+            return instance;
+        }
+
     private:
         Gorgon::Graphics::Bitmap background;  // The space background image
     };

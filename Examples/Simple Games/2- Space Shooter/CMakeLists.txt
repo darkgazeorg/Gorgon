@@ -18,6 +18,9 @@ set(APP_SOURCES
     Source/Game.h
     Source/Game.cpp
 
+    Source/EndGame.h
+    Source/EndGame.cpp
+
     Source/Assets/Player.h
     Source/Assets/Player.cpp
     Source/Assets/Enemy.h

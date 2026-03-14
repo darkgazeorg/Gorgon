@@ -3,14 +3,17 @@
 
 namespace Mechanics {
 
-    Astroid::Astroid() {
+    Astroid::Astroid(int difficulty) {
         // Start somewhere above the visible screen (Y = -100).
         // X can be a bit off-screen on either side for a more natural look.
         position = Pointf(RandomFloat(-200, 1920 + 200), -100);
 
         // Random sideways drift and a random downward speed.
         // A higher Y velocity means the asteroid falls faster.
-        velocity = Pointf(RandomFloat(-150, 150), RandomFloat(500, 1200));
+        velocity = Pointf(
+            RandomFloat(-150 * (difficulty/6.f + 1), 150 * (difficulty/6.f + 1)),
+             RandomFloat(500 * (difficulty/6.f + 1), 1200 * (difficulty/6.f + 1))
+            );
 
         // Pick a random visual variant (sprite type) for this asteroid.
         // The renderer will use this number (with a modulo) to select which image to

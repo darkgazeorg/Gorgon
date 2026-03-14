@@ -20,3 +20,4 @@
 // it has a proper type and plays nicely with the debugger.
 constexpr Gorgon::SceneID MAIN_MENU  = 0;  // The first screen the player sees
 constexpr Gorgon::SceneID GAME_SCENE = 1;  // The actual gameplay screen
+constexpr Gorgon::SceneID END_GAME   = 2;  // The game-over screen
