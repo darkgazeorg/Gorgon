@@ -2,9 +2,7 @@
 
 #include <Gorgon/Geometry/Point.h>
 #include <Gorgon/Geometry/Size.h>
-#include <cstddef>
 #include <stdexcept>
-#include <memory>
 
 #include "../Graphics/Animations.h"
 #include "../Graphics/Texture.h"

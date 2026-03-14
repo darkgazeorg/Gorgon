@@ -3,6 +3,8 @@
 #include "AnimationStorage.h"
 #include "../Graphics/Rectangle.h"
 
+#include <memory>
+
 
 namespace Gorgon :: Resource {
 	class File;

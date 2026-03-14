@@ -2,6 +2,7 @@
 
 #include "AnimationStorage.h"
 #include "../Graphics/Line.h"
+#include <memory>
 
 
 namespace Gorgon :: Resource {
