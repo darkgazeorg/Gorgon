@@ -133,9 +133,16 @@ namespace Gorgon :: Utils {
 		/// Only std::cout and std::cerr are supported. 
 		void InitializeConsole(std::ostream &stream = std::cout) {
 			CleanUp();
+			
 			this->stream=&stream;
 			owner=false;
-            console = StdConsole();
+
+			if(stream.rdbuf() == std::cout.rdbuf()) {
+            	console = StdConsole();
+			}
+			else if(stream.rdbuf() == std::cerr.rdbuf()) {
+				console = StdErrorConsole();
+			}
 		}
 
 		/// Initializes the logger to direct its input to the given stream. 

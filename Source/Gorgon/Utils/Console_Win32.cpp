@@ -1,211 +1,384 @@
 #include "Console.h"
 
 #include <Windows.h>
+#include <iostream>
 
 namespace Gorgon :: Utils {
 
-	/// @cond INTERNAL
-	struct consoleattributes {
-		consoleattributes() {
-			stdhandle = GetStdHandle(STD_OUTPUT_HANDLE);
-			WORD attribs;
-			DWORD len;
-			COORD coords = { 0, 0 };
-			ReadConsoleOutputAttribute(stdhandle, &attribs, 1, coords, &len);
+    /// @cond INTERNAL
+    struct consoleattributes {
+        consoleattributes(int fd = STD_OUTPUT_HANDLE) {
+            stdhandle = GetStdHandle(fd);
+            WORD attribs;
+            DWORD len;
+            COORD coords = { 0, 0 };
+            ReadConsoleOutputAttribute(stdhandle, &attribs, 1, coords, &len);
 
-			if(len != 0) {
-				fore = defaultfore = attribs & 0x07;
-				back = defaultback = attribs & 0x70;
+            if(len != 0) {
+                fore = defaultfore = attribs & 0x07;
+                back = defaultback = attribs & 0x70;
+            }
+        }
+
+        static void set(bool err = false) {
+            get(err).set_();
+        }
+
+        void set_() {
+            if(negative) {
+                SetConsoleTextAttribute(stdhandle, fore>>4 | back<<4 | (bold ? FOREGROUND_INTENSITY : 0));
+            }
+            else {
+                SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));
+            }
+        }
+
+        static consoleattributes &out() {
+            static consoleattributes console;
+
+            return console;
+        }
+
+        static consoleattributes &err() {
+            static consoleattributes console(STD_ERROR_HANDLE);
+
+            return console;
+        }
+
+        static consoleattributes &get(bool err = false) {
+            return err ? err() : out();
+        }
+
+        int fore = 7, back = 0;
+        int  defaultfore = 7, defaultback = 0;
+        bool bold = false;
+        bool negative = false;
+
+        HANDLE stdhandle;
+    }; 
+
+    struct Win32BackendData {
+        HANDLE handle = nullptr;
+        bool vtEnabled = false;
+
+        unsigned int oldOutputCP = 0;
+        unsigned int oldInputCP = 0;
+
+        DWORD oldConsoleMode = 0;
+        bool oldConsoleModeValid = false;
+    };
+
+    /// @endcond
+        
+        static void set(bool err = false) {
+            get(err).set_();
+        }
+
+        void set_() {
+            if(negative) {
+                SetConsoleTextAttribute(stdhandle, fore>>4 | back<<4 | (bold ? FOREGROUND_INTENSITY : 0));
+            }
+            else {
+                SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));
+            }
+        }
+
+        static consoleattributes &out() { 
+            static consoleattributes console;
+
+            return console;
+        }
+        
+        static consoleattributes &err() {
+            static consoleattributes console(STD_ERROR_HANDLE);
+
+            return console;
+        }
+
+		static consoleattributes &get(bool err = false) {
+			return err ? err() : out();
+		}
+
+        int fore = 7, back = 0;
+        int  defaultfore = 7, defaultback = 0;
+        bool bold = false;
+        bool negative = false;
+
+        HANDLE stdhandle;
+    };
+    /// @endcond
+
+	StdBackend::StdBackend(bool err) : iserr(err) {
+		// Create and attach platform-specific state.
+		auto *d = new Win32BackendData();
+		platformData = d;
+
+		// Store current console settings so we can restore them on cleanup.
+		d->oldOutputCP = GetConsoleOutputCP();
+		d->oldInputCP  = GetConsoleCP();
+
+		// Force UTF-8 so that C++ streams can output UTF-8 characters.
+		SetConsoleOutputCP(CP_UTF8);
+		SetConsoleCP(CP_UTF8);
+
+		// Try enabling ANSI/VT sequence processing.
+		// This allows us to emit escape sequences like "\x1b[31m" for color.
+		// If it fails, we fall back to the old console attribute API.
+		const DWORD flags = ENABLE_VIRTUAL_TERMINAL_PROCESSING | DISABLE_NEWLINE_AUTO_RETURN;
+
+		d->handle = GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
+		if(d->handle != INVALID_HANDLE_VALUE) {
+			DWORD mode;
+			if(GetConsoleMode(d->handle, &mode)) {
+				d->oldConsoleMode = mode;
+				d->oldConsoleModeValid = true;
+				d->vtEnabled = SetConsoleMode(d->handle, mode | flags) != 0;
 			}
 		}
-		
-		static void set() {
-			get().set_();
-		}
+	}
 
-		void set_() {
-			if(negative) {
-				SetConsoleTextAttribute(stdhandle, fore>>4 | back<<4 | (bold ? FOREGROUND_INTENSITY : 0));
+	StdBackend::~StdBackend() {
+		// Reset styles and ensure the terminal is not left in a styled state.
+		Reset();
+
+		if(auto *d = static_cast<Win32BackendData*>(platformData)) {
+			// Restore console mode (if we changed it).
+			if(d->oldConsoleModeValid && d->handle) {
+				SetConsoleMode(d->handle, d->oldConsoleMode);
 			}
-			else {
-				SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));
-			}
+
+			// Restore code pages.
+			SetConsoleOutputCP(d->oldOutputCP);
+			SetConsoleCP(d->oldInputCP);
+
+			delete d;
 		}
-
-		static consoleattributes &get() { 
-			static consoleattributes console;
-
-			return console;
-		}
-
-		int fore = 7, back = 0;
-		int  defaultfore = 7, defaultback = 0;
-		bool bold = false;
-		bool negative = false;
-
-		HANDLE stdhandle;
-	};
-	/// @endcond
-
-	Console::ColorSupportLevel StdOutBackend::ColorSupport() const { 
-		return GetStdHandle(STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE ? Console::Safelist : Console::None;
 	}
 
-	bool StdOutBackend::IsStylesSupported() const {
-		return false;
-	}
+    Console::ColorSupportLevel StdBackend::ColorSupport() const {
+        return GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE) != INVALID_HANDLE_VALUE ? Console::Safelist : Console::None;
+    }
 
-	void StdOutBackend::SetColor(Console::Color color) {
-		int c;
-		switch (color) {
-		case Console::Default:
-			c = consoleattributes::get().defaultfore;
-			break;
-		case Console::Black:
-			c = 0;
-			break;
-		case Console::White:
-			c = 7;
-			break;
-		case Console::Red:
-			c = 4;
-			break;
-		case Console::Green:
-			c = 2;
-			break;
-		case Console::Blue:
-			c = 1;
-			break;
-		case Console::Yellow:
-			c = 6;
-			break;
-		case Console::Cyan:
-			c = 3;
-			break;
-		case Console::Magenta:
-			c = 5;
-			break;
-		}
-		consoleattributes::get().fore = c;
-		consoleattributes::set();
-	}
-	
-	void StdOutBackend::SetColor(Graphics::RGBA) {
-	}
+    bool StdBackend::IsStylesSupported() const {
+        if (auto *d = static_cast<Win32BackendData*>(platformData)) {
+            return d->vtEnabled;
+        }
+        return false;
+    }
 
-	void StdOutBackend::SetBackground(Console::Color color) {
-		int c;
-		switch (color) {
-		case Console::Default:
-			c = consoleattributes::get().defaultback<<4;
-			break;
-		case Console::Black:
-			c = 0;
-			break;
-		case Console::White:
-			c = 7;
-			break;
-		case Console::Red:
-			c = 4;
-			break;
-		case Console::Green:
-			c = 2;
-			break;
-		case Console::Blue:
-			c = 1;
-			break;
-		case Console::Yellow:
-			c = 6;
-			break;
-		case Console::Cyan:
-			c = 3;
-			break;
-		case Console::Magenta:
-			c = 5;
-			break;
-		}
-		consoleattributes::get().back = c>>4;
-		consoleattributes::set();
-	}
-	
-	void StdOutBackend::SetBackground(Graphics::RGBA) {
-	}
+    bool StdBackend::IsUTF8() const {
+        // On Windows, UTF-8 is indicated by code page 65001.
+        return GetConsoleOutputCP() == CP_UTF8;
+    }
 
-	void StdOutBackend::Reset() {
-		consoleattributes::get().bold = false;
-		consoleattributes::get().fore = consoleattributes::get().defaultfore;
-		consoleattributes::get().back = consoleattributes::get().defaultback;
-		consoleattributes::set();
-	}
+    static void WriteAnsi(bool err, const std::string &seq) {
+        auto &out = err ? std::cerr : std::cout;
+        out << seq;
+        out.flush();
+    }
 
-	void StdOutBackend::SetBold(bool bold) {
-		consoleattributes::get().bold = bold;
-		consoleattributes::set();
-	}
-	
-	void StdOutBackend::SetUnderline(bool underline) { }
+    static std::string MakeAnsiColor(Console::Color color, bool background = false) {
+        int code = 39;
+        switch (color) {
+        case Console::Default: code = background ? 49 : 39; break;
+        case Console::Black:   code = background ? 40 : 30; break;
+        case Console::Red:     code = background ? 41 : 31; break;
+        case Console::Green:   code = background ? 42 : 32; break;
+        case Console::Yellow:  code = background ? 43 : 33; break;
+        case Console::Blue:    code = background ? 44 : 34; break;
+        case Console::Magenta: code = background ? 45 : 35; break;
+        case Console::Cyan:    code = background ? 46 : 36; break;
+        case Console::White:   code = background ? 47 : 37; break;
+        }
+        return "\x1b[" + std::to_string(code) + "m";
+    }
 
-	void StdOutBackend::SetItalic(bool italic) { }
+    void StdBackend::SetColor(Console::Color color) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, MakeAnsiColor(color, false));
+            return;
+        }
 
-	void StdOutBackend::SetNegative(bool negative) {
-		consoleattributes::get().negative = negative; 
-		consoleattributes::set();
-	}
+        int c;
+        switch (color) {
+        case Console::Default:
+            c = consoleattributes::get(iserr).defaultfore;
+            break;
+        case Console::Black:
+            c = 0;
+            break;
+        case Console::White:
+            c = 7;
+            break;
+        case Console::Red:
+            c = 4;
+            break;
+        case Console::Green:
+            c = 2;
+            break;
+        case Console::Blue:
+            c = 1;
+            break;
+        case Console::Yellow:
+            c = 6;
+            break;
+        case Console::Cyan:
+            c = 3;
+            break;
+        case Console::Magenta:
+            c = 5;
+            break;
+        }
+        consoleattributes::get(iserr).fore = c;
+        consoleattributes::set(iserr);
+    }
+    
+    void StdBackend::SetColor(Graphics::RGBA) {
+    }
 
-	Geometry::Size StdOutBackend::GetSize() const {
-		CONSOLE_SCREEN_BUFFER_INFO csbi;
+    void StdBackend::SetBackground(Console::Color color) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, MakeAnsiColor(color, true));
+            return;
+        }
 
-		GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+        int c;
+        switch (color) {
+        case Console::Default:
+            c = consoleattributes::get(iserr).defaultback<<4;
+            break;
+        case Console::Black:
+            c = 0;
+            break;
+        case Console::White:
+            c = 7;
+            break;
+        case Console::Red:
+            c = 4;
+            break;
+        case Console::Green:
+            c = 2;
+            break;
+        case Console::Blue:
+            c = 1;
+            break;
+        case Console::Yellow:
+            c = 6;
+            break;
+        case Console::Cyan:
+            c = 3;
+            break;
+        case Console::Magenta:
+            c = 5;
+            break;
+        }
+        consoleattributes::get(iserr).back = c>>4;
+        consoleattributes::set(iserr);
+    }
+    
+    void StdBackend::SetBackground(Graphics::RGBA) {
+    }
 
-		return {(int)csbi.dwSize.X, (int)csbi.dwSize.Y};
-	}
+    void StdBackend::Reset() {
+        if(vtEnabled) {
+            WriteAnsi(iserr, "\x1b[0m");
+            return;
+        }
+
+        consoleattributes::get(iserr).bold = false;
+        consoleattributes::get(iserr).fore = consoleattributes::get(iserr).defaultfore;
+        consoleattributes::get(iserr).back = consoleattributes::get(iserr).defaultback;
+        consoleattributes::set(iserr);
+    }
+
+    void StdBackend::SetBold(bool bold) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, bold ? "\x1b[1m" : "\x1b[22m");
+            return;
+        }
+
+        consoleattributes::get(iserr).bold = bold;
+        consoleattributes::set(iserr);
+    }
+    
+    void StdBackend::SetUnderline(bool underline) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, underline ? "\x1b[4m" : "\x1b[24m");
+            return;
+        }
+    }
+
+    void StdBackend::SetItalic(bool italic) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, italic ? "\x1b[3m" : "\x1b[23m");
+            return;
+        }
+    }
+
+    void StdBackend::SetNegative(bool negative) {
+        if(vtEnabled) {
+            WriteAnsi(iserr, negative ? "\x1b[7m" : "\x1b[27m");
+            return;
+        }
+
+        consoleattributes::get(iserr).negative = negative; 
+        consoleattributes::set(iserr);
+    }
+
+    Geometry::Size StdBackend::GetSize() const {
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+
+        GetConsoleScreenBufferInfo(GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE), &csbi);
+
+        return {(int)csbi.dwSize.X, (int)csbi.dwSize.Y};
+    }
 
 
-	void StdOutBackend::GotoXY(Geometry::Point location) {
-		COORD coord;
-		coord.X = location.X;
-		coord.Y = location.Y;
-		SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
-	}
+    void StdBackend::GotoXY(Geometry::Point location) {
+        COORD coord;
+        coord.X = location.X;
+        coord.Y = location.Y;
+        SetConsoleCursorPosition(GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE), coord);
+    }
 
-	void StdOutBackend::ClearScreen() {
-		HANDLE stdhandle;
-		CONSOLE_SCREEN_BUFFER_INFO csbi;
-		DWORD cells, temp;
+    void StdBackend::ClearScreen() {
+        HANDLE stdhandle;
+        CONSOLE_SCREEN_BUFFER_INFO csbi;
+        DWORD cells, temp;
 
-		stdhandle = GetStdHandle(STD_OUTPUT_HANDLE);
-		
-		if(stdhandle == INVALID_HANDLE_VALUE) return;
+        stdhandle = GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
+        
+        if(stdhandle == INVALID_HANDLE_VALUE) return;
 
-		if(!GetConsoleScreenBufferInfo(stdhandle, &csbi)) return;
+        if(!GetConsoleScreenBufferInfo(stdhandle, &csbi)) return;
 
-		cells = csbi.dwSize.X *csbi.dwSize.Y;
+        cells = csbi.dwSize.X *csbi.dwSize.Y;
 
-		FillConsoleOutputCharacter(stdhandle, (TCHAR)' ', cells, {0,0}, &temp);
+        FillConsoleOutputCharacter(stdhandle, (TCHAR)' ', cells, {0,0}, &temp);
 
-		FillConsoleOutputAttribute(stdhandle, csbi.wAttributes, cells, {0,0}, &temp);
+        FillConsoleOutputAttribute(stdhandle, csbi.wAttributes, cells, {0,0}, &temp);
 
-		GotoXY({0,0});
-	}
+        GotoXY({0,0});
+    }
 
-	void StdOutBackend::HideCaret() {
-		HANDLE stdhandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    void StdBackend::HideCaret() {
+        HANDLE stdhandle = GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
 
-		CONSOLE_CURSOR_INFO  cursorInfo;
+        CONSOLE_CURSOR_INFO  cursorInfo;
 
-		GetConsoleCursorInfo(stdhandle, &cursorInfo);
-		cursorInfo.bVisible = 0;
-		SetConsoleCursorInfo(stdhandle, &cursorInfo);
-	}
+        GetConsoleCursorInfo(stdhandle, &cursorInfo);
+        cursorInfo.bVisible = 0;
+        SetConsoleCursorInfo(stdhandle, &cursorInfo);
+    }
 
-	void StdOutBackend::ShowCaret() {
-		HANDLE stdhandle = GetStdHandle(STD_OUTPUT_HANDLE);
+    void StdBackend::ShowCaret() {
+        HANDLE stdhandle = GetStdHandle(iserr ? STD_ERROR_HANDLE : STD_OUTPUT_HANDLE);
 
-		CONSOLE_CURSOR_INFO  cursorInfo;
+        CONSOLE_CURSOR_INFO  cursorInfo;
 
-		GetConsoleCursorInfo(stdhandle, &cursorInfo);
-		cursorInfo.bVisible = 1;
-		SetConsoleCursorInfo(stdhandle, &cursorInfo);
-	}
+        GetConsoleCursorInfo(stdhandle, &cursorInfo);
+        cursorInfo.bVisible = 1;
+        SetConsoleCursorInfo(stdhandle, &cursorInfo);
+    }
 
 }
