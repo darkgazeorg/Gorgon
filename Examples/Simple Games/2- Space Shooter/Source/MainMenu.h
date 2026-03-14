@@ -14,8 +14,10 @@
 
 #pragma once
 
-#include "Scenes.h"          // For the GAME_SCENE constant
+#include <Gorgon/Scene.h>           // The base class for all scenes
 #include <Gorgon/Widgets/Button.h>  // The button widget we use for Start / Quit
+#include <Gorgon/Widgets/Window.h>
+#include <Gorgon/Widgets/Label.h>
 
 // A short alias so we can write W::Button instead of Gorgon::Widgets::Button.
 namespace W = Gorgon::Widgets;
@@ -28,40 +30,7 @@ public:
     // Constructor: sets up the buttons and wires them to their actions.
     // The parent SceneManager is needed so we can ask it to switch scenes,
     // and the id is the unique number this scene is registered under.
-    MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id) : 
-        Gorgon::Scene(parent, id),
-        quit("Quit"),   // Create a button with the label "Quit"
-        start("Start")  // Create a button with the label "Start"
-    { 
-        // Move() positions the button on a grid measured in UI units (not pixels).
-        // 1 UI unit is enough to fit one character (height wise) along with
-        // border, focus rectangle and necessary spacing.  The origin (0, 0) is the
-        // top-left corner of the screen. Height of most widgets is 1 UI unit.
-        start.Move(5, 1);
-
-        // Register a click handler using a lambda (an anonymous function).
-        // When the player clicks Start, tell the scene manager to show the
-        // gameplay scene.
-        start.ClickEvent.Register([this]() {
-            this->parent->SwitchScene(GAME_SCENE);
-        });
-
-        quit.Move(5, 3);  // Place the Quit button two rows below Start
-
-        // When the player clicks Quit, ask the engine to close the game.
-        quit.ClickEvent.Register([this]() {
-            this->parent->Quit();
-        });
-
-        // Add both buttons to the UI layer so the engine knows to draw them
-        // and send mouse events their way.
-        ui.Add(start);
-        ui.Add(quit);
-
-        // This is a relatively simple but labour-intensive way to set up a UI.
-        // If you want to have a more complex UI system, you should prefer to
-        // use flow organizer for automatic layout.
-    }
+  MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id);
 
 protected:
 
@@ -88,13 +57,19 @@ protected:
 
     // We receive keyboard events here but do not act on any specific key in
     // the main menu, so the body is empty.
-	virtual void KeyEvent(Gorgon::Input::Key, float) override { }
+	virtual void KeyEvent(Gorgon::Input::Key, float) override;
+
+    void StartNewGame(int difficulty);
     
 
 private:
 
     W::Button start;  // "Start Game" button
     W::Button quit;   // "Quit" button
+
+    W::Window game_settings;
+    W::Label  game_settings_info;
+    W::Button easy, medium, hard, close_settings;
 
 };
 

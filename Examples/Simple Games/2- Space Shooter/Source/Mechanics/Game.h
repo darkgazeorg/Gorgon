@@ -29,6 +29,12 @@ namespace Mechanics {
 class Game {
 public:
 
+    explicit Game(int difficulty) :
+        difficulty(difficulty),
+        spawnTimeout(800 / (4 + difficulty * 3))
+    {
+    }
+
     // Destructor: explicitly destroy the enemies collection.
     // The collection holds pointers to Enemy objects allocated on the heap
     // (via "new Astroid()").  Calling Destroy() frees that memory so we
@@ -68,6 +74,8 @@ private:
     // 100 ms = one new asteroid every 0.1 seconds. Lowering this makes the
     // game harder; raising it makes it easier.
     const unsigned long spawnTimeout = 100;
+
+    int difficulty = 0;  
 };
 
 }

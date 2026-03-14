@@ -21,7 +21,7 @@ namespace Mechanics {
 
         // Step 2: update every active enemy
         for(auto &enemy : enemies) {
-            enemy.DoFrame(delta);
+            enemy.DoFrame(delta * (1.0f + difficulty / 5.f) );
         }
 
         // Step 3: spawn a new asteroid if enough time has passed
