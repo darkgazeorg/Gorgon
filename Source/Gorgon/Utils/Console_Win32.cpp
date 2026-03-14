@@ -46,7 +46,7 @@ namespace Gorgon :: Utils {
         }
 
         static consoleattributes &get(bool err = false) {
-            return err ? err() : out();
+            return err ? consoleattributes::err() : out();
         }
 
         int fore = 7, back = 0;
@@ -55,7 +55,7 @@ namespace Gorgon :: Utils {
         bool negative = false;
 
         HANDLE stdhandle;
-    }; 
+    };
 
     struct Win32BackendData {
         HANDLE handle = nullptr;
@@ -70,44 +70,6 @@ namespace Gorgon :: Utils {
 
     /// @endcond
         
-        static void set(bool err = false) {
-            get(err).set_();
-        }
-
-        void set_() {
-            if(negative) {
-                SetConsoleTextAttribute(stdhandle, fore>>4 | back<<4 | (bold ? FOREGROUND_INTENSITY : 0));
-            }
-            else {
-                SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));
-            }
-        }
-
-        static consoleattributes &out() { 
-            static consoleattributes console;
-
-            return console;
-        }
-        
-        static consoleattributes &err() {
-            static consoleattributes console(STD_ERROR_HANDLE);
-
-            return console;
-        }
-
-		static consoleattributes &get(bool err = false) {
-			return err ? err() : out();
-		}
-
-        int fore = 7, back = 0;
-        int  defaultfore = 7, defaultback = 0;
-        bool bold = false;
-        bool negative = false;
-
-        HANDLE stdhandle;
-    };
-    /// @endcond
-
 	StdBackend::StdBackend(bool err) : iserr(err) {
 		// Create and attach platform-specific state.
 		auto *d = new Win32BackendData();
@@ -194,7 +156,7 @@ namespace Gorgon :: Utils {
     }
 
     void StdBackend::SetColor(Console::Color color) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, MakeAnsiColor(color, false));
             return;
         }
@@ -237,7 +199,7 @@ namespace Gorgon :: Utils {
     }
 
     void StdBackend::SetBackground(Console::Color color) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, MakeAnsiColor(color, true));
             return;
         }
@@ -280,7 +242,7 @@ namespace Gorgon :: Utils {
     }
 
     void StdBackend::Reset() {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, "\x1b[0m");
             return;
         }
@@ -292,7 +254,7 @@ namespace Gorgon :: Utils {
     }
 
     void StdBackend::SetBold(bool bold) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, bold ? "\x1b[1m" : "\x1b[22m");
             return;
         }
@@ -302,21 +264,21 @@ namespace Gorgon :: Utils {
     }
     
     void StdBackend::SetUnderline(bool underline) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, underline ? "\x1b[4m" : "\x1b[24m");
             return;
         }
     }
 
     void StdBackend::SetItalic(bool italic) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, italic ? "\x1b[3m" : "\x1b[23m");
             return;
         }
     }
 
     void StdBackend::SetNegative(bool negative) {
-        if(vtEnabled) {
+        if(static_cast<Win32BackendData*>(platformData)->vtEnabled) {
             WriteAnsi(iserr, negative ? "\x1b[7m" : "\x1b[27m");
             return;
         }

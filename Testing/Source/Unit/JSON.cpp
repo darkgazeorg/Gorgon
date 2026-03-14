@@ -65,7 +65,7 @@ TEST_CASE("Parse strings", "[JSON]") {
 }
 
 TEST_CASE("Parse string escapes", "[JSON]") {
-    REQUIRE(JSONParse(R"("a\"b")").Get<std::string>() == "a\"b");
+    REQUIRE(JSONParse(R"("a\\\"b")").Get<std::string>() == "a\"b");
     REQUIRE(JSONParse(R"("a\\b")").Get<std::string>() == "a\\b");
     REQUIRE(JSONParse(R"("a\/b")").Get<std::string>() == "a/b");
     REQUIRE(JSONParse(R"("a\nb")").Get<std::string>() == "a\nb");

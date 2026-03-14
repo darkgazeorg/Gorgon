@@ -29,6 +29,7 @@ target_compile_options(Gorgon PRIVATE
 
 if(WIN32)
     target_compile_definitions(Gorgon PUBLIC WIN32)
+    target_compile_options(Gorgon PUBLIC /Zc:preprocessor)
 else()
     target_compile_definitions(Gorgon PUBLIC LINUX)
 endif()
