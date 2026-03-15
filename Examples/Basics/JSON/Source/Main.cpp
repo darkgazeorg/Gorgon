@@ -560,7 +560,7 @@ int Main(const std::vector<std::string> &) {
         "walk": [
             {"file": "circle_red.png", "duration": 500},
             {"file": "circle_green.png", "duration": 500},
-            {"file": "circle_blue.png", "duration": 500}
+            "circle_blue.png" //uses default duration of 42 ms
         ]
     })");
 
@@ -591,8 +591,8 @@ int Main(const std::vector<std::string> &) {
     std::cout << "Press Escape to close." << std::endl;
 
 
-    // It is also possible to load a structure with a bitmap field directly from
-    // a JSON string.
+    // It is also possible to load a structure with a bitmap or animation field
+    // directly from a JSON string/array.
     std::string enemyJsonStr = R"({
         "health": 50,
         "damage": 10,
