@@ -1710,10 +1710,10 @@ TEST_CASE("ParseStream parses a simple integer and leaves stream intact", "[JSON
     auto v = Json.ParseStream(ss);
     REQUIRE(v.IsInteger());
     REQUIRE(v.Get<int>() == 42);
-    // The stream should be positioned right after "42"
+    // Trailing whitespace is consumed (like stream extraction)
     std::string rest;
     std::getline(ss, rest);
-    REQUIRE(rest == " remaining");
+    REQUIRE(rest == "remaining");
 }
 
 TEST_CASE("ParseStream parses a string value", "[JSON][Stream]") {
@@ -1722,7 +1722,7 @@ TEST_CASE("ParseStream parses a string value", "[JSON][Stream]") {
     REQUIRE(v.Get<std::string>() == "hello");
     std::string rest;
     std::getline(ss, rest);
-    REQUIRE(rest == " extra");
+    REQUIRE(rest == "extra");
 }
 
 TEST_CASE("ParseStream parses an object and stops", "[JSON][Stream]") {
@@ -1760,7 +1760,7 @@ TEST_CASE("ParseStream parses null", "[JSON][Stream]") {
     REQUIRE(v.IsNull());
     std::string rest;
     std::getline(ss, rest);
-    REQUIRE(rest == " after");
+    REQUIRE(rest == "after");
 }
 
 TEST_CASE("ParseStream reads multiple values sequentially", "[JSON][Stream]") {
@@ -1780,7 +1780,7 @@ TEST_CASE("ParseStream handles floating point numbers", "[JSON][Stream]") {
     REQUIRE(v.Get<double>() == Catch::Approx(3.14));
     std::string rest;
     std::getline(ss, rest);
-    REQUIRE(rest == " next");
+    REQUIRE(rest == "next");
 }
 
 TEST_CASE("ParseStream throws on empty stream", "[JSON][Stream]") {
@@ -1824,7 +1824,7 @@ TEST_CASE("ParseStream handles comments", "[JSON][Stream]") {
     REQUIRE(v.Get<int>() == 42);
     std::string rest;
     std::getline(ss, rest);
-    REQUIRE(rest == " rest");
+    REQUIRE(rest == "rest");
 }
 
 TEST_CASE("ParseStream with BestEffort trailing comma", "[JSON][Stream]") {

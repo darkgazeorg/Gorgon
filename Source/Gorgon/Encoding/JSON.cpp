@@ -180,53 +180,73 @@ void JSON::Value::Remove(int index) {
 
 namespace {
 
-    struct Parser {
-        const std::string &input;
+    struct StringInput {
+        const std::string &data;
         int pos = 0;
+
+        bool atEnd() const { return pos >= (int)data.size(); }
+        char peekRaw() const { return atEnd() ? '\0' : data[pos]; }
+        char readRaw() { return atEnd() ? '\0' : data[pos++]; }
+        void skip() { if(!atEnd()) pos++; }
+        void putback(char) { if(pos > 0) pos--; }
+    };
+
+    struct StreamInput {
+        std::istream &in;
+
+        bool atEnd() const { return in.peek() == std::char_traits<char>::eof(); }
+        char peekRaw() const { int c = in.peek(); return c == std::char_traits<char>::eof() ? '\0' : (char)c; }
+        char readRaw() { int c = in.get(); return c == std::char_traits<char>::eof() ? '\0' : (char)c; }
+        void skip() { in.get(); }
+        void putback(char c) { in.putback(c); }
+    };
+
+    template<typename Input>
+    struct Parser {
+        Input &input;
         bool best_effort;
 
-        Parser(const std::string &input, bool best_effort = false)
+        Parser(Input &input, bool best_effort = false)
             : input(input), best_effort(best_effort) { }
 
-        /// Like peek() but returns '\0' instead of throwing on end-of-input.
-        char peek_safe() const {
-            const_cast<Parser*>(this)->skipwhitespace();
-            if(pos >= (int)input.size()) return '\0';
-            return input[pos];
+        char peek_safe() {
+            skipwhitespace();
+            return input.peekRaw();
         }
 
-        char peek() const {
+        char peek() {
             char c = peek_safe();
-            if(c == '\0') throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+            if(c == '\0' && input.atEnd())
+                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
             return c;
         }
 
-        void skipwhitespace() const {
-            auto &p = const_cast<Parser*>(this)->pos;
-            while(p < (int)input.size()) {
-                char c = input[p];
+        void skipwhitespace() {
+            while(!input.atEnd()) {
+                char c = input.peekRaw();
                 if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-                    p++;
+                    input.skip();
                 }
-                else if(c == '/' && p + 1 < (int)input.size()) {
-                    if(input[p + 1] == '/') {
-                        // Single-line comment: skip to end of line
-                        p += 2;
-                        while(p < (int)input.size() && input[p] != '\n') p++;
-                        if(p < (int)input.size()) p++; // skip the newline
+                else if(c == '/') {
+                    input.skip(); // consume '/'
+                    if(input.atEnd()) { input.putback('/'); break; }
+                    char c2 = input.peekRaw();
+                    if(c2 == '/') {
+                        input.skip();
+                        while(!input.atEnd() && input.peekRaw() != '\n') input.skip();
+                        if(!input.atEnd()) input.skip(); // skip newline
                     }
-                    else if(input[p + 1] == '*') {
-                        // Multi-line comment: skip to */
-                        p += 2;
-                        while(p + 1 < (int)input.size()) {
-                            if(input[p] == '*' && input[p + 1] == '/') {
-                                p += 2;
-                                break;
-                            }
-                            p++;
+                    else if(c2 == '*') {
+                        input.skip();
+                        char prev = '\0';
+                        while(!input.atEnd()) {
+                            char ch = input.readRaw();
+                            if(prev == '*' && ch == '/') break;
+                            prev = ch;
                         }
                     }
                     else {
+                        input.putback('/'); // not a comment
                         break;
                     }
                 }
@@ -238,28 +258,30 @@ namespace {
 
         char next() {
             skipwhitespace();
-            if(pos >= (int)input.size()) {
+            if(input.atEnd()) {
                 if(best_effort) return '\0';
                 throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
             }
-            return input[pos++];
+            return input.readRaw();
         }
 
         void expect(char c) {
             skipwhitespace();
-            if(pos < (int)input.size() && input[pos] == c) {
-                pos++;
+            if(!input.atEnd() && input.peekRaw() == c) {
+                input.skip();
                 return;
             }
-            if(best_effort) return; // silently skip mismatch
-            if(pos >= (int)input.size())
-                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, std::string("Expected '") + c + "' but reached end of input");
-            throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, std::string("Expected '") + c + "' but got '" + input[pos] + "' at position " + std::to_string(pos));
+            if(best_effort) return;
+            if(input.atEnd())
+                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd,
+                    std::string("Expected '") + c + "' but reached end of input");
+            throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                std::string("Expected '") + c + "' but got '" + input.peekRaw() + "'");
         }
 
         JSON::Value parseValue() {
             char c = peek_safe();
-            if(c == '\0') {
+            if(c == '\0' && input.atEnd()) {
                 if(!best_effort)
                     throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
                 return JSON::Value(JSON::Null{});
@@ -274,8 +296,9 @@ namespace {
                     if(c == '-' || (c >= '0' && c <= '9'))
                         return parseNumber();
                     if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, std::string("Unexpected character '") + c + "' at position " + std::to_string(pos));
-                    pos++; // skip unrecognised character
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Unexpected character '") + c + "'");
+                    input.skip();
                     return JSON::Value(JSON::Null{});
             }
         }
@@ -283,16 +306,16 @@ namespace {
         std::string parseString() {
             expect('"');
             std::string result;
-            while(pos < (int)input.size()) {
-                char c = input[pos++];
+            while(!input.atEnd()) {
+                char c = input.readRaw();
                 if(c == '"') return result;
                 if(c == '\\') {
-                    if(pos >= (int)input.size()) {
+                    if(input.atEnd()) {
                         if(!best_effort)
                             throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of string escape");
-                        return result; // BE: return what we have
+                        return result;
                     }
-                    char esc = input[pos++];
+                    char esc = input.readRaw();
                     switch(esc) {
                         case '"':  result += '"';  break;
                         case '\\': result += '\\'; break;
@@ -303,13 +326,13 @@ namespace {
                         case 'r':  result += '\r'; break;
                         case 't':  result += '\t'; break;
                         case 'u': {
-                            if(pos + 4 > (int)input.size()) {
+                            std::string hex;
+                            for(int i = 0; i < 4 && !input.atEnd(); i++) hex += input.readRaw();
+                            if((int)hex.size() < 4) {
                                 if(!best_effort)
                                     throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
-                                return result; // BE: truncated input
+                                return result;
                             }
-                            std::string hex = input.substr(pos, 4);
-                            pos += 4;
                             unsigned int cp = 0;
                             bool valid = true;
                             for(int i = 0; i < 4; i++) {
@@ -325,29 +348,39 @@ namespace {
                                     break;
                                 }
                             }
-                            if(!valid) {
-                                result += "\xEF\xBF\xBD"; // U+FFFD replacement
-                                break;
-                            }
+                            if(!valid) { result += "\xEF\xBF\xBD"; break; }
                             // Reject unpaired low surrogate (RFC 8259)
                             if(cp >= 0xDC00 && cp <= 0xDFFF) {
                                 if(!best_effort)
                                     throw JSON::Error(JSON::ErrorCode::InvalidUnicode,
                                         "Unpaired low surrogate \\u" + hex);
-                                result += "\xEF\xBF\xBD"; // U+FFFD replacement
+                                result += "\xEF\xBF\xBD";
                                 break;
                             }
                             // Handle high surrogate (must be followed by low surrogate)
                             if(cp >= 0xD800 && cp <= 0xDBFF) {
-                                if(pos + 6 > (int)input.size() || input[pos] != '\\' || input[pos + 1] != 'u') {
+                                if(input.atEnd() || input.peekRaw() != '\\') {
                                     if(!best_effort)
                                         throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
-                                    result += "\xEF\xBF\xBD"; // U+FFFD
+                                    result += "\xEF\xBF\xBD";
                                     break;
                                 }
-                                pos += 2;
-                                std::string hex2 = input.substr(pos, 4);
-                                pos += 4;
+                                input.skip(); // consume '\\'
+                                if(input.atEnd() || input.peekRaw() != 'u') {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
+                                input.skip(); // consume 'u'
+                                std::string hex2;
+                                for(int i = 0; i < 4 && !input.atEnd(); i++) hex2 += input.readRaw();
+                                if((int)hex2.size() < 4) {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
                                 unsigned int cp2 = 0;
                                 for(int i = 0; i < 4; i++) {
                                     cp2 <<= 4;
@@ -393,90 +426,83 @@ namespace {
                         }
                         default:
                             if(!best_effort)
-                                throw JSON::Error(JSON::ErrorCode::InvalidEscape, std::string("Invalid escape sequence: \\") + esc);
-                            result += esc; // BE: include raw character
+                                throw JSON::Error(JSON::ErrorCode::InvalidEscape,
+                                    std::string("Invalid escape sequence: \\") + esc);
+                            result += esc;
                     }
                 }
                 else {
-                    // RFC 8259: control characters (U+0000 through U+001F) must be escaped
                     if(static_cast<unsigned char>(c) < 0x20) {
                         if(!best_effort)
                             throw JSON::Error(JSON::ErrorCode::UnescapedControl, "Unescaped control character in string");
-                        // BE: skip unescaped control characters
                     }
                     else {
                         result += c;
                     }
                 }
             }
-            // Reached end of input without closing quote
             if(!best_effort)
                 throw JSON::Error(JSON::ErrorCode::UnterminatedString, "Unterminated string");
-            return result; // BE: return what we have
+            return result;
         }
 
         JSON::Value parseNumber() {
-            int start = pos;
+            std::string numstr;
             bool isFloat = false;
 
-            if(pos < (int)input.size() && input[pos] == '-') pos++;
+            if(!input.atEnd() && input.peekRaw() == '-') numstr += input.readRaw();
 
-            if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9') {
+            if(input.atEnd() || input.peekRaw() < '0' || input.peekRaw() > '9') {
                 if(!best_effort)
-                    throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number at position " + std::to_string(start));
+                    throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number");
                 return JSON::Value(0);
             }
 
-            if(input[pos] == '0') {
-                pos++;
-                // Leading zeros not allowed in strict mode (except 0 itself or 0.x)
-                if(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') {
+            if(input.peekRaw() == '0') {
+                numstr += input.readRaw();
+                if(!input.atEnd() && input.peekRaw() >= '0' && input.peekRaw() <= '9') {
                     if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::LeadingZero, "Leading zeros not allowed at position " + std::to_string(start));
-                    // BE: allow, continue consuming digits
-                    while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
+                        throw JSON::Error(JSON::ErrorCode::LeadingZero, "Leading zeros not allowed");
+                    while(!input.atEnd() && input.peekRaw() >= '0' && input.peekRaw() <= '9')
+                        numstr += input.readRaw();
                 }
             }
             else {
-                while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
+                while(!input.atEnd() && input.peekRaw() >= '0' && input.peekRaw() <= '9')
+                    numstr += input.readRaw();
             }
 
-            if(pos < (int)input.size() && input[pos] == '.') {
+            if(!input.atEnd() && input.peekRaw() == '.') {
                 isFloat = true;
-                pos++;
-                if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9') {
+                numstr += input.readRaw();
+                if(input.atEnd() || input.peekRaw() < '0' || input.peekRaw() > '9') {
                     if(!best_effort)
                         throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit after decimal point");
-                    // BE: back off the dot and treat as integer
-                    pos--;
-                    isFloat = false;
+                    numstr += '0';
                 }
                 else {
-                    while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
+                    while(!input.atEnd() && input.peekRaw() >= '0' && input.peekRaw() <= '9')
+                        numstr += input.readRaw();
                 }
             }
 
-            if(pos < (int)input.size() && (input[pos] == 'e' || input[pos] == 'E')) {
+            if(!input.atEnd() && (input.peekRaw() == 'e' || input.peekRaw() == 'E')) {
                 isFloat = true;
-                pos++;
-                if(pos < (int)input.size() && (input[pos] == '+' || input[pos] == '-')) pos++;
-                if(pos >= (int)input.size() || input[pos] < '0' || input[pos] > '9') {
+                numstr += input.readRaw();
+                if(!input.atEnd() && (input.peekRaw() == '+' || input.peekRaw() == '-'))
+                    numstr += input.readRaw();
+                if(input.atEnd() || input.peekRaw() < '0' || input.peekRaw() > '9') {
                     if(!best_effort)
                         throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit in exponent");
                     return JSON::Value(0);
                 }
-                while(pos < (int)input.size() && input[pos] >= '0' && input[pos] <= '9') pos++;
+                while(!input.atEnd() && input.peekRaw() >= '0' && input.peekRaw() <= '9')
+                    numstr += input.readRaw();
             }
 
-            std::string numstr = input.substr(start, pos - start);
             if(isFloat) {
-                try {
-                    return JSON::Value(std::stod(numstr));
-                }
-                catch(...) {
-                    if(!best_effort) throw;
-                    return JSON::Value(0);
-                }
+                try { return JSON::Value(std::stod(numstr)); }
+                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
             }
             else {
                 try {
@@ -485,43 +511,37 @@ namespace {
                         return JSON::Value((int)v);
                     return JSON::Value((double)v);
                 }
-                catch(...) {
-                    if(!best_effort) throw;
-                    return JSON::Value(0);
-                }
+                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
             }
         }
 
         JSON::Value parseBool() {
-            if(input.compare(pos, 4, "true") == 0) {
-                pos += 4;
-                return JSON::Value(true);
-            }
-            if(input.compare(pos, 5, "false") == 0) {
-                pos += 5;
-                return JSON::Value(false);
-            }
+            std::string lit;
+            int expected = (input.peekRaw() == 't') ? 4 : 5;
+            for(int i = 0; i < expected && !input.atEnd(); i++)
+                lit += input.readRaw();
+            if(lit == "true")  return JSON::Value(true);
+            if(lit == "false") return JSON::Value(false);
             if(!best_effort)
-                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid boolean at position " + std::to_string(pos));
+                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid boolean literal: " + lit);
             return JSON::Value(JSON::Null{});
         }
 
         JSON::Value parseNull() {
-            if(input.compare(pos, 4, "null") == 0) {
-                pos += 4;
-                return JSON::Value(JSON::Null{});
-            }
+            std::string lit;
+            for(int i = 0; i < 4 && !input.atEnd(); i++)
+                lit += input.readRaw();
+            if(lit == "null") return JSON::Value(JSON::Null{});
             if(!best_effort)
-                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid null at position " + std::to_string(pos));
+                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid null literal: " + lit);
             return JSON::Value(JSON::Null{});
         }
 
         JSON::Value parseArray() {
             expect('[');
             JSON::Array arr;
-            // Handle empty array or immediate close
-            if(peek_safe() == ']') { pos++; return JSON::Value(std::move(arr)); }
-            if(peek_safe() == '\0') {
+            if(peek_safe() == ']') { input.skip(); return JSON::Value(std::move(arr)); }
+            if(peek_safe() == '\0' && input.atEnd()) {
                 if(!best_effort)
                     throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
                 return JSON::Value(std::move(arr));
@@ -534,42 +554,38 @@ namespace {
                 catch(const JSON::Error &) {
                     if(!best_effort) throw;
                     elem = JSON::Value(JSON::Null{});
-                    // Skip past the bad token to the next delimiter
-                    while(pos < (int)input.size() && input[pos] != ',' && input[pos] != ']') pos++;
+                    while(!input.atEnd() && input.peekRaw() != ',' && input.peekRaw() != ']') input.skip();
                 }
                 arr.push_back(std::move(elem));
 
                 skipwhitespace();
-                if(pos >= (int)input.size()) {
+                if(input.atEnd()) {
                     if(!best_effort)
                         throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
                     return JSON::Value(std::move(arr));
                 }
-                char c = input[pos];
-                if(c == ']') { pos++; return JSON::Value(std::move(arr)); }
+                char c = input.peekRaw();
+                if(c == ']') { input.skip(); return JSON::Value(std::move(arr)); }
                 if(c != ',') {
                     if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, "Expected ',' or ']' in array at position " + std::to_string(pos));
-                    // BE: missing comma — continue parsing the next value anyway
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected ',' or ']' in array but got '") + c + "'");
                     continue;
                 }
-                pos++; // consume comma
-                // Trailing comma: only close early in best_effort mode
+                input.skip(); // consume comma
                 if(best_effort) {
                     char pk = peek_safe();
-                    if(pk == ']') { pos++; return JSON::Value(std::move(arr)); }
-                    if(pk == '\0') return JSON::Value(std::move(arr));
+                    if(pk == ']') { input.skip(); return JSON::Value(std::move(arr)); }
+                    if(pk == '\0' && input.atEnd()) return JSON::Value(std::move(arr));
                 }
-                // In strict mode: loop back; parseValue() will throw on ']'
             }
         }
 
         JSON::Value parseObject() {
             expect('{');
             JSON::Object obj;
-            // Handle empty object or immediate close
-            if(peek_safe() == '}') { pos++; return JSON::Value(std::move(obj)); }
-            if(peek_safe() == '\0') {
+            if(peek_safe() == '}') { input.skip(); return JSON::Value(std::move(obj)); }
+            if(peek_safe() == '\0' && input.atEnd()) {
                 if(!best_effort)
                     throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
                 return JSON::Value(std::move(obj));
@@ -578,11 +594,11 @@ namespace {
                 char pk = peek_safe();
                 if(pk != '"') {
                     if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, "Expected string key at position " + std::to_string(pos));
-                    // BE: skip unrecognised character (handles '}' and '\0' too)
-                    if(pk == '}') { pos++; return JSON::Value(std::move(obj)); }
-                    if(pk == '\0') return JSON::Value(std::move(obj));
-                    pos++;
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected string key but got '") + pk + "'");
+                    if(pk == '}') { input.skip(); return JSON::Value(std::move(obj)); }
+                    if(pk == '\0' && input.atEnd()) return JSON::Value(std::move(obj));
+                    input.skip();
                     continue;
                 }
 
@@ -592,23 +608,21 @@ namespace {
                 }
                 catch(const JSON::Error &) {
                     if(!best_effort) throw;
-                    // Skip to next colon or closing brace
-                    while(pos < (int)input.size() && input[pos] != ':' && input[pos] != '}') pos++;
-                    if(pos < (int)input.size() && input[pos] == '}') { pos++; return JSON::Value(std::move(obj)); }
+                    while(!input.atEnd() && input.peekRaw() != ':' && input.peekRaw() != '}') input.skip();
+                    if(!input.atEnd() && input.peekRaw() == '}') { input.skip(); return JSON::Value(std::move(obj)); }
                     continue;
                 }
 
-                // Expect ':'
                 skipwhitespace();
-                if(pos < (int)input.size() && input[pos] == ':') {
-                    pos++;
+                if(!input.atEnd() && input.peekRaw() == ':') {
+                    input.skip();
                 }
                 else if(!best_effort) {
-                    if(pos >= (int)input.size())
+                    if(input.atEnd())
                         throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                    throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, std::string("Expected ':' but got '") + input[pos] + "' at position " + std::to_string(pos));
+                    throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                        std::string("Expected ':' but got '") + input.peekRaw() + "'");
                 }
-                // BE: missing colon — try to parse a value anyway
 
                 JSON::Value val;
                 try {
@@ -617,33 +631,30 @@ namespace {
                 catch(const JSON::Error &) {
                     if(!best_effort) throw;
                     val = JSON::Value(JSON::Null{});
-                    // Skip past the bad token
-                    while(pos < (int)input.size() && input[pos] != ',' && input[pos] != '}') pos++;
+                    while(!input.atEnd() && input.peekRaw() != ',' && input.peekRaw() != '}') input.skip();
                 }
                 obj[key] = std::move(val);
 
                 skipwhitespace();
-                if(pos >= (int)input.size()) {
+                if(input.atEnd()) {
                     if(!best_effort)
                         throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
                     return JSON::Value(std::move(obj));
                 }
-                char c = input[pos];
-                if(c == '}') { pos++; return JSON::Value(std::move(obj)); }
+                char c = input.peekRaw();
+                if(c == '}') { input.skip(); return JSON::Value(std::move(obj)); }
                 if(c != ',') {
                     if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter, "Expected ',' or '}' in object at position " + std::to_string(pos));
-                    // BE: missing comma — continue parsing next key-value pair
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected ',' or '}' in object but got '") + c + "'");
                     continue;
                 }
-                pos++; // consume comma
-                // Trailing comma: only close early in best_effort mode
+                input.skip(); // consume comma
                 if(best_effort) {
                     char pk2 = peek_safe();
-                    if(pk2 == '}') { pos++; return JSON::Value(std::move(obj)); }
-                    if(pk2 == '\0') return JSON::Value(std::move(obj));
+                    if(pk2 == '}') { input.skip(); return JSON::Value(std::move(obj)); }
+                    if(pk2 == '\0' && input.atEnd()) return JSON::Value(std::move(obj));
                 }
-                // In strict mode: loop back; non-'"' check will throw on '}'
             }
         }
     };
@@ -651,12 +662,13 @@ namespace {
 } // anonymous namespace
 
 JSON::Value JSON::Parse(const std::string &str) const {
-    Parser parser(str, BestEffort);
+    StringInput input{str};
+    Parser<StringInput> parser(input, BestEffort);
     Value result = parser.parseValue();
     parser.skipwhitespace();
-    if(parser.pos != (int)str.size()) {
+    if(!input.atEnd()) {
         if(!BestEffort)
-            throw Error(ErrorCode::TrailingContent, "Trailing content after JSON value at position " + std::to_string(parser.pos));
+            throw Error(ErrorCode::TrailingContent, "Trailing content after JSON value");
     }
     return result;
 }
@@ -1573,489 +1585,12 @@ JSON::Value JSON::ParseFile(const std::string &path) const {
     return result;
 }
 
-// ------------------------------------------------------------------
-//  Stream Parser
-// ------------------------------------------------------------------
-
-namespace {
-
-    struct StreamParser {
-        std::istream &in;
-        bool best_effort;
-
-        StreamParser(std::istream &in, bool best_effort = false)
-            : in(in), best_effort(best_effort) { }
-
-        bool atEnd() const {
-            return in.peek() == std::char_traits<char>::eof();
-        }
-
-        char peekRaw() const {
-            int c = in.peek();
-            return (c == std::char_traits<char>::eof()) ? '\0' : (char)c;
-        }
-
-        char readRaw() {
-            int c = in.get();
-            return (c == std::char_traits<char>::eof()) ? '\0' : (char)c;
-        }
-
-        void skipwhitespace() {
-            while(!atEnd()) {
-                char c = peekRaw();
-                if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-                    in.get();
-                }
-                else if(c == '/') {
-                    in.get(); // consume '/'
-                    if(atEnd()) { in.putback('/'); break; }
-                    char c2 = peekRaw();
-                    if(c2 == '/') {
-                        in.get();
-                        while(!atEnd() && peekRaw() != '\n') in.get();
-                        if(!atEnd()) in.get(); // skip newline
-                    }
-                    else if(c2 == '*') {
-                        in.get();
-                        char prev = '\0';
-                        while(!atEnd()) {
-                            char ch = readRaw();
-                            if(prev == '*' && ch == '/') break;
-                            prev = ch;
-                        }
-                    }
-                    else {
-                        in.putback('/'); // not a comment
-                        break;
-                    }
-                }
-                else {
-                    break;
-                }
-            }
-        }
-
-        char peek_safe() {
-            skipwhitespace();
-            return peekRaw();
-        }
-
-        char peek() {
-            char c = peek_safe();
-            if(c == '\0' && atEnd())
-                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-            return c;
-        }
-
-        char next() {
-            skipwhitespace();
-            if(atEnd()) {
-                if(best_effort) return '\0';
-                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-            }
-            return readRaw();
-        }
-
-        void expect(char c) {
-            skipwhitespace();
-            if(!atEnd() && peekRaw() == c) {
-                in.get();
-                return;
-            }
-            if(best_effort) return;
-            if(atEnd())
-                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd,
-                    std::string("Expected '") + c + "' but reached end of input");
-            throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                std::string("Expected '") + c + "' but got '" + peekRaw() + "'");
-        }
-
-        JSON::Value parseValue() {
-            char c = peek_safe();
-            if(c == '\0' && atEnd()) {
-                if(!best_effort)
-                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                return JSON::Value(JSON::Null{});
-            }
-            switch(c) {
-                case '"': return parseString();
-                case '{': return parseObject();
-                case '[': return parseArray();
-                case 't': case 'f': return parseBool();
-                case 'n': return parseNull();
-                default:
-                    if(c == '-' || (c >= '0' && c <= '9'))
-                        return parseNumber();
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                            std::string("Unexpected character '") + c + "'");
-                    in.get(); // skip unrecognised character
-                    return JSON::Value(JSON::Null{});
-            }
-        }
-
-        std::string parseString() {
-            expect('"');
-            std::string result;
-            while(!atEnd()) {
-                char c = readRaw();
-                if(c == '"') return result;
-                if(c == '\\') {
-                    if(atEnd()) {
-                        if(!best_effort)
-                            throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of string escape");
-                        return result;
-                    }
-                    char esc = readRaw();
-                    switch(esc) {
-                        case '"':  result += '"';  break;
-                        case '\\': result += '\\'; break;
-                        case '/':  result += '/';  break;
-                        case 'b':  result += '\b'; break;
-                        case 'f':  result += '\f'; break;
-                        case 'n':  result += '\n'; break;
-                        case 'r':  result += '\r'; break;
-                        case 't':  result += '\t'; break;
-                        case 'u': {
-                            std::string hex;
-                            for(int i = 0; i < 4 && !atEnd(); i++) hex += readRaw();
-                            if((int)hex.size() < 4) {
-                                if(!best_effort)
-                                    throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
-                                return result;
-                            }
-                            unsigned int cp = 0;
-                            bool valid = true;
-                            for(int i = 0; i < 4; i++) {
-                                cp <<= 4;
-                                char h = hex[i];
-                                if(h >= '0' && h <= '9')      cp |= (h - '0');
-                                else if(h >= 'a' && h <= 'f') cp |= (h - 'a' + 10);
-                                else if(h >= 'A' && h <= 'F') cp |= (h - 'A' + 10);
-                                else {
-                                    if(!best_effort)
-                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid hex digit in unicode escape");
-                                    valid = false;
-                                    break;
-                                }
-                            }
-                            if(!valid) { result += "\xEF\xBF\xBD"; break; }
-                            // Reject unpaired low surrogate
-                            if(cp >= 0xDC00 && cp <= 0xDFFF) {
-                                if(!best_effort)
-                                    throw JSON::Error(JSON::ErrorCode::InvalidUnicode,
-                                        "Unpaired low surrogate \\u" + hex);
-                                result += "\xEF\xBF\xBD";
-                                break;
-                            }
-                            // Handle high surrogate
-                            if(cp >= 0xD800 && cp <= 0xDBFF) {
-                                if(atEnd() || peekRaw() != '\\') {
-                                    if(!best_effort)
-                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
-                                    result += "\xEF\xBF\xBD";
-                                    break;
-                                }
-                                readRaw(); // consume '\\'
-                                if(atEnd() || peekRaw() != 'u') {
-                                    if(!best_effort)
-                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
-                                    result += "\xEF\xBF\xBD";
-                                    break;
-                                }
-                                readRaw(); // consume 'u'
-                                std::string hex2;
-                                for(int i = 0; i < 4 && !atEnd(); i++) hex2 += readRaw();
-                                if((int)hex2.size() < 4) {
-                                    if(!best_effort)
-                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
-                                    result += "\xEF\xBF\xBD";
-                                    break;
-                                }
-                                unsigned int cp2 = 0;
-                                for(int i = 0; i < 4; i++) {
-                                    cp2 <<= 4;
-                                    char h = hex2[i];
-                                    if(h >= '0' && h <= '9')      cp2 |= (h - '0');
-                                    else if(h >= 'a' && h <= 'f') cp2 |= (h - 'a' + 10);
-                                    else if(h >= 'A' && h <= 'F') cp2 |= (h - 'A' + 10);
-                                    else {
-                                        if(!best_effort)
-                                            throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid hex digit in surrogate pair");
-                                        valid = false;
-                                        break;
-                                    }
-                                }
-                                if(!valid) { result += "\xEF\xBF\xBD"; break; }
-                                if(cp2 < 0xDC00 || cp2 > 0xDFFF) {
-                                    if(!best_effort)
-                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid low surrogate");
-                                    result += "\xEF\xBF\xBD";
-                                    break;
-                                }
-                                cp = 0x10000 + ((cp - 0xD800) << 10) + (cp2 - 0xDC00);
-                            }
-                            // Encode as UTF-8
-                            if(cp < 0x80) {
-                                result += (char)cp;
-                            }
-                            else if(cp < 0x800) {
-                                result += (char)(0xC0 | (cp >> 6));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            else if(cp < 0x10000) {
-                                result += (char)(0xE0 | (cp >> 12));
-                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            else {
-                                result += (char)(0xF0 | (cp >> 18));
-                                result += (char)(0x80 | ((cp >> 12) & 0x3F));
-                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
-                                result += (char)(0x80 | (cp & 0x3F));
-                            }
-                            break;
-                        }
-                        default:
-                            if(!best_effort)
-                                throw JSON::Error(JSON::ErrorCode::InvalidEscape,
-                                    std::string("Invalid escape sequence: \\\\") + esc);
-                            result += esc;
-                    }
-                }
-                else {
-                    if(static_cast<unsigned char>(c) < 0x20) {
-                        if(!best_effort)
-                            throw JSON::Error(JSON::ErrorCode::UnescapedControl, "Unescaped control character in string");
-                    }
-                    else {
-                        result += c;
-                    }
-                }
-            }
-            if(!best_effort)
-                throw JSON::Error(JSON::ErrorCode::UnterminatedString, "Unterminated string");
-            return result;
-        }
-
-        JSON::Value parseNumber() {
-            std::string numstr;
-            bool isFloat = false;
-
-            if(!atEnd() && peekRaw() == '-') numstr += readRaw();
-
-            if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
-                if(!best_effort)
-                    throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number");
-                return JSON::Value(0);
-            }
-
-            if(peekRaw() == '0') {
-                numstr += readRaw();
-                if(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::LeadingZero, "Leading zeros not allowed");
-                    while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
-                        numstr += readRaw();
-                }
-            }
-            else {
-                while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
-                    numstr += readRaw();
-            }
-
-            if(!atEnd() && peekRaw() == '.') {
-                isFloat = true;
-                numstr += readRaw();
-                if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit after decimal point");
-                    numstr += '0';
-                }
-                else {
-                    while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
-                        numstr += readRaw();
-                }
-            }
-
-            if(!atEnd() && (peekRaw() == 'e' || peekRaw() == 'E')) {
-                isFloat = true;
-                numstr += readRaw();
-                if(!atEnd() && (peekRaw() == '+' || peekRaw() == '-'))
-                    numstr += readRaw();
-                if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit in exponent");
-                    return JSON::Value(0);
-                }
-                while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
-                    numstr += readRaw();
-            }
-
-            if(isFloat) {
-                try { return JSON::Value(std::stod(numstr)); }
-                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
-            }
-            else {
-                try {
-                    long long v = std::stoll(numstr);
-                    if(v >= std::numeric_limits<int>::min() && v <= std::numeric_limits<int>::max())
-                        return JSON::Value((int)v);
-                    return JSON::Value((double)v);
-                }
-                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
-            }
-        }
-
-        JSON::Value parseBool() {
-            std::string lit;
-            int expected = (peekRaw() == 't') ? 4 : 5;
-            for(int i = 0; i < expected && !atEnd(); i++)
-                lit += readRaw();
-            if(lit == "true")  return JSON::Value(true);
-            if(lit == "false") return JSON::Value(false);
-            if(!best_effort)
-                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid boolean literal: " + lit);
-            return JSON::Value(JSON::Null{});
-        }
-
-        JSON::Value parseNull() {
-            std::string lit;
-            for(int i = 0; i < 4 && !atEnd(); i++)
-                lit += readRaw();
-            if(lit == "null") return JSON::Value(JSON::Null{});
-            if(!best_effort)
-                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid null literal: " + lit);
-            return JSON::Value(JSON::Null{});
-        }
-
-        JSON::Value parseArray() {
-            expect('[');
-            JSON::Array arr;
-            if(peek_safe() == ']') { in.get(); return JSON::Value(std::move(arr)); }
-            if(peek_safe() == '\0' && atEnd()) {
-                if(!best_effort)
-                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                return JSON::Value(std::move(arr));
-            }
-            while(true) {
-                JSON::Value elem;
-                try {
-                    elem = parseValue();
-                }
-                catch(const JSON::Error &) {
-                    if(!best_effort) throw;
-                    elem = JSON::Value(JSON::Null{});
-                    while(!atEnd() && peekRaw() != ',' && peekRaw() != ']') in.get();
-                }
-                arr.push_back(std::move(elem));
-
-                skipwhitespace();
-                if(atEnd()) {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                    return JSON::Value(std::move(arr));
-                }
-                char c = peekRaw();
-                if(c == ']') { in.get(); return JSON::Value(std::move(arr)); }
-                if(c != ',') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                            std::string("Expected ',' or ']' in array but got '") + c + "'");
-                    continue;
-                }
-                in.get(); // consume comma
-                if(best_effort) {
-                    char pk = peek_safe();
-                    if(pk == ']') { in.get(); return JSON::Value(std::move(arr)); }
-                    if(pk == '\0' && atEnd()) return JSON::Value(std::move(arr));
-                }
-            }
-        }
-
-        JSON::Value parseObject() {
-            expect('{');
-            JSON::Object obj;
-            if(peek_safe() == '}') { in.get(); return JSON::Value(std::move(obj)); }
-            if(peek_safe() == '\0' && atEnd()) {
-                if(!best_effort)
-                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                return JSON::Value(std::move(obj));
-            }
-            while(true) {
-                char pk = peek_safe();
-                if(pk != '"') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                            std::string("Expected string key but got '") + pk + "'");
-                    if(pk == '}') { in.get(); return JSON::Value(std::move(obj)); }
-                    if(pk == '\0' && atEnd()) return JSON::Value(std::move(obj));
-                    in.get();
-                    continue;
-                }
-
-                std::string key;
-                try {
-                    key = parseString();
-                }
-                catch(const JSON::Error &) {
-                    if(!best_effort) throw;
-                    while(!atEnd() && peekRaw() != ':' && peekRaw() != '}') in.get();
-                    if(!atEnd() && peekRaw() == '}') { in.get(); return JSON::Value(std::move(obj)); }
-                    continue;
-                }
-
-                skipwhitespace();
-                if(!atEnd() && peekRaw() == ':') {
-                    in.get();
-                }
-                else if(!best_effort) {
-                    if(atEnd())
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                    throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                        std::string("Expected ':' but got '") + peekRaw() + "'");
-                }
-
-                JSON::Value val;
-                try {
-                    val = parseValue();
-                }
-                catch(const JSON::Error &) {
-                    if(!best_effort) throw;
-                    val = JSON::Value(JSON::Null{});
-                    while(!atEnd() && peekRaw() != ',' && peekRaw() != '}') in.get();
-                }
-                obj[key] = std::move(val);
-
-                skipwhitespace();
-                if(atEnd()) {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
-                    return JSON::Value(std::move(obj));
-                }
-                char c = peekRaw();
-                if(c == '}') { in.get(); return JSON::Value(std::move(obj)); }
-                if(c != ',') {
-                    if(!best_effort)
-                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
-                            std::string("Expected ',' or '}' in object but got '") + c + "'");
-                    continue;
-                }
-                in.get(); // consume comma
-                if(best_effort) {
-                    char pk2 = peek_safe();
-                    if(pk2 == '}') { in.get(); return JSON::Value(std::move(obj)); }
-                    if(pk2 == '\0' && atEnd()) return JSON::Value(std::move(obj));
-                }
-            }
-        }
-    };
-
-} // anonymous namespace
-
 JSON::Value JSON::ParseStream(std::istream &stream) const {
-    StreamParser parser(stream, BestEffort);
-    return parser.parseValue();
+    StreamInput input{stream};
+    Parser<StreamInput> parser(input, BestEffort);
+    Value result = parser.parseValue();
+    parser.skipwhitespace();
+    return result;
 }
 
 }
