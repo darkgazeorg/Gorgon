@@ -28,11 +28,45 @@ namespace Multimedia {
         Wave(const Wave &) = delete;
         
         /// Move is allowed
-        Wave(Wave &&) = default;
+        Wave(Wave &&other) {
+            if(this == &other)  return;
+
+            if(other.data) {
+                if(other.own) {
+                    Assume(*other.data);
+                }
+                else {
+                    Assign(*other.data);
+                }
+                
+                other.data = nullptr;
+            }
+        }
         
         /// Destructor
         ~Wave() {
             Destroy();
+        }
+
+        Wave &operator=(const Wave &) = delete;
+
+        Wave &operator=(Wave &&other) {
+            if(this == &other)  return *this;
+
+            Destroy();
+
+            if(other.data) {
+                if(other.own) {
+                    Assume(*other.data);
+                }
+                else {
+                    Assign(*other.data);
+                }
+
+                other.data = nullptr;
+            }
+
+            return *this;
         }
         
         /// Duplicates this object along with its data

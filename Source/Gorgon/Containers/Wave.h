@@ -11,7 +11,7 @@
 
 namespace Gorgon :: Containers {
 
-    /// This class is a container for wave data. It supports different color modes and access to the
+    /// This class is a container for wave data. It supports different number of channels and access to the
     /// underlying data through () operator. This object implements move semantics. Since copy constructor is
     /// expensive, it is deleted against accidental use. If a copy of the object is required, use Duplicate function.
     class Wave {
@@ -75,8 +75,6 @@ namespace Gorgon :: Containers {
 
             
             Iterator() = default;
-            
-            Iterator& operator=(const Iterator&) = default;
             
             Iterator& operator++() {
                 current += channels;

@@ -19,6 +19,9 @@
 #include "../Graphics/Bitmap.h"
 #include "../Graphics/TextureAnimation.h"
 #include "../Graphics/Animations.h"
+#include "../Containers/Wave.h"
+#include "../Multimedia/Wave.h"
+#include "../Multimedia/AudioStream.h"
 
 namespace Gorgon :: Encoding {
 
@@ -148,6 +151,12 @@ public:
         BitmapAnimation,
         /// An animation storage loaded from a string (single image) or array of strings.
         AnimationStorage,
+        /// A wave audio container loaded from a file path string.
+        Wave,
+        /// A multimedia sound object loaded from a file path string.
+        Sound,
+        /// An audio stream loaded from a file path string.
+        AudioStream,
     };
 
     struct SchemaField;
@@ -440,6 +449,21 @@ public:
         static SchemaField AnimationStorageField(bool required = true) {
             SchemaField f; f.type = Type::AnimationStorage; f.required = required; return f;
         }
+
+        /// Creates a schema field for a Wave audio file loaded from a file path string.
+        static SchemaField WaveField(bool required = true) {
+            SchemaField f; f.type = Type::Wave; f.required = required; return f;
+        }
+
+        /// Creates a schema field for a Sound (Multimedia::Wave) loaded from a file path string.
+        static SchemaField SoundField(bool required = true) {
+            SchemaField f; f.type = Type::Sound; f.required = required; return f;
+        }
+
+        /// Creates a schema field for an AudioStream loaded from a file path string.
+        static SchemaField AudioStreamField(bool required = true) {
+            SchemaField f; f.type = Type::AudioStream; f.required = required; return f;
+        }
     };
 
     // === State ===
@@ -549,7 +573,11 @@ DefineEnumStringsCM(JSON, Type,
     {JSON::Type::BitmapAnimation, "Bitmap animation"},
     {JSON::Type::BitmapAnimation, "BitmapAnimation"},
     {JSON::Type::AnimationStorage, "Animation storage"},
-    {JSON::Type::AnimationStorage, "AnimationStorage"});
+    {JSON::Type::AnimationStorage, "AnimationStorage"},
+    {JSON::Type::Wave, "Wave"},
+    {JSON::Type::Sound, "Sound"},
+    {JSON::Type::AudioStream, "Audio stream"},
+    {JSON::Type::AudioStream, "AudioStream"});
 
 
 // --- Reflection helpers: converting member types to/from JSON ---
@@ -730,6 +758,14 @@ template<> Geometry::Marginf    JSON::Value::Get<Geometry::Marginf>()    const;
 template<> Graphics::Bitmap                     JSON::Value::Get<Graphics::Bitmap>()                     const;
 template<> Graphics::BitmapAnimationProvider     JSON::Value::Get<Graphics::BitmapAnimationProvider>()     const;
 template<> Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnimationStorage>() const;
+
+/// Audio Get<> specializations -- loads audio files from JSON string values.
+/// A Containers::Wave is loaded by importing the WAV file named by the string value.
+/// A Multimedia::Wave wraps a Containers::Wave with ownership.
+/// A Multimedia::AudioStream sets up streaming from the file.
+template<> Containers::Wave            JSON::Value::Get<Containers::Wave>()            const;
+template<> Multimedia::Wave            JSON::Value::Get<Multimedia::Wave>()            const;
+template<> Multimedia::AudioStream     JSON::Value::Get<Multimedia::AudioStream>()     const;
 
 /// A default constructed JSON object
 extern JSON Json;

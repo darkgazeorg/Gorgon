@@ -20,6 +20,10 @@
 #include <Gorgon/Graphics/Bitmap.h>
 #include <Gorgon/Graphics/TextureAnimation.h>
 #include <Gorgon/Graphics/Animations.h>
+#include <Gorgon/Containers/Wave.h>
+#include <Gorgon/Multimedia/Wave.h>
+#include <Gorgon/Multimedia/AudioStream.h>
+#include <cmath>
 
 using namespace Gorgon::Encoding;
 
@@ -1557,6 +1561,154 @@ TEST_CASE("JSONParseFile missing file throws ResourceNotFound", "[JSON][Bitmap]"
     catch(const JSON::Error &e) {
         REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
     }
+}
+
+// =====================================================================
+//  Wave / Audio helpers and tests
+// =====================================================================
+
+namespace {
+    /// Creates a small test WAV file containing a 440 Hz sine wave.
+    void createTestWav(const std::string &path, unsigned sampleRate = 44100, unsigned numSamples = 4410) {
+        Gorgon::Containers::Wave wave(numSamples, sampleRate, {Gorgon::Audio::Channel::Mono});
+        for(unsigned i = 0; i < numSamples; i++) {
+            wave(i, 0) = std::sin(2.0f * 3.14159265f * 440.0f * i / sampleRate);
+        }
+        wave.ExportWav(path);
+    }
+} // anonymous namespace
+
+// -- Get<Containers::Wave> -------------------------------------------------
+
+TEST_CASE("Get<Containers::Wave> from string", "[JSON][Wave]") {
+    createTestWav("json_test_wave.wav");
+    auto val = Json.Parse(R"("json_test_wave.wav")");
+    auto wave = val.Get<Gorgon::Containers::Wave>();
+
+    REQUIRE(wave.GetSize() > 0);
+    REQUIRE(wave.GetSampleRate() == 44100);
+    REQUIRE(wave.GetChannelCount() == 1);
+}
+
+TEST_CASE("Get<Containers::Wave> from non-string throws", "[JSON][Wave]") {
+    auto val = Json.Parse("42");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Containers::Wave>(), JSON::Error);
+}
+
+TEST_CASE("Get<Containers::Wave> missing file throws ResourceNotFound", "[JSON][Wave]") {
+    auto val = Json.Parse(R"("nonexistent_audio_12345.wav")");
+    try {
+        val.Get<Gorgon::Containers::Wave>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
+    }
+}
+
+// -- Get<Multimedia::Wave> -------------------------------------------------
+
+TEST_CASE("Get<Multimedia::Wave> from string", "[JSON][Wave]") {
+    createTestWav("json_test_mwave.wav");
+    auto val = Json.Parse(R"("json_test_mwave.wav")");
+    auto wave = val.Get<Gorgon::Multimedia::Wave>();
+
+    REQUIRE(wave.HasData());
+    REQUIRE(wave.GetSampleRate() == 44100);
+}
+
+TEST_CASE("Get<Multimedia::Wave> from non-string throws", "[JSON][Wave]") {
+    auto val = Json.Parse("[1, 2]");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Multimedia::Wave>(), JSON::Error);
+}
+
+TEST_CASE("Get<Multimedia::Wave> missing file throws ResourceNotFound", "[JSON][Wave]") {
+    auto val = Json.Parse(R"("nonexistent_sound_12345.wav")");
+    try {
+        val.Get<Gorgon::Multimedia::Wave>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
+    }
+}
+
+// -- Get<Multimedia::AudioStream> ------------------------------------------
+
+TEST_CASE("Get<Multimedia::AudioStream> from non-string throws", "[JSON][Wave]") {
+    auto val = Json.Parse("true");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Multimedia::AudioStream>(), JSON::Error);
+}
+
+// -- Schema validation for Wave/Sound/AudioStream types --------------------
+
+TEST_CASE("Schema: Wave field accepts string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"audio", JSON::SchemaField::WaveField()},
+    };
+
+    auto input = Json.Parse(R"({"audio": "test.wav"})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["audio"].Get<std::string>() == "test.wav");
+}
+
+TEST_CASE("Schema: Wave field rejects non-string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"audio", JSON::SchemaField::WaveField()},
+    };
+
+    auto input = Json.Parse(R"({"audio": 42})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
+}
+
+TEST_CASE("Schema: Sound field accepts string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"sfx", JSON::SchemaField::SoundField()},
+    };
+
+    auto input = Json.Parse(R"({"sfx": "hit.wav"})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["sfx"].Get<std::string>() == "hit.wav");
+}
+
+TEST_CASE("Schema: Sound field rejects non-string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"sfx", JSON::SchemaField::SoundField()},
+    };
+
+    auto input = Json.Parse(R"({"sfx": [1, 2]})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
+}
+
+TEST_CASE("Schema: AudioStream field accepts string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"music", JSON::SchemaField::AudioStreamField()},
+    };
+
+    auto input = Json.Parse(R"({"music": "background.wav"})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["music"].Get<std::string>() == "background.wav");
+}
+
+TEST_CASE("Schema: AudioStream field rejects non-string", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"music", JSON::SchemaField::AudioStreamField()},
+    };
+
+    auto input = Json.Parse(R"({"music": false})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
+}
+
+TEST_CASE("Schema: optional Wave field", "[JSON][Schema][Wave]") {
+    JSON::Schema schema = {
+        {"name", {JSON::Type::String}},
+        {"audio", JSON::SchemaField::WaveField(false)},
+    };
+
+    auto input = Json.Parse(R"({"name": "test"})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["name"].Get<std::string>() == "test");
+    REQUIRE(result["audio"].IsNull());
 }
 
 // =========================================================================

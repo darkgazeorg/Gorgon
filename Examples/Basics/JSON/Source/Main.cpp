@@ -20,7 +20,11 @@
  *  14.  Loading a BitmapAnimationProvider with per-frame durations
  *  15.  Loading a RectangularAnimationStorage from both formats
  *  16.  Bitmap-related schema validation types
- *  17.  Displaying loaded images in a window
+ *  17.  Generating a sample WAV audio file
+ *  18.  Loading a Containers::Wave from a JSON string
+ *  19.  Loading a Multimedia::Wave from a JSON string
+ *  20.  Audio-related schema validation types
+ *  21.  Displaying loaded images in a window
  *
  * The first ten sections run in the console and produce text output.
  * Sections 11-17 require a graphics window because they load and prepare
@@ -28,6 +32,8 @@
  *
  */
 
+#include "Gorgon/Audio.h"
+#include "Gorgon/Audio/Controllers.h"
 #include "Gorgon/Graphics/Animations.h"
 #include <Gorgon/EntryPoint.h>   // provides the int Main() entry point
 #include <Gorgon/Window.h>       // windowed application support
@@ -39,8 +45,12 @@
 #include <Gorgon/Encoding/JSON.h>
 #include <Gorgon/Struct.h>       // DefineStructMembers for reflection
 #include <Gorgon/Input/Keyboard.h>
+#include <Gorgon/Containers/Wave.h>
+#include <Gorgon/Multimedia/Wave.h>
+#include <Gorgon/Multimedia/AudioStream.h>
 #include <iostream>
 #include <string>
+#include <cmath>
 
 // Pull the JSON helpers into scope so we can write Json.Parse instead of
 // Gorgon::Encoding::Json::Parse, etc.  This keeps the examples concise.
@@ -84,8 +94,9 @@ struct EnemyConfig {
     int health = 50;
     int damage = 10;
     Bitmap sprite;
+    Gorgon::Multimedia::Wave sfx{};
 
-    DefineStructMembers(EnemyConfig, health, damage, sprite)
+    DefineStructMembers(EnemyConfig, health, damage, sprite, sfx)
 };
 
 // =========================================================================
@@ -583,7 +594,79 @@ int Main(const std::vector<std::string> &) {
     Instance walkanim = walk.CreateAnimation();
 
     // =====================================================================
-    //  17. Display Window
+    //  17. Generating a Sample WAV Audio File
+    // =====================================================================
+    // Just like we generated PNG files for the bitmap demos, we create a
+    // short WAV file containing a pure 440 Hz (A4) sine wave.  This is
+    // built from scratch using the Containers::Wave class.
+    std::cout << "\n=== 17. Generating sample WAV file ===" << std::endl;
+    {
+        const unsigned sampleRate = 44100;
+        const unsigned numSamples = 44100; // 1 second
+        Gorgon::Containers::Wave sineWave(numSamples, sampleRate, {Gorgon::Audio::Channel::Mono});
+        for(unsigned i = 0; i < numSamples; i++) {
+            sineWave(i, 0) = std::sin(2.0f * 3.14159265f * 440.0f * i / sampleRate);
+        }
+        sineWave.ExportWav("sine_440.wav");
+        std::cout << "Exported sine_440.wav (" << sineWave.GetSize()
+                  << " samples, " << sineWave.GetSampleRate() << " Hz)" << std::endl;
+    }
+
+    // =====================================================================
+    //  18. Loading a Containers::Wave from JSON
+    // =====================================================================
+    // A JSON string containing a file path can be converted to a
+    // Containers::Wave with Get<Containers::Wave>().  The library calls
+    // Wave::ImportWav() internally.
+    std::cout << "\n=== 18. Loading Containers::Wave from JSON ===" << std::endl;
+    auto wavVal = Json.Parse(R"("sine_440.wav")");
+    auto loadedWave = wavVal.Get<Gorgon::Containers::Wave>();
+    std::cout << "Loaded wave: " << loadedWave.GetSize() << " samples, "
+              << loadedWave.GetSampleRate() << " Hz, "
+              << loadedWave.GetChannelCount() << " channel(s)" << std::endl;
+
+    // =====================================================================
+    //  19. Loading a Multimedia::Wave from JSON
+    // =====================================================================
+    // Multimedia::Wave is a higher-level wrapper around Containers::Wave
+    // with ownership and format auto-detection via Import().
+    std::cout << "\n=== 19. Loading Multimedia::Wave from JSON ===" << std::endl;
+    auto mwavVal = Json.Parse(R"("sine_440.wav")");
+    auto loadedSound = mwavVal.Get<Gorgon::Multimedia::Wave>();
+    std::cout << "Loaded sound: " << loadedSound.GetSize() << " samples, "
+              << loadedSound.GetSampleRate() << " Hz" << std::endl;
+
+    // =====================================================================
+    //  20. Audio Schema Validation Types
+    // =====================================================================
+    // The schema system includes three audio-related types:
+    //
+    //   WaveField()        -- value must be a string (file path for Containers::Wave)
+    //   SoundField()       -- value must be a string (file path for Multimedia::Wave)
+    //   AudioStreamField() -- value must be a string (file path for AudioStream)
+    //
+    // These types only validate the *shape* of the JSON (string); the
+    // actual file import happens when you call Get<>().
+    std::cout << "\n=== 20. Audio Schema Validation ===" << std::endl;
+    JSON::Schema audioSchema = {
+        {"name",   {JSON::Type::String}},
+        {"sfx",    JSON::SchemaField::WaveField()},
+        {"music",  JSON::SchemaField::AudioStreamField(false)}, // optional
+    };
+
+    auto audioData = Json.Parse(R"({
+        "name": "Level1",
+        "sfx": "sine_440.wav"
+    })");
+
+    auto audioResult = Json.Validate(audioData, audioSchema);
+    std::cout << "Validated audio name: " << audioResult["name"].Get<std::string>() << std::endl;
+    std::cout << "SFX path: " << audioResult["sfx"].Get<std::string>() << std::endl;
+    std::cout << "Music present: "
+              << (audioResult["music"].IsNull() ? "no (null)" : "yes") << std::endl;
+
+    // =====================================================================
+    //  21. Display Window
     // =====================================================================
     // Finally, show the loaded bitmap in the window.  The Layer acts as
     // a drawing surface that the window renders every frame.
@@ -596,11 +679,11 @@ int Main(const std::vector<std::string> &) {
     std::string enemyJsonStr = R"({
         "health": 50,
         "damage": 10,
-        "sprite": "circle_blue.png"
+        "sprite": "circle_blue.png",
+        "sfx": "sine_440.wav"
     })";
 
     auto enemyData = Json.Parse(enemyJsonStr).ToStruct<EnemyConfig>();
-
 
     // A layer to draw on
     Layer layer;
@@ -616,6 +699,11 @@ int Main(const std::vector<std::string> &) {
     walkanim.Draw(layer, 100, 10);
 
     enemyData.sprite.Draw(layer, 200, 10);
+
+    std::cout << enemyData.sfx.GetLength() << std::endl;
+    
+    Gorgon::Audio::BasicController controller(enemyData.sfx);
+    controller.Loop();
 
     // Register Escape key to exit the application.
     window.KeyEvent.Register([&](Gorgon::Input::Key key, float state) {

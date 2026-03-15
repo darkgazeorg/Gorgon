@@ -814,6 +814,9 @@ namespace {
             case JSON::Type::Bitmap:
             case JSON::Type::BitmapAnimation:
             case JSON::Type::AnimationStorage:
+            case JSON::Type::Wave:
+            case JSON::Type::Sound:
+            case JSON::Type::AudioStream:
                 break;
         }
     }
@@ -1413,6 +1416,13 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
                     match = false;
                 }
                 break;
+
+            // Audio types: all expect a string (file path)
+            case Type::Wave:
+            case Type::Sound:
+            case Type::AudioStream:
+                match = (actual == Type::String);
+                break;
         }
 
         if(!match)
@@ -1571,6 +1581,49 @@ Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnim
 
     throw Error(ErrorCode::TypeMismatch,
         "JSON value is not a string or array (expected file path or array of file paths for AnimationStorage)");
+}
+
+// ------------------------------------------------------------------
+//  Audio Get<> specializations
+// ------------------------------------------------------------------
+
+template<>
+Containers::Wave JSON::Value::Get<Containers::Wave>() const {
+    if(!IsString())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Wave)");
+
+    Containers::Wave wave;
+    auto path = Get<std::string>();
+    if(!wave.ImportWav(path))
+        throw Error(ErrorCode::ResourceNotFound, "Failed to import wave from: " + path);
+
+    return wave;
+}
+
+template<>
+Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
+    if(!IsString())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Sound)");
+
+    Multimedia::Wave wave;
+    auto path = Get<std::string>();
+    if(!wave.Import(path))
+        throw Error(ErrorCode::ResourceNotFound, "Failed to import sound from: " + path);
+
+    return wave;
+}
+
+template<>
+Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
+    if(!IsString())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for AudioStream)");
+
+    auto path = Get<std::string>();
+    Multimedia::AudioStream stream;
+    if(!stream.Stream(path))
+        throw Error(ErrorCode::ResourceNotFound, "Failed to open audio stream from: " + path);
+
+    return stream;
 }
 
 JSON::Value JSON::ParseFile(const std::string &path) const {

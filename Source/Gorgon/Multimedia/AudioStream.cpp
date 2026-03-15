@@ -436,6 +436,8 @@ namespace internal {
 
     AudioStream::AudioStream(Multimedia::AudioStream &&other) 
     {
+        if(this == &other)  return;
+
         std::lock_guard<std::mutex> g1(guard);
         std::lock_guard<std::mutex> g2(other.guard);
         
@@ -462,6 +464,40 @@ namespace internal {
         other.currentbuffer = 0;
 
         buffersize = other.buffersize;
+    }
+
+    AudioStream &AudioStream::operator=(AudioStream &&other) {
+        if(this == &other)  return *this;
+
+        std::lock_guard<std::mutex> g1(guard);
+        std::lock_guard<std::mutex> g2(other.guard);
+        
+        delete streamer;
+        streamer = other.streamer;
+        other.streamer = nullptr;
+        buffers  = std::move(other.buffers);
+        
+        lastsample = other.lastsample;
+        other.lastsample = 0;
+
+        seektarget = other.seektarget;
+        other.seektarget = 0;
+
+        totalsize = other.totalsize;
+        other.totalsize = 0;
+
+        isseeking = other.isseeking;
+        other.isseeking = false;
+
+        seekcomplete = other.seekcomplete;
+        other.seekcomplete = false;
+
+        currentbuffer = other.currentbuffer;
+        other.currentbuffer = 0;
+
+        buffersize = other.buffersize;
+        
+        return *this;
     }
 
 } }
