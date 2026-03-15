@@ -413,6 +413,12 @@ int Main(const std::vector<std::string> &) {
                   << (e.GetCode() == JSON::ErrorCode::ResourceNotFound ? "yes" : "no") << std::endl;
     }
 
+    // Tip: if strict error reporting is not needed, set Json.BestEffort = true
+    // before parsing.  In best-effort mode the parser recovers from most
+    // syntax errors (trailing commas, missing delimiters, invalid escapes,
+    // leading zeros, etc.) and returns partial or null values rather than
+    // throwing a JSON::Error.  Remember to reset it to false afterwards.
+
     // =====================================================================
     //  11. Generating Sample Images
     // =====================================================================

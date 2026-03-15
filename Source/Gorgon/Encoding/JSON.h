@@ -447,23 +447,36 @@ public:
     /// This can be used for other resources when needed.
     bool Prepare = true;
 
+    /// When set, the parser attempts to recover from common JSON syntax
+    /// errors rather than throwing a JSON::Error. Useful for reading
+    /// hand-edited or loosely-formatted configuration files.
+    ///
+    /// Relaxed rules: trailing commas in arrays/objects, missing closing
+    /// delimiters (EOF closes them), invalid/unknown escape sequences
+    /// (raw character included), unescaped control characters, leading
+    /// zeros in numbers, invalid literals (returned as null), unpaired
+    /// Unicode surrogates (replaced with U+FFFD), and trailing content
+    /// after the root value. BestEffort parsing never throws a
+    /// JSON::Error, but may still throw on memory allocation failures.
+    bool BestEffort = false;
+
     // === Methods ===
 
     /// Parses a JSON string into a Value. Throws Error on invalid input.
-    Value Parse(const std::string &str);
+    Value Parse(const std::string &str) const;
 
     /// Encodes a Value to a JSON string.
     /// @param indent Number of spaces for indentation. 0 or negative for compact output.
-    std::string Encode(const Value &val, int indent = 0);
+    std::string Encode(const Value &val, int indent = 0) const;
 
     /// Validates and normalizes a JSON object against a schema. Missing optional fields are
     /// filled with their default values. Throws Error on validation failure.
     /// Returns the validated and normalized object.
-    Value Validate(const Value &val, const Schema &schema, bool allow_extra = true);
+    Value Validate(const Value &val, const Schema &schema, bool allow_extra = true) const;
 
     /// Parses a JSON file into a Value.
-    /// @param prepare Whether to prepare bitmaps for drawing during this call.
-    Value ParseFile(const std::string &path, bool prepare = true);
+    Value ParseFile(const std::string &path) const;
+
 };
 
 // Reflection strings for JSON::ErrorCode

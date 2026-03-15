@@ -1549,24 +1549,6 @@ TEST_CASE("JSONParseFile reads and parses a JSON file", "[JSON][Bitmap]") {
     REQUIRE(val["num"].Get<int>() == 42);
 }
 
-TEST_CASE("JSONParseFile sets prepareBitmaps flag", "[JSON][Bitmap]") {
-    {
-        std::ofstream f("json_test_pflag.json");
-        f << R"({"x": 1})";
-    }
-    // Should restore previous flag after call
-    Json.Prepare = true;
-    Json.ParseFile("json_test_pflag.json", false);
-    REQUIRE(Json.Prepare == true);
-
-    Json.Prepare = false;
-    Json.ParseFile("json_test_pflag.json", true);
-    REQUIRE(Json.Prepare == false);
-
-    // Restore default
-    Json.Prepare = true;
-}
-
 TEST_CASE("JSONParseFile missing file throws ResourceNotFound", "[JSON][Bitmap]") {
     try {
         Json.ParseFile("nonexistent_12345.json");
@@ -1575,4 +1557,146 @@ TEST_CASE("JSONParseFile missing file throws ResourceNotFound", "[JSON][Bitmap]"
     catch(const JSON::Error &e) {
         REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
     }
+}
+
+// =========================================================================
+//  Surrogate validation (RFC 8259)
+// =========================================================================
+
+TEST_CASE("Unpaired low surrogate throws InvalidUnicode in strict mode", "[JSON][Surrogate]") {
+    // \uDC00-\uDFFF without a preceding high surrogate is invalid (RFC 8259)
+    REQUIRE_THROWS_AS(Json.Parse(R"("\uDC00")"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse(R"("\uDFFF")"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse(R"("\uDE42")"), JSON::Error);
+    try {
+        Json.Parse(R"("\uDC00")");
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::InvalidUnicode);
+    }
+}
+
+TEST_CASE("Valid surrogate pair still decodes correctly after surrogate fix", "[JSON][Surrogate]") {
+    // Emoji U+1F600 (😀) encoded as surrogate pair \uD83D\uDE00
+    REQUIRE(Json.Parse(R"("\uD83D\uDE00")").Get<std::string>() == "\xF0\x9F\x98\x80");
+}
+
+TEST_CASE("High surrogate without low surrogate throws InvalidUnicode", "[JSON][Surrogate]") {
+    // \uD800 not followed by a low surrogate
+    REQUIRE_THROWS_AS(Json.Parse(R"("\uD800 text")"), JSON::Error);
+}
+
+// =========================================================================
+//  BestEffort parsing
+// =========================================================================
+
+/// RAII guard that resets Json.BestEffort after each test.
+struct BEGuard {
+    ~BEGuard() { Json.BestEffort = false; }
+};
+
+TEST_CASE("BestEffort: trailing comma in array", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse("[1, 2, 3,]");
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 3);
+}
+
+TEST_CASE("BestEffort: trailing comma in object", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse(R"({"a": 1, "b": 2,})");
+    REQUIRE(v.IsObject());
+    REQUIRE(v.GetCount() == 2);
+}
+
+TEST_CASE("BestEffort: unterminated string returns accumulated text", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse(R"("hello)");
+    REQUIRE(v.IsString());
+    REQUIRE(v.Get<std::string>() == "hello");
+}
+
+TEST_CASE("BestEffort: unterminated array returns elements parsed so far", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse("[1, 2, 3");
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 3);
+}
+
+TEST_CASE("BestEffort: unterminated object returns entries parsed so far", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse(R"({"x": 10, "y": 20)");
+    REQUIRE(v.IsObject());
+    REQUIRE(v.GetCount() == 2);
+}
+
+TEST_CASE("BestEffort: invalid escape includes raw character", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    // \q is not a valid JSON escape; in BestEffort the 'q' should appear in the result
+    auto v = Json.Parse(R"("\q")");
+    REQUIRE(v.IsString());
+    REQUIRE(v.Get<std::string>() == "q");
+}
+
+TEST_CASE("BestEffort: unpaired low surrogate replaced with U+FFFD", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse(R"("\uDC00")");
+    REQUIRE(v.IsString());
+    // U+FFFD in UTF-8 is 0xEF 0xBF 0xBD
+    REQUIRE(v.Get<std::string>() == "\xEF\xBF\xBD");
+}
+
+TEST_CASE("BestEffort: leading zeros in number allowed", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    // Strict mode rejects 007; BestEffort should produce 7
+    auto v = Json.Parse("007");
+    REQUIRE(v.IsInteger());
+    REQUIRE(v.Get<int>() == 7);
+}
+
+TEST_CASE("BestEffort: invalid literal returns null", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    // "treu" is not a valid literal; BestEffort should return null
+    auto v = Json.Parse("treu");
+    REQUIRE(v.IsNull());
+}
+
+TEST_CASE("BestEffort: trailing content after root value is ignored", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse("42 extra garbage");
+    REQUIRE(v.IsInteger());
+    REQUIRE(v.Get<int>() == 42);
+}
+
+TEST_CASE("BestEffort: empty input returns null", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    auto v = Json.Parse("");
+    REQUIRE(v.IsNull());
+}
+
+TEST_CASE("BestEffort: missing comma between array elements is tolerated", "[JSON][BestEffort]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    // Missing comma between 1 and 2
+    auto v = Json.Parse("[1 2 3]");
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 3);
+}
+
+TEST_CASE("BestEffort flag defaults to false and is independent per parse", "[JSON][BestEffort]") {
+    // Verify default state doesn't linger
+    REQUIRE_THROWS_AS(Json.Parse("[1, 2, 3,]"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse(R"("\uDC00")"), JSON::Error);
 }
