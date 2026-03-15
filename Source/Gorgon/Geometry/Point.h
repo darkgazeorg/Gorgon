@@ -278,6 +278,7 @@ namespace Gorgon {
 				Float ydif = (Float)(Y - target.Y);
 				return std::sqrt((xdif*xdif) + (ydif*ydif));
 			}
+
 			/// Calculates EuclideanSquare  distance from this point to the given target
 			Float EuclideanSquare(const basic_Point &target) const {
 				Float xdif = (Float)(target.X - X);
@@ -356,6 +357,24 @@ namespace Gorgon {
 			/// Compares two points
 			bool operator !=(const basic_Point &point) const {
 				return !Compare(point);
+			}
+
+			/// Compares two points with an epsilon tolerance. Useful for floating
+			bool NearlyEqual(const basic_Point &point, Float eps = Float(1e-9)) const {
+				return std::abs(Float(X - point.X)) < eps &&
+				       std::abs(Float(Y - point.Y)) < eps;
+			}
+
+			/// Returns true if both components are within eps of zero
+			/// @param  eps is the per-axis tolerance
+			bool NearlyZero(Float eps = Float(1e-9)) const {
+				return std::abs(Float(X)) < eps &&
+				       std::abs(Float(Y)) < eps;
+			}
+
+			/// Returns true if the length of this vector is within eps of 1
+			bool IsNormalized(Float eps = Float(1e-9)) const {
+				return std::abs(Distance() - Float(1)) < eps;
 			}
 
 			/// Moves this point to the given coordinates
@@ -598,6 +617,35 @@ namespace Gorgon {
 		template<class T_>
 		void VerticalMirror(basic_Point<T_> &point, const basic_Point<T_> &origin) {
 			ReflectY(point, origin);
+		}
+		/// Returns true if scalar value v is within eps of zero
+		inline bool NearlyZero(Float v, Float eps = Float(1e-9)) {
+			return std::abs(v) < eps;
+		}
+
+		/// Returns true if two scalar values are within eps of each other
+		inline bool NearlyEqual(Float a, Float b, Float eps = Float(1e-9)) {
+			return std::abs(a - b) < eps;
+		}
+
+		/// Returns true if two points are within eps of each other on each axis
+		template<class T_>
+		bool NearlyEqual(const basic_Point<T_> &a, const basic_Point<T_> &b, Float eps = Float(1e-9)) {
+			return std::abs(Float(a.X - b.X)) < eps &&
+			       std::abs(Float(a.Y - b.Y)) < eps;
+		}
+
+		/// Returns true if a point is within eps of the origin on each axis
+		template<class T_>
+		bool NearlyZero(const basic_Point<T_> &p, Float eps = Float(1e-9)) {
+			return std::abs(Float(p.X)) < eps &&
+			       std::abs(Float(p.Y)) < eps;
+		}
+
+		/// Returns true if the length of the given vector is within eps of 1
+		template<class T_>
+		bool IsNormalized(const basic_Point<T_> &p, Float eps = Float(1e-9)) {
+			return std::abs(p.Distance() - Float(1)) < eps;
 		}
 
 		/// @see basic_Point
