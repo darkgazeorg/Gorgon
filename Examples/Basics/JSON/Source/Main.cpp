@@ -42,10 +42,20 @@
 #include <iostream>
 #include <string>
 
-// Pull the JSON helpers into scope so we can write JSON::Parse instead of
-// Gorgon::Encoding::JSON::Parse, etc.  This keeps the examples concise.
-using namespace Gorgon::Encoding;
-using namespace Gorgon::Graphics;
+// Pull the JSON helpers into scope so we can write Json.Parse instead of
+// Gorgon::Encoding::Json::Parse, etc.  This keeps the examples concise.
+using Gorgon::Encoding::Json;
+using Gorgon::Encoding::JSON;
+
+// Bring the frequently used graphics types into the local namespace.
+namespace Graphics = Gorgon::Graphics;
+namespace Geometry = Gorgon::Geometry;
+using Graphics::Bitmap;
+using Graphics::BlankImage;
+using Graphics::Layer;
+using Graphics::RectangularAnimationStorage;
+using Graphics::BitmapAnimationProvider;
+using Graphics::Instance;
 
 // =========================================================================
 // Reflected structs
@@ -68,6 +78,16 @@ struct PlayerConfig {
     DefineStructMembers(PlayerConfig, health, speed, name)
 };
 
+/// Enemy configuration has a bitmap in it, it would be loaded
+/// from the filename specified by the "sprite" field in JSON.  
+struct EnemyConfig {
+    int health = 50;
+    int damage = 10;
+    Bitmap sprite;
+
+    DefineStructMembers(EnemyConfig, health, damage, sprite)
+};
+
 // =========================================================================
 // Helper function
 // =========================================================================
@@ -77,14 +97,14 @@ struct PlayerConfig {
 /// @param path  Output file path (e.g. "circle_red.png")
 /// @param color Fill colour (RGBA)
 /// @param size  Width and height in pixels (square image)
-static void generateCircleImage(const std::string &path, RGBA color, int size = 64) {
+static void generateCircleImage(const std::string &path, Graphics::RGBA color, int size = 64) {
     // Create an RGBA bitmap and clear it to transparent black.
-    Bitmap bmp({size, size}, ColorMode::RGBA);
+    Bitmap bmp({size, size}, Graphics::ColorMode::RGBA);
     bmp.Clear();
 
     // Draw a filled circle centred in the bitmap.  SolidFill<> is a
     // functor that returns the same colour for every pixel.
-    Gorgon::CGI::Circle(bmp, Gorgon::Geometry::Pointf{size / 2.f, size / 2.f},
+    Gorgon::CGI::Circle(bmp, Geometry::Pointf{size / 2.f, size / 2.f},
                          size / 2.f - 1.f, Gorgon::CGI::SolidFill<>(color));
 
     // Write the bitmap data to a PNG file on disk.
@@ -334,8 +354,9 @@ int Main(const std::vector<std::string> &) {
     //   MarginField()     / MarginfField()      -- integer / float margin
     //
     // During validation the library checks that the expected sub-keys
-    // (X/Y, Width/Height, etc.) are present and numeric.  The keys are
-    // case-insensitive (both "X" and "x" work, as do "Width" and "width").
+    // (X/Y, Width/Height, etc.) are present and numeric. The keys could be
+    // either pascal case or lowercase (both "X" and "x" work, as do "Width" 
+    // and "width", but not WIDTH).
     std::cout << "\n=== 9. Geometry Schema Types ===" << std::endl;
     JSON::Schema spriteSchema = {
         {"name",     {JSON::Type::String}},
@@ -569,6 +590,19 @@ int Main(const std::vector<std::string> &) {
     std::cout << "\n=== Opening display window ===" << std::endl;
     std::cout << "Press Escape to close." << std::endl;
 
+
+    // It is also possible to load a structure with a bitmap field directly from
+    // a JSON string.
+    std::string enemyJsonStr = R"({
+        "health": 50,
+        "damage": 10,
+        "sprite": "circle_blue.png"
+    })";
+
+    auto enemyData = Json.Parse(enemyJsonStr).ToStruct<EnemyConfig>();
+
+
+    // A layer to draw on
     Layer layer;
     window.Add(layer);
 
@@ -580,6 +614,8 @@ int Main(const std::vector<std::string> &) {
     loadedBmp.Draw(layer, 10, 10);
 
     walkanim.Draw(layer, 100, 10);
+
+    enemyData.sprite.Draw(layer, 200, 10);
 
     // Register Escape key to exit the application.
     window.KeyEvent.Register([&](Gorgon::Input::Key key, float state) {
