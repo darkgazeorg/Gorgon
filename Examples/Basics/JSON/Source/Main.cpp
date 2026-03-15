@@ -42,8 +42,8 @@
 #include <iostream>
 #include <string>
 
-// Pull the JSON helpers into scope so we can write JSONParse instead of
-// Gorgon::Encoding::JSONParse, etc.  This keeps the examples concise.
+// Pull the JSON helpers into scope so we can write JSON::Parse instead of
+// Gorgon::Encoding::JSON::Parse, etc.  This keeps the examples concise.
 using namespace Gorgon::Encoding;
 using namespace Gorgon::Graphics;
 
@@ -111,12 +111,12 @@ int Main(const std::vector<std::string> &) {
     // =====================================================================
     //  1. Parsing JSON
     // =====================================================================
-    // JSONParse takes a string containing JSON and returns a JSONValue.
-    // A JSONValue can hold any JSON type: null, bool, int, double, string,
+    // JSON::Parse takes a string containing JSON and returns a JSON::Value.
+    // A JSON::Value can hold any JSON type: null, bool, int, double, string,
     // array, or object.  You access nested values with operator[] and
     // extract C++ types with Get<T>().
     std::cout << "=== 1. Parsing JSON ===" << std::endl;
-    auto data = JSONParse(R"({
+    auto data = Json.Parse(R"({
         "player": {
             "name": "Hero",
             "health": 100,
@@ -147,27 +147,27 @@ int Main(const std::vector<std::string> &) {
     // =====================================================================
     //  3. Schema Validation
     // =====================================================================
-    // A JSONSchema is a list of field descriptors.  Each entry specifies:
+    // A JSON::Schema is a list of field descriptors.  Each entry specifies:
     //   - field name
-    //   - expected type  (JSONType enum)
+    //   - expected type  (JSON::Type enum)
     //   - whether the field is required (default: true)
     //   - a default value for optional fields
     //
-    // JSONValidate checks an object against a schema and returns a new
+    // JSON::Validate checks an object against a schema and returns a new
     // object where every declared field is present (using defaults where
     // the original was missing).  If a required field is absent or a
-    // field has the wrong type, it throws a JSONError.
+    // field has the wrong type, it throws a JSON::Error.
     std::cout << "\n=== 3. Schema Validation ===" << std::endl;
-    JSONSchema schema = {
-        {"name",   {JSONType::String,  true}},             // required string
-        {"health", {JSONType::Integer, true}},             // required int
-        {"speed",  {JSONType::Integer, false, JSONValue(5)}},  // optional, default 5
-        {"armor",  {JSONType::Integer, false, JSONValue(0)}},  // optional, default 0
+    JSON::Schema schema = {
+        {"name",   {JSON::Type::String,  true}},             // required string
+        {"health", {JSON::Type::Integer, true}},             // required int
+        {"speed",  {JSON::Type::Integer, false, JSON::Value(5)}},  // optional, default 5
+        {"armor",  {JSON::Type::Integer, false, JSON::Value(0)}},  // optional, default 0
     };
 
     // The player object has name, health, speed but no armor.
     // After validation, "armor" will be filled in with its default (0).
-    auto validated = JSONValidate(data["player"], schema);
+    auto validated = Json.Validate(data["player"], schema);
     std::cout << "Armor (defaulted): " << validated["armor"].Get<int>() << std::endl;
     std::cout << "Speed (present):   " << validated["speed"].Get<int>() << std::endl;
 
@@ -177,8 +177,8 @@ int Main(const std::vector<std::string> &) {
     // Any struct that uses DefineStructMembers can be converted to and
     // from JSON automatically.
     //
-    //   JSONValue::FromStruct(obj)  -- C++ struct -> JSONValue
-    //   jsonVal.ToStruct<T>()       -- JSONValue  -> C++ struct
+    //   JSON::Value::FromStruct(obj)  -- C++ struct -> JSON::Value
+    //   jsonVal.ToStruct<T>()       -- JSON::Value  -> C++ struct
     //
     // Field names in JSON match the C++ member names exactly.
     std::cout << "\n=== 4. Struct Reflection ===" << std::endl;
@@ -187,8 +187,8 @@ int Main(const std::vector<std::string> &) {
     cfg.name = "Warrior";
     cfg.health = 200;
     cfg.speed = 12;
-    auto cfgJson = JSONValue::FromStruct(cfg);
-    std::cout << "Encoded: " << JSONEncode(cfgJson) << std::endl;
+    auto cfgJson = JSON::Value::FromStruct(cfg);
+    std::cout << "Encoded: " << Json.Encode(cfgJson) << std::endl;
 
     // Convert the "player" JSON object back into a PlayerConfig struct.
     auto decoded = data["player"].ToStruct<PlayerConfig>();
@@ -196,42 +196,42 @@ int Main(const std::vector<std::string> &) {
 
     // Works with any reflected struct, not just PlayerConfig:
     Vec2 pos{1.5f, 2.5f};
-    auto posJson = JSONValue::FromStruct(pos);
+    auto posJson = JSON::Value::FromStruct(pos);
     auto posBack = posJson.ToStruct<Vec2>();
     std::cout << "Vec2 roundtrip: (" << posBack.x << ", " << posBack.y << ")" << std::endl;
 
     // =====================================================================
     //  5. Pretty-print Encoding
     // =====================================================================
-    // JSONEncode converts a JSONValue back to a string.
-    //   JSONEncode(val)     -- compact, single-line output
-    //   JSONEncode(val, 2)  -- indented with 2 spaces per level
+    // JSONEncode converts a JSON::Value back to a string.
+    //   Json.Encode(val)     -- compact, single-line output
+    //   Json.Encode(val, 2)  -- indented with 2 spaces per level
     std::cout << "\n=== 5. Pretty-print Encoding ===" << std::endl;
-    JSONValue output(JSONObject{});
+    JSON::Value output(JSON::Object{});
     output.Set("title", "Game Save");
     output.Set("level", 42);
     output.Set("player", cfgJson);
 
     // Build an array by hand and attach it to the object:
-    JSONArray items;
-    items.push_back(JSONValue("sword"));
-    items.push_back(JSONValue("shield"));
-    output.Set("items", JSONValue(std::move(items)));
+    JSON::Array items;
+    items.push_back(JSON::Value("sword"));
+    items.push_back(JSON::Value("shield"));
+    output.Set("items", JSON::Value(std::move(items)));
 
-    std::cout << JSONEncode(output, 2) << std::endl;
+    std::cout << Json.Encode(output, 2) << std::endl;
 
     // =====================================================================
     //  6. Building JSON from Scratch
     // =====================================================================
     // You can also build a JSON object incrementally with Set().
-    // Calling Set on a null JSONValue automatically turns it into an
-    // object.  JSONArray{...} is a convenient initializer-list shortcut.
+    // Calling Set on a null JSON::Value automatically turns it into an
+    // object.  JSON::Array{...} is a convenient initializer-list shortcut.
     std::cout << "\n=== 6. Building JSON ===" << std::endl;
-    JSONValue built;
+    JSON::Value built;
     built.Set("id", 1);
     built.Set("active", true);
-    built.Set("tags", JSONArray{"fast", "strong"});
-    std::cout << JSONEncode(built) << std::endl;
+    built.Set("tags", JSON::Array{"fast", "strong"});
+    std::cout << Json.Encode(built) << std::endl;
 
     // =====================================================================
     //  7. Comment Support
@@ -242,7 +242,7 @@ int Main(const std::vector<std::string> &) {
     //   //  single-line comment
     //   /* multi-line comment */
     std::cout << "\n=== 7. Comment Support ===" << std::endl;
-    auto commented = JSONParse(R"(
+    auto commented = Json.Parse(R"(
         // Game configuration file
         {
             "title": "My Game",  // display title
@@ -260,44 +260,44 @@ int Main(const std::vector<std::string> &) {
     // =====================================================================
     // Schemas can describe complex, deeply nested structures:
     //
-    //   JSONSchemaField::Object({...})  -- a sub-object validated by its
+    //   JSON::SchemaField::Object({...})  -- a sub-object validated by its
     //                                      own schema
-    //   JSONSchemaField::Array(JSONSchema{...})
+    //   JSON::SchemaField::Array(JSON::Schema{...})
     //                                   -- an array whose every element
     //                                      is an object validated by the
     //                                      inner schema
-    //   JSONSchemaField::Array(JSONType::Integer)
+    //   JSON::SchemaField::Array(JSON::Type::Integer)
     //                                   -- a typed array where each
     //                                      element must be an integer
     //
     // Optional fields inside nested schemas get their defaults filled in
     // just like top-level fields.
     std::cout << "\n=== 8. Nested Schema Validation ===" << std::endl;
-    JSONSchema gameSchema = {
-        {"title", {JSONType::String}},
+    JSON::Schema gameSchema = {
+        {"title", {JSON::Type::String}},
 
         // A nested object.  Each key inside is validated individually.
         // "mana" is optional and defaults to 0 when absent.
-        {"player", JSONSchemaField::Object({
-            {"name",   {JSONType::String}},
-            {"health", {JSONType::Integer}},
-            {"mana",   {JSONType::Integer, false, JSONValue(0)}},
+        {"player", JSON::SchemaField::Object({
+            {"name",   {JSON::Type::String}},
+            {"health", {JSON::Type::Integer}},
+            {"mana",   {JSON::Type::Integer, false, JSON::Value(0)}},
         })},
 
         // An array of objects.  Every element in the array is validated
         // against the same inner schema.  "loot" defaults to "nothing".
-        {"enemies", JSONSchemaField::Array(JSONSchema{
-            {"name",   {JSONType::String}},
-            {"health", {JSONType::Integer}},
-            {"loot",   {JSONType::String, false, JSONValue("nothing")}},
+        {"enemies", JSON::SchemaField::Array(JSON::Schema{
+            {"name",   {JSON::Type::String}},
+            {"health", {JSON::Type::Integer}},
+            {"loot",   {JSON::Type::String, false, JSON::Value("nothing")}},
         })},
 
         // A plain typed array (each element must be an integer).
         // This field is optional; if missing it becomes null.
-        {"scores", JSONSchemaField::Array(JSONType::Integer, false)},
+        {"scores", JSON::SchemaField::Array(JSON::Type::Integer, false)},
     };
 
-    auto gameData = JSONParse(R"({
+    auto gameData = Json.Parse(R"({
         "title": "RPG Quest",
         "player": {"name": "Hero", "health": 100},
         "enemies": [
@@ -306,7 +306,7 @@ int Main(const std::vector<std::string> &) {
         ]
     })");
 
-    auto validated2 = JSONValidate(gameData, gameSchema);
+    auto validated2 = Json.Validate(gameData, gameSchema);
     std::cout << "Title:  " << validated2["title"].Get<std::string>() << std::endl;
 
     // "mana" was absent in the input -> filled with default 0
@@ -337,19 +337,19 @@ int Main(const std::vector<std::string> &) {
     // (X/Y, Width/Height, etc.) are present and numeric.  The keys are
     // case-insensitive (both "X" and "x" work, as do "Width" and "width").
     std::cout << "\n=== 9. Geometry Schema Types ===" << std::endl;
-    JSONSchema spriteSchema = {
-        {"name",     {JSONType::String}},
-        {"position", JSONSchemaField::PointField()},   // expects {X, Y}
-        {"size",     JSONSchemaField::SizeField()},    // expects {Width, Height}
+    JSON::Schema spriteSchema = {
+        {"name",     {JSON::Type::String}},
+        {"position", JSON::SchemaField::PointField()},   // expects {X, Y}
+        {"size",     JSON::SchemaField::SizeField()},    // expects {Width, Height}
     };
 
-    auto spriteData = JSONParse(R"({
+    auto spriteData = Json.Parse(R"({
         "name": "player_sprite",
         "position": {"X": 100, "Y": 200},
         "size": {"width": 64, "height": 64}
     })");
 
-    auto spriteResult = JSONValidate(spriteData, spriteSchema);
+    auto spriteResult = Json.Validate(spriteData, spriteSchema);
 
     // After validation you can use Get<> to convert directly to a
     // Gorgon geometry struct:
@@ -364,7 +364,7 @@ int Main(const std::vector<std::string> &) {
     // =====================================================================
     // When something goes wrong the library throws a JSONError.  Each
     // error carries:
-    //   - GetCode()  -- a typed enum (JSONErrorCode) saying *what* failed
+    //   - GetCode()  -- a typed enum (JSON::ErrorCode) saying *what* failed
     //   - GetField() -- the field name involved (empty if not applicable)
     //   - what()     -- a human-readable message string
     //
@@ -374,13 +374,13 @@ int Main(const std::vector<std::string> &) {
 
     // 10a. Missing required field
     try {
-        JSONSchema strictSchema = {
-            {"id",   {JSONType::Integer}},
-            {"name", {JSONType::String}},   // required, but input lacks it
+        JSON::Schema strictSchema = {
+            {"id",   {JSON::Type::Integer}},
+            {"name", {JSON::Type::String}},   // required, but input lacks it
         };
-        JSONValidate(JSONParse(R"({"id": 1})"), strictSchema);
+        Json.Validate(Json.Parse(R"({"id": 1})"), strictSchema);
     }
-    catch(const JSONError &e) {
+    catch(const JSON::Error &e) {
         std::cout << "Caught error code: " << e.GetCode();
         std::cout << ", field: \"" << e.GetField() << "\"" << std::endl;
         std::cout << "Message: " << e.what() << std::endl;
@@ -388,29 +388,29 @@ int Main(const std::vector<std::string> &) {
 
     // 10b. Nested validation failure (wrong type inside a sub-object)
     try {
-        JSONSchema nestedSchema = {
-            {"data", JSONSchemaField::Object({
-                {"value", {JSONType::Integer}},
+        JSON::Schema nestedSchema = {
+            {"data", JSON::SchemaField::Object({
+                {"value", {JSON::Type::Integer}},
             })},
         };
         // "value" should be an integer, but we pass a string:
-        JSONValidate(JSONParse(R"({"data": {"value": "wrong"}})"), nestedSchema);
+        Json.Validate(Json.Parse(R"({"data": {"value": "wrong"}})"), nestedSchema);
     }
-    catch(const JSONError &e) {
+    catch(const JSON::Error &e) {
         std::cout << "Nested error: " << e.what() << std::endl;
         std::cout << "Code is NestedValidation: "
-                  << (e.GetCode() == JSONErrorCode::NestedValidation ? "yes" : "no") << std::endl;
+                  << (e.GetCode() == JSON::ErrorCode::NestedValidation ? "yes" : "no") << std::endl;
     }
 
     // 10c. Resource-not-found error (bitmap import failure)
     try {
-        auto val = JSONParse(R"("file_that_does_not_exist.png")");
+        auto val = Json.Parse(R"("file_that_does_not_exist.png")");
         val.Get<Bitmap>();   // tries to Import -> file not found
     }
-    catch(const JSONError &e) {
+    catch(const JSON::Error &e) {
         std::cout << "Resource error: " << e.what() << std::endl;
         std::cout << "Code is ResourceNotFound: "
-                  << (e.GetCode() == JSONErrorCode::ResourceNotFound ? "yes" : "no") << std::endl;
+                  << (e.GetCode() == JSON::ErrorCode::ResourceNotFound ? "yes" : "no") << std::endl;
     }
 
     // =====================================================================
@@ -435,7 +435,7 @@ int Main(const std::vector<std::string> &) {
     // set (the default), also calls Bitmap::Prepare() so the image is
     // ready for GPU rendering.
     std::cout << "\n=== 12. Loading Bitmap from JSON ===" << std::endl;
-    auto bmpVal = JSONParse(R"("circle_red.png")");
+    auto bmpVal = Json.Parse(R"("circle_red.png")");
     auto loadedBmp = bmpVal.Get<Bitmap>();
     std::cout << "Loaded bitmap: " << loadedBmp.GetWidth() << "x"
               << loadedBmp.GetHeight() << std::endl;
@@ -447,7 +447,7 @@ int Main(const std::vector<std::string> &) {
     // BitmapAnimationProvider.  Each string is imported as one frame of
     // the animation.  Frames use the default duration (42 ms ≈ 24 fps).
     std::cout << "\n=== 13. Loading BitmapAnimation from JSON (string array) ===" << std::endl;
-    auto animVal = JSONParse(R"(["circle_red.png", "circle_green.png", "circle_blue.png"])");
+    auto animVal = Json.Parse(R"(["circle_red.png", "circle_green.png", "circle_blue.png"])");
     auto animProv = animVal.Get<BitmapAnimationProvider>();
     std::cout << "Animation frames: " << animProv.GetCount()
               << "  duration: " << animProv.GetDuration() << "ms" << std::endl;
@@ -461,7 +461,7 @@ int Main(const std::vector<std::string> &) {
     // frame.  You can freely mix string and object entries in the same
     // array.
     std::cout << "\n=== 14. Loading BitmapAnimation from JSON (object array) ===" << std::endl;
-    auto animVal2 = JSONParse(R"([
+    auto animVal2 = Json.Parse(R"([
         {"file": "circle_red.png",   "duration": 200},
         {"file": "circle_green.png", "duration": 500},
         {"file": "circle_blue.png",  "duration": 100}
@@ -471,7 +471,7 @@ int Main(const std::vector<std::string> &) {
               << "  total duration: " << animProv2.GetDuration() << "ms" << std::endl;
 
     // Mixed format: strings and objects in the same array
-    auto animVal3 = JSONParse(R"([
+    auto animVal3 = Json.Parse(R"([
         "circle_red.png",
         {"file": "circle_green.png", "duration": 300}
     ])");
@@ -490,13 +490,13 @@ int Main(const std::vector<std::string> &) {
     std::cout << "\n=== 15. Loading AnimationStorage ===" << std::endl;
 
     // From a single image path:
-    auto storVal1 = JSONParse(R"("circle_red.png")");
+    auto storVal1 = Json.Parse(R"("circle_red.png")");
     auto storage1 = storVal1.Get<RectangularAnimationStorage>();
     std::cout << "Storage (single): has animation = "
               << storage1.HasAnimation() << std::endl;
 
     // From an array:
-    auto storVal2 = JSONParse(R"(["circle_red.png", "circle_green.png"])");
+    auto storVal2 = Json.Parse(R"(["circle_red.png", "circle_green.png"])");
     auto storage2 = storVal2.Get<RectangularAnimationStorage>();
     std::cout << "Storage (array):  has animation = "
               << storage2.HasAnimation() << std::endl;
@@ -514,14 +514,14 @@ int Main(const std::vector<std::string> &) {
     // These types only validate the *shape* of the JSON; the actual file
     // import happens when you call Get<Bitmap>(), etc.
     std::cout << "\n=== 16. Bitmap Schema Validation ===" << std::endl;
-    JSONSchema assetSchema = {
-        {"name",    {JSONType::String}},
-        {"sprite",  JSONSchemaField::BitmapField()},
-        {"walk",    JSONSchemaField::BitmapAnimationField()},
-        {"icon",    JSONSchemaField::AnimationStorageField(false)},  // optional
+    JSON::Schema assetSchema = {
+        {"name",    {JSON::Type::String}},
+        {"sprite",  JSON::SchemaField::BitmapField()},
+        {"walk",    JSON::SchemaField::BitmapAnimationField()},
+        {"icon",    JSON::SchemaField::AnimationStorageField(false)},  // optional
     };
 
-    auto assetData = JSONParse(R"({
+    auto assetData = Json.Parse(R"({
         "name": "Player",
         "sprite": "circle_red.png",
         "walk": [
@@ -531,7 +531,7 @@ int Main(const std::vector<std::string> &) {
         ]
     })");
 
-    auto assetResult = JSONValidate(assetData, assetSchema);
+    auto assetResult = Json.Validate(assetData, assetSchema);
     std::cout << "Validated asset name: " << assetResult["name"].Get<std::string>() << std::endl;
 
     // Now actually load the validated sprite bitmap:

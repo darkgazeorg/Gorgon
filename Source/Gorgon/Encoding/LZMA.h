@@ -352,4 +352,4 @@ namespace Gorgon :: Encoding {
 	/// A default constructed LZMA object
 	extern LZMA Lzma;
 
-	}
+}

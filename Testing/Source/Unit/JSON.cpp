@@ -28,66 +28,66 @@ using namespace Gorgon::Encoding;
 // =====================================================================
 
 TEST_CASE("Parse null", "[JSON]") {
-    auto v = JSONParse("null");
+    auto v = Json.Parse("null");
     REQUIRE(v.IsNull());
-    REQUIRE(v.GetType() == JSONType::Null);
+    REQUIRE(v.GetType() == JSON::Type::Null);
 }
 
 TEST_CASE("Parse booleans", "[JSON]") {
-    REQUIRE(JSONParse("true").Get<bool>() == true);
-    REQUIRE(JSONParse("false").Get<bool>() == false);
+    REQUIRE(Json.Parse("true").Get<bool>() == true);
+    REQUIRE(Json.Parse("false").Get<bool>() == false);
 }
 
 TEST_CASE("Parse integers", "[JSON]") {
-    REQUIRE(JSONParse("0").Get<int>() == 0);
-    REQUIRE(JSONParse("42").Get<int>() == 42);
-    REQUIRE(JSONParse("-7").Get<int>() == -7);
-    REQUIRE(JSONParse("2147483647").Get<int>() == 2147483647);
+    REQUIRE(Json.Parse("0").Get<int>() == 0);
+    REQUIRE(Json.Parse("42").Get<int>() == 42);
+    REQUIRE(Json.Parse("-7").Get<int>() == -7);
+    REQUIRE(Json.Parse("2147483647").Get<int>() == 2147483647);
 }
 
 TEST_CASE("Parse numbers", "[JSON]") {
-    REQUIRE(JSONParse("3.14").Get<double>() == Catch::Approx(3.14));
-    REQUIRE(JSONParse("-0.5").Get<double>() == Catch::Approx(-0.5));
-    REQUIRE(JSONParse("1e10").Get<double>() == Catch::Approx(1e10));
-    REQUIRE(JSONParse("2.5E-3").Get<double>() == Catch::Approx(2.5e-3));
-    REQUIRE(JSONParse("1E+2").Get<double>() == Catch::Approx(100.0));
+    REQUIRE(Json.Parse("3.14").Get<double>() == Catch::Approx(3.14));
+    REQUIRE(Json.Parse("-0.5").Get<double>() == Catch::Approx(-0.5));
+    REQUIRE(Json.Parse("1e10").Get<double>() == Catch::Approx(1e10));
+    REQUIRE(Json.Parse("2.5E-3").Get<double>() == Catch::Approx(2.5e-3));
+    REQUIRE(Json.Parse("1E+2").Get<double>() == Catch::Approx(100.0));
 }
 
 TEST_CASE("Integer promotion to double", "[JSON]") {
-    auto v = JSONParse("42");
+    auto v = Json.Parse("42");
     REQUIRE(v.Get<double>() == Catch::Approx(42.0));
 }
 
 TEST_CASE("Large integers become doubles", "[JSON]") {
-    auto v = JSONParse("9999999999999");
+    auto v = Json.Parse("9999999999999");
     REQUIRE(v.IsNumber());
     REQUIRE(v.Get<double>() == Catch::Approx(9999999999999.0));
 }
 
 TEST_CASE("Parse strings", "[JSON]") {
-    REQUIRE(JSONParse(R"("hello")").Get<std::string>() == "hello");
-    REQUIRE(JSONParse(R"("")").Get<std::string>() == "");
-    REQUIRE(JSONParse(R"("a b c")").Get<std::string>() == "a b c");
+    REQUIRE(Json.Parse(R"("hello")").Get<std::string>() == "hello");
+    REQUIRE(Json.Parse(R"("")").Get<std::string>() == "");
+    REQUIRE(Json.Parse(R"("a b c")").Get<std::string>() == "a b c");
 }
 
 TEST_CASE("Parse string escapes", "[JSON]") {
-    REQUIRE(JSONParse(R"("a\\\"b")").Get<std::string>() == "a\"b");
-    REQUIRE(JSONParse(R"("a\\b")").Get<std::string>() == "a\\b");
-    REQUIRE(JSONParse(R"("a\/b")").Get<std::string>() == "a/b");
-    REQUIRE(JSONParse(R"("a\nb")").Get<std::string>() == "a\nb");
-    REQUIRE(JSONParse(R"("a\tb")").Get<std::string>() == "a\tb");
-    REQUIRE(JSONParse(R"("a\rb")").Get<std::string>() == "a\rb");
-    REQUIRE(JSONParse(R"("a\bb")").Get<std::string>() == "a\bb");
-    REQUIRE(JSONParse(R"("a\fb")").Get<std::string>() == "a\fb");
+    REQUIRE(Json.Parse(R"("a\"b")").Get<std::string>() == "a\"b");
+    REQUIRE(Json.Parse(R"("a\\b")").Get<std::string>() == "a\\b");
+    REQUIRE(Json.Parse(R"("a\/b")").Get<std::string>() == "a/b");
+    REQUIRE(Json.Parse(R"("a\nb")").Get<std::string>() == "a\nb");
+    REQUIRE(Json.Parse(R"("a\tb")").Get<std::string>() == "a\tb");
+    REQUIRE(Json.Parse(R"("a\rb")").Get<std::string>() == "a\rb");
+    REQUIRE(Json.Parse(R"("a\bb")").Get<std::string>() == "a\bb");
+    REQUIRE(Json.Parse(R"("a\fb")").Get<std::string>() == "a\fb");
 }
 
 TEST_CASE("Parse unicode escapes", "[JSON]") {
     // \u0041 = 'A'
-    REQUIRE(JSONParse(R"("\u0041")").Get<std::string>() == "A");
+    REQUIRE(Json.Parse(R"("\u0041")").Get<std::string>() == "A");
     // \u00E9 = 'é' (2-byte UTF-8)
-    REQUIRE(JSONParse(R"("\u00e9")").Get<std::string>() == "\xC3\xA9");
+    REQUIRE(Json.Parse(R"("\u00e9")").Get<std::string>() == "\xC3\xA9");
     // Surrogate pair: U+1F600 (grinning face)
-    REQUIRE(JSONParse(R"("\uD83D\uDE00")").Get<std::string>() == "\xF0\x9F\x98\x80");
+    REQUIRE(Json.Parse(R"("\uD83D\uDE00")").Get<std::string>() == "\xF0\x9F\x98\x80");
 }
 
 // =====================================================================
@@ -95,13 +95,13 @@ TEST_CASE("Parse unicode escapes", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Parse empty array", "[JSON]") {
-    auto v = JSONParse("[]");
+    auto v = Json.Parse("[]");
     REQUIRE(v.IsArray());
     REQUIRE(v.GetCount() == 0);
 }
 
 TEST_CASE("Parse array", "[JSON]") {
-    auto v = JSONParse("[1, 2, 3]");
+    auto v = Json.Parse("[1, 2, 3]");
     REQUIRE(v.IsArray());
     REQUIRE(v.GetCount() == 3);
     REQUIRE(v[0].Get<int>() == 1);
@@ -110,33 +110,33 @@ TEST_CASE("Parse array", "[JSON]") {
 }
 
 TEST_CASE("Parse nested array", "[JSON]") {
-    auto v = JSONParse("[[1, 2], [3, 4]]");
+    auto v = Json.Parse("[[1, 2], [3, 4]]");
     REQUIRE(v[0][0].Get<int>() == 1);
     REQUIRE(v[1][1].Get<int>() == 4);
 }
 
 TEST_CASE("Parse empty object", "[JSON]") {
-    auto v = JSONParse("{}");
+    auto v = Json.Parse("{}");
     REQUIRE(v.IsObject());
     REQUIRE(v.GetCount() == 0);
 }
 
 TEST_CASE("Parse object", "[JSON]") {
-    auto v = JSONParse(R"({"x": 10, "y": 20})");
+    auto v = Json.Parse(R"({"x": 10, "y": 20})");
     REQUIRE(v.IsObject());
     REQUIRE(v["x"].Get<int>() == 10);
     REQUIRE(v["y"].Get<int>() == 20);
 }
 
 TEST_CASE("Parse nested object", "[JSON]") {
-    auto v = JSONParse(R"({"pos": {"x": 1, "y": 2}, "name": "test"})");
+    auto v = Json.Parse(R"({"pos": {"x": 1, "y": 2}, "name": "test"})");
     REQUIRE(v["pos"]["x"].Get<int>() == 1);
     REQUIRE(v["pos"]["y"].Get<int>() == 2);
     REQUIRE(v["name"].Get<std::string>() == "test");
 }
 
 TEST_CASE("Parse mixed types", "[JSON]") {
-    auto v = JSONParse(R"([1, "two", true, null, 3.14])");
+    auto v = Json.Parse(R"([1, "two", true, null, 3.14])");
     REQUIRE(v[0].Get<int>() == 1);
     REQUIRE(v[1].Get<std::string>() == "two");
     REQUIRE(v[2].Get<bool>() == true);
@@ -149,14 +149,14 @@ TEST_CASE("Parse mixed types", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Parse errors", "[JSON]") {
-    REQUIRE_THROWS_AS(JSONParse(""), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("{"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("[1,]"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("{\"a\":}"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("nul"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("tru"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("01"), JSONError);
-    REQUIRE_THROWS_AS(JSONParse("1 2"), JSONError);
+    REQUIRE_THROWS_AS(Json.Parse(""), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("{"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("[1,]"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("{\"a\":}"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("nul"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("tru"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("01"), JSON::Error);
+    REQUIRE_THROWS_AS(Json.Parse("1 2"), JSON::Error);
 }
 
 // =====================================================================
@@ -164,51 +164,51 @@ TEST_CASE("Parse errors", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Encode null", "[JSON]") {
-    REQUIRE(JSONEncode(JSONValue()) == "null");
+    REQUIRE(Json.Encode(JSON::Value()) == "null");
 }
 
 TEST_CASE("Encode booleans", "[JSON]") {
-    REQUIRE(JSONEncode(JSONValue(true)) == "true");
-    REQUIRE(JSONEncode(JSONValue(false)) == "false");
+    REQUIRE(Json.Encode(JSON::Value(true)) == "true");
+    REQUIRE(Json.Encode(JSON::Value(false)) == "false");
 }
 
 TEST_CASE("Encode integers", "[JSON]") {
-    REQUIRE(JSONEncode(JSONValue(42)) == "42");
-    REQUIRE(JSONEncode(JSONValue(-7)) == "-7");
-    REQUIRE(JSONEncode(JSONValue(0)) == "0");
+    REQUIRE(Json.Encode(JSON::Value(42)) == "42");
+    REQUIRE(Json.Encode(JSON::Value(-7)) == "-7");
+    REQUIRE(Json.Encode(JSON::Value(0)) == "0");
 }
 
 TEST_CASE("Encode strings", "[JSON]") {
-    REQUIRE(JSONEncode(JSONValue("hello")) == "\"hello\"");
-    REQUIRE(JSONEncode(JSONValue("a\"b")) == "\"a\\\"b\"");
-    REQUIRE(JSONEncode(JSONValue("a\nb")) == "\"a\\nb\"");
-    REQUIRE(JSONEncode(JSONValue("a\tb")) == "\"a\\tb\"");
+    REQUIRE(Json.Encode(JSON::Value("hello")) == "\"hello\"");
+    REQUIRE(Json.Encode(JSON::Value("a\"b")) == "\"a\\\"b\"");
+    REQUIRE(Json.Encode(JSON::Value("a\nb")) == "\"a\\nb\"");
+    REQUIRE(Json.Encode(JSON::Value("a\tb")) == "\"a\\tb\"");
 }
 
 TEST_CASE("Encode arrays", "[JSON]") {
-    JSONArray arr = {JSONValue(1), JSONValue(2), JSONValue(3)};
-    REQUIRE(JSONEncode(JSONValue(arr)) == "[1,2,3]");
-    REQUIRE(JSONEncode(JSONValue(JSONArray{})) == "[]");
+    JSON::Array arr = {JSON::Value(1), JSON::Value(2), JSON::Value(3)};
+    REQUIRE(Json.Encode(JSON::Value(arr)) == "[1,2,3]");
+    REQUIRE(Json.Encode(JSON::Value(JSON::Array{})) == "[]");
 }
 
 TEST_CASE("Encode objects", "[JSON]") {
-    REQUIRE(JSONEncode(JSONValue(JSONObject{})) == "{}");
+    REQUIRE(Json.Encode(JSON::Value(JSON::Object{})) == "{}");
     
-    JSONObject obj;
-    obj["a"] = JSONValue(1);
-    REQUIRE(JSONEncode(JSONValue(obj)) == "{\"a\":1}");
+    JSON::Object obj;
+    obj["a"] = JSON::Value(1);
+    REQUIRE(Json.Encode(JSON::Value(obj)) == "{\"a\":1}");
 }
 
 TEST_CASE("Encode pretty print", "[JSON]") {
-    JSONObject obj;
-    obj["x"] = JSONValue(10);
-    obj["y"] = JSONValue(20);
-    auto encoded = JSONEncode(JSONValue(obj), 2);
+    JSON::Object obj;
+    obj["x"] = JSON::Value(10);
+    obj["y"] = JSON::Value(20);
+    auto encoded = Json.Encode(JSON::Value(obj), 2);
     // Should contain newlines and indentation
     REQUIRE(encoded.find('\n') != std::string::npos);
     REQUIRE(encoded.find("  ") != std::string::npos);
     // Should roundtrip
-    auto reparsed = JSONParse(encoded);
+    auto reparsed = Json.Parse(encoded);
     REQUIRE(reparsed["x"].Get<int>() == 10);
     REQUIRE(reparsed["y"].Get<int>() == 20);
 }
@@ -219,9 +219,9 @@ TEST_CASE("Encode pretty print", "[JSON]") {
 
 TEST_CASE("Round-trip complex JSON", "[JSON]") {
     std::string input = R"({"array":[1,2.5,true,null,"text"],"nested":{"key":"value"},"empty":{}})";
-    auto parsed = JSONParse(input);
-    auto encoded = JSONEncode(parsed);
-    auto reparsed = JSONParse(encoded);
+    auto parsed = Json.Parse(input);
+    auto encoded = Json.Encode(parsed);
+    auto reparsed = Json.Parse(encoded);
     REQUIRE(parsed == reparsed);
 }
 
@@ -230,21 +230,21 @@ TEST_CASE("Round-trip complex JSON", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Value construction", "[JSON]") {
-    JSONValue v1;
+    JSON::Value v1;
     REQUIRE(v1.IsNull());
 
-    JSONValue v2(42);
+    JSON::Value v2(42);
     REQUIRE(v2.IsInteger());
 
-    JSONValue v3("hello");
+    JSON::Value v3("hello");
     REQUIRE(v3.IsString());
 
-    JSONValue v4(true);
+    JSON::Value v4(true);
     REQUIRE(v4.IsBool());
 }
 
 TEST_CASE("Object mutation", "[JSON]") {
-    JSONValue obj(JSONObject{});
+    JSON::Value obj(JSON::Object{});
     obj.Set("x", 10);
     obj.Set("y", 20);
     REQUIRE(obj["x"].Get<int>() == 10);
@@ -255,7 +255,7 @@ TEST_CASE("Object mutation", "[JSON]") {
 }
 
 TEST_CASE("Array mutation", "[JSON]") {
-    JSONValue arr(JSONArray{});
+    JSON::Value arr(JSON::Array{});
     arr.Append(1);
     arr.Append(2);
     arr.Append(3);
@@ -267,20 +267,20 @@ TEST_CASE("Array mutation", "[JSON]") {
 }
 
 TEST_CASE("Null auto-promotion", "[JSON]") {
-    JSONValue v;
+    JSON::Value v;
     REQUIRE(v.IsNull());
     v.Set("key", 42);
     REQUIRE(v.IsObject());
 
-    JSONValue v2;
+    JSON::Value v2;
     v2.Append(1);
     REQUIRE(v2.IsArray());
 }
 
 TEST_CASE("GetOr returns default", "[JSON]") {
-    auto v = JSONParse(R"({"x": 10})");
-    REQUIRE(v.GetOr("x", JSONValue(0)).Get<int>() == 10);
-    REQUIRE(v.GetOr("missing", JSONValue(99)).Get<int>() == 99);
+    auto v = Json.Parse(R"({"x": 10})");
+    REQUIRE(v.GetOr("x", JSON::Value(0)).Get<int>() == 10);
+    REQUIRE(v.GetOr("missing", JSON::Value(99)).Get<int>() == 99);
 }
 
 // =====================================================================
@@ -288,7 +288,7 @@ TEST_CASE("GetOr returns default", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("GetMultiple tuple extraction", "[JSON]") {
-    auto v = JSONParse(R"({"x": 10, "y": 3.14, "name": "test"})");
+    auto v = Json.Parse(R"({"x": 10, "y": 3.14, "name": "test"})");
     auto [x, y, name] = v.GetMultiple<int, double, std::string>("x", "y", "name");
     REQUIRE(x == 10);
     REQUIRE(y == Catch::Approx(3.14));
@@ -300,14 +300,14 @@ TEST_CASE("GetMultiple tuple extraction", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Type errors", "[JSON]") {
-    auto v = JSONParse("42");
-    REQUIRE_THROWS_AS(v.Get<std::string>(), JSONError);
-    REQUIRE_THROWS_AS(v.Get<bool>(), JSONError);
+    auto v = Json.Parse("42");
+    REQUIRE_THROWS_AS(v.Get<std::string>(), JSON::Error);
+    REQUIRE_THROWS_AS(v.Get<bool>(), JSON::Error);
 
-    auto s = JSONParse(R"("hello")");
-    REQUIRE_THROWS_AS(s.Get<int>(), JSONError);
-    REQUIRE_THROWS_AS(s["key"], JSONError);
-    REQUIRE_THROWS_AS(s[0], JSONError);
+    auto s = Json.Parse(R"("hello")");
+    REQUIRE_THROWS_AS(s.Get<int>(), JSON::Error);
+    REQUIRE_THROWS_AS(s["key"], JSON::Error);
+    REQUIRE_THROWS_AS(s[0], JSON::Error);
 }
 
 // =====================================================================
@@ -315,41 +315,41 @@ TEST_CASE("Type errors", "[JSON]") {
 // =====================================================================
 
 TEST_CASE("Schema validation - basic", "[JSON]") {
-    JSONSchema schema = {
-        {"x",    {JSONType::Integer, true}},
-        {"y",    {JSONType::Integer, true}},
-        {"name", {JSONType::String,  false, JSONValue("unnamed")}},
+    JSON::Schema schema = {
+        {"x",    {JSON::Type::Integer, true}},
+        {"y",    {JSON::Type::Integer, true}},
+        {"name", {JSON::Type::String,  false, JSON::Value("unnamed")}},
     };
 
-    auto input = JSONParse(R"({"x": 10, "y": 20})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"x": 10, "y": 20})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["x"].Get<int>() == 10);
     REQUIRE(result["y"].Get<int>() == 20);
     REQUIRE(result["name"].Get<std::string>() == "unnamed");
 }
 
 TEST_CASE("Schema validation - missing required", "[JSON]") {
-    JSONSchema schema = {
-        {"x", {JSONType::Integer, true}},
+    JSON::Schema schema = {
+        {"x", {JSON::Type::Integer, true}},
     };
-    auto input = JSONParse(R"({})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema validation - wrong type", "[JSON]") {
-    JSONSchema schema = {
-        {"x", {JSONType::Integer, true}},
+    JSON::Schema schema = {
+        {"x", {JSON::Type::Integer, true}},
     };
-    auto input = JSONParse(R"({"x": "not a number"})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"x": "not a number"})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema validation - number accepts int", "[JSON]") {
-    JSONSchema schema = {
-        {"val", {JSONType::Number, true}},
+    JSON::Schema schema = {
+        {"val", {JSON::Type::Number, true}},
     };
-    auto input = JSONParse(R"({"val": 42})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"val": 42})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["val"].Get<int>() == 42);
 }
 
@@ -377,7 +377,7 @@ TEST_CASE("FromStruct and ToStruct roundtrip", "[JSON]") {
     pt.x = 1.5f;
     pt.y = 2.5f;
 
-    auto json = JSONValue::FromStruct(pt);
+    auto json = JSON::Value::FromStruct(pt);
     REQUIRE(json.IsObject());
     REQUIRE(json["x"].Get<double>() == Catch::Approx(1.5));
     REQUIRE(json["y"].Get<double>() == Catch::Approx(2.5));
@@ -393,9 +393,9 @@ TEST_CASE("Struct with string fields", "[JSON]") {
     cfg.height = 1080;
     cfg.title = "My App";
 
-    auto json = JSONValue::FromStruct(cfg);
-    auto encoded = JSONEncode(json);
-    auto reparsed = JSONParse(encoded);
+    auto json = JSON::Value::FromStruct(cfg);
+    auto encoded = Json.Encode(json);
+    auto reparsed = Json.Parse(encoded);
     auto decoded = reparsed.ToStruct<TestConfig>();
 
     REQUIRE(decoded.width == 1920);
@@ -404,14 +404,14 @@ TEST_CASE("Struct with string fields", "[JSON]") {
 }
 
 TEST_CASE("ToStruct from parsed JSON", "[JSON]") {
-    auto json = JSONParse(R"({"x": 3.0, "y": 4.0})");
+    auto json = Json.Parse(R"({"x": 3.0, "y": 4.0})");
     auto pt = json.ToStruct<TestPoint>();
     REQUIRE(pt.x == Catch::Approx(3.0f));
     REQUIRE(pt.y == Catch::Approx(4.0f));
 }
 
 TEST_CASE("ToStruct ignores extra fields", "[JSON]") {
-    auto json = JSONParse(R"({"x": 1.0, "y": 2.0, "z": 3.0})");
+    auto json = Json.Parse(R"({"x": 1.0, "y": 2.0, "z": 3.0})");
     auto pt = json.ToStruct<TestPoint>();
     REQUIRE(pt.x == Catch::Approx(1.0f));
     REQUIRE(pt.y == Catch::Approx(2.0f));
@@ -419,7 +419,7 @@ TEST_CASE("ToStruct ignores extra fields", "[JSON]") {
 
 TEST_CASE("ostream operator", "[JSON]") {
     std::ostringstream oss;
-    oss << JSONValue(42);
+    oss << JSON::Value(42);
     REQUIRE(oss.str() == "42");
 }
 
@@ -431,7 +431,7 @@ using namespace Gorgon::Geometry;
 
 TEST_CASE("Geometry Point encode/decode", "[JSON][Geometry]") {
     Point p{3, 7};
-    auto json = ToJSONValue(p);
+    auto json = ToValue(p);
     REQUIRE(json["X"].Get<int>() == 3);
     REQUIRE(json["Y"].Get<int>() == 7);
 
@@ -442,7 +442,7 @@ TEST_CASE("Geometry Point encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Pointf encode/decode", "[JSON][Geometry]") {
     Pointf p{1.5f, 2.5f};
-    auto json = ToJSONValue(p);
+    auto json = ToValue(p);
     // float stored as double in JSON; value precise enough
     REQUIRE(json["X"].Get<double>() == Catch::Approx(1.5));
     REQUIRE(json["Y"].Get<double>() == Catch::Approx(2.5));
@@ -454,7 +454,7 @@ TEST_CASE("Geometry Pointf encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Pointf from integer JSON values", "[JSON][Geometry]") {
     // Duck-typing: integer fields converted to float without warning
-    auto json = JSONParse(R"({"X": 10, "Y": 20})");
+    auto json = Json.Parse(R"({"X": 10, "Y": 20})");
     auto p = json.Get<Pointf>();
     REQUIRE(p.X == Catch::Approx(10.0f));
     REQUIRE(p.Y == Catch::Approx(20.0f));
@@ -462,7 +462,7 @@ TEST_CASE("Geometry Pointf from integer JSON values", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Size encode/decode", "[JSON][Geometry]") {
     Size s{640, 480};
-    auto json = ToJSONValue(s);
+    auto json = ToValue(s);
     REQUIRE(json["Width"].Get<int>() == 640);
     REQUIRE(json["Height"].Get<int>() == 480);
 
@@ -473,7 +473,7 @@ TEST_CASE("Geometry Size encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Sizef encode/decode", "[JSON][Geometry]") {
     Sizef s{1.0f, 0.5f};
-    auto json = ToJSONValue(s);
+    auto json = ToValue(s);
     auto back = json.Get<Sizef>();
     REQUIRE(back.Width  == Catch::Approx(1.0f));
     REQUIRE(back.Height == Catch::Approx(0.5f));
@@ -481,7 +481,7 @@ TEST_CASE("Geometry Sizef encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Rectangle encode/decode", "[JSON][Geometry]") {
     Rectangle r{10, 20, 100, 200};
-    auto json = ToJSONValue(r);
+    auto json = ToValue(r);
     REQUIRE(json["X"].Get<int>() == 10);
     REQUIRE(json["Y"].Get<int>() == 20);
     REQUIRE(json["Width"].Get<int>() == 100);
@@ -496,7 +496,7 @@ TEST_CASE("Geometry Rectangle encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Rectanglef encode/decode", "[JSON][Geometry]") {
     Rectanglef r{0.1f, 0.2f, 0.8f, 0.6f};
-    auto json = ToJSONValue(r);
+    auto json = ToValue(r);
     auto back = json.Get<Rectanglef>();
     REQUIRE(back.X      == Catch::Approx(0.1f));
     REQUIRE(back.Y      == Catch::Approx(0.2f));
@@ -506,7 +506,7 @@ TEST_CASE("Geometry Rectanglef encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Bounds encode/decode", "[JSON][Geometry]") {
     Bounds b{0, 0, 100, 50};
-    auto json = ToJSONValue(b);
+    auto json = ToValue(b);
     REQUIRE(json["Left"].Get<int>()   == 0);
     REQUIRE(json["Top"].Get<int>()    == 0);
     REQUIRE(json["Right"].Get<int>()  == 100);
@@ -521,7 +521,7 @@ TEST_CASE("Geometry Bounds encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Boundsf encode/decode", "[JSON][Geometry]") {
     Boundsf b{0.1f, 0.2f, 0.9f, 0.8f};
-    auto json = ToJSONValue(b);
+    auto json = ToValue(b);
     auto back = json.Get<Boundsf>();
     REQUIRE(back.Left   == Catch::Approx(0.1f));
     REQUIRE(back.Top    == Catch::Approx(0.2f));
@@ -531,7 +531,7 @@ TEST_CASE("Geometry Boundsf encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Margin encode/decode", "[JSON][Geometry]") {
     Margin m{5, 10, 5, 10};
-    auto json = ToJSONValue(m);
+    auto json = ToValue(m);
     REQUIRE(json["Left"].Get<int>()   == 5);
     REQUIRE(json["Top"].Get<int>()    == 10);
     REQUIRE(json["Right"].Get<int>()  == 5);
@@ -546,7 +546,7 @@ TEST_CASE("Geometry Margin encode/decode", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry Marginf encode/decode", "[JSON][Geometry]") {
     Marginf m{0.1f, 0.2f, 0.1f, 0.2f};
-    auto json = ToJSONValue(m);
+    auto json = ToValue(m);
     auto back = json.Get<Marginf>();
     REQUIRE(back.Left   == Catch::Approx(0.1f));
     REQUIRE(back.Top    == Catch::Approx(0.2f));
@@ -565,7 +565,7 @@ TEST_CASE("Geometry: struct with geometry fields roundtrips", "[JSON][Geometry]"
     s.position = {10.0f, 20.0f};
     s.size     = {64.0f, 64.0f};
 
-    auto json = JSONValue::FromStruct(s);
+    auto json = JSON::Value::FromStruct(s);
     REQUIRE(json["position"]["X"].Get<double>() == Catch::Approx(10.0));
     REQUIRE(json["size"]["Width"].Get<double>()  == Catch::Approx(64.0));
 
@@ -577,30 +577,30 @@ TEST_CASE("Geometry: struct with geometry fields roundtrips", "[JSON][Geometry]"
 }
 
 TEST_CASE("Geometry: error on missing field", "[JSON][Geometry]") {
-    auto json = JSONParse(R"({"X": 1})");
-    REQUIRE_THROWS_AS(json.Get<Point>(), JSONError);   // missing Y
-    REQUIRE_THROWS_AS(json.Get<Size>(), JSONError);    // missing Width/Height
+    auto json = Json.Parse(R"({"X": 1})");
+    REQUIRE_THROWS_AS(json.Get<Point>(), JSON::Error);   // missing Y
+    REQUIRE_THROWS_AS(json.Get<Size>(), JSON::Error);    // missing Width/Height
 }
 
 TEST_CASE("Geometry: error on non-object JSON", "[JSON][Geometry]") {
-    REQUIRE_THROWS_AS(JSONValue(42).Get<Point>(), JSONError);
-    REQUIRE_THROWS_AS(JSONValue("pos").Get<Pointf>(), JSONError);
+    REQUIRE_THROWS_AS(JSON::Value(42).Get<Point>(), JSON::Error);
+    REQUIRE_THROWS_AS(JSON::Value("pos").Get<Pointf>(), JSON::Error);
 }
 
 TEST_CASE("Geometry: lowercase field names accepted", "[JSON][Geometry]") {
     // Objects may use all-lowercase keys instead of upper-case names
-    auto pjson = JSONParse(R"({"x":3,"y":4})");
+    auto pjson = Json.Parse(R"({"x":3,"y":4})");
     auto p = pjson.Get<Point>();
     REQUIRE(p.X == 3);
     REQUIRE(p.Y == 4);
 
-    auto sjson = JSONParse(R"({"width":10,"height":20})");
+    auto sjson = Json.Parse(R"({"width":10,"height":20})");
     auto s = sjson.Get<Size>();
     REQUIRE(s.Width == 10);
     REQUIRE(s.Height == 20);
 
     // also ensure rectangle works when all fields are lowercase
-    auto rjson = JSONParse(R"({"x":1,"y":2,"width":5,"height":6})");
+    auto rjson = Json.Parse(R"({"x":1,"y":2,"width":5,"height":6})");
     auto r = rjson.Get<Rectangle>();
     REQUIRE(r.X == 1);
     REQUIRE(r.Y == 2);
@@ -610,11 +610,11 @@ TEST_CASE("Geometry: lowercase field names accepted", "[JSON][Geometry]") {
 
 TEST_CASE("Geometry: random-case field names rejected", "[JSON][Geometry]") {
     // only exact lowercase is supported; other irregular casing should fail
-    auto j1 = JSONParse(R"({"wiDTH":100,"height":200})");
-    REQUIRE_THROWS_AS(j1.Get<Size>(), JSONError);
+    auto j1 = Json.Parse(R"({"wiDTH":100,"height":200})");
+    REQUIRE_THROWS_AS(j1.Get<Size>(), JSON::Error);
 
-    auto j2 = JSONParse(R"({"X":1,"y":2,"HeIgHt":3})");
-    REQUIRE_THROWS_AS(j2.Get<Rectangle>(), JSONError);
+    auto j2 = Json.Parse(R"({"X":1,"y":2,"HeIgHt":3})");
+    REQUIRE_THROWS_AS(j2.Get<Rectangle>(), JSON::Error);
 }
 
 // =====================================================================
@@ -626,7 +626,7 @@ TEST_CASE("Geometry: int-to-float conversion logs nothing", "[JSON][Geometry][Lo
     Log.InitializeStream(oss);
 
     // Integer fields requested as float geometry type – no warning expected
-    auto json = JSONParse(R"({"X": 3, "Y": 4})");
+    auto json = Json.Parse(R"({"X": 3, "Y": 4})");
     auto p = json.Get<Pointf>();
 
     Log.CleanUp();
@@ -641,7 +641,7 @@ TEST_CASE("Geometry: double-to-double logs nothing", "[JSON][Geometry][Logging]"
     Log.InitializeStream(oss);
 
     // Double fields requested as float type – no warning
-    auto json = JSONParse(R"({"X": 1.5, "Y": 2.5})");
+    auto json = Json.Parse(R"({"X": 1.5, "Y": 2.5})");
     auto p = json.Get<Pointf>();
 
     Log.CleanUp();
@@ -658,20 +658,20 @@ TEST_CASE("Geometry: double-to-int throws", "[JSON][Geometry]") {
         Log.InitializeStream(oss);
 
         // Both fields are stored as double in JSON
-        auto json = JSONParse(R"({"X": 1.7, "Y": 2.9})");
-        REQUIRE_THROWS_AS(json.Get<Point>(), JSONError);
+        auto json = Json.Parse(R"({"X": 1.7, "Y": 2.9})");
+        REQUIRE_THROWS_AS(json.Get<Point>(), JSON::Error);
     }
     {
         std::ostringstream oss;
         Log.InitializeStream(oss);
-        auto json = JSONParse(R"({"Width": 10.6, "Height": 5.1})");
-        REQUIRE_THROWS_AS(json.Get<Size>(), JSONError);
+        auto json = Json.Parse(R"({"Width": 10.6, "Height": 5.1})");
+        REQUIRE_THROWS_AS(json.Get<Size>(), JSON::Error);
     }
     {
         std::ostringstream oss;
         Log.InitializeStream(oss);
-        auto json = JSONParse(R"({"Left": 0.5, "Top": 1.5, "Right": 9.9, "Bottom": 8.8})");
-        REQUIRE_THROWS_AS(json.Get<Bounds>(), JSONError);
+        auto json = Json.Parse(R"({"Left": 0.5, "Top": 1.5, "Right": 9.9, "Bottom": 8.8})");
+        REQUIRE_THROWS_AS(json.Get<Bounds>(), JSON::Error);
     }
 }
 
@@ -680,7 +680,7 @@ TEST_CASE("Geometry: double-to-int throws", "[JSON][Geometry]") {
 // =====================================================================
 
 TEST_CASE("Parse with single-line comments", "[JSON][Comments]") {
-    auto v = JSONParse(R"(
+    auto v = Json.Parse(R"(
         // This is a comment
         {
             "x": 10, // inline comment
@@ -692,7 +692,7 @@ TEST_CASE("Parse with single-line comments", "[JSON][Comments]") {
 }
 
 TEST_CASE("Parse with multi-line comments", "[JSON][Comments]") {
-    auto v = JSONParse(R"(
+    auto v = Json.Parse(R"(
         /* header comment */
         {
             "name": /* inline */ "test",
@@ -704,7 +704,7 @@ TEST_CASE("Parse with multi-line comments", "[JSON][Comments]") {
 }
 
 TEST_CASE("Parse with mixed comments", "[JSON][Comments]") {
-    auto v = JSONParse(R"(
+    auto v = Json.Parse(R"(
         // single line
         /* multi
            line */
@@ -718,7 +718,7 @@ TEST_CASE("Parse with mixed comments", "[JSON][Comments]") {
 }
 
 TEST_CASE("Parse comment-only before value", "[JSON][Comments]") {
-    auto v = JSONParse("// comment\n42");
+    auto v = Json.Parse("// comment\n42");
     REQUIRE(v.Get<int>() == 42);
 }
 
@@ -727,107 +727,107 @@ TEST_CASE("Parse comment-only before value", "[JSON][Comments]") {
 // =====================================================================
 
 TEST_CASE("Error code: TypeMismatch on Get", "[JSON][Error]") {
-    auto v = JSONParse("42");
+    auto v = Json.Parse("42");
     try {
         v.Get<std::string>();
         REQUIRE(false); // should not reach
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::TypeMismatch);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::TypeMismatch);
     }
 }
 
 TEST_CASE("Error code: KeyNotFound", "[JSON][Error]") {
-    auto v = JSONParse(R"({"a": 1})");
+    auto v = Json.Parse(R"({"a": 1})");
     try {
         v["missing"];
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::KeyNotFound);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::KeyNotFound);
         REQUIRE(e.GetField() == "missing");
     }
 }
 
 TEST_CASE("Error code: IndexOutOfBounds", "[JSON][Error]") {
-    auto v = JSONParse("[1, 2]");
+    auto v = Json.Parse("[1, 2]");
     try {
         v[5];
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::IndexOutOfBounds);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::IndexOutOfBounds);
     }
 }
 
 TEST_CASE("Error code: UnexpectedEnd", "[JSON][Error]") {
     try {
-        JSONParse("");
+        Json.Parse("");
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::UnexpectedEnd);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::UnexpectedEnd);
     }
 }
 
 TEST_CASE("Error code: LeadingZero", "[JSON][Error]") {
     try {
-        JSONParse("01");
+        Json.Parse("01");
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::LeadingZero);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::LeadingZero);
     }
 }
 
 TEST_CASE("Error code: TrailingContent", "[JSON][Error]") {
     try {
-        JSONParse("1 2");
+        Json.Parse("1 2");
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::TrailingContent);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::TrailingContent);
     }
 }
 
 TEST_CASE("Error code: MissingField in schema", "[JSON][Error]") {
-    JSONSchema schema = {
-        {"required_field", {JSONType::Integer, true}},
+    JSON::Schema schema = {
+        {"required_field", {JSON::Type::Integer, true}},
     };
-    auto input = JSONParse(R"({})");
+    auto input = Json.Parse(R"({})");
     try {
-        JSONValidate(input, schema);
+        Json.Validate(input, schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::MissingField);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::MissingField);
         REQUIRE(e.GetField() == "required_field");
     }
 }
 
 TEST_CASE("Error code: SchemaTypeMismatch", "[JSON][Error]") {
-    JSONSchema schema = {
-        {"x", {JSONType::Integer, true}},
+    JSON::Schema schema = {
+        {"x", {JSON::Type::Integer, true}},
     };
-    auto input = JSONParse(R"({"x": "wrong"})");
+    auto input = Json.Parse(R"({"x": "wrong"})");
     try {
-        JSONValidate(input, schema);
+        Json.Validate(input, schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::SchemaTypeMismatch);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::SchemaTypeMismatch);
         REQUIRE(e.GetField() == "x");
     }
 }
 
 TEST_CASE("Error code: SchemaNotObject", "[JSON][Error]") {
-    JSONSchema schema = {{"x", {JSONType::Integer}}};
+    JSON::Schema schema = {{"x", {JSON::Type::Integer}}};
     try {
-        JSONValidate(JSONValue(42), schema);
+        Json.Validate(JSON::Value(42), schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::SchemaNotObject);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::SchemaNotObject);
     }
 }
 
@@ -836,134 +836,134 @@ TEST_CASE("Error code: SchemaNotObject", "[JSON][Error]") {
 // =====================================================================
 
 TEST_CASE("Schema: nested object validation", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"name", {JSONType::String}},
-        {"position", JSONSchemaField::Object({
-            {"x", {JSONType::Number}},
-            {"y", {JSONType::Number}},
+    JSON::Schema schema = {
+        {"name", {JSON::Type::String}},
+        {"position", JSON::SchemaField::Object({
+            {"x", {JSON::Type::Number}},
+            {"y", {JSON::Type::Number}},
         })},
     };
 
-    auto input = JSONParse(R"({"name": "hero", "position": {"x": 1.5, "y": 2.5}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"name": "hero", "position": {"x": 1.5, "y": 2.5}})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["name"].Get<std::string>() == "hero");
     REQUIRE(result["position"]["x"].Get<double>() == Catch::Approx(1.5));
     REQUIRE(result["position"]["y"].Get<double>() == Catch::Approx(2.5));
 }
 
 TEST_CASE("Schema: nested object with defaults", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"pos", JSONSchemaField::Object({
-            {"x", {JSONType::Integer, true}},
-            {"y", {JSONType::Integer, false, JSONValue(0)}},
+    JSON::Schema schema = {
+        {"pos", JSON::SchemaField::Object({
+            {"x", {JSON::Type::Integer, true}},
+            {"y", {JSON::Type::Integer, false, JSON::Value(0)}},
         })},
     };
 
-    auto input = JSONParse(R"({"pos": {"x": 5}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"pos": {"x": 5}})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["pos"]["x"].Get<int>() == 5);
     REQUIRE(result["pos"]["y"].Get<int>() == 0);
 }
 
 TEST_CASE("Schema: nested object validation failure", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"data", JSONSchemaField::Object({
-            {"id", {JSONType::Integer}},
+    JSON::Schema schema = {
+        {"data", JSON::SchemaField::Object({
+            {"id", {JSON::Type::Integer}},
         })},
     };
 
-    auto input = JSONParse(R"({"data": {"id": "wrong"}})");
+    auto input = Json.Parse(R"({"data": {"id": "wrong"}})");
     try {
-        JSONValidate(input, schema);
+        Json.Validate(input, schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::NestedValidation);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::NestedValidation);
         REQUIRE(e.GetField() == "data");
     }
 }
 
 TEST_CASE("Schema: typed array of integers", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"scores", JSONSchemaField::Array(JSONType::Integer)},
+    JSON::Schema schema = {
+        {"scores", JSON::SchemaField::Array(JSON::Type::Integer)},
     };
 
-    auto input = JSONParse(R"({"scores": [10, 20, 30]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"scores": [10, 20, 30]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["scores"][0].Get<int>() == 10);
     REQUIRE(result["scores"][2].Get<int>() == 30);
 }
 
 TEST_CASE("Schema: typed array of strings", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"tags", JSONSchemaField::Array(JSONType::String)},
+    JSON::Schema schema = {
+        {"tags", JSON::SchemaField::Array(JSON::Type::String)},
     };
 
-    auto input = JSONParse(R"({"tags": ["a", "b"]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"tags": ["a", "b"]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["tags"].GetCount() == 2);
 }
 
 TEST_CASE("Schema: typed array wrong element type", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"nums", JSONSchemaField::Array(JSONType::Integer)},
+    JSON::Schema schema = {
+        {"nums", JSON::SchemaField::Array(JSON::Type::Integer)},
     };
 
-    auto input = JSONParse(R"({"nums": [1, "two", 3]})");
+    auto input = Json.Parse(R"({"nums": [1, "two", 3]})");
     try {
-        JSONValidate(input, schema);
+        Json.Validate(input, schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::SchemaTypeMismatch);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::SchemaTypeMismatch);
     }
 }
 
 TEST_CASE("Schema: array of objects", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"enemies", JSONSchemaField::Array(JSONSchema{
-            {"name",   {JSONType::String}},
-            {"health", {JSONType::Integer}},
+    JSON::Schema schema = {
+        {"enemies", JSON::SchemaField::Array(JSON::Schema{
+            {"name",   {JSON::Type::String}},
+            {"health", {JSON::Type::Integer}},
         })},
     };
 
-    auto input = JSONParse(R"({"enemies": [
+    auto input = Json.Parse(R"({"enemies": [
         {"name": "Goblin", "health": 50},
         {"name": "Dragon", "health": 500}
     ]})");
-    auto result = JSONValidate(input, schema);
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["enemies"][0]["name"].Get<std::string>() == "Goblin");
     REQUIRE(result["enemies"][1]["health"].Get<int>() == 500);
 }
 
 TEST_CASE("Schema: array of objects with defaults", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"items", JSONSchemaField::Array(JSONSchema{
-            {"name", {JSONType::String}},
-            {"count", {JSONType::Integer, false, JSONValue(1)}},
+    JSON::Schema schema = {
+        {"items", JSON::SchemaField::Array(JSON::Schema{
+            {"name", {JSON::Type::String}},
+            {"count", {JSON::Type::Integer, false, JSON::Value(1)}},
         })},
     };
 
-    auto input = JSONParse(R"({"items": [{"name": "sword"}, {"name": "shield", "count": 3}]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"items": [{"name": "sword"}, {"name": "shield", "count": 3}]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["items"][0]["count"].Get<int>() == 1);
     REQUIRE(result["items"][1]["count"].Get<int>() == 3);
 }
 
 TEST_CASE("Schema: array of objects validation failure", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"list", JSONSchemaField::Array(JSONSchema{
-            {"id", {JSONType::Integer}},
+    JSON::Schema schema = {
+        {"list", JSON::SchemaField::Array(JSON::Schema{
+            {"id", {JSON::Type::Integer}},
         })},
     };
 
-    auto input = JSONParse(R"({"list": [{"id": 1}, {"id": "bad"}]})");
+    auto input = Json.Parse(R"({"list": [{"id": 1}, {"id": "bad"}]})");
     try {
-        JSONValidate(input, schema);
+        Json.Validate(input, schema);
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::NestedValidation);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::NestedValidation);
         REQUIRE(e.GetField() == "list");
     }
 }
@@ -973,190 +973,190 @@ TEST_CASE("Schema: array of objects validation failure", "[JSON][Schema]") {
 // =====================================================================
 
 TEST_CASE("Schema: Point field", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"pos", JSONSchemaField::PointField()},
+    JSON::Schema schema = {
+        {"pos", JSON::SchemaField::PointField()},
     };
 
-    auto input = JSONParse(R"({"pos": {"X": 10, "Y": 20}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"pos": {"X": 10, "Y": 20}})");
+    auto result = Json.Validate(input, schema);
     auto p = result["pos"].Get<Point>();
     REQUIRE(p.X == 10);
     REQUIRE(p.Y == 20);
 }
 
 TEST_CASE("Schema: Point field wrong shape", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"pos", JSONSchemaField::PointField()},
+    JSON::Schema schema = {
+        {"pos", JSON::SchemaField::PointField()},
     };
 
     // Missing Y field
-    auto input = JSONParse(R"({"pos": {"X": 10}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"pos": {"X": 10}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Size field", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"dim", JSONSchemaField::SizeField()},
+    JSON::Schema schema = {
+        {"dim", JSON::SchemaField::SizeField()},
     };
 
-    auto input = JSONParse(R"({"dim": {"Width": 640, "Height": 480}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"dim": {"Width": 640, "Height": 480}})");
+    auto result = Json.Validate(input, schema);
     auto s = result["dim"].Get<Size>();
     REQUIRE(s.Width == 640);
     REQUIRE(s.Height == 480);
 }
 
 TEST_CASE("Schema: Rectangle field", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"rect", JSONSchemaField::RectangleField()},
+    JSON::Schema schema = {
+        {"rect", JSON::SchemaField::RectangleField()},
     };
 
-    auto input = JSONParse(R"({"rect": {"X": 0, "Y": 0, "Width": 100, "Height": 50}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"rect": {"X": 0, "Y": 0, "Width": 100, "Height": 50}})");
+    auto result = Json.Validate(input, schema);
     auto r = result["rect"].Get<Rectangle>();
     REQUIRE(r.Width == 100);
     REQUIRE(r.Height == 50);
 }
 
 TEST_CASE("Schema: Bounds field", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"bounds", JSONSchemaField::BoundsField()},
+    JSON::Schema schema = {
+        {"bounds", JSON::SchemaField::BoundsField()},
     };
 
-    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": 2, "Right": 3, "Bottom": 4}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"bounds": {"Left": 1, "Top": 2, "Right": 3, "Bottom": 4}})");
+    auto result = Json.Validate(input, schema);
     auto b = result["bounds"].Get<Bounds>();
     REQUIRE(b.Left == 1);
     REQUIRE(b.Right == 3);
 }
 
 TEST_CASE("Schema: Margin field", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"margin", JSONSchemaField::MarginField()},
+    JSON::Schema schema = {
+        {"margin", JSON::SchemaField::MarginField()},
     };
 
-    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": 10, "Right": 5, "Bottom": 10}})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"margin": {"Left": 5, "Top": 10, "Right": 5, "Bottom": 10}})");
+    auto result = Json.Validate(input, schema);
     auto m = result["margin"].Get<Margin>();
     REQUIRE(m.Left == 5);
     REQUIRE(m.Top == 10);
 }
 
 TEST_CASE("Schema: Geometry field not an object", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"pos", JSONSchemaField::PointField()},
+    JSON::Schema schema = {
+        {"pos", JSON::SchemaField::PointField()},
     };
 
-    auto input = JSONParse(R"({"pos": 42})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"pos": 42})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Geometry field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"pos", JSONSchemaField::PointField()},
+    JSON::Schema schema = {
+        {"pos", JSON::SchemaField::PointField()},
     };
 
     // X field is a string instead of a number
-    auto input = JSONParse(R"({"pos": {"X": "not a number", "Y": 20}})");
+    auto input = Json.Parse(R"({"pos": {"X": "not a number", "Y": 20}})");
 
     // Validation should reject this
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Size field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"dim", JSONSchemaField::SizeField()},
+    JSON::Schema schema = {
+        {"dim", JSON::SchemaField::SizeField()},
     };
 
-    auto input = JSONParse(R"({"dim": {"Width": "wide", "Height": 10}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"dim": {"Width": "wide", "Height": 10}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Sizef field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"dim", JSONSchemaField::SizefField()},
+    JSON::Schema schema = {
+        {"dim", JSON::SchemaField::SizefField()},
     };
 
-    auto input = JSONParse(R"({"dim": {"Width": "wide", "Height": 10}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"dim": {"Width": "wide", "Height": 10}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Rectangle field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"rect", JSONSchemaField::RectangleField()},
+    JSON::Schema schema = {
+        {"rect", JSON::SchemaField::RectangleField()},
     };
 
-    auto input = JSONParse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Rectanglef field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"rect", JSONSchemaField::RectanglefField()},
+    JSON::Schema schema = {
+        {"rect", JSON::SchemaField::RectanglefField()},
     };
 
-    auto input = JSONParse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"rect": {"X": 0, "Y": "up", "Width": 100, "Height": 50}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Boundsf field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"bounds", JSONSchemaField::BoundsfField()},
+    JSON::Schema schema = {
+        {"bounds", JSON::SchemaField::BoundsfField()},
     };
 
-    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": 2, "Right": "three", "Bottom": 4}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"bounds": {"Left": 1, "Top": 2, "Right": "three", "Bottom": 4}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Marginf field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"margin", JSONSchemaField::MarginfField()},
+    JSON::Schema schema = {
+        {"margin", JSON::SchemaField::MarginfField()},
     };
 
-    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Bounds field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"bounds", JSONSchemaField::BoundsField()},
+    JSON::Schema schema = {
+        {"bounds", JSON::SchemaField::BoundsField()},
     };
 
-    auto input = JSONParse(R"({"bounds": {"Left": 1, "Top": "two", "Right": 3, "Bottom": 4}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"bounds": {"Left": 1, "Top": "two", "Right": 3, "Bottom": 4}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: Margin field wrong subtypes", "[JSON][Schema][Geometry]") {
-    JSONSchema schema = {
-        {"margin", JSONSchemaField::MarginField()},
+    JSON::Schema schema = {
+        {"margin", JSON::SchemaField::MarginField()},
     };
 
-    auto input = JSONParse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"margin": {"Left": 5, "Top": "ten", "Right": 5, "Bottom": 10}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: optional array field", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"name", {JSONType::String}},
-        {"tags", JSONSchemaField::Array(JSONType::String, false)},
+    JSON::Schema schema = {
+        {"name", {JSON::Type::String}},
+        {"tags", JSON::SchemaField::Array(JSON::Type::String, false)},
     };
 
-    auto input = JSONParse(R"({"name": "test"})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"name": "test"})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["name"].Get<std::string>() == "test");
     // tags gets null default since missing
     REQUIRE(result["tags"].IsNull());
 }
 
 TEST_CASE("Schema: optional nested object with default", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"config", JSONSchemaField::Object({
-            {"debug", {JSONType::Bool, false, JSONValue(false)}},
+    JSON::Schema schema = {
+        {"config", JSON::SchemaField::Object({
+            {"debug", {JSON::Type::Bool, false, JSON::Value(false)}},
         }, false)},
     };
 
-    auto input = JSONParse(R"({})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["config"].IsNull());
 }
 
@@ -1164,11 +1164,11 @@ TEST_CASE("Schema: extra field warning", "[JSON][Schema][Logging]") {
     std::ostringstream oss;
     Log.InitializeStream(oss);
 
-    JSONSchema schema = {
-        {"x", {JSONType::Integer}},
+    JSON::Schema schema = {
+        {"x", {JSON::Type::Integer}},
     };
-    auto input = JSONParse(R"({"x":1,"y":2})");
-    auto result = JSONValidate(input, schema); // allowExtra defaults to true
+    auto input = Json.Parse(R"({"x":1,"y":2})");
+    auto result = Json.Validate(input, schema); // allowExtra defaults to true
 
     Log.CleanUp();
     REQUIRE(result["x"].Get<int>() == 1);
@@ -1176,11 +1176,11 @@ TEST_CASE("Schema: extra field warning", "[JSON][Schema][Logging]") {
 }
 
 TEST_CASE("Schema: extra field error", "[JSON][Schema]") {
-    JSONSchema schema = {
-        {"x", {JSONType::Integer}},
+    JSON::Schema schema = {
+        {"x", {JSON::Type::Integer}},
     };
-    auto input = JSONParse(R"({"x":1,"y":2})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema, false), JSONError);
+    auto input = Json.Parse(R"({"x":1,"y":2})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema, false), JSON::Error);
 }
 
 // =====================================================================
@@ -1206,99 +1206,99 @@ namespace {
 
 TEST_CASE("PrepareBitmaps flag default", "[JSON][Bitmap]") {
     // Default should be true
-    REQUIRE(JSONGetPrepareBitmaps() == true);
+    REQUIRE(Json.Prepare == true);
 }
 
 TEST_CASE("PrepareBitmaps flag set/get", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
-    REQUIRE(JSONGetPrepareBitmaps() == false);
-    JSONSetPrepareBitmaps(true);
-    REQUIRE(JSONGetPrepareBitmaps() == true);
+    Json.Prepare = false;
+    REQUIRE(Json.Prepare == false);
+    Json.Prepare = true;
+    REQUIRE(Json.Prepare == true);
 }
 
 // -- Get<Bitmap> -----------------------------------------------------------
 
 TEST_CASE("Get<Bitmap> from string", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_bmp.png", 8, 8);
-    auto val = JSONParse(R"("json_test_bmp.png")");
+    auto val = Json.Parse(R"("json_test_bmp.png")");
     auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
 
     REQUIRE(bmp.HasData());
     REQUIRE(bmp.GetWidth() == 8);
     REQUIRE(bmp.GetHeight() == 8);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<Bitmap> from non-string throws", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse("42");
-    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::Bitmap>(), JSONError);
+    auto val = Json.Parse("42");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::Bitmap>(), JSON::Error);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<Bitmap> missing file throws ResourceNotFound", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse(R"("nonexistent_file_12345.png")");
+    auto val = Json.Parse(R"("nonexistent_file_12345.png")");
     try {
         val.Get<Gorgon::Graphics::Bitmap>();
         REQUIRE(false); // should not reach here
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
     }
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 // -- Get<BitmapAnimationProvider> -----------------------------------------
 
 TEST_CASE("Get<BitmapAnimationProvider> from array", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_fr1.png", 4, 4);
     createTestPNG("json_test_fr2.png", 4, 4);
     createTestPNG("json_test_fr3.png", 4, 4);
 
-    auto val = JSONParse(R"(["json_test_fr1.png", "json_test_fr2.png", "json_test_fr3.png"])");
+    auto val = Json.Parse(R"(["json_test_fr1.png", "json_test_fr2.png", "json_test_fr3.png"])");
     auto prov = val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
 
     REQUIRE(prov.GetCount() == 3);
     REQUIRE(prov.GetSize() == Gorgon::Geometry::Size(4, 4));
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> from non-array throws", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse(R"("single_string.png")");
-    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+    auto val = Json.Parse(R"("single_string.png")");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSON::Error);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> non-string element throws", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse(R"(["json_test_fr1.png", 42])");
-    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+    auto val = Json.Parse(R"(["json_test_fr1.png", 42])");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSON::Error);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> from object array", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_obj1.png", 4, 4);
     createTestPNG("json_test_obj2.png", 4, 4);
 
-    auto val = JSONParse(R"([
+    auto val = Json.Parse(R"([
         {"file": "json_test_obj1.png", "duration": 100},
         {"file": "json_test_obj2.png", "duration": 200}
     ])");
@@ -1307,16 +1307,16 @@ TEST_CASE("Get<BitmapAnimationProvider> from object array", "[JSON][Bitmap]") {
     REQUIRE(prov.GetCount() == 2);
     REQUIRE(prov.GetDuration() == 300);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> from mixed array", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_mix1.png", 4, 4);
     createTestPNG("json_test_mix2.png", 4, 4);
 
-    auto val = JSONParse(R"([
+    auto val = Json.Parse(R"([
         "json_test_mix1.png",
         {"file": "json_test_mix2.png", "duration": 500}
     ])");
@@ -1326,213 +1326,213 @@ TEST_CASE("Get<BitmapAnimationProvider> from mixed array", "[JSON][Bitmap]") {
     // First frame uses default 42ms, second uses 500ms
     REQUIRE(prov.GetDuration() == 542);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> object without file key throws", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse(R"([{"duration": 100}])");
-    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSONError);
+    auto val = Json.Parse(R"([{"duration": 100}])");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::BitmapAnimationProvider>(), JSON::Error);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<BitmapAnimationProvider> object with missing file throws ResourceNotFound", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse(R"([{"file": "nonexistent_99999.png"}])");
+    auto val = Json.Parse(R"([{"file": "nonexistent_99999.png"}])");
     try {
         val.Get<Gorgon::Graphics::BitmapAnimationProvider>();
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
     }
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 // -- Get<RectangularAnimationStorage> -------------------------------------
 
 TEST_CASE("Get<RectangularAnimationStorage> from string", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_ras.png", 6, 6);
-    auto val = JSONParse(R"("json_test_ras.png")");
+    auto val = Json.Parse(R"("json_test_ras.png")");
     auto storage = val.Get<Gorgon::Graphics::RectangularAnimationStorage>();
 
     REQUIRE(storage.HasAnimation());
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<RectangularAnimationStorage> from array", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
     createTestPNG("json_test_ras1.png", 5, 5);
     createTestPNG("json_test_ras2.png", 5, 5);
 
-    auto val = JSONParse(R"(["json_test_ras1.png", "json_test_ras2.png"])");
+    auto val = Json.Parse(R"(["json_test_ras1.png", "json_test_ras2.png"])");
     auto storage = val.Get<Gorgon::Graphics::RectangularAnimationStorage>();
 
     REQUIRE(storage.HasAnimation());
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("Get<RectangularAnimationStorage> from integer throws", "[JSON][Bitmap]") {
-    JSONSetPrepareBitmaps(false);
+    Json.Prepare = false;
 
-    auto val = JSONParse("123");
-    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::RectangularAnimationStorage>(), JSONError);
+    auto val = Json.Parse("123");
+    REQUIRE_THROWS_AS(val.Get<Gorgon::Graphics::RectangularAnimationStorage>(), JSON::Error);
 
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 // -- Schema validation for Bitmap types ------------------------------------
 
 TEST_CASE("Schema: Bitmap field accepts string", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"img", JSONSchemaField::BitmapField()},
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
     };
 
-    auto input = JSONParse(R"({"img": "test.png"})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"img": "test.png"})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["img"].Get<std::string>() == "test.png");
 }
 
 TEST_CASE("Schema: Bitmap field rejects non-string", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"img", JSONSchemaField::BitmapField()},
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
     };
 
-    auto input = JSONParse(R"({"img": 42})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"img": 42})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: BitmapAnimation field accepts array of strings", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": ["a.png", "b.png"]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"anim": ["a.png", "b.png"]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["anim"].IsArray());
 }
 
 TEST_CASE("Schema: BitmapAnimation field accepts array of objects", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": [{"file": "a.png", "duration": 100}]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"anim": [{"file": "a.png", "duration": 100}]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["anim"].IsArray());
 }
 
 TEST_CASE("Schema: BitmapAnimation field accepts mixed array", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": ["a.png", {"file": "b.png"}]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"anim": ["a.png", {"file": "b.png"}]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["anim"].IsArray());
 }
 
 TEST_CASE("Schema: BitmapAnimation field rejects object without file key", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": [{"duration": 100}]})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"anim": [{"duration": 100}]})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: BitmapAnimation field rejects string", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": "a.png"})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"anim": "a.png"})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: BitmapAnimation field rejects array with non-string", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"anim", JSONSchemaField::BitmapAnimationField()},
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
     };
 
-    auto input = JSONParse(R"({"anim": ["a.png", 123]})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"anim": ["a.png", 123]})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: AnimationStorage field accepts string", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": "image.png"})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"store": "image.png"})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["store"].Get<std::string>() == "image.png");
 }
 
 TEST_CASE("Schema: AnimationStorage field accepts array of strings", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": ["a.png", "b.png"]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"store": ["a.png", "b.png"]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["store"].IsArray());
 }
 
 TEST_CASE("Schema: AnimationStorage field accepts array of objects", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": [{"file": "a.png", "duration": 50}]})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"store": [{"file": "a.png", "duration": 50}]})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["store"].IsArray());
 }
 
 TEST_CASE("Schema: AnimationStorage field rejects object without file key", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": [{"duration": 50}]})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"store": [{"duration": 50}]})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: AnimationStorage field rejects integer", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": 99})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"store": 99})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: AnimationStorage field rejects array with non-string element", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"store", JSONSchemaField::AnimationStorageField()},
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
     };
 
-    auto input = JSONParse(R"({"store": ["a.png", true]})");
-    REQUIRE_THROWS_AS(JSONValidate(input, schema), JSONError);
+    auto input = Json.Parse(R"({"store": ["a.png", true]})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
 TEST_CASE("Schema: optional Bitmap field", "[JSON][Schema][Bitmap]") {
-    JSONSchema schema = {
-        {"name", {JSONType::String}},
-        {"img", JSONSchemaField::BitmapField(false)},
+    JSON::Schema schema = {
+        {"name", {JSON::Type::String}},
+        {"img", JSON::SchemaField::BitmapField(false)},
     };
 
-    auto input = JSONParse(R"({"name": "test"})");
-    auto result = JSONValidate(input, schema);
+    auto input = Json.Parse(R"({"name": "test"})");
+    auto result = Json.Validate(input, schema);
     REQUIRE(result["name"].Get<std::string>() == "test");
     REQUIRE(result["img"].IsNull());
 }
@@ -1544,7 +1544,7 @@ TEST_CASE("JSONParseFile reads and parses a JSON file", "[JSON][Bitmap]") {
         std::ofstream f("json_test_parsefile.json");
         f << R"({"key": "value", "num": 42})";
     }
-    auto val = JSONParseFile("json_test_parsefile.json");
+    auto val = Json.ParseFile("json_test_parsefile.json");
     REQUIRE(val["key"].Get<std::string>() == "value");
     REQUIRE(val["num"].Get<int>() == 42);
 }
@@ -1555,24 +1555,24 @@ TEST_CASE("JSONParseFile sets prepareBitmaps flag", "[JSON][Bitmap]") {
         f << R"({"x": 1})";
     }
     // Should restore previous flag after call
-    JSONSetPrepareBitmaps(true);
-    JSONParseFile("json_test_pflag.json", false);
-    REQUIRE(JSONGetPrepareBitmaps() == true);
+    Json.Prepare = true;
+    Json.ParseFile("json_test_pflag.json", false);
+    REQUIRE(Json.Prepare == true);
 
-    JSONSetPrepareBitmaps(false);
-    JSONParseFile("json_test_pflag.json", true);
-    REQUIRE(JSONGetPrepareBitmaps() == false);
+    Json.Prepare = false;
+    Json.ParseFile("json_test_pflag.json", true);
+    REQUIRE(Json.Prepare == false);
 
     // Restore default
-    JSONSetPrepareBitmaps(true);
+    Json.Prepare = true;
 }
 
 TEST_CASE("JSONParseFile missing file throws ResourceNotFound", "[JSON][Bitmap]") {
     try {
-        JSONParseFile("nonexistent_12345.json");
+        Json.ParseFile("nonexistent_12345.json");
         REQUIRE(false);
     }
-    catch(const JSONError &e) {
-        REQUIRE(e.GetCode() == JSONErrorCode::ResourceNotFound);
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
     }
 }
