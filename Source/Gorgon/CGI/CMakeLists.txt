@@ -7,6 +7,7 @@ target_sources(Gorgon
 		Circle.h
 		Line.h
 		Path.h
+		Polyline.h
 		PathFill.h
 		Polygon.h
 		Bezier.h
