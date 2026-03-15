@@ -5,6 +5,7 @@
 #include <limits>
 #include <unordered_set>
 #include <fstream>
+#include <iomanip>
 #include "JSON.h"
 #include "../Encoding.h"
 #include "Gorgon/String.h"
@@ -114,7 +115,7 @@ const JSON::Value &JSON::Value::operator[](int index) const {
     throw Error(ErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
-const JSON::Value &JSON::Value::GetOr(const std::string &key, const Value &def) const {
+const JSON::Value JSON::Value::GetOr(const std::string &key, const Value &def) const {
     if(auto *obj = std::get_if<Object>(&data)) {
         auto it = obj->find(key);
         if(it != obj->end()) return it->second;

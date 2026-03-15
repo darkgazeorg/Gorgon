@@ -245,7 +245,7 @@ public:
         const Value &operator[](int index) const;
 
         /// Returns the value for the given key, or a default if missing. Object only.
-        const Value &GetOr(const std::string &key, const Value &def) const;
+        const Value GetOr(const std::string &key, const Value &def) const;
 
         /// Returns true if the given key exists in this object.
         bool Has(const std::string &key) const;
