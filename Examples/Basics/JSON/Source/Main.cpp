@@ -419,6 +419,12 @@ int Main(const std::vector<std::string> &) {
     // leading zeros, etc.) and returns partial or null values rather than
     // throwing a JSON::Error.  Remember to reset it to false afterwards.
 
+    // Tip: JSON values can also be parsed from any std::istream via
+    // Json.ParseStream(stream).  Unlike Parse, ParseStream only reads
+    // the characters needed to complete one value and then stops, leaving
+    // the rest of the stream untouched.  This lets you read multiple
+    // concatenated values, or mix JSON with other data in the same stream.
+
     // =====================================================================
     //  11. Generating Sample Images
     // =====================================================================

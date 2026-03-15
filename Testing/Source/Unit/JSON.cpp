@@ -1700,3 +1700,141 @@ TEST_CASE("BestEffort flag defaults to false and is independent per parse", "[JS
     REQUIRE_THROWS_AS(Json.Parse("[1, 2, 3,]"), JSON::Error);
     REQUIRE_THROWS_AS(Json.Parse(R"("\uDC00")"), JSON::Error);
 }
+
+// =========================================================================
+//  ParseStream
+// =========================================================================
+
+TEST_CASE("ParseStream parses a simple integer and leaves stream intact", "[JSON][Stream]") {
+    std::istringstream ss("42 remaining");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.IsInteger());
+    REQUIRE(v.Get<int>() == 42);
+    // The stream should be positioned right after "42"
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == " remaining");
+}
+
+TEST_CASE("ParseStream parses a string value", "[JSON][Stream]") {
+    std::istringstream ss(R"("hello" extra)");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<std::string>() == "hello");
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == " extra");
+}
+
+TEST_CASE("ParseStream parses an object and stops", "[JSON][Stream]") {
+    std::istringstream ss(R"({"x": 10, "y": 20}more)");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.IsObject());
+    REQUIRE(v["x"].Get<int>() == 10);
+    REQUIRE(v["y"].Get<int>() == 20);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == "more");
+}
+
+TEST_CASE("ParseStream parses an array and stops", "[JSON][Stream]") {
+    std::istringstream ss("[1,2,3]next");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 3);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == "next");
+}
+
+TEST_CASE("ParseStream parses boolean literals", "[JSON][Stream]") {
+    std::istringstream ss("true false");
+    auto v1 = Json.ParseStream(ss);
+    REQUIRE(v1.Get<bool>() == true);
+    auto v2 = Json.ParseStream(ss);
+    REQUIRE(v2.Get<bool>() == false);
+}
+
+TEST_CASE("ParseStream parses null", "[JSON][Stream]") {
+    std::istringstream ss("null after");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.IsNull());
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == " after");
+}
+
+TEST_CASE("ParseStream reads multiple values sequentially", "[JSON][Stream]") {
+    std::istringstream ss(R"(42 "hello" [1,2])");
+    auto v1 = Json.ParseStream(ss);
+    REQUIRE(v1.Get<int>() == 42);
+    auto v2 = Json.ParseStream(ss);
+    REQUIRE(v2.Get<std::string>() == "hello");
+    auto v3 = Json.ParseStream(ss);
+    REQUIRE(v3.IsArray());
+    REQUIRE(v3.GetCount() == 2);
+}
+
+TEST_CASE("ParseStream handles floating point numbers", "[JSON][Stream]") {
+    std::istringstream ss("3.14 next");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<double>() == Catch::Approx(3.14));
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == " next");
+}
+
+TEST_CASE("ParseStream throws on empty stream", "[JSON][Stream]") {
+    std::istringstream ss("");
+    REQUIRE_THROWS_AS(Json.ParseStream(ss), JSON::Error);
+}
+
+TEST_CASE("ParseStream handles leading whitespace", "[JSON][Stream]") {
+    std::istringstream ss("   42rest");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<int>() == 42);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == "rest");
+}
+
+TEST_CASE("ParseStream handles nested objects", "[JSON][Stream]") {
+    std::istringstream ss(R"({"a":{"b":1}}tail)");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v["a"]["b"].Get<int>() == 1);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == "tail");
+}
+
+TEST_CASE("ParseStream handles unicode escapes", "[JSON][Stream]") {
+    std::istringstream ss(R"("\u0041" rest)");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<std::string>() == "A");
+}
+
+TEST_CASE("ParseStream handles surrogate pairs", "[JSON][Stream]") {
+    std::istringstream ss(R"("\uD83D\uDE00" rest)");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<std::string>() == "\xF0\x9F\x98\x80");
+}
+
+TEST_CASE("ParseStream handles comments", "[JSON][Stream]") {
+    std::istringstream ss("// comment\n42 rest");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.Get<int>() == 42);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == " rest");
+}
+
+TEST_CASE("ParseStream with BestEffort trailing comma", "[JSON][Stream]") {
+    BEGuard g;
+    Json.BestEffort = true;
+    std::istringstream ss("[1, 2,]rest");
+    auto v = Json.ParseStream(ss);
+    REQUIRE(v.IsArray());
+    REQUIRE(v.GetCount() == 2);
+    std::string rest;
+    std::getline(ss, rest);
+    REQUIRE(rest == "rest");
+}

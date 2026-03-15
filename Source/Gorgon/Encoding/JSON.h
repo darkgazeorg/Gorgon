@@ -8,6 +8,7 @@
 #include <initializer_list>
 #include <tuple>
 #include <ostream>
+#include <istream>
 #include "../TMP.h"
 #include "../Enum.h"
 #include "../Geometry/Point.h"
@@ -476,6 +477,11 @@ public:
 
     /// Parses a JSON file into a Value.
     Value ParseFile(const std::string &path) const;
+
+    /// Parses a single JSON value from a stream. Only the characters
+    /// required to complete the value are consumed; the rest of the
+    /// stream is left untouched so callers can continue reading.
+    Value ParseStream(std::istream &stream) const;
 
 };
 

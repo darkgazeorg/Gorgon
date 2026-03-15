@@ -1573,4 +1573,489 @@ JSON::Value JSON::ParseFile(const std::string &path) const {
     return result;
 }
 
+// ------------------------------------------------------------------
+//  Stream Parser
+// ------------------------------------------------------------------
+
+namespace {
+
+    struct StreamParser {
+        std::istream &in;
+        bool best_effort;
+
+        StreamParser(std::istream &in, bool best_effort = false)
+            : in(in), best_effort(best_effort) { }
+
+        bool atEnd() const {
+            return in.peek() == std::char_traits<char>::eof();
+        }
+
+        char peekRaw() const {
+            int c = in.peek();
+            return (c == std::char_traits<char>::eof()) ? '\0' : (char)c;
+        }
+
+        char readRaw() {
+            int c = in.get();
+            return (c == std::char_traits<char>::eof()) ? '\0' : (char)c;
+        }
+
+        void skipwhitespace() {
+            while(!atEnd()) {
+                char c = peekRaw();
+                if(c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+                    in.get();
+                }
+                else if(c == '/') {
+                    in.get(); // consume '/'
+                    if(atEnd()) { in.putback('/'); break; }
+                    char c2 = peekRaw();
+                    if(c2 == '/') {
+                        in.get();
+                        while(!atEnd() && peekRaw() != '\n') in.get();
+                        if(!atEnd()) in.get(); // skip newline
+                    }
+                    else if(c2 == '*') {
+                        in.get();
+                        char prev = '\0';
+                        while(!atEnd()) {
+                            char ch = readRaw();
+                            if(prev == '*' && ch == '/') break;
+                            prev = ch;
+                        }
+                    }
+                    else {
+                        in.putback('/'); // not a comment
+                        break;
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+        }
+
+        char peek_safe() {
+            skipwhitespace();
+            return peekRaw();
+        }
+
+        char peek() {
+            char c = peek_safe();
+            if(c == '\0' && atEnd())
+                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+            return c;
+        }
+
+        char next() {
+            skipwhitespace();
+            if(atEnd()) {
+                if(best_effort) return '\0';
+                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+            }
+            return readRaw();
+        }
+
+        void expect(char c) {
+            skipwhitespace();
+            if(!atEnd() && peekRaw() == c) {
+                in.get();
+                return;
+            }
+            if(best_effort) return;
+            if(atEnd())
+                throw JSON::Error(JSON::ErrorCode::UnexpectedEnd,
+                    std::string("Expected '") + c + "' but reached end of input");
+            throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                std::string("Expected '") + c + "' but got '" + peekRaw() + "'");
+        }
+
+        JSON::Value parseValue() {
+            char c = peek_safe();
+            if(c == '\0' && atEnd()) {
+                if(!best_effort)
+                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                return JSON::Value(JSON::Null{});
+            }
+            switch(c) {
+                case '"': return parseString();
+                case '{': return parseObject();
+                case '[': return parseArray();
+                case 't': case 'f': return parseBool();
+                case 'n': return parseNull();
+                default:
+                    if(c == '-' || (c >= '0' && c <= '9'))
+                        return parseNumber();
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Unexpected character '") + c + "'");
+                    in.get(); // skip unrecognised character
+                    return JSON::Value(JSON::Null{});
+            }
+        }
+
+        std::string parseString() {
+            expect('"');
+            std::string result;
+            while(!atEnd()) {
+                char c = readRaw();
+                if(c == '"') return result;
+                if(c == '\\') {
+                    if(atEnd()) {
+                        if(!best_effort)
+                            throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of string escape");
+                        return result;
+                    }
+                    char esc = readRaw();
+                    switch(esc) {
+                        case '"':  result += '"';  break;
+                        case '\\': result += '\\'; break;
+                        case '/':  result += '/';  break;
+                        case 'b':  result += '\b'; break;
+                        case 'f':  result += '\f'; break;
+                        case 'n':  result += '\n'; break;
+                        case 'r':  result += '\r'; break;
+                        case 't':  result += '\t'; break;
+                        case 'u': {
+                            std::string hex;
+                            for(int i = 0; i < 4 && !atEnd(); i++) hex += readRaw();
+                            if((int)hex.size() < 4) {
+                                if(!best_effort)
+                                    throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
+                                return result;
+                            }
+                            unsigned int cp = 0;
+                            bool valid = true;
+                            for(int i = 0; i < 4; i++) {
+                                cp <<= 4;
+                                char h = hex[i];
+                                if(h >= '0' && h <= '9')      cp |= (h - '0');
+                                else if(h >= 'a' && h <= 'f') cp |= (h - 'a' + 10);
+                                else if(h >= 'A' && h <= 'F') cp |= (h - 'A' + 10);
+                                else {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid hex digit in unicode escape");
+                                    valid = false;
+                                    break;
+                                }
+                            }
+                            if(!valid) { result += "\xEF\xBF\xBD"; break; }
+                            // Reject unpaired low surrogate
+                            if(cp >= 0xDC00 && cp <= 0xDFFF) {
+                                if(!best_effort)
+                                    throw JSON::Error(JSON::ErrorCode::InvalidUnicode,
+                                        "Unpaired low surrogate \\u" + hex);
+                                result += "\xEF\xBF\xBD";
+                                break;
+                            }
+                            // Handle high surrogate
+                            if(cp >= 0xD800 && cp <= 0xDBFF) {
+                                if(atEnd() || peekRaw() != '\\') {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
+                                readRaw(); // consume '\\'
+                                if(atEnd() || peekRaw() != 'u') {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Expected low surrogate pair");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
+                                readRaw(); // consume 'u'
+                                std::string hex2;
+                                for(int i = 0; i < 4 && !atEnd(); i++) hex2 += readRaw();
+                                if((int)hex2.size() < 4) {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid unicode escape");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
+                                unsigned int cp2 = 0;
+                                for(int i = 0; i < 4; i++) {
+                                    cp2 <<= 4;
+                                    char h = hex2[i];
+                                    if(h >= '0' && h <= '9')      cp2 |= (h - '0');
+                                    else if(h >= 'a' && h <= 'f') cp2 |= (h - 'a' + 10);
+                                    else if(h >= 'A' && h <= 'F') cp2 |= (h - 'A' + 10);
+                                    else {
+                                        if(!best_effort)
+                                            throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid hex digit in surrogate pair");
+                                        valid = false;
+                                        break;
+                                    }
+                                }
+                                if(!valid) { result += "\xEF\xBF\xBD"; break; }
+                                if(cp2 < 0xDC00 || cp2 > 0xDFFF) {
+                                    if(!best_effort)
+                                        throw JSON::Error(JSON::ErrorCode::InvalidUnicode, "Invalid low surrogate");
+                                    result += "\xEF\xBF\xBD";
+                                    break;
+                                }
+                                cp = 0x10000 + ((cp - 0xD800) << 10) + (cp2 - 0xDC00);
+                            }
+                            // Encode as UTF-8
+                            if(cp < 0x80) {
+                                result += (char)cp;
+                            }
+                            else if(cp < 0x800) {
+                                result += (char)(0xC0 | (cp >> 6));
+                                result += (char)(0x80 | (cp & 0x3F));
+                            }
+                            else if(cp < 0x10000) {
+                                result += (char)(0xE0 | (cp >> 12));
+                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
+                                result += (char)(0x80 | (cp & 0x3F));
+                            }
+                            else {
+                                result += (char)(0xF0 | (cp >> 18));
+                                result += (char)(0x80 | ((cp >> 12) & 0x3F));
+                                result += (char)(0x80 | ((cp >> 6) & 0x3F));
+                                result += (char)(0x80 | (cp & 0x3F));
+                            }
+                            break;
+                        }
+                        default:
+                            if(!best_effort)
+                                throw JSON::Error(JSON::ErrorCode::InvalidEscape,
+                                    std::string("Invalid escape sequence: \\\\") + esc);
+                            result += esc;
+                    }
+                }
+                else {
+                    if(static_cast<unsigned char>(c) < 0x20) {
+                        if(!best_effort)
+                            throw JSON::Error(JSON::ErrorCode::UnescapedControl, "Unescaped control character in string");
+                    }
+                    else {
+                        result += c;
+                    }
+                }
+            }
+            if(!best_effort)
+                throw JSON::Error(JSON::ErrorCode::UnterminatedString, "Unterminated string");
+            return result;
+        }
+
+        JSON::Value parseNumber() {
+            std::string numstr;
+            bool isFloat = false;
+
+            if(!atEnd() && peekRaw() == '-') numstr += readRaw();
+
+            if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
+                if(!best_effort)
+                    throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number");
+                return JSON::Value(0);
+            }
+
+            if(peekRaw() == '0') {
+                numstr += readRaw();
+                if(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::LeadingZero, "Leading zeros not allowed");
+                    while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
+                        numstr += readRaw();
+                }
+            }
+            else {
+                while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
+                    numstr += readRaw();
+            }
+
+            if(!atEnd() && peekRaw() == '.') {
+                isFloat = true;
+                numstr += readRaw();
+                if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit after decimal point");
+                    numstr += '0';
+                }
+                else {
+                    while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
+                        numstr += readRaw();
+                }
+            }
+
+            if(!atEnd() && (peekRaw() == 'e' || peekRaw() == 'E')) {
+                isFloat = true;
+                numstr += readRaw();
+                if(!atEnd() && (peekRaw() == '+' || peekRaw() == '-'))
+                    numstr += readRaw();
+                if(atEnd() || peekRaw() < '0' || peekRaw() > '9') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Expected digit in exponent");
+                    return JSON::Value(0);
+                }
+                while(!atEnd() && peekRaw() >= '0' && peekRaw() <= '9')
+                    numstr += readRaw();
+            }
+
+            if(isFloat) {
+                try { return JSON::Value(std::stod(numstr)); }
+                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
+            }
+            else {
+                try {
+                    long long v = std::stoll(numstr);
+                    if(v >= std::numeric_limits<int>::min() && v <= std::numeric_limits<int>::max())
+                        return JSON::Value((int)v);
+                    return JSON::Value((double)v);
+                }
+                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
+            }
+        }
+
+        JSON::Value parseBool() {
+            std::string lit;
+            int expected = (peekRaw() == 't') ? 4 : 5;
+            for(int i = 0; i < expected && !atEnd(); i++)
+                lit += readRaw();
+            if(lit == "true")  return JSON::Value(true);
+            if(lit == "false") return JSON::Value(false);
+            if(!best_effort)
+                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid boolean literal: " + lit);
+            return JSON::Value(JSON::Null{});
+        }
+
+        JSON::Value parseNull() {
+            std::string lit;
+            for(int i = 0; i < 4 && !atEnd(); i++)
+                lit += readRaw();
+            if(lit == "null") return JSON::Value(JSON::Null{});
+            if(!best_effort)
+                throw JSON::Error(JSON::ErrorCode::InvalidLiteral, "Invalid null literal: " + lit);
+            return JSON::Value(JSON::Null{});
+        }
+
+        JSON::Value parseArray() {
+            expect('[');
+            JSON::Array arr;
+            if(peek_safe() == ']') { in.get(); return JSON::Value(std::move(arr)); }
+            if(peek_safe() == '\0' && atEnd()) {
+                if(!best_effort)
+                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                return JSON::Value(std::move(arr));
+            }
+            while(true) {
+                JSON::Value elem;
+                try {
+                    elem = parseValue();
+                }
+                catch(const JSON::Error &) {
+                    if(!best_effort) throw;
+                    elem = JSON::Value(JSON::Null{});
+                    while(!atEnd() && peekRaw() != ',' && peekRaw() != ']') in.get();
+                }
+                arr.push_back(std::move(elem));
+
+                skipwhitespace();
+                if(atEnd()) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                    return JSON::Value(std::move(arr));
+                }
+                char c = peekRaw();
+                if(c == ']') { in.get(); return JSON::Value(std::move(arr)); }
+                if(c != ',') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected ',' or ']' in array but got '") + c + "'");
+                    continue;
+                }
+                in.get(); // consume comma
+                if(best_effort) {
+                    char pk = peek_safe();
+                    if(pk == ']') { in.get(); return JSON::Value(std::move(arr)); }
+                    if(pk == '\0' && atEnd()) return JSON::Value(std::move(arr));
+                }
+            }
+        }
+
+        JSON::Value parseObject() {
+            expect('{');
+            JSON::Object obj;
+            if(peek_safe() == '}') { in.get(); return JSON::Value(std::move(obj)); }
+            if(peek_safe() == '\0' && atEnd()) {
+                if(!best_effort)
+                    throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                return JSON::Value(std::move(obj));
+            }
+            while(true) {
+                char pk = peek_safe();
+                if(pk != '"') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected string key but got '") + pk + "'");
+                    if(pk == '}') { in.get(); return JSON::Value(std::move(obj)); }
+                    if(pk == '\0' && atEnd()) return JSON::Value(std::move(obj));
+                    in.get();
+                    continue;
+                }
+
+                std::string key;
+                try {
+                    key = parseString();
+                }
+                catch(const JSON::Error &) {
+                    if(!best_effort) throw;
+                    while(!atEnd() && peekRaw() != ':' && peekRaw() != '}') in.get();
+                    if(!atEnd() && peekRaw() == '}') { in.get(); return JSON::Value(std::move(obj)); }
+                    continue;
+                }
+
+                skipwhitespace();
+                if(!atEnd() && peekRaw() == ':') {
+                    in.get();
+                }
+                else if(!best_effort) {
+                    if(atEnd())
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                    throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                        std::string("Expected ':' but got '") + peekRaw() + "'");
+                }
+
+                JSON::Value val;
+                try {
+                    val = parseValue();
+                }
+                catch(const JSON::Error &) {
+                    if(!best_effort) throw;
+                    val = JSON::Value(JSON::Null{});
+                    while(!atEnd() && peekRaw() != ',' && peekRaw() != '}') in.get();
+                }
+                obj[key] = std::move(val);
+
+                skipwhitespace();
+                if(atEnd()) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedEnd, "Unexpected end of JSON input");
+                    return JSON::Value(std::move(obj));
+                }
+                char c = peekRaw();
+                if(c == '}') { in.get(); return JSON::Value(std::move(obj)); }
+                if(c != ',') {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::UnexpectedCharacter,
+                            std::string("Expected ',' or '}' in object but got '") + c + "'");
+                    continue;
+                }
+                in.get(); // consume comma
+                if(best_effort) {
+                    char pk2 = peek_safe();
+                    if(pk2 == '}') { in.get(); return JSON::Value(std::move(obj)); }
+                    if(pk2 == '\0' && atEnd()) return JSON::Value(std::move(obj));
+                }
+            }
+        }
+    };
+
+} // anonymous namespace
+
+JSON::Value JSON::ParseStream(std::istream &stream) const {
+    StreamParser parser(stream, BestEffort);
+    return parser.parseValue();
+}
+
 }
