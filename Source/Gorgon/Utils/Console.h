@@ -319,7 +319,7 @@ namespace Gorgon :: Utils {
 	}
 
 	inline void Console::SetItalic(bool italic) {
-		__mychk; backend->SetUnderline(italic);
+		__mychk; backend->SetItalic(italic);
 	}
 
 	inline void Console::SetNegative(bool negative) {
