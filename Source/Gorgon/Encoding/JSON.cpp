@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <fstream>
 #include <iomanip>
+#include <stdexcept>
 #include "JSON.h"
 #include "../Encoding.h"
 #include "Gorgon/String.h"
@@ -501,8 +502,22 @@ namespace {
             }
 
             if(isFloat) {
-                try { return JSON::Value(std::stod(numstr)); }
-                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
+                try {
+                    return JSON::Value(std::stod(numstr));
+                }
+                catch(const std::invalid_argument &) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number: " + numstr);
+                }
+                catch(const std::out_of_range &) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Number out of range: " + numstr);
+                }
+                catch(...) {
+                    if(!best_effort)
+                        throw;
+                }
+                return JSON::Value(0);
             }
             else {
                 try {
@@ -511,7 +526,19 @@ namespace {
                         return JSON::Value((int)v);
                     return JSON::Value((double)v);
                 }
-                catch(...) { if(!best_effort) throw; return JSON::Value(0); }
+                catch(const std::invalid_argument &) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number: " + numstr);
+                }
+                catch(const std::out_of_range &) {
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Number out of range: " + numstr);
+                }
+                catch(...) {
+                    if(!best_effort)
+                        throw;
+                }
+                return JSON::Value(0);
             }
         }
 
