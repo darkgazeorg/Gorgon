@@ -452,12 +452,12 @@ public:
             SchemaField f; f.type = Type::AnimationStorage; f.required = required; return f;
         }
 
-#ifdef GORGON_AUDIO_SUPPORT
         /// Creates a schema field for a Wave audio file loaded from a file path string.
         static SchemaField WaveField(bool required = true) {
             SchemaField f; f.type = Type::Wave; f.required = required; return f;
         }
 
+#ifdef GORGON_AUDIO_SUPPORT
         /// Creates a schema field for a Sound (Multimedia::Wave) loaded from a file path string.
         static SchemaField SoundField(bool required = true) {
             SchemaField f; f.type = Type::Sound; f.required = required; return f;
