@@ -1912,7 +1912,9 @@ void JSON::resolveAsync(const Value &val,
         return;
     }
 
-    auto [filename, url] = extractResourceSpec(val);
+    auto result = extractResourceSpec(val);
+    auto filename = result.first;
+    auto url = result.second;
 
     // Local file (no URL) - defer callback
     if(url.empty()) {
