@@ -267,7 +267,9 @@ namespace Gorgon :: Encoding {
 	/// @endcond
 
 	/// This class allows encoding and decoding data using LZMA compression
-	/// algorithm. 
+	/// algorithm. Encoding produces either a legacy .lzma (LZMA alone) stream or
+	/// a modern .xz stream depending on the Format. Decoding auto-detects both
+	/// formats transparently.
 	/// @cond INTERNAL
 	/// The main idea of this system is to reduce the amount of the code.
 	/// There are reader structures that can read data from various sources.
@@ -279,13 +281,22 @@ namespace Gorgon :: Encoding {
 	class LZMA {
 	public:
 
+		/// Output container format used during encoding.
+		/// Decoding always auto-detects the format.
+		enum class Format {
+			/// Legacy .lzma (LZMA alone) container — standard 13-byte header
+			LzmaAlone,
+			/// Modern .xz container
+			Xz,
+		};
+
 		/// Callback to notify progress. The value is reported between 0 and 1
 		typedef std::function<void(float)> ProgressNotification;
 
-		/// Default constructor
-		LZMA(bool useuncompressedsize=true) : UseUncompressedSize(useuncompressedsize) { }
+		/// Constructor. Format selects the encoding container; decoding is always auto-detected.
+		LZMA(Format format = Format::LzmaAlone) : format(format) { }
 
-		/// Encodes the given data to %LZMA compressed data. Supports vectors, arrays, strings and streams as data
+		/// Encodes the given data. Supports vectors, arrays, strings and streams as data
 		/// source and targets.
 		/// @warning Using this system with arrays is extremely dangerous make sure your arrays are big enough
 		/// @throws runtime_error
@@ -294,7 +305,7 @@ namespace Gorgon :: Encoding {
 			encode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), lzma::GetReadSize(input), nullptr);
 		}
 
-		/// Encodes the given data to %LZMA compressed data. Supports vectors, arrays, strings and streams as data
+		/// Encodes the given data. Supports vectors, arrays, strings and streams as data
 		/// source and targets. This variant allows a notification function which is called during compression.
 		/// @warning Using this system with arrays is extremely dangerous make sure your arrays are big enough
 		/// @throws runtime_error
@@ -303,53 +314,49 @@ namespace Gorgon :: Encoding {
 			encode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), lzma::GetReadSize(input), &notifier);
 		}
 
-		/// Decodes %LZMA compressed data. Supports vectors, arrays, strings and streams as data
-		/// source and targets.
-		/// @param   input %Input data
-		/// @param   output Output data
-		/// @param   compressionproperties is the compression property data. Leaving this parameter with default nullptr,
-		///          causes this function to read the actual compression properties from the main data source.
-		/// @param   fsize size of the extracted data. This value is only used if UseUncompressedSize is false. Default value of -1
-		///          relies on LZMA to terminate extraction.
+		/// Decodes compressed data. Both .lzma and .xz formats are detected automatically.
+		/// Supports vectors, arrays, strings and streams as data source and targets.
+		/// @param   compressedSize limits how many bytes are read from input. Use this when the
+		///          compressed data is embedded in a larger stream to prevent overshooting.
+		///          Defaults to unlimited (whole input is consumed).
 		/// @warning Using this system with arrays is extremely dangerous make sure your arrays are big enough
 		/// @throws  runtime_error
 		template <class I_, class O_>
-		void Decode(I_ &input, O_ &output, Byte *compressionproperties=nullptr, unsigned long long fsize=(unsigned long long)(long long)-1) {
-			decode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), lzma::GetReadSize(input), lzma::SeekFn(input), compressionproperties, fsize, nullptr);
+		void Decode(I_ &input, O_ &output, unsigned long long compressedSize = (unsigned long long)-1) {
+			unsigned long long limit = std::min(compressedSize, lzma::GetReadSize(input));
+			decode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), limit, nullptr);
 		}
 
-		/// Decodes %LZMA compressed data. Supports vectors, arrays, strings and streams as data
-		/// source and targets. This variant allows a notification function which is called during decompression.
-		/// @param   input %Input data
-		/// @param   output Output data
-		/// @param   notifier is the callback to send notifications to
-		/// @param   compressionproperties is the compression property data. Leaving this parameter with default nullptr,
-		///          causes this function to read the actual compression properties from the main data source.
-		/// @param   fsize size of the extracted data. This value is only used if UseUncompressedSize is false. Default value of -1
-		///          relies on LZMA to terminate extraction. Additionally, -1 will cause progress notification to report 0.
+		/// Decodes compressed data. Both .lzma and .xz formats are detected automatically.
+		/// Supports vectors, arrays, strings and streams as data source and targets.
+		/// This variant allows a notification function which is called during decompression.
+		/// @param   compressedSize limits how many bytes are read from input. Use this when the
+		///          compressed data is embedded in a larger stream to prevent overshooting.
+		///          Defaults to unlimited (whole input is consumed).
 		/// @warning Using this system with arrays is extremely dangerous make sure your arrays are big enough
 		/// @throws  runtime_error
 		template <class I_, class O_>
-		void Decode(I_ &input, O_ &output, LZMA::ProgressNotification notifier, Byte *compressionproperties=nullptr, unsigned long long fsize=(unsigned long long)(long long)-1) {
-			decode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), lzma::GetReadSize(input), lzma::SeekFn(input), compressionproperties, fsize, &notifier);
+		void Decode(I_ &input, O_ &output, LZMA::ProgressNotification notifier, unsigned long long compressedSize = (unsigned long long)-1) {
+			unsigned long long limit = std::min(compressedSize, lzma::GetReadSize(input));
+			decode(lzma::ReadyReadStruct(input), lzma::ReadyWriteStruct(output), limit, &notifier);
 		}
 
-		/// The size of the compression property data appended in front of the compressed data
-		int PropertySize();
-
-		/// Whether to encode uncompressed size with the compression properties. Default value for this variable is true.
-		bool UseUncompressedSize;
+		/// The encoding format used by this instance.
+		Format format;
 
 	protected:
 		/// Performs actual compression, notifier can be nullptr
 		void encode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long size, ProgressNotification *notifier);
 
-		/// Performs actual decompression, notifier and cprops can be nullptr
-		void decode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long size, std::function<void(lzma::Reader*, long long)> seekfn, Byte *cprops, unsigned long long fsize, ProgressNotification *notifier);
+		/// Performs actual decompression, auto-detects format, notifier can be nullptr
+		void decode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long insize, ProgressNotification *notifier);
 
 	};
 
-	/// A default constructed LZMA object
+	/// Default LZMA instance — encodes in legacy .lzma (LZMA alone) format
 	extern LZMA Lzma;
+
+	/// XZ instance — encodes in .xz format. Decoding is identical to Lzma (auto-detected).
+	extern LZMA Xz;
 
 }

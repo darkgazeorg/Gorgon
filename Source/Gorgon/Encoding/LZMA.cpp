@@ -11,34 +11,30 @@
 
 namespace Gorgon :: Encoding {
 
-	/// Size of the LZMA property header (1 byte lc/lp/pb + 4 bytes dictionary size)
-	static constexpr int PROPS_SIZE = 5;
-	/// Full .lzma alone header size (properties + 8 bytes uncompressed size)
-	static constexpr int ALONE_HEADER_SIZE = 13;
-
 	void LZMA::encode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long size, LZMA::ProgressNotification *notifier) {
 		std::unique_ptr<lzma::Reader> reader_d(reader);
 		std::unique_ptr<lzma::Writer> writer_d(writer);
 
-		lzma_options_lzma opt;
-		if(lzma_lzma_preset(&opt, LZMA_PRESET_DEFAULT)) {
-			throw std::runtime_error("LZMA preset initialization failed");
-		}
-
 		lzma_stream strm = LZMA_STREAM_INIT;
-		lzma_ret ret = lzma_alone_encoder(&strm, &opt);
-		if(ret != LZMA_OK) {
-			throw std::runtime_error("LZMA creation error");
+		lzma_ret ret;
+
+		if(format == Format::Xz) {
+			ret = lzma_easy_encoder(&strm, LZMA_PRESET_DEFAULT, LZMA_CHECK_CRC64);
+			if(ret != LZMA_OK)
+				throw std::runtime_error("XZ encoder creation error");
+		}
+		else {
+			lzma_options_lzma opt;
+			if(lzma_lzma_preset(&opt, LZMA_PRESET_DEFAULT))
+				throw std::runtime_error("LZMA preset initialization failed");
+			ret = lzma_alone_encoder(&strm, &opt);
+			if(ret != LZMA_OK)
+				throw std::runtime_error("LZMA encoder creation error");
 		}
 
 		const size_t BUF_SIZE = 10240;
 		std::vector<Byte> inBuf(BUF_SIZE);
 		std::vector<Byte> outBuf(BUF_SIZE);
-
-		// The .lzma alone encoder outputs a 13-byte header first.
-		// We intercept it to handle UseUncompressedSize and patch the size.
-		bool headerWritten = false;
-		std::vector<Byte> headerAccum;
 
 		unsigned long long totalIn = 0;
 		bool inputDone = false;
@@ -70,45 +66,15 @@ namespace Gorgon :: Encoding {
 
 			if(ret != LZMA_OK && ret != LZMA_STREAM_END) {
 				lzma_end(&strm);
-				throw std::runtime_error("Cannot encode in LZMA");
+				throw std::runtime_error("Encoding error");
 			}
 
 			size_t have = BUF_SIZE - strm.avail_out;
-
-			if(!headerWritten) {
-				// Accumulate output until we have the full 13-byte .lzma header
-				size_t oldSize = headerAccum.size();
-				headerAccum.resize(oldSize + have);
-				if(have > 0)
-					std::memcpy(&headerAccum[oldSize], &outBuf[0], have);
-
-				if(headerAccum.size() >= ALONE_HEADER_SIZE) {
-					headerWritten = true;
-
-					if(UseUncompressedSize) {
-						// Patch the uncompressed size field in the header
-						std::memcpy(&headerAccum[PROPS_SIZE], &size, 8);
-						writer->Write(writer, &headerAccum[0], ALONE_HEADER_SIZE);
-					}
-					else {
-						// Write only the 5-byte property header
-						writer->Write(writer, &headerAccum[0], PROPS_SIZE);
-					}
-
-					// Write any remaining compressed data after the header
-					if(headerAccum.size() > ALONE_HEADER_SIZE) {
-						writer->Write(writer, &headerAccum[ALONE_HEADER_SIZE],
-							headerAccum.size() - ALONE_HEADER_SIZE);
-					}
-				}
-			}
-			else if(have > 0) {
+			if(have > 0)
 				writer->Write(writer, &outBuf[0], have);
-			}
 
-			if(notifier) {
+			if(notifier && size > 0)
 				(*notifier)(float(double(totalIn) / size));
-			}
 
 			if(ret == LZMA_STREAM_END)
 				break;
@@ -117,60 +83,32 @@ namespace Gorgon :: Encoding {
 		lzma_end(&strm);
 	}
 
-	void LZMA::decode(lzma::Reader *reader,lzma::Writer *writer,unsigned long long insize,std::function<void(lzma::Reader*,long long)> seekfn, Byte *cprops, unsigned long long fsize, LZMA::ProgressNotification *notifier) {
+	void LZMA::decode(lzma::Reader *reader, lzma::Writer *writer, unsigned long long insize, LZMA::ProgressNotification *notifier) {
 		try {
-			// Construct 13-byte .lzma alone header for the decoder
-			Byte header[ALONE_HEADER_SIZE];
-
-			if(cprops == nullptr) {
-				// Read properties from the stream
-				size_t propSize = PROPS_SIZE;
-				reader->Read(reader, header, &propSize);
-
-				if(UseUncompressedSize) {
-					size_t sizeBytes = 8;
-					reader->Read(reader, header + PROPS_SIZE, &sizeBytes);
-				}
-				else {
-					// Write fsize into the header for the decoder
-					uint64_t usize = fsize;
-					std::memcpy(header + PROPS_SIZE, &usize, 8);
-				}
-			}
-			else {
-				// Properties provided externally
-				std::memcpy(header, cprops, PROPS_SIZE);
-
-				if(UseUncompressedSize) {
-					std::memcpy(header + PROPS_SIZE, cprops + PROPS_SIZE, 8);
-				}
-				else {
-					uint64_t usize = fsize;
-					std::memcpy(header + PROPS_SIZE, &usize, 8);
-				}
-			}
-
+			// lzma_auto_decoder handles both .xz and legacy .lzma (LZMA alone) formats
 			lzma_stream strm = LZMA_STREAM_INIT;
-			lzma_ret ret = lzma_alone_decoder(&strm, UINT64_MAX);
-			if(ret != LZMA_OK) {
-				throw std::runtime_error("Cannot decode LZMA properties");
-			}
+			lzma_ret ret = lzma_auto_decoder(&strm, UINT64_MAX, LZMA_CONCATENATED);
+			if(ret != LZMA_OK)
+				throw std::runtime_error("Decoder creation error");
 
 			const size_t BUF_SIZE = 10240;
 			std::vector<Byte> inBuf(BUF_SIZE);
 			std::vector<Byte> outBuf(BUF_SIZE);
 
-			// Feed the reconstructed header first
-			strm.next_in = header;
-			strm.avail_in = ALONE_HEADER_SIZE;
-
 			unsigned long long inPos = 0;
 			bool inputDone = false;
 
+			strm.next_in = nullptr;
+			strm.avail_in = 0;
+
 			for(;;) {
 				if(strm.avail_in == 0 && !inputDone) {
-					size_t readSize = BUF_SIZE;
-					reader->Read(reader, &inBuf[0], &readSize);
+					// Respect insize limit to avoid reading past end of embedded compressed block
+					unsigned long long remaining = insize - inPos;
+					size_t readSize = (size_t)std::min((unsigned long long)BUF_SIZE, remaining);
+
+					if(readSize > 0)
+						reader->Read(reader, &inBuf[0], &readSize);
 
 					if(readSize == 0) {
 						inputDone = true;
@@ -179,6 +117,9 @@ namespace Gorgon :: Encoding {
 						strm.next_in = &inBuf[0];
 						strm.avail_in = readSize;
 						inPos += readSize;
+						// If we've consumed all allowed input, signal end on next iteration
+						if(inPos >= insize)
+							inputDone = true;
 					}
 				}
 
@@ -190,9 +131,8 @@ namespace Gorgon :: Encoding {
 				ret = lzma_code(&strm, action);
 
 				size_t have = BUF_SIZE - strm.avail_out;
-				if(have > 0) {
+				if(have > 0)
 					writer->Write(writer, &outBuf[0], have);
-				}
 
 				if(ret == LZMA_STREAM_END)
 					break;
@@ -204,11 +144,6 @@ namespace Gorgon :: Encoding {
 
 				if(notifier && insize > 0)
 					(*notifier)(float(double(inPos) / insize));
-
-				if(inputDone && have == 0 && strm.avail_in == 0) {
-					lzma_end(&strm);
-					throw std::runtime_error("Extraction failed, out of data.");
-				}
 			}
 
 			lzma_end(&strm);
@@ -216,7 +151,6 @@ namespace Gorgon :: Encoding {
 		catch(...) {
 			delete reader;
 			delete writer;
-
 			throw;
 		}
 
@@ -224,13 +158,7 @@ namespace Gorgon :: Encoding {
 		delete writer;
 	}
 
-	int LZMA::PropertySize() {
-		if(UseUncompressedSize)
-			return PROPS_SIZE + 8;
-		else
-			return PROPS_SIZE;
-	}
-
 	LZMA Lzma;
+	LZMA Xz(LZMA::Format::Xz);
 
 }
