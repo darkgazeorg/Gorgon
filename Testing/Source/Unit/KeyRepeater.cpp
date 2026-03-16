@@ -68,8 +68,8 @@ TEST_CASE("Manual", "[KeyRepeater]") {
     
     NextFrame();
     
-    repeater.SetInitialDelay(false);
-    REQUIRE(repeater.GetInitialDelay() == false);
+    repeater.SetInitialDelay(0);
+    REQUIRE(repeater.GetInitialDelay() == 0);
     
     REQUIRE(repeater.GetDelay() == 200);
     

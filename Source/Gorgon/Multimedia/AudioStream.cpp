@@ -438,8 +438,7 @@ namespace internal {
     {
         if(this == &other)  return;
 
-        std::lock_guard<std::mutex> g1(guard);
-        std::lock_guard<std::mutex> g2(other.guard);
+        std::scoped_lock lock(guard, other.guard);
         
         streamer = other.streamer;
         other.streamer = nullptr;
@@ -469,8 +468,7 @@ namespace internal {
     AudioStream &AudioStream::operator=(AudioStream &&other) {
         if(this == &other)  return *this;
 
-        std::lock_guard<std::mutex> g1(guard);
-        std::lock_guard<std::mutex> g2(other.guard);
+        std::scoped_lock lock(guard, other.guard);
         
         delete streamer;
         streamer = other.streamer;

@@ -26,7 +26,7 @@ namespace Gorgon :: Utils {
 
         void set_() {
             if(negative) {
-                SetConsoleTextAttribute(stdhandle, fore>>4 | back<<4 | (bold ? FOREGROUND_INTENSITY : 0));
+                SetConsoleTextAttribute(stdhandle, (fore<<4) | (back>>4) | (bold ? FOREGROUND_INTENSITY : 0));
             }
             else {
                 SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));

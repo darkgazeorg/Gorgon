@@ -20,8 +20,10 @@
 #include "../Graphics/TextureAnimation.h"
 #include "../Graphics/Animations.h"
 #include "../Containers/Wave.h"
+#ifdef GORGON_AUDIO_SUPPORT
 #include "../Multimedia/Wave.h"
 #include "../Multimedia/AudioStream.h"
+#endif
 
 namespace Gorgon :: Encoding {
 
@@ -450,6 +452,7 @@ public:
             SchemaField f; f.type = Type::AnimationStorage; f.required = required; return f;
         }
 
+#ifdef GORGON_AUDIO_SUPPORT
         /// Creates a schema field for a Wave audio file loaded from a file path string.
         static SchemaField WaveField(bool required = true) {
             SchemaField f; f.type = Type::Wave; f.required = required; return f;
@@ -464,6 +467,7 @@ public:
         static SchemaField AudioStreamField(bool required = true) {
             SchemaField f; f.type = Type::AudioStream; f.required = required; return f;
         }
+#endif
     };
 
     // === State ===
@@ -733,9 +737,11 @@ template<> std::string JSON::Value::Get<std::string>() const;
 template<> JSON::Array JSON::Value::Get<JSON::Array>() const;
 template<> JSON::Object JSON::Value::Get<JSON::Object>() const;
 
-/// Geometry Get<> specializations -- duck typed: reads matching keys from a JSON object.
-/// For integer types (Point, Size, etc.) numeric values are truncated to int.
-/// For float types (Pointf, Sizef, etc.) any numeric value is cast to float without warnings.
+ /// For integer geometry types (Point, Size, Rectangle, Bounds, Margin, etc.) the JSON value
+ /// for each numeric field must be an integer number; non-integer numeric values (e.g. doubles)
+ /// will cause a TypeMismatch error rather than being truncated.
+ /// For float geometry types (Pointf, Sizef, Rectanglef, Boundsf, Marginf, etc.) any numeric value
+ /// is accepted and cast to float.
 template<> Geometry::Point      JSON::Value::Get<Geometry::Point>()      const;
 template<> Geometry::Pointf     JSON::Value::Get<Geometry::Pointf>()     const;
 template<> Geometry::Size       JSON::Value::Get<Geometry::Size>()       const;
@@ -764,8 +770,10 @@ template<> Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::Rect
 /// A Multimedia::Wave wraps a Containers::Wave with ownership.
 /// A Multimedia::AudioStream sets up streaming from the file.
 template<> Containers::Wave            JSON::Value::Get<Containers::Wave>()            const;
+#ifdef GORGON_AUDIO_SUPPORT
 template<> Multimedia::Wave            JSON::Value::Get<Multimedia::Wave>()            const;
 template<> Multimedia::AudioStream     JSON::Value::Get<Multimedia::AudioStream>()     const;
+#endif
 
 /// A default constructed JSON object
 extern JSON Json;

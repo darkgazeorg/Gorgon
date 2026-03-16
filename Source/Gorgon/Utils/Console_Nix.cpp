@@ -223,7 +223,7 @@ namespace Gorgon :: Utils {
 	void StdBackend::GotoXY(Geometry::Point location) {
 		if(!IsStylesSupported()) return;
 
-        (iserr ? std::cerr : std::cout)<<"\e["<<location.Y<<";"<<location.X<<"f";
+        (iserr ? std::cerr : std::cout)<<"\e["<<(location.Y+1)<<";"<<(location.X+1)<<"f";
         (iserr ? std::cerr : std::cout).flush();
     }
 

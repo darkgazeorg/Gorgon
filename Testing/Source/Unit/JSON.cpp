@@ -21,8 +21,10 @@
 #include <Gorgon/Graphics/TextureAnimation.h>
 #include <Gorgon/Graphics/Animations.h>
 #include <Gorgon/Containers/Wave.h>
+#ifdef GORGON_AUDIO_SUPPORT
 #include <Gorgon/Multimedia/Wave.h>
 #include <Gorgon/Multimedia/AudioStream.h>
+#endif
 #include <cmath>
 
 using namespace Gorgon::Encoding;
@@ -1606,6 +1608,7 @@ TEST_CASE("Get<Containers::Wave> missing file throws ResourceNotFound", "[JSON][
     }
 }
 
+#ifdef GORGON_AUDIO_SUPPORT
 // -- Get<Multimedia::Wave> -------------------------------------------------
 
 TEST_CASE("Get<Multimedia::Wave> from string", "[JSON][Wave]") {
@@ -1639,6 +1642,7 @@ TEST_CASE("Get<Multimedia::AudioStream> from non-string throws", "[JSON][Wave]")
     auto val = Json.Parse("true");
     REQUIRE_THROWS_AS(val.Get<Gorgon::Multimedia::AudioStream>(), JSON::Error);
 }
+#endif
 
 // -- Schema validation for Wave/Sound/AudioStream types --------------------
 
@@ -1661,6 +1665,7 @@ TEST_CASE("Schema: Wave field rejects non-string", "[JSON][Schema][Wave]") {
     REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
 
+#ifdef GORGON_AUDIO_SUPPORT
 TEST_CASE("Schema: Sound field accepts string", "[JSON][Schema][Wave]") {
     JSON::Schema schema = {
         {"sfx", JSON::SchemaField::SoundField()},
@@ -1698,6 +1703,7 @@ TEST_CASE("Schema: AudioStream field rejects non-string", "[JSON][Schema][Wave]"
     auto input = Json.Parse(R"({"music": false})");
     REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
 }
+#endif
 
 TEST_CASE("Schema: optional Wave field", "[JSON][Schema][Wave]") {
     JSON::Schema schema = {

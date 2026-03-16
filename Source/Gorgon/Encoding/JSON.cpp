@@ -1600,6 +1600,8 @@ Containers::Wave JSON::Value::Get<Containers::Wave>() const {
     return wave;
 }
 
+#ifdef GORGON_AUDIO_SUPPORT
+
 template<>
 Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
     if(!IsString())
@@ -1625,6 +1627,8 @@ Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
 
     return stream;
 }
+
+#endif
 
 JSON::Value JSON::ParseFile(const std::string &path) const {
     std::ifstream file(path);

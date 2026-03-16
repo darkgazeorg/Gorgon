@@ -220,7 +220,10 @@ namespace Gorgon :: Utils {
         
         virtual void ShowCaret() override;
 
-		virtual std::ostream &OutStream() const override { return std::cout; }
+		virtual std::ostream &OutStream() const override { 
+			if(iserr) return std::cerr; 
+			else      return std::cout; 
+		}
 
 	private:
 		bool iserr;

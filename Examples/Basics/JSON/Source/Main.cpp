@@ -32,8 +32,9 @@
  *
  */
 
-#include "Gorgon/Audio.h"
+#ifdef GORGON_AUDIO_SUPPORT
 #include "Gorgon/Audio/Controllers.h"
+#endif
 #include "Gorgon/Graphics/Animations.h"
 #include <Gorgon/EntryPoint.h>   // provides the int Main() entry point
 #include <Gorgon/Window.h>       // windowed application support
@@ -46,8 +47,10 @@
 #include <Gorgon/Struct.h>       // DefineStructMembers for reflection
 #include <Gorgon/Input/Keyboard.h>
 #include <Gorgon/Containers/Wave.h>
+#ifdef GORGON_AUDIO_SUPPORT
 #include <Gorgon/Multimedia/Wave.h>
 #include <Gorgon/Multimedia/AudioStream.h>
+#endif
 #include <iostream>
 #include <string>
 #include <cmath>
@@ -89,12 +92,18 @@ struct PlayerConfig {
 };
 
 /// Enemy configuration has a bitmap in it, it would be loaded
-/// from the filename specified by the "sprite" field in JSON.  
+/// from the filename specified by the "sprite" field in JSON.
+/// The sound effect field is stored as a Wave so the example can
+/// remain usable even when audio support is disabled.
 struct EnemyConfig {
     int health = 50;
     int damage = 10;
     Bitmap sprite;
+#ifdef GORGON_AUDIO_SUPPORT
     Gorgon::Multimedia::Wave sfx{};
+#else
+    Gorgon::Containers::Wave sfx{};
+#endif
 
     DefineStructMembers(EnemyConfig, health, damage, sprite, sfx)
 };
@@ -625,6 +634,7 @@ int Main(const std::vector<std::string> &) {
               << loadedWave.GetSampleRate() << " Hz, "
               << loadedWave.GetChannelCount() << " channel(s)" << std::endl;
 
+#ifdef GORGON_AUDIO_SUPPORT
     // =====================================================================
     //  19. Loading a Multimedia::Wave from JSON
     // =====================================================================
@@ -664,6 +674,7 @@ int Main(const std::vector<std::string> &) {
     std::cout << "SFX path: " << audioResult["sfx"].Get<std::string>() << std::endl;
     std::cout << "Music present: "
               << (audioResult["music"].IsNull() ? "no (null)" : "yes") << std::endl;
+#endif
 
     // =====================================================================
     //  21. Display Window
@@ -700,10 +711,12 @@ int Main(const std::vector<std::string> &) {
 
     enemyData.sprite.Draw(layer, 200, 10);
 
+#ifdef GORGON_AUDIO_SUPPORT
     std::cout << enemyData.sfx.GetLength() << std::endl;
     
     Gorgon::Audio::BasicController controller(enemyData.sfx);
     controller.Loop();
+#endif
 
     // Register Escape key to exit the application.
     window.KeyEvent.Register([&](Gorgon::Input::Key key, float state) {
