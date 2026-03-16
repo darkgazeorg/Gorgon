@@ -10,6 +10,7 @@
 #include <Gorgon/Encoding/JSON.h>
 #include <Gorgon/Encoding.h>
 #include <Gorgon/Encoding/PNG.h>
+#include <Gorgon/Encoding/LZMA.h>
 #include <Gorgon/Struct.h>
 #include <Gorgon/Geometry/Point.h>
 #include <Gorgon/Geometry/Size.h>
@@ -26,6 +27,10 @@
 #include <Gorgon/Multimedia/AudioStream.h>
 #endif
 #include <cmath>
+#include <thread>
+#include <Gorgon/Main.h>
+#include <Gorgon/Filesystem.h>
+#include <Gorgon/OS.h>
 
 using namespace Gorgon::Encoding;
 
@@ -1543,6 +1548,205 @@ TEST_CASE("Schema: optional Bitmap field", "[JSON][Schema][Bitmap]") {
     REQUIRE(result["img"].IsNull());
 }
 
+// =====================================================================
+//  Resource resolution: object-based spec, LZMA fallback, download
+// =====================================================================
+
+TEST_CASE("Get<Bitmap> from object with filename", "[JSON][Bitmap][Resource]") {
+    Json.Prepare = false;
+
+    createTestPNG("json_test_objres.png", 4, 4);
+    auto val = Json.Parse(R"({"filename": "json_test_objres.png"})");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 4);
+    REQUIRE(bmp.GetHeight() == 4);
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("Get<Bitmap> from object with filename+url loads local", "[JSON][Bitmap][Resource]") {
+    Json.Prepare = false;
+
+    createTestPNG("json_test_fnurl.png", 6, 6);
+    // When the local file exists, the URL should not be needed
+    auto val = Json.Parse(R"({"filename": "json_test_fnurl.png", "url": "https://example.com/notreal.png"})");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 6);
+    REQUIRE(bmp.GetHeight() == 6);
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("Get<Bitmap> from LZMA fallback", "[JSON][Bitmap][Resource]") {
+    Json.Prepare = false;
+
+    // Create a PNG, compress it to .lzma, remove the original
+    createTestPNG("json_test_lzma_src.png", 5, 5);
+
+    {
+        std::ifstream in("json_test_lzma_src.png", std::ios::binary);
+        std::ofstream out("json_test_lzma_target.png.lzma", std::ios::binary);
+        Lzma.Encode(in, out);
+    }
+
+    // Make sure the uncompressed file does NOT exist
+    std::remove("json_test_lzma_target.png");
+
+    auto val = Json.Parse(R"("json_test_lzma_target.png")");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 5);
+    REQUIRE(bmp.GetHeight() == 5);
+
+    // The resolved file should now exist
+    {
+        std::ifstream check("json_test_lzma_target.png");
+        REQUIRE(check.is_open());
+    }
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("Get<Bitmap> URL-only sync throws DownloadRequired", "[JSON][Bitmap][Resource]") {
+    Json.Prepare = false;
+
+    auto val = Json.Parse(R"("https://darkgaze.org/testing/Logo.png")");
+    try {
+        val.Get<Gorgon::Graphics::Bitmap>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::DownloadRequired);
+    }
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("Get<Bitmap> object with url-only sync throws DownloadRequired", "[JSON][Bitmap][Resource]") {
+    Json.Prepare = false;
+
+    auto val = Json.Parse(R"({"url": "https://darkgaze.org/testing/Logo.png"})");
+    try {
+        val.Get<Gorgon::Graphics::Bitmap>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::DownloadRequired);
+    }
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("Schema: Bitmap field accepts object with filename", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
+    };
+
+    auto input = Json.Parse(R"({"img": {"filename": "test.png"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["img"].IsObject());
+    REQUIRE(result["img"]["filename"].Get<std::string>() == "test.png");
+}
+
+TEST_CASE("Schema: Bitmap field accepts object with url", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
+    };
+
+    auto input = Json.Parse(R"({"img": {"url": "https://example.com/test.png"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["img"].IsObject());
+}
+
+TEST_CASE("Schema: Bitmap field accepts object with filename+url", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
+    };
+
+    auto input = Json.Parse(R"({"img": {"filename": "test.png", "url": "https://example.com/test.png"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["img"].IsObject());
+}
+
+TEST_CASE("Schema: Bitmap field rejects object without filename or url", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"img", JSON::SchemaField::BitmapField()},
+    };
+
+    auto input = Json.Parse(R"({"img": {"width": 100}})");
+    REQUIRE_THROWS_AS(Json.Validate(input, schema), JSON::Error);
+}
+
+TEST_CASE("Schema: Wave field accepts object with filename", "[JSON][Schema][Wave][Resource]") {
+    JSON::Schema schema = {
+        {"audio", JSON::SchemaField::WaveField()},
+    };
+
+    auto input = Json.Parse(R"({"audio": {"filename": "test.wav"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["audio"].IsObject());
+}
+
+TEST_CASE("Schema: Wave field accepts object with url", "[JSON][Schema][Wave][Resource]") {
+    JSON::Schema schema = {
+        {"audio", JSON::SchemaField::WaveField()},
+    };
+
+    auto input = Json.Parse(R"({"audio": {"url": "https://example.com/test.wav"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["audio"].IsObject());
+}
+
+TEST_CASE("Schema: AnimationStorage field accepts object with filename", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"store", JSON::SchemaField::AnimationStorageField()},
+    };
+
+    auto input = Json.Parse(R"({"store": {"filename": "sprite.png"}})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["store"].IsObject());
+}
+
+TEST_CASE("Schema: BitmapAnimation element accepts object with filename", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
+    };
+
+    auto input = Json.Parse(R"({"anim": [{"filename": "frame.png"}]})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["anim"].IsArray());
+}
+
+TEST_CASE("Schema: BitmapAnimation element accepts object with url", "[JSON][Schema][Bitmap][Resource]") {
+    JSON::Schema schema = {
+        {"anim", JSON::SchemaField::BitmapAnimationField()},
+    };
+
+    auto input = Json.Parse(R"({"anim": [{"url": "https://example.com/frame.png"}]})");
+    auto result = Json.Validate(input, schema);
+    REQUIRE(result["anim"].IsArray());
+}
+
+TEST_CASE("Error code: DownloadRequired", "[JSON][Error][Resource]") {
+    Json.Prepare = false;
+
+    auto val = Json.Parse(R"("https://example.com/nonexistent.png")");
+    try {
+        val.Get<Gorgon::Graphics::Bitmap>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::DownloadRequired);
+    }
+
+    Json.Prepare = true;
+}
+
 // -- JSONParseFile ---------------------------------------------------------
 
 TEST_CASE("JSONParseFile reads and parses a JSON file", "[JSON][Bitmap]") {
@@ -1605,6 +1809,26 @@ TEST_CASE("Get<Containers::Wave> missing file throws ResourceNotFound", "[JSON][
     }
     catch(const JSON::Error &e) {
         REQUIRE(e.GetCode() == JSON::ErrorCode::ResourceNotFound);
+    }
+}
+
+TEST_CASE("Get<Containers::Wave> from object with filename", "[JSON][Wave][Resource]") {
+    createTestWav("json_test_wave_obj.wav");
+    auto val = Json.Parse(R"({"filename": "json_test_wave_obj.wav"})");
+    auto wave = val.Get<Gorgon::Containers::Wave>();
+
+    REQUIRE(wave.GetSize() > 0);
+    REQUIRE(wave.GetSampleRate() == 44100);
+}
+
+TEST_CASE("Get<Containers::Wave> URL-only sync throws DownloadRequired", "[JSON][Wave][Resource]") {
+    auto val = Json.Parse(R"({"url": "https://example.com/test.wav"})");
+    try {
+        val.Get<Gorgon::Containers::Wave>();
+        REQUIRE(false);
+    }
+    catch(const JSON::Error &e) {
+        REQUIRE(e.GetCode() == JSON::ErrorCode::DownloadRequired);
     }
 }
 
@@ -1995,4 +2219,78 @@ TEST_CASE("ParseStream with BestEffort trailing comma", "[JSON][Stream]") {
     std::string rest;
     std::getline(ss, rest);
     REQUIRE(rest == "rest");
+}
+
+// =====================================================================
+//  Async download tests (require network access)
+// =====================================================================
+
+namespace {
+    struct DownloadTarget {
+        Gorgon::Graphics::Bitmap image;
+        DefineStructMembers(DownloadTarget, image)
+    };
+}
+
+TEST_CASE("ToStructAsync downloads and decompresses XZ bitmap", "[JSON][Async][Download]") {
+    Json.Prepare = false;
+
+    auto json = Json.Parse(R"({"image": {"url": "https://darkgaze.org/testing/Logo.png.xz"}})");
+
+    bool completed = false;
+    json.ToStructAsync<DownloadTarget>([&](DownloadTarget cfg) {
+        completed = true;
+        REQUIRE(cfg.image.HasData());
+        REQUIRE(cfg.image.GetWidth() > 0);
+        REQUIRE(cfg.image.GetHeight() > 0);
+    });
+
+    // Drive async processing via BeforeFrameEvent (fires HTTP::onframe and Json.onframe)
+    for(int i = 0; i < 3000 && !completed; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        Gorgon::BeforeFrameEvent();
+    }
+
+    REQUIRE(completed);
+
+    // Clean up cached file to avoid interfering with other tests
+    auto cacheDir = Gorgon::Filesystem::Join(
+        Gorgon::Filesystem::Join(Gorgon::OS::User::GetDataPath(), Gorgon::GetSystemName()),
+        ".cache");
+    auto cachedFile = Gorgon::Filesystem::Join(cacheDir, "Logo.png");
+    if(Gorgon::Filesystem::IsFile(cachedFile))
+        Gorgon::Filesystem::Delete(cachedFile);
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("ToStructAsync reference overload downloads into existing struct", "[JSON][Async][Download]") {
+    Json.Prepare = false;
+
+    auto json = Json.Parse(R"({"image": {"url": "https://darkgaze.org/testing/Logo.png.xz"}})");
+
+    bool completed = false;
+    DownloadTarget target;
+    json.ToStructAsync(target, [&]() {
+        completed = true;
+        REQUIRE(target.image.HasData());
+        REQUIRE(target.image.GetWidth() > 0);
+        REQUIRE(target.image.GetHeight() > 0);
+    });
+
+    for(int i = 0; i < 3000 && !completed; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        Gorgon::BeforeFrameEvent();
+    }
+
+    REQUIRE(completed);
+
+    auto cacheDir = Gorgon::Filesystem::Join(
+        Gorgon::Filesystem::Join(Gorgon::OS::User::GetDataPath(), Gorgon::GetSystemName()),
+        ".cache");
+    auto cachedFile = Gorgon::Filesystem::Join(cacheDir, "Logo.png");
+    if(Gorgon::Filesystem::IsFile(cachedFile))
+        Gorgon::Filesystem::Delete(cachedFile);
+
+    Json.Prepare = true;
 }

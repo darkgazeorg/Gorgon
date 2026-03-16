@@ -7,8 +7,14 @@
 #include <fstream>
 #include <iomanip>
 #include <stdexcept>
+#include <deque>
 #include "JSON.h"
+#include "LZMA.h"
 #include "../Encoding.h"
+#include "../Filesystem.h"
+#include "../OS.h"
+#include "../Main.h"
+#include "../Network/HTTP.h"
 #include "Gorgon/String.h"
 
 namespace Gorgon :: Encoding {
@@ -1412,10 +1418,14 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
                 }
                 break;
 
-            // Graphics types: Bitmap expects a string, BitmapAnimation expects
-            // an array of strings, AnimationStorage accepts either.
+            // Graphics types: Bitmap expects a string or object with filename/url.
+            // BitmapAnimation expects an array of strings/objects.
+            // AnimationStorage accepts string, object, or array.
             case Type::Bitmap:
                 match = (actual == Type::String);
+                if(!match && actual == Type::Object) {
+                    match = it->second.Has("filename") || it->second.Has("url");
+                }
                 break;
             case Type::BitmapAnimation:
                 match = (actual == Type::Array);
@@ -1423,7 +1433,7 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
                     auto &arr = std::get<Array>(it->second.GetVariant());
                     for(auto &elem : arr) {
                         if(!elem.IsString() && !elem.IsObject()) { match = false; break; }
-                        if(elem.IsObject() && !elem.Has("file")) { match = false; break; }
+                        if(elem.IsObject() && !elem.Has("file") && !elem.Has("filename") && !elem.Has("url")) { match = false; break; }
                     }
                 }
                 break;
@@ -1431,12 +1441,15 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
                 if(actual == Type::String) {
                     match = true;
                 }
+                else if(actual == Type::Object) {
+                    match = it->second.Has("filename") || it->second.Has("url");
+                }
                 else if(actual == Type::Array) {
                     match = true;
                     auto &arr = std::get<Array>(it->second.GetVariant());
                     for(auto &elem : arr) {
                         if(!elem.IsString() && !elem.IsObject()) { match = false; break; }
-                        if(elem.IsObject() && !elem.Has("file")) { match = false; break; }
+                        if(elem.IsObject() && !elem.Has("file") && !elem.Has("filename") && !elem.Has("url")) { match = false; break; }
                     }
                 }
                 else {
@@ -1444,11 +1457,14 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
                 }
                 break;
 
-            // Audio types: all expect a string (file path)
+            // Audio types: all expect a string (file path) or object with filename/url
             case Type::Wave:
             case Type::Sound:
             case Type::AudioStream:
                 match = (actual == Type::String);
+                if(!match && actual == Type::Object) {
+                    match = it->second.Has("filename") || it->second.Has("url");
+                }
                 break;
         }
 
@@ -1522,16 +1538,443 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
 }
 
 // ------------------------------------------------------------------
+//  Resource resolution helpers (download, cache, LZMA fallback)
+// ------------------------------------------------------------------
+
+namespace {
+
+    using Gorgon::Byte;
+    namespace Filesystem = Gorgon::Filesystem;
+    namespace OS = Gorgon::OS;
+    using Gorgon::GetSystemName;
+
+    /// Returns true if the string looks like an HTTP(S) URL.
+    bool isURL(const std::string &s) {
+        return s.size() > 7 && (s.compare(0, 7, "http://") == 0 || s.compare(0, 8, "https://") == 0);
+    }
+
+    /// Returns the cache directory for downloaded resources.
+    std::string getCacheDir() {
+        return Filesystem::Join(
+            Filesystem::Join(OS::User::GetDataPath(), GetSystemName()),
+            ".cache"
+        );
+    }
+
+    /// Returns the data directory (without .cache) for persistent downloaded files.
+    std::string getDataDir() {
+        return Filesystem::Join(OS::User::GetDataPath(), GetSystemName());
+    }
+
+    /// Tries to decompress a .lzma or .xz compressed file in-place and return
+    /// the decompressed bytes. Returns true on success.
+    bool decompressFile(const std::string &path, std::vector<Byte> &output) {
+        std::ifstream in(path, std::ios::binary);
+        if(!in.is_open())
+            return false;
+        try {
+            Lzma.Decode(in, output);
+            return true;
+        }
+        catch(...) {
+            return false;
+        }
+    }
+
+    /// Tries to find a file, falling back to .lzma and .xz compressed variants.
+    /// If found as compressed, decompresses to the original filename.
+    /// Returns the resolved path or empty string.
+    std::string resolveLocalPath(const std::string &path) {
+        if(Filesystem::IsFile(path))
+            return path;
+
+        // Try .lzma extension
+        std::string lzmaPath = path + ".lzma";
+        if(Filesystem::IsFile(lzmaPath)) {
+            std::vector<Byte> decompressed;
+            if(decompressFile(lzmaPath, decompressed)) {
+                std::ofstream out(path, std::ios::binary);
+                if(out.is_open()) {
+                    out.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
+                    return path;
+                }
+            }
+        }
+
+        // Try .xz extension
+        std::string xzPath = path + ".xz";
+        if(Filesystem::IsFile(xzPath)) {
+            std::vector<Byte> decompressed;
+            if(decompressFile(xzPath, decompressed)) {
+                std::ofstream out(path, std::ios::binary);
+                if(out.is_open()) {
+                    out.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
+                    return path;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    /// Determines where to cache a downloaded file given a filename.
+    /// If filename contains a relative path, try the current working directory
+    /// first; if not writable, fall back to data dir.
+    std::string determineSavePath(const std::string &filename) {
+        // Try the current directory first
+        auto dir = Filesystem::GetDirectory(filename);
+        if(dir == "." || dir.empty()) {
+            // Just a filename, try current directory
+            if(Filesystem::IsWritable("."))
+                return filename;
+        }
+        else {
+            // Relative path
+            if(Filesystem::IsWritable(".") && (Filesystem::IsDirectory(dir) || Filesystem::CreateDirectory(dir)))
+                return filename;
+        }
+
+        // Fall back to data directory
+        auto dataDir = getDataDir();
+        Filesystem::CreateDirectory(dataDir);
+        auto fullDir = Filesystem::Join(dataDir, dir);
+        Filesystem::CreateDirectory(fullDir);
+        return Filesystem::Join(dataDir, filename);
+    }
+
+    /// Extracts filename and URL from a resource specification.
+    /// The value can be:
+    /// - A string (file path or URL)
+    /// - An object with "filename" and/or "url" fields
+    /// Returns {filename, url}. Either can be empty.
+    std::pair<std::string, std::string> extractResourceSpec(const JSON::Value &val) {
+        if(val.IsString()) {
+            auto s = val.Get<std::string>();
+            if(isURL(s))
+                return {"", s};
+            return {s, ""};
+        }
+        if(val.IsObject()) {
+            std::string filename, url;
+            if(val.Has("filename"))
+                filename = val["filename"].Get<std::string>();
+            if(val.Has("url"))
+                url = val["url"].Get<std::string>();
+            // If only url but no filename, treat url as filename for resolution
+            if(filename.empty() && !url.empty()) {
+                // If filename starts with http, it's a URL
+                if(isURL(filename))
+                    url = filename;
+            }
+            // If filename is a URL
+            if(!filename.empty() && isURL(filename) && url.empty())
+                url = filename;
+            return {filename, url};
+        }
+        return {"", ""};
+    }
+
+    /// Synchronously resolves a resource path. Handles local files,
+    /// LZMA fallback, and cached downloads. Throws for HTTP URLs
+    /// that are not cached. Returns the local file path to load from.
+    std::string resolveResourceSync(const JSON::Value &val) {
+        auto [filename, url] = extractResourceSpec(val);
+
+        // Case 1: Local file (no URL)
+        if(url.empty()) {
+            if(filename.empty())
+                throw JSON::Error(JSON::ErrorCode::ResourceNotFound, "No filename or URL specified");
+
+            auto resolved = resolveLocalPath(filename);
+            if(!resolved.empty())
+                return resolved;
+
+            throw JSON::Error(JSON::ErrorCode::ResourceNotFound, "File not found: " + filename);
+        }
+
+        // Case 2: URL with filename - check if cached locally
+        if(!filename.empty() && !isURL(filename)) {
+            // Check the specified filename path
+            auto resolved = resolveLocalPath(filename);
+            if(!resolved.empty())
+                return resolved;
+
+            // Check data directory
+            auto dataPath = Filesystem::Join(getDataDir(), filename);
+            resolved = resolveLocalPath(dataPath);
+            if(!resolved.empty())
+                return resolved;
+        }
+
+        // Case 3: URL-only, check cache
+        if(filename.empty() || isURL(filename)) {
+            // Extract filename from URL
+            auto urlFilename = Filesystem::GetFilename(url);
+            // Strip query parameters
+            auto qpos = urlFilename.find('?');
+            if(qpos != std::string::npos)
+                urlFilename = urlFilename.substr(0, qpos);
+
+            auto cachePath = Filesystem::Join(getCacheDir(), urlFilename);
+            auto resolved = resolveLocalPath(cachePath);
+            if(!resolved.empty())
+                return resolved;
+        }
+
+        // Not cached - synchronous download is not allowed
+        throw JSON::Error(JSON::ErrorCode::DownloadRequired,
+            "Resource requires download (use async mode): " + url);
+    }
+
+    /// Determines the save path for a download given filename and URL.
+    std::string determineSavePathForDownload(const std::string &filename, const std::string &url) {
+        if(!filename.empty() && !isURL(filename)) {
+            return determineSavePath(filename);
+        }
+
+        // Use URL filename in cache directory
+        auto urlFilename = Filesystem::GetFilename(url);
+        auto qpos = urlFilename.find('?');
+        if(qpos != std::string::npos)
+            urlFilename = urlFilename.substr(0, qpos);
+
+        // Remove compression extension from save name
+        auto ext = Filesystem::GetExtension(urlFilename);
+        if(ext == "lzma" || ext == "xz") {
+            urlFilename = urlFilename.substr(0, urlFilename.size() - ext.size() - 1);
+        }
+
+        auto cacheDir = getCacheDir();
+        Filesystem::CreateDirectory(cacheDir);
+        return Filesystem::Join(cacheDir, urlFilename);
+    }
+
+} // anonymous namespace
+
+// ------------------------------------------------------------------
+//  Async download infrastructure (single HTTP, queued)
+// ------------------------------------------------------------------
+
+struct JSON::AsyncImpl {
+    Gorgon::Network::HTTP http;
+    Gorgon::EventToken frameToken = 0;
+
+    struct DownloadTask {
+        std::string originalUrl;
+        std::string baseSavePath;   // target path without compression extension
+        std::string currentSavePath;// actual file being downloaded (may have .lzma/.xz)
+        int retryState = 0;        // 0=original, 1=.lzma, 2=.xz
+        std::function<void(const std::string&)> onSuccess;
+        std::function<void(const std::string&)> onError;
+    };
+
+    std::deque<DownloadTask> queue;
+    std::unique_ptr<DownloadTask> current;
+    std::vector<std::function<void()>> callbacks;
+
+    void startNext() {
+        if(current || queue.empty())
+            return;
+
+        current = std::make_unique<DownloadTask>(std::move(queue.front()));
+        queue.pop_front();
+
+        // Determine actual URL and save path
+        std::string url = current->originalUrl;
+        std::string savePath = current->baseSavePath;
+
+        // If original URL has compression extension, download to a compressed name
+        auto urlExt = Gorgon::Filesystem::GetExtension(url);
+        if(urlExt == "lzma" || urlExt == "xz") {
+            savePath = current->baseSavePath + "." + urlExt;
+        }
+
+        current->currentSavePath = savePath;
+
+        auto dir = Gorgon::Filesystem::GetDirectory(savePath);
+        if(!dir.empty() && dir != ".")
+            Gorgon::Filesystem::CreateDirectory(dir);
+
+        http.Get(url, savePath);
+    }
+
+    void handleComplete() {
+        if(!current) return;
+
+        auto savedPath = current->currentSavePath;
+        auto basePath = current->baseSavePath;
+        auto onSuccess = std::move(current->onSuccess);
+
+        // Decompress if needed
+        auto ext = Gorgon::Filesystem::GetExtension(savedPath);
+        if(ext == "lzma" || ext == "xz") {
+            std::vector<Gorgon::Byte> decompressed;
+            if(decompressFile(savedPath, decompressed)) {
+                std::ofstream out(basePath, std::ios::binary);
+                if(out.is_open()) {
+                    out.write(reinterpret_cast<const char*>(decompressed.data()), decompressed.size());
+                    out.close();
+                    Gorgon::Filesystem::Delete(savedPath);
+                }
+            }
+        }
+
+        current.reset();
+        if(onSuccess) onSuccess(basePath);
+        startNext();
+    }
+
+    void handleError(Gorgon::Network::HTTP::Error err) {
+        if(!current) return;
+
+        auto urlExt = Gorgon::Filesystem::GetExtension(current->originalUrl);
+        // Retry with .lzma/.xz on 404 only if original URL has no compression ext
+        if(err.error == Gorgon::Network::HTTP::Error::PageNotFound &&
+           urlExt != "lzma" && urlExt != "xz") {
+            if(current->retryState == 0) {
+                current->retryState = 1;
+                std::string url = current->originalUrl + ".lzma";
+                std::string savePath = current->baseSavePath + ".lzma";
+                current->currentSavePath = savePath;
+
+                auto dir = Gorgon::Filesystem::GetDirectory(savePath);
+                if(!dir.empty() && dir != ".")
+                    Gorgon::Filesystem::CreateDirectory(dir);
+
+                http.Get(url, savePath);
+                return;
+            }
+            if(current->retryState == 1) {
+                current->retryState = 2;
+                std::string url = current->originalUrl + ".xz";
+                std::string savePath = current->baseSavePath + ".xz";
+                current->currentSavePath = savePath;
+
+                auto dir = Gorgon::Filesystem::GetDirectory(savePath);
+                if(!dir.empty() && dir != ".")
+                    Gorgon::Filesystem::CreateDirectory(dir);
+
+                http.Get(url, savePath);
+                return;
+            }
+        }
+
+        // All retries exhausted
+        auto onError = std::move(current->onError);
+        auto url = current->originalUrl;
+        current.reset();
+        if(onError) onError("Failed to download: " + url + " (" + err.message + ")");
+        startNext();
+    }
+};
+
+void JSON::ensureAsync() {
+    if(!asyncimpl) {
+        asyncimpl = new AsyncImpl();
+        asyncimpl->frameToken = Gorgon::BeforeFrameEvent.Register(*this, &JSON::onframe);
+        asyncimpl->http.FileTransferCompletedEvent.Register([this]() {
+            asyncimpl->handleComplete();
+        });
+        asyncimpl->http.TransferErrorEvent.Register([this](Gorgon::Network::HTTP &, Gorgon::Network::HTTP::Error err) {
+            asyncimpl->handleError(err);
+        });
+    }
+}
+
+JSON::~JSON() {
+    if(asyncimpl) {
+        Gorgon::BeforeFrameEvent.Unregister(asyncimpl->frameToken);
+        delete asyncimpl;
+    }
+}
+
+void JSON::onframe() {
+    if(!asyncimpl) return;
+
+    // Fire deferred callbacks
+    auto cbs = std::move(asyncimpl->callbacks);
+    asyncimpl->callbacks.clear();
+    for(auto &cb : cbs) cb();
+
+    // Start next download if idle
+    if(!asyncimpl->current && !asyncimpl->queue.empty())
+        asyncimpl->startNext();
+}
+
+void JSON::resolveAsync(const Value &val,
+                        std::function<void(const std::string&)> loader,
+                        std::function<void(const std::string&)> onError) {
+    ensureAsync();
+
+    // Null value = just a deferred callback (used for no-resource structs)
+    if(val.IsNull()) {
+        asyncimpl->callbacks.push_back([loader]() { loader(""); });
+        return;
+    }
+
+    auto [filename, url] = extractResourceSpec(val);
+
+    // Local file (no URL) - defer callback
+    if(url.empty()) {
+        if(filename.empty()) {
+            asyncimpl->callbacks.push_back([onError]() { onError("No filename or URL specified"); });
+            return;
+        }
+        auto resolved = resolveLocalPath(filename);
+        if(!resolved.empty()) {
+            asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
+            return;
+        }
+        asyncimpl->callbacks.push_back([onError, filename]() { onError("File not found: " + filename); });
+        return;
+    }
+
+    // Check cache
+    if(!filename.empty() && !isURL(filename)) {
+        auto resolved = resolveLocalPath(filename);
+        if(!resolved.empty()) {
+            asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
+            return;
+        }
+        auto dataPath = Gorgon::Filesystem::Join(getDataDir(), filename);
+        resolved = resolveLocalPath(dataPath);
+        if(!resolved.empty()) {
+            asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
+            return;
+        }
+    }
+
+    if(filename.empty() || isURL(filename)) {
+        auto urlFilename = Gorgon::Filesystem::GetFilename(url);
+        auto qpos = urlFilename.find('?');
+        if(qpos != std::string::npos)
+            urlFilename = urlFilename.substr(0, qpos);
+        auto cachePath = Gorgon::Filesystem::Join(getCacheDir(), urlFilename);
+        auto resolved = resolveLocalPath(cachePath);
+        if(!resolved.empty()) {
+            asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
+            return;
+        }
+    }
+
+    // Need download
+    auto savePath = determineSavePathForDownload(filename, url);
+    asyncimpl->queue.push_back({url, savePath, "", 0, std::move(loader), std::move(onError)});
+    asyncimpl->startNext();
+}
+
+// ------------------------------------------------------------------
 //  Bitmap/Animation Get<> specializations
 // ------------------------------------------------------------------
 
 template<>
 Graphics::Bitmap JSON::Value::Get<Graphics::Bitmap>() const {
-    if(!IsString())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Bitmap)");
+    if(!IsString() && !IsObject())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Bitmap)");
+
+    auto path = resolveResourceSync(*this);
 
     Graphics::Bitmap bmp;
-    auto path = Get<std::string>();
     if(!bmp.Import(path))
         throw Error(ErrorCode::ResourceNotFound, "Failed to import bitmap from: " + path);
 
@@ -1550,9 +1993,10 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
     Graphics::BitmapAnimationProvider prov;
 
     for(int i = 0; i < (int)arr.size(); i++) {
-        if(arr[i].IsString()) {
+        if(arr[i].IsString() || (arr[i].IsObject() && !arr[i].Has("file") && (arr[i].Has("filename") || arr[i].Has("url")))) {
+            // Direct file path string or resource spec object (filename/url)
             Graphics::Bitmap bmp;
-            auto path = arr[i].Get<std::string>();
+            auto path = resolveResourceSync(arr[i]);
             if(!bmp.Import(path))
                 throw Error(ErrorCode::ResourceNotFound,
                     "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
@@ -1561,12 +2005,30 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
         }
         else if(arr[i].IsObject()) {
             auto &obj = arr[i];
-            if(!obj["file"].IsString())
+            // Object with "file" key (animation frame with optional duration)
+            if(!obj.Has("file") || !obj["file"].IsString())
                 throw Error(ErrorCode::TypeMismatch,
                     "BitmapAnimation array element [" + std::to_string(i) + "] object missing string 'file' key");
 
+            // Resolve the file path, supporting resource spec
+            JSON::Value fileSpec;
+            if(obj.Has("url") || obj.Has("filename")) {
+                // Build a resource spec object from the animation frame object
+                JSON::Object resObj;
+                if(obj.Has("filename"))
+                    resObj["filename"] = obj["filename"];
+                else
+                    resObj["filename"] = obj["file"];
+                if(obj.Has("url"))
+                    resObj["url"] = obj["url"];
+                fileSpec = Value(std::move(resObj));
+            }
+            else {
+                fileSpec = obj["file"];
+            }
+            auto path = resolveResourceSync(fileSpec);
+
             Graphics::Bitmap bmp;
-            auto path = obj["file"].Get<std::string>();
             if(!bmp.Import(path))
                 throw Error(ErrorCode::ResourceNotFound,
                     "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
@@ -1591,8 +2053,8 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
 
 template<>
 Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnimationStorage>() const {
-    if(IsString()) {
-        // Single image -> Bitmap wrapped in storage
+    if(IsString() || (IsObject() && (Has("filename") || Has("url")))) {
+        // Single image -> Bitmap wrapped in storage (string or resource spec object)
         auto *bmp = new Graphics::Bitmap(Get<Graphics::Bitmap>());
         Graphics::RectangularAnimationStorage storage;
         storage.SetAnimation(*bmp, true);
@@ -1607,7 +2069,7 @@ Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnim
     }
 
     throw Error(ErrorCode::TypeMismatch,
-        "JSON value is not a string or array (expected file path or array of file paths for AnimationStorage)");
+        "JSON value is not a string, object, or array (expected file path, resource spec, or array for AnimationStorage)");
 }
 
 // ------------------------------------------------------------------
@@ -1616,11 +2078,12 @@ Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnim
 
 template<>
 Containers::Wave JSON::Value::Get<Containers::Wave>() const {
-    if(!IsString())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Wave)");
+    if(!IsString() && !IsObject())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Wave)");
+
+    auto path = resolveResourceSync(*this);
 
     Containers::Wave wave;
-    auto path = Get<std::string>();
     if(!wave.ImportWav(path))
         throw Error(ErrorCode::ResourceNotFound, "Failed to import wave from: " + path);
 
@@ -1631,11 +2094,12 @@ Containers::Wave JSON::Value::Get<Containers::Wave>() const {
 
 template<>
 Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
-    if(!IsString())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for Sound)");
+    if(!IsString() && !IsObject())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Sound)");
+
+    auto path = resolveResourceSync(*this);
 
     Multimedia::Wave wave;
-    auto path = Get<std::string>();
     if(!wave.Import(path))
         throw Error(ErrorCode::ResourceNotFound, "Failed to import sound from: " + path);
 
@@ -1644,10 +2108,11 @@ Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
 
 template<>
 Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
-    if(!IsString())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string (expected file path for AudioStream)");
+    if(!IsString() && !IsObject())
+        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for AudioStream)");
 
-    auto path = Get<std::string>();
+    auto path = resolveResourceSync(*this);
+
     Multimedia::AudioStream stream;
     if(!stream.Stream(path))
         throw Error(ErrorCode::ResourceNotFound, "Failed to open audio stream from: " + path);

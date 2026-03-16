@@ -24,7 +24,8 @@
  *  18.  Loading a Containers::Wave from a JSON string
  *  19.  Loading a Multimedia::Wave from a JSON string
  *  20.  Audio-related schema validation types
- *  21.  Displaying loaded images in a window
+ *  21.  Downloading a resource via URL
+ *  22.  Displaying loaded images in a window
  *
  * The first ten sections run in the console and produce text output.
  * Sections 11-17 require a graphics window because they load and prepare
@@ -106,6 +107,15 @@ struct EnemyConfig {
 #endif
 
     DefineStructMembers(EnemyConfig, health, damage, sprite, sfx)
+};
+
+/// Struct with a single bitmap member, used for async download demo.
+struct LogoData {
+    LogoData() = default;
+    LogoData(LogoData &&) = default; // allow move construction
+    LogoData& operator=(LogoData &&) = default; // allow move assignment
+    Bitmap logo;
+    DefineStructMembers(LogoData, logo)
 };
 
 // =========================================================================
@@ -677,12 +687,68 @@ int Main(const std::vector<std::string> &) {
 #endif
 
     // =====================================================================
-    //  21. Display Window
+    //  21. Downloading a resource via URL
+    // =====================================================================
+    // A JSON value can specify a resource as an object with "filename" and/or
+    // "url" fields.  When the file is not available locally, the engine can
+    // download it asynchronously.  Synchronous Get<> throws DownloadRequired
+    // for uncached URLs, so you either pre-cache or use ToStructAsync.
+    //
+    // ToStructAsync takes a callback function that fires on the main thread
+    // when all resources have been downloaded and loaded.  It returns a
+    // shared_ptr to the struct which is filled asynchronously.
+    std::cout << "\n=== 21. Resource Object Spec & Download ==" << std::endl;
+    {
+        // Object form: if cached, this will load directly
+        auto resSpec = Json.Parse(R"({"filename": "circle_blue.png"})");
+        auto objBmp = resSpec.Get<Bitmap>();
+        std::cout << "Loaded circle_blue via object spec: "
+                  << objBmp.GetWidth() << "x" << objBmp.GetHeight() << std::endl;
+
+        // URL form: sync load will throw DownloadRequired if not cached
+        try {
+            auto urlSpec = Json.Parse(R"({"url": "https://darkgaze.org/testing/Logo.png"})");
+            auto urlBmp = urlSpec.Get<Bitmap>();
+            std::cout << "Loaded Logo.png from cache: "
+                      << urlBmp.GetWidth() << "x" << urlBmp.GetHeight() << std::endl;
+        }
+        catch(const JSON::Error &e) {
+            if(e.GetCode() == JSON::ErrorCode::DownloadRequired)
+                std::cout << "Download required (expected for first run): " << e.what() << std::endl;
+            else
+                std::cout << "Error: " << e.what() << std::endl;
+        }
+    }
+
+    // =====================================================================
+    //  22. Display Window
     // =====================================================================
     // Finally, show the loaded bitmap in the window.  The Layer acts as
     // a drawing surface that the window renders every frame.
     std::cout << "\n=== Opening display window ===" << std::endl;
     std::cout << "Press Escape to close." << std::endl;
+
+    // Create the layer early so the async callback can draw on it
+    Layer layer;
+    window.Add(layer);
+
+    // Start an async download of Logo.png.xz - the callback will fire on
+    // the main thread during the window's event loop.  The .xz compressed
+    // file is downloaded, decompressed, and loaded as a Bitmap automatically.
+    auto downloadJson = Json.Parse(R"({"logo": {"url": "https://darkgaze.org/testing/Logo.png.xz"}})");
+    LogoData logo;
+    // This could be loaded like this:
+    // downloadJson.ToStructAsync<LogoData>([&](LogoData data) {
+    //     logo = std::move(data); // move the loaded bitmap into our struct
+    //     std::cout << "Async download complete! Logo: "
+    //               << logo.logo.GetWidth() << "x" << logo.logo.GetHeight() << std::endl;
+    //     logo.logo.Draw(layer, 300, 10);
+    // });
+    downloadJson.ToStructAsync(logo, [&]() {
+        std::cout << "Async download complete! Logo: "
+                  << logo.logo.GetWidth() << "x" << logo.logo.GetHeight() << std::endl;
+        logo.logo.Draw(layer, 300, 10);
+    });
 
 
     // It is also possible to load a structure with a bitmap or animation field
@@ -695,10 +761,6 @@ int Main(const std::vector<std::string> &) {
     })";
 
     auto enemyData = Json.Parse(enemyJsonStr).ToStruct<EnemyConfig>();
-
-    // A layer to draw on
-    Layer layer;
-    window.Add(layer);
 
     // Draw a black background filling the entire layer.
     BlankImage bg(0.0f);

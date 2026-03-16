@@ -9,6 +9,8 @@
 #include <tuple>
 #include <ostream>
 #include <istream>
+#include <memory>
+#include <functional>
 #include "../TMP.h"
 #include "../Enum.h"
 #include "../Geometry/Point.h"
@@ -81,6 +83,13 @@ public:
         // --- Resource errors ---
         /// A referenced resource file (e.g. image) could not be found or opened.
         ResourceNotFound,
+
+        // --- Download errors ---
+        /// A resource requires downloading but the operation is synchronous.
+        /// Use async ToStruct or provide a local file path.
+        DownloadRequired,
+        /// An HTTP download failed (network error or server error).
+        DownloadFailed,
     };
 
     /// Error thrown during JSON parsing, access, or validation.
@@ -308,6 +317,35 @@ public:
         template<class T_, class R_ = typename T_::ReflectionType>
         T_ ToStruct(const R_ &ref = T_::Reflection()) const;
 
+        /// Converts a JSON object to a reflected struct asynchronously. Any resource
+        /// fields (Bitmap, Wave, etc.) are downloaded/loaded in the background; the
+        /// callback fires on the main thread (via BeforeFrameEvent) and receives the
+        /// fully populated struct by move — no pointer or reference management required.
+        /// @note T_ must be move-constructible and move-assignable.
+        /// Usage:
+        /// @code
+        /// val.ToStructAsync<MyConfig>([](MyConfig cfg) {
+        ///     // cfg is fully populated and owned by this scope
+        /// });
+        /// @endcode
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructAsync(std::function<void(T_)> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON object into an existing struct instance asynchronously.
+        /// Fields are filled in-place; the no-argument callback fires on the main
+        /// thread once all resource downloads and conversions are complete.
+        /// The caller must keep @p target alive until the callback fires.
+        /// @note T_ must be move-constructible and move-assignable.
+        /// Usage:
+        /// @code
+        /// MyConfig cfg;
+        /// val.ToStructAsync(cfg, [&]() {
+        ///     // cfg is now fully populated
+        /// });
+        /// @endcode
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructAsync(T_ &target, std::function<void()> callback, const R_ &ref = T_::Reflection()) const;
+
         /// Creates a JSON object from a reflected struct.
         template<class T_, class R_ = typename T_::ReflectionType>
         static Value FromStruct(const T_ &values, const R_ &ref = T_::Reflection());
@@ -470,6 +508,10 @@ public:
 #endif
     };
 
+    // === Lifecycle ===
+
+    ~JSON();
+
     // === State ===
 
     /// Whether to prepare loaded bitmaps for drawing. Defaults to true.
@@ -511,6 +553,22 @@ public:
     /// stream is left untouched so callers can continue reading.
     Value ParseStream(std::istream &stream) const;
 
+    /// Processes pending async downloads and fires callbacks on the main thread.
+    /// Normally called automatically via BeforeFrameEvent, but can be called
+    /// manually in custom main loops or loading screens.
+    void onframe();
+
+    /// Enqueues an async resource resolution. For local files, the loader
+    /// callback fires on the next onframe. For URLs, the file is downloaded
+    /// first. Called by ToStructAsync internally.
+    void resolveAsync(const Value &val,
+                      std::function<void(const std::string&)> loader,
+                      std::function<void(const std::string&)> onError);
+
+private:
+    struct AsyncImpl;
+    AsyncImpl *asyncimpl = nullptr;
+    void ensureAsync();
 };
 
 // Reflection strings for JSON::ErrorCode
@@ -551,7 +609,11 @@ DefineEnumStringsCM(JSON, ErrorCode,
     {JSON::ErrorCode::NestedValidation, "Nested validation"},
     {JSON::ErrorCode::NestedValidation, "NestedValidation"},
     {JSON::ErrorCode::ResourceNotFound, "Resource not found"},
-    {JSON::ErrorCode::ResourceNotFound, "ResourceNotFound"}
+    {JSON::ErrorCode::ResourceNotFound, "ResourceNotFound"},
+    {JSON::ErrorCode::DownloadRequired, "Download required"},
+    {JSON::ErrorCode::DownloadRequired, "DownloadRequired"},
+    {JSON::ErrorCode::DownloadFailed, "Download failed"},
+    {JSON::ErrorCode::DownloadFailed, "DownloadFailed"}
 );
 
 // Reflection strings for JSON::Type
@@ -624,6 +686,17 @@ typename std::enable_if<
     T_
 >::type
 FromValue(const JSON::Value &v) { return v.Get<T_>(); }
+
+/// Trait: true for types that may require async downloading (bitmap, wave, etc.)
+template<class T_> struct IsAsyncResource : std::false_type {};
+template<> struct IsAsyncResource<Graphics::Bitmap> : std::true_type {};
+template<> struct IsAsyncResource<Graphics::BitmapAnimationProvider> : std::true_type {};
+template<> struct IsAsyncResource<Graphics::RectangularAnimationStorage> : std::true_type {};
+template<> struct IsAsyncResource<Containers::Wave> : std::true_type {};
+#ifdef GORGON_AUDIO_SUPPORT
+template<> struct IsAsyncResource<Multimedia::Wave> : std::true_type {};
+template<> struct IsAsyncResource<Multimedia::AudioStream> : std::true_type {};
+#endif
 
 /// @endcond
 
@@ -727,6 +800,128 @@ JSON::Value JSON::Value::FromStruct(const T_ &values, const R_ &ref) {
     structToJson(values, obj, ref, 
         typename TMP::Generate<R_::MemberCount>::Type());
     return Value(std::move(obj));
+}
+
+/// Forward declaration of global Json instance (used by async templates)
+extern JSON Json;
+
+/// @cond INTERNAL
+namespace internal {
+    /// Resolves a resource-type member asynchronously via Json.resolveAsync.
+    template<class T_, class MemberType_>
+    typename std::enable_if<IsAsyncResource<MemberType_>::value>::type
+    jsonToStructAsyncField(std::shared_ptr<T_> result, MemberType_ T_::*memPtr, const JSON::Value &jval,
+                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone) {
+        ++(*pending);
+        Json.resolveAsync(jval,
+            [result, memPtr, pending, checkDone](const std::string &path) {
+                JSON::Value pathVal(path);
+                result.get()->*memPtr = FromValue<MemberType_>(pathVal);
+                --(*pending);
+                (*checkDone)();
+            },
+            [pending, checkDone](const std::string &) {
+                --(*pending);
+                (*checkDone)();
+            }
+        );
+    }
+
+    /// Non-resource members are filled synchronously.
+    template<class T_, class MemberType_>
+    typename std::enable_if<!IsAsyncResource<MemberType_>::value>::type
+    jsonToStructAsyncField(std::shared_ptr<T_> result, MemberType_ T_::*memPtr, const JSON::Value &jval,
+                           std::shared_ptr<int>, std::shared_ptr<std::function<void()>>) {
+        result.get()->*memPtr = FromValue<MemberType_>(jval);
+    }
+
+    template<class T_, class R_, int IND_>
+    void jsonToStructAsync(std::shared_ptr<T_> result, const JSON::Object &obj, const R_ &ref,
+                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone) {
+        auto it = obj.find(ref.Names[IND_]);
+        if(it != obj.end()) {
+            using MType = typename R_::template Member<IND_>::Type;
+            jsonToStructAsyncField<T_, MType>(result, R_::template Member<IND_>::MemberPointer(),
+                                              it->second, pending, checkDone);
+        }
+    }
+
+    template<class T_, class R_, int ...S_>
+    void jsonToStructAsync(std::shared_ptr<T_> result, const JSON::Object &obj, const R_ &ref,
+                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone,
+                           TMP::Sequence<S_...>) {
+        (void)std::initializer_list<int>{
+            (jsonToStructAsync<T_, R_, S_>(result, obj, ref, pending, checkDone), 0)...
+        };
+    }
+}
+/// @endcond
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(std::function<void(T_)> callback, const R_ &ref) const {
+    if(!IsObject())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
+
+    auto result = std::make_shared<T_>();
+    auto pending = std::make_shared<int>(0);
+    auto cb = std::make_shared<std::function<void(T_)>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [result, pending, cb]() {
+            if(*pending == 0 && *cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        });
+
+    internal::jsonToStructAsync<T_, R_>(result, std::get<Object>(data), ref,
+        pending, checkDone, typename TMP::Generate<R_::MemberCount>::Type());
+
+    // If no async operations were needed, defer callback to next frame
+    if(*pending == 0) {
+        Json.resolveAsync(Value(), [result, cb](const std::string &) {
+            if(*cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        }, [](const std::string &) {});
+    }
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(T_ &target, std::function<void()> callback, const R_ &ref) const {
+    if(!IsObject())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
+
+    // Wrap the caller's object in a non-owning shared_ptr (custom no-op deleter)
+    auto result = std::shared_ptr<T_>(&target, [](T_*){});
+    auto pending = std::make_shared<int>(0);
+    auto cb = std::make_shared<std::function<void()>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [pending, cb]() {
+            if(*pending == 0 && *cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn();
+            }
+        });
+
+    internal::jsonToStructAsync<T_, R_>(result, std::get<Object>(data), ref,
+        pending, checkDone, typename TMP::Generate<R_::MemberCount>::Type());
+
+    // If no async operations were needed, defer callback to next frame
+    if(*pending == 0) {
+        Json.resolveAsync(Value(), [cb](const std::string &) {
+            if(*cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn();
+            }
+        }, [](const std::string &) {});
+    }
 }
 
 /// Get specializations
