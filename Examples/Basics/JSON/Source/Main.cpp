@@ -38,6 +38,7 @@
  *
  */
 
+#include "Gorgon/Graphics/FreeType.h"
 #ifdef GORGON_AUDIO_SUPPORT
 #include "Gorgon/Audio/Controllers.h"
 #endif
@@ -171,6 +172,8 @@ int Main(const std::vector<std::string> &) {
     // (like Bitmap::Prepare) can be performed. We open it now so that
     // both the console demos and the graphical demos can run in sequence.
     Gorgon::Window window({400, 200}, "JSON Bitmap Demo");
+
+    Graphics::FreeType font(Gorgon::OS::GetFont().first.Filename, 14);
 
     // =====================================================================
     //  1. Parsing JSON
@@ -879,6 +882,8 @@ int Main(const std::vector<std::string> &) {
 
     enemyData.sprite.Draw(layer, 200, 10);
 
+    font.Print(layer, "Press ESC to exit, SPACE to clear cache.", 10, 150);
+
 #ifdef GORGON_AUDIO_SUPPORT
     std::cout << enemyData.sfx.GetLength() << std::endl;
     
@@ -891,6 +896,10 @@ int Main(const std::vector<std::string> &) {
         namespace Keycodes = Gorgon::Input::Keyboard::Keycodes;
         if(key == Keycodes::Escape && state == 1) {
             window.Quit();
+        }
+        else if(key == Keycodes::Space && state == 1) {
+            std::cout << "Clearing cache..." << std::endl;
+            Json.ClearCache();
         }
         return true;
     });

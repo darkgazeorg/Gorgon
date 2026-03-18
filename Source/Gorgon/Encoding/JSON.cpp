@@ -182,6 +182,37 @@ void JSON::Value::Remove(int index) {
 }
 
 // ------------------------------------------------------------------
+//  Value owner tracking
+// ------------------------------------------------------------------
+
+void JSON::Value::setOwnerRecursive(const std::shared_ptr<const JSON*>& o) {
+    owner_ = o;
+    if(auto *arr = std::get_if<Array>(&data)) {
+        for(auto &elem : *arr) elem.setOwnerRecursive(o);
+    }
+    else if(auto *obj = std::get_if<Object>(&data)) {
+        for(auto &[k, v] : *obj) v.setOwnerRecursive(o);
+    }
+}
+
+const JSON* JSON::Value::getOwner() const {
+    if(!owner_) return nullptr;
+    if(!*owner_)
+        throw Error(ErrorCode::Generic, "Parent JSON object has been destroyed");
+    return *owner_;
+}
+
+std::string JSON::Value::getBasePath() const {
+    auto *o = owner_ ? *owner_ : nullptr;
+    return o ? o->BasePath : "";
+}
+
+bool JSON::Value::getPrepare() const {
+    auto *o = owner_ ? *owner_ : nullptr;
+    return o ? o->Prepare : true;
+}
+
+// ------------------------------------------------------------------
 //  JSON Parser
 // ------------------------------------------------------------------
 
@@ -703,6 +734,7 @@ JSON::Value JSON::Parse(const std::string &str) const {
         if(!BestEffort)
             throw Error(ErrorCode::TrailingContent, "Trailing content after JSON value");
     }
+    result.setOwnerRecursive(selfPtr_);
     return result;
 }
 
@@ -1534,7 +1566,9 @@ JSON::Value JSON::Validate(const Value &val, const Schema &schema, bool allow_ex
         }
     }
 
-    return Value(std::move(result));
+    Value validated(std::move(result));
+    validated.setOwnerRecursive(selfPtr_);
+    return validated;
 }
 
 // ------------------------------------------------------------------
@@ -1706,7 +1740,7 @@ namespace {
     /// Returns {filename, url}. Either can be empty.
     /// If basePath is non-empty, relative filenames get basePath prepended and
     /// relative URLs (no scheme) get basePath prepended as a URL prefix.
-    std::pair<std::string, std::string> extractResourceSpec(const JSON::Value &val, const std::string &basePath = "") {
+    std::pair<std::string, std::string> extractResourceSpec(const JSON::Value &val, const std::string &basePath) {
         std::string filename, url;
         if(val.IsString()) {
             auto s = val.Get<std::string>();
@@ -1946,6 +1980,7 @@ void JSON::ensureAsync() {
 }
 
 JSON::~JSON() {
+    *selfPtr_ = nullptr;
     if(asyncimpl) {
         Gorgon::BeforeFrameEvent.Unregister(asyncimpl->frameToken);
         delete asyncimpl;
@@ -1966,6 +2001,7 @@ void JSON::onframe() {
 }
 
 void JSON::resolveAsync(const Value &val,
+                        const std::string &basePath,
                         std::function<void(const std::string&)> loader,
                         std::function<void(const std::string&)> onError) {
     ensureAsync();
@@ -1976,7 +2012,7 @@ void JSON::resolveAsync(const Value &val,
         return;
     }
 
-    auto result = extractResourceSpec(val);
+    auto result = extractResourceSpec(val, basePath);
     auto filename = result.first;
     auto url = result.second;
 
@@ -2024,56 +2060,61 @@ void JSON::resolveAsync(const Value &val,
 }
 
 // ------------------------------------------------------------------
-//  Bitmap/Animation Get<> specializations
+//  internal::fromValueWithBase specializations for resource types
 // ------------------------------------------------------------------
 
-template<>
-Graphics::Bitmap JSON::Value::Get<Graphics::Bitmap>() const {
-    if(!IsString() && !IsObject())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Bitmap)");
+namespace internal {
 
-    auto path = resolveResourceSync(*this, Json.BasePath);
+template<>
+Graphics::Bitmap fromValueWithBase<Graphics::Bitmap>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    if(!v.IsString() && !v.IsObject())
+        throw JSON::Error(JSON::ErrorCode::TypeMismatch,
+            "JSON value is not a string or object (expected file path or resource spec for Bitmap)");
+
+    auto path = resolveResourceSync(v, basePath);
 
     Graphics::Bitmap bmp;
     if(!bmp.Import(path))
-        throw Error(ErrorCode::ResourceNotFound, "Failed to import bitmap from: " + path);
+        throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
+            "Failed to import bitmap from: " + path);
 
-    if(Json.Prepare)
+    if(prepare)
         bmp.Prepare();
 
     return bmp;
 }
 
 template<>
-Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProvider>() const {
-    if(!IsArray())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not an array (expected array of file paths for BitmapAnimation)");
+Graphics::BitmapAnimationProvider fromValueWithBase<Graphics::BitmapAnimationProvider>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    if(!v.IsArray())
+        throw JSON::Error(JSON::ErrorCode::TypeMismatch,
+            "JSON value is not an array (expected array of file paths for BitmapAnimation)");
 
-    auto &arr = std::get<Array>(GetVariant());
+    auto &arr = std::get<JSON::Array>(v.GetVariant());
     Graphics::BitmapAnimationProvider prov;
 
     for(int i = 0; i < (int)arr.size(); i++) {
         if(arr[i].IsString() || (arr[i].IsObject() && !arr[i].Has("file") && (arr[i].Has("filename") || arr[i].Has("url")))) {
-            // Direct file path string or resource spec object (filename/url)
             Graphics::Bitmap bmp;
-            auto path = resolveResourceSync(arr[i], Json.BasePath);
+            auto path = resolveResourceSync(arr[i], basePath);
             if(!bmp.Import(path))
-                throw Error(ErrorCode::ResourceNotFound,
+                throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
                     "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
 
             prov.Add(std::move(bmp));
         }
         else if(arr[i].IsObject()) {
             auto &obj = arr[i];
-            // Object with "file" key (animation frame with optional duration)
             if(!obj.Has("file") || !obj["file"].IsString())
-                throw Error(ErrorCode::TypeMismatch,
+                throw JSON::Error(JSON::ErrorCode::TypeMismatch,
                     "BitmapAnimation array element [" + std::to_string(i) + "] object missing string 'file' key");
 
-            // Resolve the file path, supporting resource spec
             JSON::Value fileSpec;
             if(obj.Has("url") || obj.Has("filename")) {
-                // Build a resource spec object from the animation frame object
                 JSON::Object resObj;
                 if(obj.Has("filename"))
                     resObj["filename"] = obj["filename"];
@@ -2081,16 +2122,16 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
                     resObj["filename"] = obj["file"];
                 if(obj.Has("url"))
                     resObj["url"] = obj["url"];
-                fileSpec = Value(std::move(resObj));
+                fileSpec = JSON::Value(std::move(resObj));
             }
             else {
                 fileSpec = obj["file"];
             }
-            auto path = resolveResourceSync(fileSpec, Json.BasePath);
+            auto path = resolveResourceSync(fileSpec, basePath);
 
             Graphics::Bitmap bmp;
             if(!bmp.Import(path))
-                throw Error(ErrorCode::ResourceNotFound,
+                throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
                     "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
 
             unsigned dur = 42;
@@ -2100,52 +2141,54 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
             prov.Add(std::move(bmp), dur);
         }
         else {
-            throw Error(ErrorCode::TypeMismatch,
+            throw JSON::Error(JSON::ErrorCode::TypeMismatch,
                 "BitmapAnimation array element [" + std::to_string(i) + "] is not a string or object");
         }
     }
 
-    if(Json.Prepare)
+    if(prepare)
         prov.Prepare();
 
     return prov;
 }
 
 template<>
-Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnimationStorage>() const {
-    if(IsString() || (IsObject() && (Has("filename") || Has("url")))) {
-        // Single image -> Bitmap wrapped in storage (string or resource spec object)
-        auto *bmp = new Graphics::Bitmap(Get<Graphics::Bitmap>());
+Graphics::RectangularAnimationStorage fromValueWithBase<Graphics::RectangularAnimationStorage>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    if(v.IsString() || (v.IsObject() && (v.Has("filename") || v.Has("url")))) {
+        auto *bmp = new Graphics::Bitmap(fromValueWithBase<Graphics::Bitmap>(v, basePath, prepare));
         Graphics::RectangularAnimationStorage storage;
         storage.SetAnimation(*bmp, true);
         return storage;
     }
-    else if(IsArray()) {
-        // Array of images -> BitmapAnimationProvider wrapped in storage
-        auto *prov = new Graphics::BitmapAnimationProvider(Get<Graphics::BitmapAnimationProvider>());
+    else if(v.IsArray()) {
+        auto *prov = new Graphics::BitmapAnimationProvider(
+            fromValueWithBase<Graphics::BitmapAnimationProvider>(v, basePath, prepare));
         Graphics::RectangularAnimationStorage storage;
         storage.SetAnimation(*prov, true);
         return storage;
     }
 
-    throw Error(ErrorCode::TypeMismatch,
+    throw JSON::Error(JSON::ErrorCode::TypeMismatch,
         "JSON value is not a string, object, or array (expected file path, resource spec, or array for AnimationStorage)");
 }
 
-// ------------------------------------------------------------------
-//  Audio Get<> specializations
-// ------------------------------------------------------------------
-
 template<>
-Containers::Wave JSON::Value::Get<Containers::Wave>() const {
-    if(!IsString() && !IsObject())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Wave)");
+Containers::Wave fromValueWithBase<Containers::Wave>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    (void)prepare;
+    if(!v.IsString() && !v.IsObject())
+        throw JSON::Error(JSON::ErrorCode::TypeMismatch,
+            "JSON value is not a string or object (expected file path or resource spec for Wave)");
 
-    auto path = resolveResourceSync(*this, Json.BasePath);
+    auto path = resolveResourceSync(v, basePath);
 
     Containers::Wave wave;
     if(!wave.ImportWav(path))
-        throw Error(ErrorCode::ResourceNotFound, "Failed to import wave from: " + path);
+        throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
+            "Failed to import wave from: " + path);
 
     return wave;
 }
@@ -2153,31 +2196,86 @@ Containers::Wave JSON::Value::Get<Containers::Wave>() const {
 #ifdef GORGON_AUDIO_SUPPORT
 
 template<>
-Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
-    if(!IsString() && !IsObject())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Sound)");
+Multimedia::Wave fromValueWithBase<Multimedia::Wave>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    (void)prepare;
+    if(!v.IsString() && !v.IsObject())
+        throw JSON::Error(JSON::ErrorCode::TypeMismatch,
+            "JSON value is not a string or object (expected file path or resource spec for Sound)");
 
-    auto path = resolveResourceSync(*this, Json.BasePath);
+    auto path = resolveResourceSync(v, basePath);
 
     Multimedia::Wave wave;
     if(!wave.Import(path))
-        throw Error(ErrorCode::ResourceNotFound, "Failed to import sound from: " + path);
+        throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
+            "Failed to import sound from: " + path);
 
     return wave;
 }
 
 template<>
-Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
-    if(!IsString() && !IsObject())
-        throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for AudioStream)");
+Multimedia::AudioStream fromValueWithBase<Multimedia::AudioStream>(
+    const JSON::Value &v, const std::string &basePath, bool prepare)
+{
+    (void)prepare;
+    if(!v.IsString() && !v.IsObject())
+        throw JSON::Error(JSON::ErrorCode::TypeMismatch,
+            "JSON value is not a string or object (expected file path or resource spec for AudioStream)");
 
-    auto path = resolveResourceSync(*this, Json.BasePath);
+    auto path = resolveResourceSync(v, basePath);
 
     Multimedia::AudioStream stream;
     if(!stream.Stream(path))
-        throw Error(ErrorCode::ResourceNotFound, "Failed to open audio stream from: " + path);
+        throw JSON::Error(JSON::ErrorCode::ResourceNotFound,
+            "Failed to open audio stream from: " + path);
 
     return stream;
+}
+
+#endif
+
+} // namespace internal
+
+
+// ------------------------------------------------------------------
+//  Bitmap/Animation Get<> specializations (delegate to fromValueWithBase)
+// ------------------------------------------------------------------
+
+template<>
+Graphics::Bitmap JSON::Value::Get<Graphics::Bitmap>() const {
+    return internal::fromValueWithBase<Graphics::Bitmap>(*this, getBasePath(), getPrepare());
+}
+
+template<>
+Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProvider>() const {
+    return internal::fromValueWithBase<Graphics::BitmapAnimationProvider>(*this, getBasePath(), getPrepare());
+}
+
+template<>
+Graphics::RectangularAnimationStorage JSON::Value::Get<Graphics::RectangularAnimationStorage>() const {
+    return internal::fromValueWithBase<Graphics::RectangularAnimationStorage>(*this, getBasePath(), getPrepare());
+}
+
+// ------------------------------------------------------------------
+//  Audio Get<> specializations (delegate to fromValueWithBase)
+// ------------------------------------------------------------------
+
+template<>
+Containers::Wave JSON::Value::Get<Containers::Wave>() const {
+    return internal::fromValueWithBase<Containers::Wave>(*this, getBasePath(), getPrepare());
+}
+
+#ifdef GORGON_AUDIO_SUPPORT
+
+template<>
+Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
+    return internal::fromValueWithBase<Multimedia::Wave>(*this, getBasePath(), getPrepare());
+}
+
+template<>
+Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
+    return internal::fromValueWithBase<Multimedia::AudioStream>(*this, getBasePath(), getPrepare());
 }
 
 #endif
@@ -2190,8 +2288,8 @@ JSON::Value JSON::ParseFile(const std::string &path) const {
     std::string content((std::istreambuf_iterator<char>(file)),
                          std::istreambuf_iterator<char>());
 
-    auto result = Parse(content);
-    return result;
+    // Parse already sets owner via selfPtr_
+    return Parse(content);
 }
 
 JSON::Value JSON::ParseStream(std::istream &stream) const {
@@ -2199,6 +2297,7 @@ JSON::Value JSON::ParseStream(std::istream &stream) const {
     Parser<StreamInput> parser(input, BestEffort);
     Value result = parser.parseValue();
     parser.skipwhitespace();
+    result.setOwnerRecursive(selfPtr_);
     return result;
 }
 

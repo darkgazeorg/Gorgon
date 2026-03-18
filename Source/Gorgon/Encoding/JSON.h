@@ -315,6 +315,16 @@ public:
         bool operator ==(const Value &other) const { return data == other.data; }
         bool operator !=(const Value &other) const { return data != other.data; }
 
+        /// Returns the JSON instance that owns this value, or nullptr if standalone.
+        /// Throws Error if the parent JSON has been destroyed.
+        const JSON* getOwner() const;
+
+        /// Returns effective base path from owner, or empty string.
+        std::string getBasePath() const;
+
+        /// Returns effective prepare flag from owner, or true.
+        bool getPrepare() const;
+
         /// Encodes this JSON value to a struct with reflection support.
         /// The struct's fields are filled from object keys matching member names.
         template<class T_, class R_ = typename T_::ReflectionType>
@@ -417,7 +427,12 @@ public:
         static Value FromStruct(const T_ &values, const R_ &ref = T_::Reflection());
 
     private:
+        friend class JSON;
+
         Variant data;
+        std::shared_ptr<const JSON*> owner_;
+
+        void setOwnerRecursive(const std::shared_ptr<const JSON*>& o);
 
         template<class T_, class R_, int IND_>
         static void structToJson(const T_ &values, Object &obj, const R_ &ref);
@@ -426,10 +441,13 @@ public:
         static void structToJson(const T_ &values, Object &obj, const R_ &ref, TMP::Sequence<S_...>);
 
         template<class T_, class R_, int IND_>
-        static void jsonToStruct(T_ &values, const Object &obj, const R_ &ref);
+        static void jsonToStruct(T_ &values, const Object &obj, const R_ &ref,
+                                 const std::string &basePath, bool prepare);
 
         template<class T_, class R_, int ...S_>
-        static void jsonToStruct(T_ &values, const Object &obj, const R_ &ref, TMP::Sequence<S_...>);
+        static void jsonToStruct(T_ &values, const Object &obj, const R_ &ref,
+                                 const std::string &basePath, bool prepare,
+                                 TMP::Sequence<S_...>);
     };
 
     /// Defines a schema entry for a single field. Supports flat types, nested objects,
@@ -634,6 +652,7 @@ public:
     /// callback fires on the next onframe. For URLs, the file is downloaded
     /// first. Called by ToStructAsync internally.
     void resolveAsync(const Value &val,
+                      const std::string &basePath,
                       std::function<void(const std::string&)> loader,
                       std::function<void(const std::string&)> onError);
 
@@ -643,10 +662,14 @@ public:
     /// as it may affect ongoing operations.
     void ClearCache() const;
     
+    /// Returns the shared pointer used by Values to track this JSON instance's lifetime.
+    const std::shared_ptr<const JSON*>& getSelfPtr() const { return selfPtr_; }
+
 private:
     struct AsyncImpl;
     AsyncImpl *asyncimpl = nullptr;
     void ensureAsync();
+    std::shared_ptr<const JSON*> selfPtr_ = std::make_shared<const JSON*>(this);
 };
 
 // Reflection strings for JSON::ErrorCode
@@ -838,6 +861,12 @@ inline JSON::Value ToValue(const Geometry::basic_Margin<T_> &v) {
 
 // --- Reflection: struct <-> JSON implementation ---
 
+// Forward-declare internal helpers so jsonToStruct can call them.
+namespace internal {
+    template<class T_>
+    T_ fromValueWithBase(const JSON::Value &v, const std::string &basePath, bool prepare);
+}
+
 template<class T_, class R_, int IND_>
 void JSON::Value::structToJson(const T_ &values, Object &obj, const R_ &ref) {
     obj[ref.Names[IND_]] = ToValue(values.*(R_::template Member<IND_>::MemberPointer()));
@@ -849,17 +878,20 @@ void JSON::Value::structToJson(const T_ &values, Object &obj, const R_ &ref, TMP
 }
 
 template<class T_, class R_, int IND_>
-void JSON::Value::jsonToStruct(T_ &values, const Object &obj, const R_ &ref) {
+void JSON::Value::jsonToStruct(T_ &values, const Object &obj, const R_ &ref,
+                               const std::string &basePath, bool prepare) {
     auto it = obj.find(ref.Names[IND_]);
     if(it != obj.end()) {
         values.*(R_::template Member<IND_>::MemberPointer()) = 
-            FromValue<typename R_::template Member<IND_>::Type>(it->second);
+            internal::fromValueWithBase<typename R_::template Member<IND_>::Type>(it->second, basePath, prepare);
     }
 }
 
 template<class T_, class R_, int ...S_>
-void JSON::Value::jsonToStruct(T_ &values, const Object &obj, const R_ &ref, TMP::Sequence<S_...>) {
-    (void)std::initializer_list<int>{(jsonToStruct<T_, R_, S_>(values, obj, ref), 0)...};
+void JSON::Value::jsonToStruct(T_ &values, const Object &obj, const R_ &ref,
+                               const std::string &basePath, bool prepare,
+                               TMP::Sequence<S_...>) {
+    (void)std::initializer_list<int>{(jsonToStruct<T_, R_, S_>(values, obj, ref, basePath, prepare), 0)...};
 }
 
 template<class T_, class R_>
@@ -868,7 +900,7 @@ T_ JSON::Value::ToStruct(const R_ &ref) const {
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
     
     T_ result{};
-    jsonToStruct(result, std::get<Object>(data), ref, 
+    jsonToStruct(result, std::get<Object>(data), ref, getBasePath(), getPrepare(),
         typename TMP::Generate<R_::MemberCount>::Type());
     return result;
 }
@@ -886,16 +918,39 @@ extern JSON Json;
 
 /// @cond INTERNAL
 namespace internal {
+    /// Default: non-resource types ignore basePath/prepare.
+    template<class T_>
+    T_ fromValueWithBase(const JSON::Value &v, const std::string &, bool) {
+        return FromValue<T_>(v);
+    }
+
+    // Resource-type specializations (defined in JSON.cpp):
+    template<> Graphics::Bitmap fromValueWithBase<Graphics::Bitmap>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+    template<> Graphics::BitmapAnimationProvider fromValueWithBase<Graphics::BitmapAnimationProvider>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+    template<> Graphics::RectangularAnimationStorage fromValueWithBase<Graphics::RectangularAnimationStorage>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+    template<> Containers::Wave fromValueWithBase<Containers::Wave>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+#ifdef GORGON_AUDIO_SUPPORT
+    template<> Multimedia::Wave fromValueWithBase<Multimedia::Wave>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+    template<> Multimedia::AudioStream fromValueWithBase<Multimedia::AudioStream>(
+        const JSON::Value &v, const std::string &basePath, bool prepare);
+#endif
+
     /// Resolves a resource-type member asynchronously via Json.resolveAsync.
     template<class T_, class MemberType_>
     typename std::enable_if<IsAsyncResource<MemberType_>::value>::type
     jsonToStructAsyncField(std::shared_ptr<T_> result, MemberType_ T_::*memPtr, const JSON::Value &jval,
-                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone) {
+                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone,
+                           const std::string &basePath, bool prepare) {
         ++(*pending);
-        Json.resolveAsync(jval,
-            [result, memPtr, pending, checkDone](const std::string &path) {
+        Json.resolveAsync(jval, basePath,
+            [result, memPtr, pending, checkDone, prepare](const std::string &path) {
                 JSON::Value pathVal(path);
-                result.get()->*memPtr = FromValue<MemberType_>(pathVal);
+                result.get()->*memPtr = internal::fromValueWithBase<MemberType_>(pathVal, "", prepare);
                 --(*pending);
                 (*checkDone)();
             },
@@ -910,31 +965,61 @@ namespace internal {
     template<class T_, class MemberType_>
     typename std::enable_if<!IsAsyncResource<MemberType_>::value>::type
     jsonToStructAsyncField(std::shared_ptr<T_> result, MemberType_ T_::*memPtr, const JSON::Value &jval,
-                           std::shared_ptr<int>, std::shared_ptr<std::function<void()>>) {
-        result.get()->*memPtr = FromValue<MemberType_>(jval);
+                           std::shared_ptr<int>, std::shared_ptr<std::function<void()>>,
+                           const std::string &basePath, bool prepare) {
+        result.get()->*memPtr = internal::fromValueWithBase<MemberType_>(jval, basePath, prepare);
     }
 
     template<class T_, class R_, int IND_>
     void jsonToStructAsync(std::shared_ptr<T_> result, const JSON::Object &obj, const R_ &ref,
-                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone) {
+                           std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone,
+                           const std::string &basePath, bool prepare) {
         auto it = obj.find(ref.Names[IND_]);
         if(it != obj.end()) {
             using MType = typename R_::template Member<IND_>::Type;
             jsonToStructAsyncField<T_, MType>(result, R_::template Member<IND_>::MemberPointer(),
-                                              it->second, pending, checkDone);
+                                              it->second, pending, checkDone, basePath, prepare);
         }
     }
 
     template<class T_, class R_, int ...S_>
     void jsonToStructAsync(std::shared_ptr<T_> result, const JSON::Object &obj, const R_ &ref,
                            std::shared_ptr<int> pending, std::shared_ptr<std::function<void()>> checkDone,
+                           const std::string &basePath, bool prepare,
                            TMP::Sequence<S_...>) {
         (void)std::initializer_list<int>{
-            (jsonToStructAsync<T_, R_, S_>(result, obj, ref, pending, checkDone), 0)...
+            (jsonToStructAsync<T_, R_, S_>(result, obj, ref, pending, checkDone, basePath, prepare), 0)...
         };
     }
 }
 /// @endcond
+
+// --- ToStructAsync implementation (shared helper) ---
+
+namespace internal {
+    template<class T_, class R_>
+    void toStructAsyncImpl(const JSON::Value &val, std::shared_ptr<T_> result,
+                           std::shared_ptr<std::function<void()>> checkDone,
+                           const std::string &basePath, bool prepare, const R_ &ref) {
+        auto pending = std::make_shared<int>(0);
+
+        auto wrappedCheck = std::make_shared<std::function<void()>>(
+            [pending, checkDone]() {
+                if(*pending == 0) (*checkDone)();
+            });
+
+        jsonToStructAsync<T_, R_>(result, std::get<JSON::Object>(val.GetVariant()), ref,
+            pending, wrappedCheck, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+
+        // If no async operations were needed, defer callback to next frame
+        if(*pending == 0) {
+            Json.resolveAsync(JSON::Value(), "", [checkDone](const std::string &) {
+                (*checkDone)();
+            }, [](const std::string &) {});
+        }
+    }
+}
 
 template<class T_, class R_>
 void JSON::Value::ToStructAsync(std::function<void(T_)> callback, const R_ &ref) const {
@@ -942,31 +1027,18 @@ void JSON::Value::ToStructAsync(std::function<void(T_)> callback, const R_ &ref)
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
 
     auto result = std::make_shared<T_>();
-    auto pending = std::make_shared<int>(0);
     auto cb = std::make_shared<std::function<void(T_)>>(std::move(callback));
 
     auto checkDone = std::make_shared<std::function<void()>>(
-        [result, pending, cb]() {
-            if(*pending == 0 && *cb) {
+        [result, cb]() {
+            if(*cb) {
                 auto fn = std::move(*cb);
                 *cb = nullptr;
                 fn(std::move(*result));
             }
         });
 
-    internal::jsonToStructAsync<T_, R_>(result, std::get<Object>(data), ref,
-        pending, checkDone, typename TMP::Generate<R_::MemberCount>::Type());
-
-    // If no async operations were needed, defer callback to next frame
-    if(*pending == 0) {
-        Json.resolveAsync(Value(), [result, cb](const std::string &) {
-            if(*cb) {
-                auto fn = std::move(*cb);
-                *cb = nullptr;
-                fn(std::move(*result));
-            }
-        }, [](const std::string &) {});
-    }
+    internal::toStructAsyncImpl<T_, R_>(*this, result, checkDone, getBasePath(), getPrepare(), ref);
 }
 
 template<class T_, class R_>
@@ -974,62 +1046,72 @@ void JSON::Value::ToStructAsync(T_ &target, std::function<void()> callback, cons
     if(!IsObject())
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
 
-    // Wrap the caller's object in a non-owning shared_ptr (custom no-op deleter)
     auto result = std::shared_ptr<T_>(&target, [](T_*){});
-    auto pending = std::make_shared<int>(0);
     auto cb = std::make_shared<std::function<void()>>(std::move(callback));
 
     auto checkDone = std::make_shared<std::function<void()>>(
-        [pending, cb]() {
-            if(*pending == 0 && *cb) {
+        [cb]() {
+            if(*cb) {
                 auto fn = std::move(*cb);
                 *cb = nullptr;
                 fn();
             }
         });
 
-    internal::jsonToStructAsync<T_, R_>(result, std::get<Object>(data), ref,
-        pending, checkDone, typename TMP::Generate<R_::MemberCount>::Type());
+    internal::toStructAsyncImpl<T_, R_>(*this, result, checkDone, getBasePath(), getPrepare(), ref);
+}
 
-    // If no async operations were needed, defer callback to next frame
-    if(*pending == 0) {
-        Json.resolveAsync(Value(), [cb](const std::string &) {
+// --- Base path overloads (pass basePath through, no global mutation) ---
+
+template<class T_, class R_>
+T_ JSON::Value::ToStruct(const std::string &basePath, const R_ &ref) const {
+    if(!IsObject())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
+    
+    T_ result{};
+    jsonToStruct(result, std::get<Object>(data), ref, basePath, getPrepare(),
+        typename TMP::Generate<R_::MemberCount>::Type());
+    return result;
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(const std::string &basePath, std::function<void(T_)> callback, const R_ &ref) const {
+    if(!IsObject())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
+
+    auto result = std::make_shared<T_>();
+    auto cb = std::make_shared<std::function<void(T_)>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [result, cb]() {
+            if(*cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        });
+
+    internal::toStructAsyncImpl<T_, R_>(*this, result, checkDone, basePath, getPrepare(), ref);
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(T_ &target, const std::string &basePath, std::function<void()> callback, const R_ &ref) const {
+    if(!IsObject())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-object JSON to struct");
+
+    auto result = std::shared_ptr<T_>(&target, [](T_*){});
+    auto cb = std::make_shared<std::function<void()>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [cb]() {
             if(*cb) {
                 auto fn = std::move(*cb);
                 *cb = nullptr;
                 fn();
             }
-        }, [](const std::string &) {});
-    }
-}
+        });
 
-// --- Base path overloads (set BasePath temporarily, delegate to main overload) ---
-
-template<class T_, class R_>
-T_ JSON::Value::ToStruct(const std::string &basePath, const R_ &ref) const {
-    auto prev = Json.BasePath;
-    Json.BasePath = basePath;
-    try {
-        T_ result = ToStruct<T_, R_>(ref);
-        Json.BasePath = prev;
-        return result;
-    }
-    catch(...) {
-        Json.BasePath = prev;
-        throw;
-    }
-}
-
-template<class T_, class R_>
-void JSON::Value::ToStructAsync(const std::string &basePath, std::function<void(T_)> callback, const R_ &ref) const {
-    Json.BasePath = basePath;
-    ToStructAsync<T_, R_>(std::move(callback), ref);
-}
-
-template<class T_, class R_>
-void JSON::Value::ToStructAsync(T_ &target, const std::string &basePath, std::function<void()> callback, const R_ &ref) const {
-    Json.BasePath = basePath;
-    ToStructAsync<T_, R_>(target, std::move(callback), ref);
+    internal::toStructAsyncImpl<T_, R_>(*this, result, checkDone, basePath, getPrepare(), ref);
 }
 
 // --- ToStructArray implementations ---
@@ -1039,27 +1121,40 @@ std::vector<T_> JSON::Value::ToStructArray(const R_ &ref) const {
     if(!IsArray())
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
 
+    std::string basePath = getBasePath();
+    bool prepare = getPrepare();
     auto &arr = std::get<Array>(data);
     std::vector<T_> result;
     result.reserve(arr.size());
-    for(auto &elem : arr)
-        result.push_back(elem.ToStruct<T_, R_>(ref));
+    for(auto &elem : arr) {
+        if(!elem.IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Array element is not an object");
+        T_ item{};
+        jsonToStruct(item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+        result.push_back(std::move(item));
+    }
     return result;
 }
 
 template<class T_, class R_>
 std::vector<T_> JSON::Value::ToStructArray(const std::string &basePath, const R_ &ref) const {
-    auto prev = Json.BasePath;
-    Json.BasePath = basePath;
-    try {
-        auto result = ToStructArray<T_, R_>(ref);
-        Json.BasePath = prev;
-        return result;
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
+
+    bool prepare = getPrepare();
+    auto &arr = std::get<Array>(data);
+    std::vector<T_> result;
+    result.reserve(arr.size());
+    for(auto &elem : arr) {
+        if(!elem.IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Array element is not an object");
+        T_ item{};
+        jsonToStruct(item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+        result.push_back(std::move(item));
     }
-    catch(...) {
-        Json.BasePath = prev;
-        throw;
-    }
+    return result;
 }
 
 template<class T_, class R_>
@@ -1067,6 +1162,8 @@ void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callba
     if(!IsArray())
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
 
+    std::string basePath = getBasePath();
+    bool prepare = getPrepare();
     auto &arr = std::get<Array>(data);
     auto result = std::make_shared<std::vector<T_>>(arr.size());
     auto pending = std::make_shared<int>(0);
@@ -1085,7 +1182,6 @@ void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callba
         auto elemResult = std::shared_ptr<T_>(&(*result)[i], [](T_*){});
         ++(*pending);
 
-        // Fill non-resource fields synchronously
         if(!arr[i].IsObject())
             throw Error(ErrorCode::TypeMismatch, "Array element [" + std::to_string(i) + "] is not an object");
 
@@ -1099,18 +1195,16 @@ void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callba
             });
 
         internal::jsonToStructAsync<T_, R_>(elemResult, obj, ref,
-            elemPending, elemCheckDone,
+            elemPending, elemCheckDone, basePath, prepare,
             typename TMP::Generate<R_::MemberCount>::Type());
 
-        // If this element had no async ops, fire immediately
         if(*elemPending == 0) {
             --(*pending);
         }
     }
 
-    // If no async operations were needed at all, defer callback to next frame
     if(*pending == 0) {
-        Json.resolveAsync(Value(), [result, cb](const std::string &) {
+        Json.resolveAsync(Value(), "", [result, cb](const std::string &) {
             if(*cb) {
                 auto fn = std::move(*cb);
                 *cb = nullptr;
@@ -1122,8 +1216,58 @@ void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callba
 
 template<class T_, class R_>
 void JSON::Value::ToStructArrayAsync(const std::string &basePath, std::function<void(std::vector<T_>)> callback, const R_ &ref) const {
-    Json.BasePath = basePath;
-    ToStructArrayAsync<T_, R_>(std::move(callback), ref);
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
+
+    bool prepare = getPrepare();
+    auto &arr = std::get<Array>(data);
+    auto result = std::make_shared<std::vector<T_>>(arr.size());
+    auto pending = std::make_shared<int>(0);
+    auto cb = std::make_shared<std::function<void(std::vector<T_>)>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [result, pending, cb]() {
+            if(*pending == 0 && *cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        });
+
+    for(int i = 0; i < (int)arr.size(); i++) {
+        auto elemResult = std::shared_ptr<T_>(&(*result)[i], [](T_*){});
+        ++(*pending);
+
+        if(!arr[i].IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Array element [" + std::to_string(i) + "] is not an object");
+
+        auto &obj = std::get<Object>(arr[i].GetVariant());
+
+        auto elemPending = std::make_shared<int>(0);
+        auto elemCheckDone = std::make_shared<std::function<void()>>(
+            [pending, checkDone]() {
+                --(*pending);
+                (*checkDone)();
+            });
+
+        internal::jsonToStructAsync<T_, R_>(elemResult, obj, ref,
+            elemPending, elemCheckDone, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+
+        if(*elemPending == 0) {
+            --(*pending);
+        }
+    }
+
+    if(*pending == 0) {
+        Json.resolveAsync(Value(), "", [result, cb](const std::string &) {
+            if(*cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        }, [](const std::string &) {});
+    }
 }
 
 // --- ToStructCollection implementations ---
@@ -1133,26 +1277,38 @@ Containers::Collection<T_> JSON::Value::ToStructCollection(const R_ &ref) const 
     if(!IsArray())
         throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct collection");
 
+    std::string basePath = getBasePath();
+    bool prepare = getPrepare();
     auto &arr = std::get<Array>(data);
     Containers::Collection<T_> result;
-    for(auto &elem : arr)
-        result.Add(new T_(elem.ToStruct<T_, R_>(ref)));
+    for(auto &elem : arr) {
+        if(!elem.IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Collection element is not an object");
+        auto *item = new T_{};
+        jsonToStruct(*item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+        result.Add(item);
+    }
     return result;
 }
 
 template<class T_, class R_>
 Containers::Collection<T_> JSON::Value::ToStructCollection(const std::string &basePath, const R_ &ref) const {
-    auto prev = Json.BasePath;
-    Json.BasePath = basePath;
-    try {
-        auto result = ToStructCollection<T_, R_>(ref);
-        Json.BasePath = prev;
-        return result;
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct collection");
+
+    bool prepare = getPrepare();
+    auto &arr = std::get<Array>(data);
+    Containers::Collection<T_> result;
+    for(auto &elem : arr) {
+        if(!elem.IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Collection element is not an object");
+        auto *item = new T_{};
+        jsonToStruct(*item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
+            typename TMP::Generate<R_::MemberCount>::Type());
+        result.Add(item);
     }
-    catch(...) {
-        Json.BasePath = prev;
-        throw;
-    }
+    return result;
 }
 
 /// Get specializations

@@ -234,7 +234,7 @@ namespace Gorgon :: Utils {
             c = 5;
             break;
         }
-        consoleattributes::get(iserr).back = c>>4;
+        consoleattributes::get(iserr).back = c<<4;
         consoleattributes::set(iserr);
     }
     

@@ -2646,3 +2646,220 @@ TEST_CASE("ToStructCollection can be moved", "[JSON][StructCollection]") {
 
     col3.Destroy();
 }
+
+// =====================================================================
+//  Owner tracking / lifetime safety
+// =====================================================================
+
+TEST_CASE("Parsed values have owner set", "[JSON][Owner]") {
+    auto val = Json.Parse(R"({"a": 1, "b": [2, 3]})");
+    REQUIRE(val.getOwner() == &Json);
+    REQUIRE(val["a"].getOwner() == &Json);
+    REQUIRE(val["b"].getOwner() == &Json);
+    REQUIRE(val["b"][0].getOwner() == &Json);
+}
+
+TEST_CASE("Standalone values have no owner", "[JSON][Owner]") {
+    JSON::Value v(42);
+    REQUIRE(v.getOwner() == nullptr);
+}
+
+TEST_CASE("getBasePath returns owner BasePath", "[JSON][Owner]") {
+    Json.BasePath = "some/path/";
+    auto val = Json.Parse(R"("hello")");
+    REQUIRE(val.getBasePath() == "some/path/");
+    Json.BasePath = "";
+}
+
+TEST_CASE("getPrepare returns owner Prepare", "[JSON][Owner]") {
+    Json.Prepare = false;
+    auto val = Json.Parse(R"("hello")");
+    REQUIRE(val.getPrepare() == false);
+    Json.Prepare = true;
+}
+
+TEST_CASE("Standalone value getBasePath returns empty", "[JSON][Owner]") {
+    JSON::Value v("test");
+    REQUIRE(v.getBasePath() == "");
+}
+
+TEST_CASE("Standalone value getPrepare returns true", "[JSON][Owner]") {
+    JSON::Value v("test");
+    REQUIRE(v.getPrepare() == true);
+}
+
+TEST_CASE("Owner destroyed throws on access", "[JSON][Owner]") {
+    JSON::Value val;
+    {
+        JSON local;
+        val = local.Parse(R"({"x": 1})");
+        REQUIRE(val.getOwner() == &local);
+    }
+    // local is destroyed; getOwner should throw
+    REQUIRE_THROWS_AS(val.getOwner(), JSON::Error);
+}
+
+TEST_CASE("ParseFile sets owner", "[JSON][Owner]") {
+    // Write a temp file
+    {
+        std::ofstream f("json_owner_test.json");
+        f << R"({"key": "value"})";
+    }
+    auto val = Json.ParseFile("json_owner_test.json");
+    REQUIRE(val.getOwner() == &Json);
+    REQUIRE(val["key"].getOwner() == &Json);
+    std::remove("json_owner_test.json");
+}
+
+TEST_CASE("ParseStream sets owner", "[JSON][Owner]") {
+    std::istringstream ss(R"([1, 2, 3])");
+    auto val = Json.ParseStream(ss);
+    REQUIRE(val.getOwner() == &Json);
+    REQUIRE(val[0].getOwner() == &Json);
+}
+
+TEST_CASE("Validate preserves owner", "[JSON][Owner]") {
+    auto val = Json.Parse(R"({"name": "test"})");
+    JSON::Schema schema = {{"name", {JSON::Type::String}}};
+    auto validated = Json.Validate(val, schema);
+    REQUIRE(validated.getOwner() == &Json);
+    REQUIRE(validated["name"].getOwner() == &Json);
+}
+
+TEST_CASE("Independent JSON instances have separate BasePath", "[JSON][Owner]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_inst_a");
+    Gorgon::Filesystem::CreateDirectory("bp_inst_b");
+    createTestPNG("bp_inst_a/img.png", 3, 3);
+    createTestPNG("bp_inst_b/img.png", 7, 7);
+
+    JSON jsonA;
+    jsonA.BasePath = "bp_inst_a/";
+    jsonA.Prepare = false;
+
+    JSON jsonB;
+    jsonB.BasePath = "bp_inst_b/";
+    jsonB.Prepare = false;
+
+    auto valA = jsonA.Parse(R"("img.png")");
+    auto valB = jsonB.Parse(R"("img.png")");
+
+    auto bmpA = valA.Get<Gorgon::Graphics::Bitmap>();
+    REQUIRE(bmpA.GetWidth() == 3);
+
+    auto bmpB = valB.Get<Gorgon::Graphics::Bitmap>();
+    REQUIRE(bmpB.GetWidth() == 7);
+
+    Json.Prepare = true;
+
+    Gorgon::Filesystem::Delete("bp_inst_a");
+    Gorgon::Filesystem::Delete("bp_inst_b");
+}
+
+// =====================================================================
+//  BasePath no-mutation tests
+// =====================================================================
+
+TEST_CASE("ToStruct basePath does not mutate Json.BasePath", "[JSON][BasePath]") {
+    Json.BasePath = "original/";
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_nomut");
+    createTestPNG("bp_nomut/pic.png", 4, 4);
+
+    struct PicData {
+        Gorgon::Graphics::Bitmap pic;
+        int val = 0;
+        DefineStructMembers(PicData, pic, val)
+    };
+
+    auto json = Json.Parse(R"({"pic": "pic.png", "val": 42})");
+    auto data = json.ToStruct<PicData>("bp_nomut/");
+
+    // basePath overload must not touch the global
+    REQUIRE(Json.BasePath == "original/");
+    REQUIRE(data.pic.HasData());
+    REQUIRE(data.val == 42);
+
+    Json.BasePath = "";
+    Json.Prepare = true;
+
+    Gorgon::Filesystem::Delete("bp_nomut");
+}
+
+TEST_CASE("ToStructArray basePath does not mutate Json.BasePath", "[JSON][BasePath][StructArray]") {
+    Json.BasePath = "keep/";
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_arr_nomut");
+    createTestPNG("bp_arr_nomut/item.png", 2, 2);
+
+    struct ImgItem {
+        Gorgon::Graphics::Bitmap img;
+        DefineStructMembers(ImgItem, img)
+    };
+
+    auto json = Json.Parse(R"([{"img": "item.png"}])");
+    auto arr = json.ToStructArray<ImgItem>("bp_arr_nomut/");
+
+    REQUIRE(Json.BasePath == "keep/");
+    REQUIRE(arr.size() == 1);
+    REQUIRE(arr[0].img.HasData());
+
+    Json.BasePath = "";
+    Json.Prepare = true;
+
+    Gorgon::Filesystem::Delete("bp_arr_nomut");
+}
+
+TEST_CASE("ToStructCollection basePath does not mutate Json.BasePath", "[JSON][BasePath][StructCollection]") {
+    Json.BasePath = "guard/";
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_col_nomut");
+    createTestPNG("bp_col_nomut/tile.png", 3, 3);
+
+    struct TileItem {
+        Gorgon::Graphics::Bitmap tile;
+        DefineStructMembers(TileItem, tile)
+    };
+
+    auto json = Json.Parse(R"([{"tile": "tile.png"}])");
+    auto col = json.ToStructCollection<TileItem>("bp_col_nomut/");
+
+    REQUIRE(Json.BasePath == "guard/");
+    REQUIRE(col.GetCount() == 1);
+    REQUIRE(col[0].tile.HasData());
+
+    col.Destroy();
+    Json.BasePath = "";
+    Json.Prepare = true;
+
+    Gorgon::Filesystem::Delete("bp_col_nomut");
+}
+
+TEST_CASE("ToStruct uses owner BasePath when no explicit basePath", "[JSON][BasePath]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_owner");
+    createTestPNG("bp_owner/tex.png", 6, 6);
+
+    struct TexData {
+        Gorgon::Graphics::Bitmap tex;
+        DefineStructMembers(TexData, tex)
+    };
+
+    JSON local;
+    local.BasePath = "bp_owner/";
+    local.Prepare = false;
+    auto json = local.Parse(R"({"tex": "tex.png"})");
+    auto data = json.ToStruct<TexData>();
+
+    REQUIRE(data.tex.HasData());
+    REQUIRE(data.tex.GetWidth() == 6);
+
+    Json.Prepare = true;
+
+    Gorgon::Filesystem::Delete("bp_owner");
+}
