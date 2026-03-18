@@ -25,11 +25,16 @@
  *  19.  Loading a Multimedia::Wave from a JSON string
  *  20.  Audio-related schema validation types
  *  21.  Downloading a resource via URL
- *  22.  Displaying loaded images in a window
+ *  22.  Base path support for resource loading
+ *  23.  ToStructArray – converting JSON arrays to vectors of structs
+ *  24.  ToStructCollection – converting JSON arrays to Collections
+ *  25.  ToStructArrayAsync – async array conversion with downloads
+ *  26.  Displaying loaded images in a window
  *
  * The first ten sections run in the console and produce text output.
- * Sections 11-17 require a graphics window because they load and prepare
- * GPU textures. The window stays open until you press Escape.
+ * Sections 11-21 require a graphics window because they load and prepare
+ * GPU textures. Sections 22-24 demonstrate the new array/collection APIs.
+ * The window stays open until you press Escape.
  *
  */
 
@@ -47,6 +52,7 @@
 #include <Gorgon/Encoding/JSON.h>
 #include <Gorgon/Struct.h>       // DefineStructMembers for reflection
 #include <Gorgon/Input/Keyboard.h>
+#include <Gorgon/Filesystem.h>   // CreateDirectory for base path demo
 #include <Gorgon/Containers/Wave.h>
 #ifdef GORGON_AUDIO_SUPPORT
 #include <Gorgon/Multimedia/Wave.h>
@@ -721,7 +727,99 @@ int Main(const std::vector<std::string> &) {
     }
 
     // =====================================================================
-    //  22. Display Window
+    //  22. Base Path Support
+    // =====================================================================
+    // Json.BasePath is prepended to relative filenames during resource
+    // loading.  This lets you organise assets in subdirectories without
+    // repeating the path in every JSON entry.  The ToStruct(basePath, ...)
+    // overload temporarily sets BasePath for that call only.
+    std::cout << "\n=== 22. Base Path Support ===" << std::endl;
+    {
+        // Create a subdirectory with a test image
+        Gorgon::Filesystem::CreateDirectory("assets_sub");
+        generateCircleImage("assets_sub/dot.png", {255, 128, 0, 255}, 16);
+
+        // Method 1: set BasePath on the global Json object
+        Json.BasePath = "assets_sub/";
+        auto bpVal = Json.Parse(R"("dot.png")");
+        auto bpBmp = bpVal.Get<Bitmap>();
+        std::cout << "Via BasePath: loaded dot.png "
+                  << bpBmp.GetWidth() << "x" << bpBmp.GetHeight() << std::endl;
+        Json.BasePath = "";
+
+        // Method 2: use the ToStruct overload with basePath parameter
+        struct AssetRef {
+            Bitmap image;
+            std::string label;
+            DefineStructMembers(AssetRef, image, label)
+        };
+        auto asJson = Json.Parse(R"({"image": "dot.png", "label": "orange dot"})");
+        auto asset = asJson.ToStruct<AssetRef>("assets_sub/");
+        std::cout << "Via ToStruct(basePath): " << asset.label << " "
+                  << asset.image.GetWidth() << "x" << asset.image.GetHeight() << std::endl;
+    }
+
+    // =====================================================================
+    //  23. ToStructArray – JSON Array to Vector of Structs
+    // =====================================================================
+    // ToStructArray converts a JSON array where each element is an object
+    // into a std::vector of reflected structs.
+    std::cout << "\n=== 23. ToStructArray ===" << std::endl;
+    {
+        auto arrJson = Json.Parse(R"([
+            {"x": 0.0, "y": 0.0},
+            {"x": 10.5, "y": 20.5},
+            {"x": -3.0, "y": 7.0}
+        ])");
+
+        auto points = arrJson.ToStructArray<Vec2>();
+
+        std::cout << "Loaded " << points.size() << " points:" << std::endl;
+        for(auto &p : points)
+            std::cout << "  (" << p.x << ", " << p.y << ")" << std::endl;
+
+        // With base path: load an array of structs containing bitmaps
+        auto imgArr = Json.Parse(R"([
+            {"health": 80, "speed": 3, "name": "Alice"},
+            {"health": 120, "speed": 7, "name": "Bob"}
+        ])");
+        auto players = imgArr.ToStructArray<PlayerConfig>();
+        std::cout << "Loaded " << players.size() << " players:" << std::endl;
+        for(auto &p : players)
+            std::cout << "  " << p.name << " HP:" << p.health
+                      << " SPD:" << p.speed << std::endl;
+    }
+
+    // =====================================================================
+    //  24. ToStructCollection – JSON Array to Collection
+    // =====================================================================
+    // ToStructCollection is similar to ToStructArray but returns a
+    // Gorgon::Containers::Collection which stores heap-allocated objects.
+    // The collection owns its objects; call Destroy() to free them.
+    std::cout << "\n=== 24. ToStructCollection ===" << std::endl;
+    {
+        auto colJson = Json.Parse(R"([
+            {"x": 1.0, "y": 2.0},
+            {"x": 3.0, "y": 4.0},
+            {"x": 5.0, "y": 6.0},
+            {"x": 7.0, "y": 8.0}
+        ])");
+
+        auto collection = colJson.ToStructCollection<Vec2>();
+        std::cout << "Collection has " << collection.GetCount() << " items:" << std::endl;
+        for(long i = 0; i < collection.GetCount(); i++)
+            std::cout << "  [" << i << "] (" << collection[i].x << ", "
+                      << collection[i].y << ")" << std::endl;
+
+        // Collection can be moved (not copied)
+        auto moved = std::move(collection);
+        std::cout << "After move: " << moved.GetCount() << " items" << std::endl;
+
+        moved.Destroy(); // free heap-allocated points
+    }
+
+    // =====================================================================
+    //  25. Display Window
     // =====================================================================
     // Finally, show the loaded bitmap in the window.  The Layer acts as
     // a drawing surface that the window renders every frame.

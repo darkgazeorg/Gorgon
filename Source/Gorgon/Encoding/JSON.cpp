@@ -1647,15 +1647,18 @@ namespace {
     /// - A string (file path or URL)
     /// - An object with "filename" and/or "url" fields
     /// Returns {filename, url}. Either can be empty.
-    std::pair<std::string, std::string> extractResourceSpec(const JSON::Value &val) {
+    /// If basePath is non-empty, relative filenames get basePath prepended and
+    /// relative URLs (no scheme) get basePath prepended as a URL prefix.
+    std::pair<std::string, std::string> extractResourceSpec(const JSON::Value &val, const std::string &basePath = "") {
+        std::string filename, url;
         if(val.IsString()) {
             auto s = val.Get<std::string>();
             if(isURL(s))
-                return {"", s};
-            return {s, ""};
+                url = s;
+            else
+                filename = s;
         }
-        if(val.IsObject()) {
-            std::string filename, url;
+        else if(val.IsObject()) {
             if(val.Has("filename"))
                 filename = val["filename"].Get<std::string>();
             if(val.Has("url"))
@@ -1669,16 +1672,31 @@ namespace {
             // If filename is a URL
             if(!filename.empty() && isURL(filename) && url.empty())
                 url = filename;
-            return {filename, url};
         }
-        return {"", ""};
+
+        // Apply base path to relative filenames and URLs
+        if(!basePath.empty()) {
+            if(!filename.empty() && !isURL(filename) && filename[0] != '/') {
+                filename = Gorgon::Filesystem::Join(basePath, filename);
+            }
+            if(!url.empty() && !isURL(url)) {
+                // Relative URL: prepend base path as URL prefix
+                url = basePath + url;
+            }
+            else if(url.empty() && !filename.empty() && isURL(basePath)) {
+                // Base path is a URL, filename is relative: construct URL
+                url = basePath + filename;
+            }
+        }
+
+        return {filename, url};
     }
 
     /// Synchronously resolves a resource path. Handles local files,
     /// LZMA fallback, and cached downloads. Throws for HTTP URLs
     /// that are not cached. Returns the local file path to load from.
-    std::string resolveResourceSync(const JSON::Value &val) {
-        auto [filename, url] = extractResourceSpec(val);
+    std::string resolveResourceSync(const JSON::Value &val, const std::string &basePath = "") {
+        auto [filename, url] = extractResourceSpec(val, basePath);
 
         // Case 1: Local file (no URL)
         if(url.empty()) {
@@ -1974,7 +1992,7 @@ Graphics::Bitmap JSON::Value::Get<Graphics::Bitmap>() const {
     if(!IsString() && !IsObject())
         throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Bitmap)");
 
-    auto path = resolveResourceSync(*this);
+    auto path = resolveResourceSync(*this, Json.BasePath);
 
     Graphics::Bitmap bmp;
     if(!bmp.Import(path))
@@ -1998,7 +2016,7 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
         if(arr[i].IsString() || (arr[i].IsObject() && !arr[i].Has("file") && (arr[i].Has("filename") || arr[i].Has("url")))) {
             // Direct file path string or resource spec object (filename/url)
             Graphics::Bitmap bmp;
-            auto path = resolveResourceSync(arr[i]);
+            auto path = resolveResourceSync(arr[i], Json.BasePath);
             if(!bmp.Import(path))
                 throw Error(ErrorCode::ResourceNotFound,
                     "Failed to import bitmap from: " + path + " (element [" + std::to_string(i) + "])");
@@ -2028,7 +2046,7 @@ Graphics::BitmapAnimationProvider JSON::Value::Get<Graphics::BitmapAnimationProv
             else {
                 fileSpec = obj["file"];
             }
-            auto path = resolveResourceSync(fileSpec);
+            auto path = resolveResourceSync(fileSpec, Json.BasePath);
 
             Graphics::Bitmap bmp;
             if(!bmp.Import(path))
@@ -2083,7 +2101,7 @@ Containers::Wave JSON::Value::Get<Containers::Wave>() const {
     if(!IsString() && !IsObject())
         throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Wave)");
 
-    auto path = resolveResourceSync(*this);
+    auto path = resolveResourceSync(*this, Json.BasePath);
 
     Containers::Wave wave;
     if(!wave.ImportWav(path))
@@ -2099,7 +2117,7 @@ Multimedia::Wave JSON::Value::Get<Multimedia::Wave>() const {
     if(!IsString() && !IsObject())
         throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for Sound)");
 
-    auto path = resolveResourceSync(*this);
+    auto path = resolveResourceSync(*this, Json.BasePath);
 
     Multimedia::Wave wave;
     if(!wave.Import(path))
@@ -2113,7 +2131,7 @@ Multimedia::AudioStream JSON::Value::Get<Multimedia::AudioStream>() const {
     if(!IsString() && !IsObject())
         throw Error(ErrorCode::TypeMismatch, "JSON value is not a string or object (expected file path or resource spec for AudioStream)");
 
-    auto path = resolveResourceSync(*this);
+    auto path = resolveResourceSync(*this, Json.BasePath);
 
     Multimedia::AudioStream stream;
     if(!stream.Stream(path))
@@ -2142,6 +2160,12 @@ JSON::Value JSON::ParseStream(std::istream &stream) const {
     Value result = parser.parseValue();
     parser.skipwhitespace();
     return result;
+}
+
+void JSON::ClearCache() const {
+    auto cacheDir = getCacheDir();
+    
+    Gorgon::Filesystem::Delete(cacheDir);
 }
 
 }

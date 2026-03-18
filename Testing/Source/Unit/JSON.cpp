@@ -1564,6 +1564,7 @@ TEST_CASE("Get<Bitmap> from object with filename", "[JSON][Bitmap][Resource]") {
     REQUIRE(bmp.GetHeight() == 4);
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 TEST_CASE("Get<Bitmap> from object with filename+url loads local", "[JSON][Bitmap][Resource]") {
@@ -1579,6 +1580,7 @@ TEST_CASE("Get<Bitmap> from object with filename+url loads local", "[JSON][Bitma
     REQUIRE(bmp.GetHeight() == 6);
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 TEST_CASE("Get<Bitmap> from LZMA fallback", "[JSON][Bitmap][Resource]") {
@@ -1625,6 +1627,7 @@ TEST_CASE("Get<Bitmap> URL-only sync throws DownloadRequired", "[JSON][Bitmap][R
     }
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 TEST_CASE("Get<Bitmap> object with url-only sync throws DownloadRequired", "[JSON][Bitmap][Resource]") {
@@ -1640,6 +1643,7 @@ TEST_CASE("Get<Bitmap> object with url-only sync throws DownloadRequired", "[JSO
     }
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 TEST_CASE("Schema: Bitmap field accepts object with filename", "[JSON][Schema][Bitmap][Resource]") {
@@ -1661,6 +1665,8 @@ TEST_CASE("Schema: Bitmap field accepts object with url", "[JSON][Schema][Bitmap
     auto input = Json.Parse(R"({"img": {"url": "https://example.com/test.png"}})");
     auto result = Json.Validate(input, schema);
     REQUIRE(result["img"].IsObject());
+
+    Json.ClearCache();
 }
 
 TEST_CASE("Schema: Bitmap field accepts object with filename+url", "[JSON][Schema][Bitmap][Resource]") {
@@ -1671,6 +1677,8 @@ TEST_CASE("Schema: Bitmap field accepts object with filename+url", "[JSON][Schem
     auto input = Json.Parse(R"({"img": {"filename": "test.png", "url": "https://example.com/test.png"}})");
     auto result = Json.Validate(input, schema);
     REQUIRE(result["img"].IsObject());
+
+    Json.ClearCache();
 }
 
 TEST_CASE("Schema: Bitmap field rejects object without filename or url", "[JSON][Schema][Bitmap][Resource]") {
@@ -1700,6 +1708,8 @@ TEST_CASE("Schema: Wave field accepts object with url", "[JSON][Schema][Wave][Re
     auto input = Json.Parse(R"({"audio": {"url": "https://example.com/test.wav"}})");
     auto result = Json.Validate(input, schema);
     REQUIRE(result["audio"].IsObject());
+
+    Json.ClearCache();
 }
 
 TEST_CASE("Schema: AnimationStorage field accepts object with filename", "[JSON][Schema][Bitmap][Resource]") {
@@ -1730,6 +1740,8 @@ TEST_CASE("Schema: BitmapAnimation element accepts object with url", "[JSON][Sch
     auto input = Json.Parse(R"({"anim": [{"url": "https://example.com/frame.png"}]})");
     auto result = Json.Validate(input, schema);
     REQUIRE(result["anim"].IsArray());
+
+    Json.ClearCache();
 }
 
 TEST_CASE("Error code: DownloadRequired", "[JSON][Error][Resource]") {
@@ -1745,6 +1757,7 @@ TEST_CASE("Error code: DownloadRequired", "[JSON][Error][Resource]") {
     }
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 // -- JSONParseFile ---------------------------------------------------------
@@ -1830,6 +1843,8 @@ TEST_CASE("Get<Containers::Wave> URL-only sync throws DownloadRequired", "[JSON]
     catch(const JSON::Error &e) {
         REQUIRE(e.GetCode() == JSON::ErrorCode::DownloadRequired);
     }
+
+    Json.ClearCache();
 }
 
 #ifdef GORGON_AUDIO_SUPPORT
@@ -2262,6 +2277,7 @@ TEST_CASE("ToStructAsync downloads and decompresses XZ bitmap", "[JSON][Async][D
         Gorgon::Filesystem::Delete(cachedFile);
 
     Json.Prepare = true;
+    Json.ClearCache();
 }
 
 TEST_CASE("ToStructAsync reference overload downloads into existing struct", "[JSON][Async][Download]") {
@@ -2293,4 +2309,340 @@ TEST_CASE("ToStructAsync reference overload downloads into existing struct", "[J
         Gorgon::Filesystem::Delete(cachedFile);
 
     Json.Prepare = true;
+    Json.ClearCache();
+}
+
+// =====================================================================
+//  BasePath support
+// =====================================================================
+
+TEST_CASE("BasePath prepends to relative filename for Bitmap", "[JSON][BasePath]") {
+    Json.Prepare = false;
+
+    // Create a subdirectory with a test image
+    Gorgon::Filesystem::CreateDirectory("bp_sub");
+    createTestPNG("bp_sub/bp_test.png", 4, 4);
+
+    Json.BasePath = "bp_sub/";
+    auto val = Json.Parse(R"("bp_test.png")");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 4);
+    REQUIRE(bmp.GetHeight() == 4);
+
+    Json.BasePath = "";
+    Json.Prepare = true;
+}
+
+TEST_CASE("BasePath prepends to object-spec filename for Bitmap", "[JSON][BasePath]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_sub");
+    createTestPNG("bp_sub/bp_obj.png", 6, 6);
+
+    Json.BasePath = "bp_sub/";
+    auto val = Json.Parse(R"({"filename": "bp_obj.png"})");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 6);
+    REQUIRE(bmp.GetHeight() == 6);
+
+    Json.BasePath = "";
+    Json.Prepare = true;
+}
+
+TEST_CASE("BasePath empty does not alter filename", "[JSON][BasePath]") {
+    Json.Prepare = false;
+
+    createTestPNG("bp_root.png", 3, 3);
+
+    Json.BasePath = "";
+    auto val = Json.Parse(R"("bp_root.png")");
+    auto bmp = val.Get<Gorgon::Graphics::Bitmap>();
+
+    REQUIRE(bmp.HasData());
+    REQUIRE(bmp.GetWidth() == 3);
+    REQUIRE(bmp.GetHeight() == 3);
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("ToStruct with basePath overload resolves bitmap", "[JSON][BasePath]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_struct");
+    createTestPNG("bp_struct/sprite.png", 5, 5);
+
+    struct SpriteData {
+        Gorgon::Graphics::Bitmap sprite;
+        int health = 0;
+        DefineStructMembers(SpriteData, sprite, health)
+    };
+
+    auto json = Json.Parse(R"({"sprite": "sprite.png", "health": 100})");
+    auto data = json.ToStruct<SpriteData>("bp_struct/");
+
+    REQUIRE(data.sprite.HasData());
+    REQUIRE(data.sprite.GetWidth() == 5);
+    REQUIRE(data.health == 100);
+
+    // Verify BasePath was restored
+    REQUIRE(Json.BasePath == "");
+
+    Json.Prepare = true;
+}
+
+TEST_CASE("ToStruct basePath restores previous BasePath on exception", "[JSON][BasePath]") {
+    Json.BasePath = "original/";
+
+    // Missing required field should throw, but BasePath must be restored
+    auto json = Json.Parse(R"({"x": 1.0})");
+    try {
+        json.ToStruct<TestConfig>("temp/");
+    }
+    catch(...) {
+        // expected
+    }
+
+    REQUIRE(Json.BasePath == "original/");
+    Json.BasePath = "";
+}
+
+// =====================================================================
+//  ToStructArray
+// =====================================================================
+
+TEST_CASE("ToStructArray converts json array to vector", "[JSON][StructArray]") {
+    auto json = Json.Parse(R"([
+        {"x": 1.0, "y": 2.0},
+        {"x": 3.0, "y": 4.0},
+        {"x": 5.0, "y": 6.0}
+    ])");
+
+    auto arr = json.ToStructArray<TestPoint>();
+
+    REQUIRE(arr.size() == 3);
+    REQUIRE(arr[0].x == Catch::Approx(1.0f));
+    REQUIRE(arr[0].y == Catch::Approx(2.0f));
+    REQUIRE(arr[1].x == Catch::Approx(3.0f));
+    REQUIRE(arr[1].y == Catch::Approx(4.0f));
+    REQUIRE(arr[2].x == Catch::Approx(5.0f));
+    REQUIRE(arr[2].y == Catch::Approx(6.0f));
+}
+
+TEST_CASE("ToStructArray empty array returns empty vector", "[JSON][StructArray]") {
+    auto json = Json.Parse("[]");
+    auto arr = json.ToStructArray<TestPoint>();
+    REQUIRE(arr.empty());
+}
+
+TEST_CASE("ToStructArray on non-array throws TypeMismatch", "[JSON][StructArray]") {
+    auto json = Json.Parse(R"({"x": 1.0})");
+    REQUIRE_THROWS_AS(json.ToStructArray<TestPoint>(), JSON::Error);
+}
+
+TEST_CASE("ToStructArray with basePath resolves bitmaps", "[JSON][StructArray][BasePath]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_arr");
+    createTestPNG("bp_arr/a.png", 2, 2);
+    createTestPNG("bp_arr/b.png", 3, 3);
+
+    struct ImgItem {
+        Gorgon::Graphics::Bitmap img;
+        int id = 0;
+        DefineStructMembers(ImgItem, img, id)
+    };
+
+    auto json = Json.Parse(R"([
+        {"img": "a.png", "id": 1},
+        {"img": "b.png", "id": 2}
+    ])");
+
+    auto arr = json.ToStructArray<ImgItem>("bp_arr/");
+
+    REQUIRE(arr.size() == 2);
+    REQUIRE(arr[0].img.HasData());
+    REQUIRE(arr[0].img.GetWidth() == 2);
+    REQUIRE(arr[0].id == 1);
+    REQUIRE(arr[1].img.HasData());
+    REQUIRE(arr[1].img.GetWidth() == 3);
+    REQUIRE(arr[1].id == 2);
+
+    REQUIRE(Json.BasePath == "");
+    Json.Prepare = true;
+}
+
+TEST_CASE("ToStructArray with string fields", "[JSON][StructArray]") {
+    auto json = Json.Parse(R"([
+        {"width": 800, "height": 600, "title": "A"},
+        {"width": 1920, "height": 1080, "title": "B"}
+    ])");
+
+    auto arr = json.ToStructArray<TestConfig>();
+
+    REQUIRE(arr.size() == 2);
+    REQUIRE(arr[0].width == 800);
+    REQUIRE(arr[0].title == "A");
+    REQUIRE(arr[1].width == 1920);
+    REQUIRE(arr[1].title == "B");
+}
+
+// =====================================================================
+//  ToStructArrayAsync
+// =====================================================================
+
+TEST_CASE("ToStructArrayAsync downloads bitmap array", "[JSON][StructArray][Async][Download]") {
+    Json.Prepare = false;
+
+    // Use a single element to avoid race conditions with concurrent
+    // downloads of the same URL; the array mechanism is tested separately
+    // in the non-download async test below.
+    auto json = Json.Parse(R"([
+        {"image": {"url": "https://darkgaze.org/testing/Logo.png.xz"}}
+    ])");
+
+    bool completed = false;
+    json.ToStructArrayAsync<DownloadTarget>([&](std::vector<DownloadTarget> items) {
+        completed = true;
+        REQUIRE(items.size() == 1);
+        REQUIRE(items[0].image.HasData());
+        REQUIRE(items[0].image.GetWidth() > 0);
+    });
+
+    for(int i = 0; i < 3000 && !completed; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        Gorgon::BeforeFrameEvent();
+    }
+
+    REQUIRE(completed);
+
+    auto cacheDir = Gorgon::Filesystem::Join(
+        Gorgon::Filesystem::Join(Gorgon::OS::User::GetDataPath(), Gorgon::GetSystemName()),
+        ".cache");
+    auto cachedFile = Gorgon::Filesystem::Join(cacheDir, "Logo.png");
+    if(Gorgon::Filesystem::IsFile(cachedFile))
+        Gorgon::Filesystem::Delete(cachedFile);
+
+    Json.Prepare = true;
+    Json.ClearCache();
+}
+
+TEST_CASE("ToStructArrayAsync with no async fields fires callback", "[JSON][StructArray][Async]") {
+    auto json = Json.Parse(R"([
+        {"x": 1.0, "y": 2.0},
+        {"x": 3.0, "y": 4.0}
+    ])");
+
+    bool completed = false;
+    json.ToStructArrayAsync<TestPoint>([&](std::vector<TestPoint> items) {
+        completed = true;
+        REQUIRE(items.size() == 2);
+        REQUIRE(items[0].x == Catch::Approx(1.0f));
+        REQUIRE(items[1].x == Catch::Approx(3.0f));
+    });
+
+    for(int i = 0; i < 100 && !completed; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        Gorgon::BeforeFrameEvent();
+    }
+
+    REQUIRE(completed);
+}
+
+TEST_CASE("ToStructArrayAsync on non-array throws", "[JSON][StructArray][Async]") {
+    auto json = Json.Parse(R"({"x": 1.0})");
+    REQUIRE_THROWS_AS(
+        json.ToStructArrayAsync<TestPoint>([](std::vector<TestPoint>) {}),
+        JSON::Error
+    );
+}
+
+// =====================================================================
+//  ToStructCollection
+// =====================================================================
+
+TEST_CASE("ToStructCollection converts array to collection", "[JSON][StructCollection]") {
+    auto json = Json.Parse(R"([
+        {"x": 10.0, "y": 20.0},
+        {"x": 30.0, "y": 40.0},
+        {"x": 50.0, "y": 60.0}
+    ])");
+
+    auto col = json.ToStructCollection<TestPoint>();
+
+    REQUIRE(col.GetCount() == 3);
+    REQUIRE(col[0].x == Catch::Approx(10.0f));
+    REQUIRE(col[0].y == Catch::Approx(20.0f));
+    REQUIRE(col[1].x == Catch::Approx(30.0f));
+    REQUIRE(col[2].x == Catch::Approx(50.0f));
+
+    col.Destroy();
+}
+
+TEST_CASE("ToStructCollection empty array returns empty collection", "[JSON][StructCollection]") {
+    auto json = Json.Parse("[]");
+    auto col = json.ToStructCollection<TestPoint>();
+    REQUIRE(col.GetCount() == 0);
+}
+
+TEST_CASE("ToStructCollection on non-array throws", "[JSON][StructCollection]") {
+    auto json = Json.Parse("42");
+    REQUIRE_THROWS_AS(json.ToStructCollection<TestPoint>(), JSON::Error);
+}
+
+TEST_CASE("ToStructCollection with basePath resolves bitmaps", "[JSON][StructCollection][BasePath]") {
+    Json.Prepare = false;
+
+    Gorgon::Filesystem::CreateDirectory("bp_col");
+    createTestPNG("bp_col/c1.png", 4, 4);
+    createTestPNG("bp_col/c2.png", 7, 7);
+
+    struct ColItem {
+        Gorgon::Graphics::Bitmap img;
+        std::string label;
+        DefineStructMembers(ColItem, img, label)
+    };
+
+    auto json = Json.Parse(R"([
+        {"img": "c1.png", "label": "first"},
+        {"img": "c2.png", "label": "second"}
+    ])");
+
+    auto col = json.ToStructCollection<ColItem>("bp_col/");
+
+    REQUIRE(col.GetCount() == 2);
+    REQUIRE(col[0].img.HasData());
+    REQUIRE(col[0].img.GetWidth() == 4);
+    REQUIRE(col[0].label == "first");
+    REQUIRE(col[1].img.HasData());
+    REQUIRE(col[1].img.GetWidth() == 7);
+    REQUIRE(col[1].label == "second");
+
+    REQUIRE(Json.BasePath == "");
+
+    col.Destroy();
+    Json.Prepare = true;
+}
+
+TEST_CASE("ToStructCollection can be moved", "[JSON][StructCollection]") {
+    auto json = Json.Parse(R"([{"x": 1.0, "y": 2.0}, {"x": 3.0, "y": 4.0}])");
+
+    auto col1 = json.ToStructCollection<TestPoint>();
+    REQUIRE(col1.GetCount() == 2);
+
+    // Move construct
+    auto col2 = std::move(col1);
+    REQUIRE(col2.GetCount() == 2);
+    REQUIRE(col2[0].x == Catch::Approx(1.0f));
+
+    // Move assign
+    Gorgon::Containers::Collection<TestPoint> col3;
+    col3 = std::move(col2);
+    REQUIRE(col3.GetCount() == 2);
+    REQUIRE(col3[1].y == Catch::Approx(4.0f));
+
+    col3.Destroy();
 }

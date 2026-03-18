@@ -22,6 +22,7 @@
 #include "../Graphics/TextureAnimation.h"
 #include "../Graphics/Animations.h"
 #include "../Containers/Wave.h"
+#include "../Containers/Collection.h"
 #ifdef GORGON_AUDIO_SUPPORT
 #include "../Multimedia/Wave.h"
 #include "../Multimedia/AudioStream.h"
@@ -317,6 +318,17 @@ public:
         template<class T_, class R_ = typename T_::ReflectionType>
         T_ ToStruct(const R_ &ref = T_::Reflection()) const;
 
+        /// Encodes this JSON value to a struct, using the given base path for
+        /// resolving resource filenames (bitmaps, audio, etc.).
+        template<class T_, class R_ = typename T_::ReflectionType>
+        T_ ToStruct(const std::string &basePath, const R_ &ref = T_::Reflection()) const;
+
+        /// @overload Accepts a string literal as base path without ambiguity.
+        template<class T_>
+        T_ ToStruct(const char *basePath) const {
+            return ToStruct<T_>(std::string(basePath), T_::Reflection());
+        }
+
         /// Converts a JSON object to a reflected struct asynchronously. Any resource
         /// fields (Bitmap, Wave, etc.) are downloaded/loaded in the background; the
         /// callback fires on the main thread (via BeforeFrameEvent) and receives the
@@ -330,6 +342,11 @@ public:
         /// @endcode
         template<class T_, class R_ = typename T_::ReflectionType>
         void ToStructAsync(std::function<void(T_)> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON object to a reflected struct asynchronously, using the
+        /// given base path/URL for resolving resource filenames.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructAsync(const std::string &basePath, std::function<void(T_)> callback, const R_ &ref = T_::Reflection()) const;
 
         /// Converts a JSON object into an existing struct instance asynchronously.
         /// Fields are filled in-place; the no-argument callback fires on the main
@@ -345,6 +362,53 @@ public:
         /// @endcode
         template<class T_, class R_ = typename T_::ReflectionType>
         void ToStructAsync(T_ &target, std::function<void()> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON object into an existing struct instance asynchronously,
+        /// using the given base path/URL for resolving resource filenames.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructAsync(T_ &target, const std::string &basePath, std::function<void()> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON array to a vector of reflected structs.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        std::vector<T_> ToStructArray(const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON array to a vector of reflected structs, using the
+        /// given base path for resource resolution.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        std::vector<T_> ToStructArray(const std::string &basePath, const R_ &ref = T_::Reflection()) const;
+
+        /// @overload Accepts a string literal as base path without ambiguity.
+        template<class T_>
+        std::vector<T_> ToStructArray(const char *basePath) const {
+            return ToStructArray<T_>(std::string(basePath), T_::Reflection());
+        }
+
+        /// Converts a JSON array to a vector of reflected structs asynchronously.
+        /// The callback receives the fully populated vector by move.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructArrayAsync(std::function<void(std::vector<T_>)> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON array to a vector of reflected structs asynchronously,
+        /// using the given base path/URL for resource resolution.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        void ToStructArrayAsync(const std::string &basePath, std::function<void(std::vector<T_>)> callback, const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON array to a Collection of heap-allocated reflected structs.
+        /// The returned Collection owns the allocated objects; use DeleteAll() or
+        /// Destroy() to free them.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        Containers::Collection<T_> ToStructCollection(const R_ &ref = T_::Reflection()) const;
+
+        /// Converts a JSON array to a Collection of heap-allocated reflected structs,
+        /// using the given base path for resource resolution.
+        template<class T_, class R_ = typename T_::ReflectionType>
+        Containers::Collection<T_> ToStructCollection(const std::string &basePath, const R_ &ref = T_::Reflection()) const;
+
+        /// @overload Accepts a string literal as base path without ambiguity.
+        template<class T_>
+        Containers::Collection<T_> ToStructCollection(const char *basePath) const {
+            return ToStructCollection<T_>(std::string(basePath), T_::Reflection());
+        }
 
         /// Creates a JSON object from a reflected struct.
         template<class T_, class R_ = typename T_::ReflectionType>
@@ -518,6 +582,12 @@ public:
     /// This can be used for other resources when needed.
     bool Prepare = true;
 
+    /// Base path prepended to relative resource filenames during loading.
+    /// For local files this is a directory path (e.g. "assets/images/").
+    /// For async operations this can be a URL prefix (e.g. "https://example.com/assets/").
+    /// When empty (default), filenames are resolved relative to the current working directory.
+    std::string BasePath;
+
     /// When set, the parser attempts to recover from common JSON syntax
     /// errors rather than throwing a JSON::Error. Useful for reading
     /// hand-edited or loosely-formatted configuration files.
@@ -565,6 +635,12 @@ public:
                       std::function<void(const std::string&)> loader,
                       std::function<void(const std::string&)> onError);
 
+
+    /// Clears any cached resources downloaded. This clears entire cache
+    /// not just entries related to async operations. Use with caution, 
+    /// as it may affect ongoing operations.
+    void ClearCache() const;
+    
 private:
     struct AsyncImpl;
     AsyncImpl *asyncimpl = nullptr;
@@ -921,6 +997,158 @@ void JSON::Value::ToStructAsync(T_ &target, std::function<void()> callback, cons
                 fn();
             }
         }, [](const std::string &) {});
+    }
+}
+
+// --- Base path overloads (set BasePath temporarily, delegate to main overload) ---
+
+template<class T_, class R_>
+T_ JSON::Value::ToStruct(const std::string &basePath, const R_ &ref) const {
+    auto prev = Json.BasePath;
+    Json.BasePath = basePath;
+    try {
+        T_ result = ToStruct<T_, R_>(ref);
+        Json.BasePath = prev;
+        return result;
+    }
+    catch(...) {
+        Json.BasePath = prev;
+        throw;
+    }
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(const std::string &basePath, std::function<void(T_)> callback, const R_ &ref) const {
+    Json.BasePath = basePath;
+    ToStructAsync<T_, R_>(std::move(callback), ref);
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructAsync(T_ &target, const std::string &basePath, std::function<void()> callback, const R_ &ref) const {
+    Json.BasePath = basePath;
+    ToStructAsync<T_, R_>(target, std::move(callback), ref);
+}
+
+// --- ToStructArray implementations ---
+
+template<class T_, class R_>
+std::vector<T_> JSON::Value::ToStructArray(const R_ &ref) const {
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
+
+    auto &arr = std::get<Array>(data);
+    std::vector<T_> result;
+    result.reserve(arr.size());
+    for(auto &elem : arr)
+        result.push_back(elem.ToStruct<T_, R_>(ref));
+    return result;
+}
+
+template<class T_, class R_>
+std::vector<T_> JSON::Value::ToStructArray(const std::string &basePath, const R_ &ref) const {
+    auto prev = Json.BasePath;
+    Json.BasePath = basePath;
+    try {
+        auto result = ToStructArray<T_, R_>(ref);
+        Json.BasePath = prev;
+        return result;
+    }
+    catch(...) {
+        Json.BasePath = prev;
+        throw;
+    }
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callback, const R_ &ref) const {
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct array");
+
+    auto &arr = std::get<Array>(data);
+    auto result = std::make_shared<std::vector<T_>>(arr.size());
+    auto pending = std::make_shared<int>(0);
+    auto cb = std::make_shared<std::function<void(std::vector<T_>)>>(std::move(callback));
+
+    auto checkDone = std::make_shared<std::function<void()>>(
+        [result, pending, cb]() {
+            if(*pending == 0 && *cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        });
+
+    for(int i = 0; i < (int)arr.size(); i++) {
+        auto elemResult = std::shared_ptr<T_>(&(*result)[i], [](T_*){});
+        ++(*pending);
+
+        // Fill non-resource fields synchronously
+        if(!arr[i].IsObject())
+            throw Error(ErrorCode::TypeMismatch, "Array element [" + std::to_string(i) + "] is not an object");
+
+        auto &obj = std::get<Object>(arr[i].GetVariant());
+
+        auto elemPending = std::make_shared<int>(0);
+        auto elemCheckDone = std::make_shared<std::function<void()>>(
+            [pending, checkDone]() {
+                --(*pending);
+                (*checkDone)();
+            });
+
+        internal::jsonToStructAsync<T_, R_>(elemResult, obj, ref,
+            elemPending, elemCheckDone,
+            typename TMP::Generate<R_::MemberCount>::Type());
+
+        // If this element had no async ops, fire immediately
+        if(*elemPending == 0) {
+            --(*pending);
+        }
+    }
+
+    // If no async operations were needed at all, defer callback to next frame
+    if(*pending == 0) {
+        Json.resolveAsync(Value(), [result, cb](const std::string &) {
+            if(*cb) {
+                auto fn = std::move(*cb);
+                *cb = nullptr;
+                fn(std::move(*result));
+            }
+        }, [](const std::string &) {});
+    }
+}
+
+template<class T_, class R_>
+void JSON::Value::ToStructArrayAsync(const std::string &basePath, std::function<void(std::vector<T_>)> callback, const R_ &ref) const {
+    Json.BasePath = basePath;
+    ToStructArrayAsync<T_, R_>(std::move(callback), ref);
+}
+
+// --- ToStructCollection implementations ---
+
+template<class T_, class R_>
+Containers::Collection<T_> JSON::Value::ToStructCollection(const R_ &ref) const {
+    if(!IsArray())
+        throw Error(ErrorCode::TypeMismatch, "Cannot convert non-array JSON to struct collection");
+
+    auto &arr = std::get<Array>(data);
+    Containers::Collection<T_> result;
+    for(auto &elem : arr)
+        result.Add(new T_(elem.ToStruct<T_, R_>(ref)));
+    return result;
+}
+
+template<class T_, class R_>
+Containers::Collection<T_> JSON::Value::ToStructCollection(const std::string &basePath, const R_ &ref) const {
+    auto prev = Json.BasePath;
+    Json.BasePath = basePath;
+    try {
+        auto result = ToStructCollection<T_, R_>(ref);
+        Json.BasePath = prev;
+        return result;
+    }
+    catch(...) {
+        Json.BasePath = prev;
+        throw;
     }
 }
 
