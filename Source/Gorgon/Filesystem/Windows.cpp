@@ -88,6 +88,15 @@ namespace Gorgon :: Filesystem {
 		if(attr == INVALID_FILE_ATTRIBUTES) return false;
 		return (attr & FILE_ATTRIBUTE_HIDDEN) != 0 || (attr & FILE_ATTRIBUTE_SYSTEM) != 0;
 	}
+
+	bool IsRelative(const std::string &path) {
+		// C:filename is not considered absolute
+		if(path.length() > 2 && path[1] == ':' && (path[2] == '\\' || path[2] == '/')) {
+			return false; // Absolute path with drive letter
+		}
+
+		return !path.empty() && path[0] != '\\' && path[0] != '/';
+	}
 	
 	void fixwinslashes(std::string &s) {
 		for(auto &c : s) if(c == '\\') c = '/';
