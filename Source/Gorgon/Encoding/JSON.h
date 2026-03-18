@@ -91,6 +91,8 @@ public:
         DownloadRequired,
         /// An HTTP download failed (network error or server error).
         DownloadFailed,
+        /// URL is not valid.
+        InvalidURL,
     };
 
     /// Error thrown during JSON parsing, access, or validation.
@@ -689,7 +691,8 @@ DefineEnumStringsCM(JSON, ErrorCode,
     {JSON::ErrorCode::DownloadRequired, "Download required"},
     {JSON::ErrorCode::DownloadRequired, "DownloadRequired"},
     {JSON::ErrorCode::DownloadFailed, "Download failed"},
-    {JSON::ErrorCode::DownloadFailed, "DownloadFailed"}
+    {JSON::ErrorCode::DownloadFailed, "DownloadFailed"},
+    {JSON::ErrorCode::InvalidURL, "Invalid URL"},
 );
 
 // Reflection strings for JSON::Type

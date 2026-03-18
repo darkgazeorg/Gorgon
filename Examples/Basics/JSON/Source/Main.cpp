@@ -124,6 +124,14 @@ struct LogoData {
     DefineStructMembers(LogoData, logo)
 };
 
+struct Person {
+    std::string name;
+    Geometry::Point location;
+    Bitmap icon;
+
+    DefineStructMembers(Person, name, location, icon)
+};
+
 // =========================================================================
 // Helper function
 // =========================================================================
@@ -799,18 +807,18 @@ int Main(const std::vector<std::string> &) {
     std::cout << "\n=== 24. ToStructCollection ===" << std::endl;
     {
         auto colJson = Json.Parse(R"([
-            {"x": 1.0, "y": 2.0},
-            {"x": 3.0, "y": 4.0},
-            {"x": 5.0, "y": 6.0},
-            {"x": 7.0, "y": 8.0}
+            {"name": "Alice", "location": {"x": 1, "y": 2}, "icon": "circle_red.png"},
+            {"name": "Bob",   "location": {"x": 10, "y": 20}, "icon": "circle_green.png"}
         ])");
 
-        auto collection = colJson.ToStructCollection<Vec2>();
+        auto collection = colJson.ToStructCollection<Person>();
         std::cout << "Collection has " << collection.GetCount() << " items:" << std::endl;
-        for(long i = 0; i < collection.GetCount(); i++)
-            std::cout << "  [" << i << "] (" << collection[i].x << ", "
-                      << collection[i].y << ")" << std::endl;
-
+        for(auto &person : collection) {
+            std::cout << "  " << person.name << " at ("
+                      << person.location.X << ", " << person.location.Y << ")"
+                      << " icon: " << person.icon.GetWidth() << "x" << person.icon.GetHeight()
+                      << std::endl;
+        }
         // Collection can be moved (not copied)
         auto moved = std::move(collection);
         std::cout << "After move: " << moved.GetCount() << " items" << std::endl;

@@ -1566,6 +1566,62 @@ namespace {
         return Filesystem::Join(OS::User::GetDataPath(), GetSystemName());
     }
 
+    /// Returns a filesystem-safe filename derived from the input string.
+    /// Non-alphanumeric characters are replaced with '_'.
+    /// This is used to turn a URL into a safe cache filename.
+    std::string makeSafeFilename(const std::string &input) {
+        std::string out;
+        out.reserve(input.size());
+        for(char c : input) {
+            unsigned char uc = static_cast<unsigned char>(c);
+            if((uc >= '0' && uc <= '9') ||
+               (uc >= 'A' && uc <= 'Z') ||
+               (uc >= 'a' && uc <= 'z') ||
+               uc == '-' || uc == '_' || uc == '.') {
+                out.push_back(c);
+            }
+            else {
+                out.push_back('_');
+            }
+        }
+
+        // Avoid a leading dot (hidden file on some platforms)
+        if(!out.empty() && out[0] == '.')
+            out[0] = '_';
+
+        // Avoid a trailing dot (problematic on Windows)
+        if(!out.empty() && out.back() == '.')
+            out.back() = '_';
+
+        return out;
+    }
+
+    /// Build a cache filename from a URL.
+    /// If the URL doesn't have a filename component, includes the full URL.
+    /// If the resulting filename is too long (>255), uses a stable hash instead.
+    std::string makeCacheFilenameFromUrl(const std::string &url) {
+        auto base = url;
+
+        auto qpos = base.find('#');
+        if(qpos != std::string::npos)
+            base.resize(qpos);
+
+        base = makeSafeFilename(base);
+
+        // Determine if we have an extension
+        auto ext = Filesystem::GetExtension(base);
+        base = base.substr(0, base.size() - ext.size() - 1);
+
+
+        // Some URLs can be extremely long - use a hash for filesystem safety.
+        if(base.empty() || base.size() > 255) {
+            base = StringHash(url);
+        }
+
+        // Retain extension if present
+        return ext.empty() ? base : (base + "." + ext);
+    }
+
     /// Tries to decompress a .lzma or .xz compressed file in-place and return
     /// the decompressed bytes. Returns true on success.
     bool decompressFile(const std::string &path, std::vector<Byte> &output) {
@@ -1646,6 +1702,7 @@ namespace {
     /// The value can be:
     /// - A string (file path or URL)
     /// - An object with "filename" and/or "url" fields
+    /// Filename can be a URL, but URL must be a valid HTTP(S) URL if present.
     /// Returns {filename, url}. Either can be empty.
     /// If basePath is non-empty, relative filenames get basePath prepended and
     /// relative URLs (no scheme) get basePath prepended as a URL prefix.
@@ -1663,20 +1720,11 @@ namespace {
                 filename = val["filename"].Get<std::string>();
             if(val.Has("url"))
                 url = val["url"].Get<std::string>();
-            // If only url but no filename, treat url as filename for resolution
-            if(filename.empty() && !url.empty()) {
-                // If filename starts with http, it's a URL
-                if(isURL(filename))
-                    url = filename;
-            }
-            // If filename is a URL
-            if(!filename.empty() && isURL(filename) && url.empty())
-                url = filename;
         }
 
         // Apply base path to relative filenames and URLs
         if(!basePath.empty()) {
-            if(!filename.empty() && !isURL(filename) && filename[0] != '/') {
+            if(!filename.empty() && !isURL(filename) && Filesystem::IsRelative(filename)) {
                 filename = Gorgon::Filesystem::Join(basePath, filename);
             }
             if(!url.empty() && !isURL(url)) {
@@ -1687,6 +1735,17 @@ namespace {
                 // Base path is a URL, filename is relative: construct URL
                 url = basePath + filename;
             }
+        }
+
+        // If filename is a URL
+        if(!filename.empty() && isURL(filename) && url.empty()) {
+            url = filename;
+            filename = "";
+        }
+
+        // If URL is not a URL, throw
+        if(!url.empty() && !isURL(url)) {
+            throw JSON::Error(JSON::ErrorCode::InvalidURL, "URL field is not a valid URL (only http and https are supported): " + url);
         }
 
         return {filename, url};
@@ -1710,8 +1769,9 @@ namespace {
             throw JSON::Error(JSON::ErrorCode::ResourceNotFound, "File not found: " + filename);
         }
 
-        // Case 2: URL with filename - check if cached locally
-        if(!filename.empty() && !isURL(filename)) {
+        // Case 2: URL with filename - check if cached locally, cache path
+        //         is not considered
+        if(!filename.empty()) {
             // Check the specified filename path
             auto resolved = resolveLocalPath(filename);
             if(!resolved.empty())
@@ -1722,22 +1782,16 @@ namespace {
             resolved = resolveLocalPath(dataPath);
             if(!resolved.empty())
                 return resolved;
+
+            throw JSON::Error(JSON::ErrorCode::ResourceNotFound, "File not found: " + filename);
         }
 
         // Case 3: URL-only, check cache
-        if(filename.empty() || isURL(filename)) {
-            // Extract filename from URL
-            auto urlFilename = Filesystem::GetFilename(url);
-            // Strip query parameters
-            auto qpos = urlFilename.find('?');
-            if(qpos != std::string::npos)
-                urlFilename = urlFilename.substr(0, qpos);
-
-            auto cachePath = Filesystem::Join(getCacheDir(), urlFilename);
-            auto resolved = resolveLocalPath(cachePath);
-            if(!resolved.empty())
-                return resolved;
-        }
+        auto urlFilename = makeCacheFilenameFromUrl(url);
+        auto cachePath = Filesystem::Join(getCacheDir(), urlFilename);
+        auto resolved = resolveLocalPath(cachePath);
+        if(!resolved.empty())
+            return resolved;
 
         // Not cached - synchronous download is not allowed
         throw JSON::Error(JSON::ErrorCode::DownloadRequired,
@@ -1746,21 +1800,13 @@ namespace {
 
     /// Determines the save path for a download given filename and URL.
     std::string determineSavePathForDownload(const std::string &filename, const std::string &url) {
-        if(!filename.empty() && !isURL(filename)) {
+        if(!filename.empty()) {
             return determineSavePath(filename);
         }
 
-        // Use URL filename in cache directory
-        auto urlFilename = Filesystem::GetFilename(url);
-        auto qpos = urlFilename.find('?');
-        if(qpos != std::string::npos)
-            urlFilename = urlFilename.substr(0, qpos);
-
-        // Remove compression extension from save name
-        auto ext = Filesystem::GetExtension(urlFilename);
-        if(ext == "lzma" || ext == "xz") {
-            urlFilename = urlFilename.substr(0, urlFilename.size() - ext.size() - 1);
-        }
+        // Use URL-derived filename in cache directory.
+        // If the URL doesn't contain a filename, include the full URL.
+        auto urlFilename = makeCacheFilenameFromUrl(url);
 
         auto cacheDir = getCacheDir();
         Filesystem::CreateDirectory(cacheDir);
@@ -1950,7 +1996,7 @@ void JSON::resolveAsync(const Value &val,
     }
 
     // Check cache
-    if(!filename.empty() && !isURL(filename)) {
+    if(!filename.empty()) {
         auto resolved = resolveLocalPath(filename);
         if(!resolved.empty()) {
             asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
@@ -1964,17 +2010,11 @@ void JSON::resolveAsync(const Value &val,
         }
     }
 
-    if(filename.empty() || isURL(filename)) {
-        auto urlFilename = Gorgon::Filesystem::GetFilename(url);
-        auto qpos = urlFilename.find('?');
-        if(qpos != std::string::npos)
-            urlFilename = urlFilename.substr(0, qpos);
-        auto cachePath = Gorgon::Filesystem::Join(getCacheDir(), urlFilename);
-        auto resolved = resolveLocalPath(cachePath);
-        if(!resolved.empty()) {
-            asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
-            return;
-        }
+    auto cachePath = determineSavePathForDownload(filename, url);
+    auto resolved = resolveLocalPath(cachePath);
+    if(!resolved.empty()) {
+        asyncimpl->callbacks.push_back([loader, resolved]() { loader(resolved); });
+        return;
     }
 
     // Need download
