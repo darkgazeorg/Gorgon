@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <charconv>
+#include <cstdlib>
 #include <string>
 #include <cstring>
 #include <string>
@@ -75,6 +77,7 @@ namespace Gorgon {
         T_ To(const std::string &value) {
             return T_();
         }
+
 #endif		
         
         /// @cond
@@ -282,6 +285,50 @@ namespace Gorgon {
         template <>
         inline bool To<bool>(const char *value) {
             return To<bool>(std::string(value));
+        }
+
+        /// Enumeration for the result of FromCLocaleTo.
+        enum class CLocateToResultStates {
+            Success,
+            Failed,
+            ScrapAtTheEnd
+        };
+
+        /// Converts a string to another type. This variant uses C locale and is
+        /// only available for integral and floating point types. If conversion fails, 
+        /// the returned pair will have the second value set to Failed. If conversion 
+        /// succeeds but there are extra characters at the end of the string, the second
+        /// value will be set to ScrapAtTheEnd. Otherwise, the second value will be Success.
+        template <class T_>
+        std::pair<T_, CLocateToResultStates> FromCLocaleTo(const std::string &value) {
+            static_assert(std::is_integral<T_>::value || std::is_floating_point<T_>::value,
+                "FromCLocaleTo is only available for integral and floating point types");
+            const char* begin = value.c_str();
+            const char* end = begin + value.size();
+
+            while(begin < end && std::isspace(*begin)) {
+                begin++;
+            }
+
+            T_ result{};
+            std::from_chars_result parseResult;
+
+            if constexpr(std::is_integral<T_>::value) {
+                parseResult = std::from_chars(begin, end, result, 10);
+            } else {
+                parseResult = std::from_chars(begin, end, result);
+            }
+
+            if(parseResult.ec == std::errc::invalid_argument || parseResult.ec == std::errc::result_out_of_range)
+                return {T_(), CLocateToResultStates::Failed};
+
+            if(parseResult.ptr == begin)
+                return {T_(), CLocateToResultStates::Failed};
+
+            if(parseResult.ptr != end)
+                return {result, CLocateToResultStates::ScrapAtTheEnd};
+
+            return {result, CLocateToResultStates::Success};
         }
 
         /// Converts a hexadecimal number stored in the string to a given
