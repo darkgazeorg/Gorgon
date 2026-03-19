@@ -145,6 +145,9 @@ namespace Gorgon :: Utils {
 				console = StdErrorConsole();
 				hasconsole = true;
 			}
+			else {
+				hasconsole = false;
+			}
 		}
 
 		/// Initializes the logger to direct its input to the given stream. 
