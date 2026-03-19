@@ -2949,12 +2949,10 @@ TEST_CASE("JSON Async: Lifetime and Destruction Safety", "[json][async]") {
         bool callbackFired = false;
         
         {
-            std::cout << "Starting async test with id: " << jsonVal["id"].Get<int>() << std::endl;
             // Simulate a temporary UI scope
             jsonVal.ToStructAsync<AsyncEdgeCaseConfig>([&callbackFired](AsyncEdgeCaseConfig cfg) {
                 // By the time this fires, the initiating scope is dead, 
                 // but cfg is safely materialized.
-                std::cout << "Async callback fired with id: " << cfg.id << std::endl;
                 REQUIRE(cfg.id == 42);
                 callbackFired = true;
             });
