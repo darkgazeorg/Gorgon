@@ -149,13 +149,13 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     std::string gmm = R"(
         # This is a simple melody in GMM format. 
         T160 V100 O5 E4 < B8 > C8 D4 C8 < B8 A4 A8 > 
-        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4 R4 #another comment
+        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4~B4 R4 #another comment
     )";
 
     Synth synth;
     synth.Parse(gmm);
 
-    REQUIRE(synth.Nodes.size() == 31);
+    REQUIRE(synth.Nodes.size() == 32);
     REQUIRE(synth.Nodes[0].type == Synth::Node::Type::Tempo);
     REQUIRE(synth.Nodes[0].tempo == Catch::Approx(160.0f));
     REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Volume);
@@ -183,8 +183,22 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[15].note.duration.fraction.denominator == 8);
     REQUIRE(synth.Nodes[15].note.slide == false);
 
-    REQUIRE(synth.Nodes[30].type == Synth::Node::Type::Rest);
+    REQUIRE(synth.Nodes[29].type == Synth::Node::Type::Note);
+    REQUIRE(synth.Nodes[29].note.note == Synth::Note::A);
+    REQUIRE(synth.Nodes[29].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[29].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[29].note.duration.fraction.denominator == 4);
+    REQUIRE(synth.Nodes[29].note.slide == true);
+
+    REQUIRE(synth.Nodes[30].type == Synth::Node::Type::Note);
+    REQUIRE(synth.Nodes[30].note.note == Synth::Note::B);
     REQUIRE(synth.Nodes[30].note.duration.type == Synth::Duration::Fraction);
     REQUIRE(synth.Nodes[30].note.duration.fraction.numerator == 1);
     REQUIRE(synth.Nodes[30].note.duration.fraction.denominator == 4);
+    REQUIRE(synth.Nodes[30].note.slide == false);
+
+    REQUIRE(synth.Nodes[31].type == Synth::Node::Type::Rest);
+    REQUIRE(synth.Nodes[31].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[31].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[31].note.duration.fraction.denominator == 4);
 }

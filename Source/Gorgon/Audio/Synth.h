@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <string_view>
+#include <iosfwd>
 
 // #include "../Multimedia/Wave.h"
 
@@ -155,7 +157,7 @@ namespace Gorgon :: Audio {
         static Node ParseNode(const std::string_view& token);
 
         /// Converts a note and octave into frequency (Hz).
-        static constexpr float NoteToFrequency(Note note, int octave) {
+        static float NoteToFrequency(Note note, int octave) {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9) / 12.0f);
         }
 

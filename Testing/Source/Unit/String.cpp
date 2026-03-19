@@ -11,6 +11,7 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <clocale>
 
 using namespace Gorgon;
 
@@ -41,25 +42,25 @@ TEST_CASE("Gorgon::String - From<T> Conversion") {
 TEST_CASE("Gorgon::String - FromCLocaleTo Conversion") {
     auto [iSuccess, iState] = String::FromCLocaleTo<int>("123");
     REQUIRE(iSuccess == 123);
-    REQUIRE(iState == String::CLocateToResultStates::Success);
+    REQUIRE(iState == String::FromCLocaleToState::Success);
 
     auto [uSuccess, uState] = String::FromCLocaleTo<unsigned long long>("4294967295");
     REQUIRE(uSuccess == 4294967295ull);
-    REQUIRE(uState == String::CLocateToResultStates::Success);
+    REQUIRE(uState == String::FromCLocaleToState::Success);
 
     auto [dSuccess, dState] = String::FromCLocaleTo<double>("3.14159");
     REQUIRE(dSuccess == Approx(3.14159));
-    REQUIRE(dState == String::CLocateToResultStates::Success);
+    REQUIRE(dState == String::FromCLocaleToState::Success);
 
     auto [fScrap, fScrapState] = String::FromCLocaleTo<float>("1.23abc");
     REQUIRE(fScrap == Approx(1.23f));
-    REQUIRE(fScrapState == String::CLocateToResultStates::ScrapAtTheEnd);
+    REQUIRE(fScrapState == String::FromCLocaleToState::ScrapAtTheEnd);
 
     auto [failed, failedState] = String::FromCLocaleTo<long double>("not_a_number");
-    REQUIRE(failedState == String::CLocateToResultStates::Failed);
+    REQUIRE(failedState == String::FromCLocaleToState::Failed);
 
     auto [empty, emptyState] = String::FromCLocaleTo<int>("");
-    REQUIRE(emptyState == String::CLocateToResultStates::Failed);
+    REQUIRE(emptyState == String::FromCLocaleToState::Failed);
 }
 
 TEST_CASE("Gorgon::String - FromCLocaleTo locale behavior") {
@@ -77,18 +78,29 @@ TEST_CASE("Gorgon::String - FromCLocaleTo locale behavior") {
 
         // from_chars is C locale only and uses '.' as decimal separator
         auto [ok, okState] = String::FromCLocaleTo<double>("3.14");
-        REQUIRE(okState == String::CLocateToResultStates::Success);
+        REQUIRE(okState == String::FromCLocaleToState::Success);
         REQUIRE(ok == Approx(3.14));
 
         auto [comma, commaState] = String::FromCLocaleTo<double>("3,14");
-        REQUIRE(commaState == String::CLocateToResultStates::ScrapAtTheEnd);
+        REQUIRE(commaState == String::FromCLocaleToState::ScrapAtTheEnd);
         REQUIRE(comma == Approx(3.0));
 
         std::setlocale(LC_NUMERIC, oldLocale.c_str());
     } else {
         // Try alternative just for coverage; if unavailable we skip precise range check
         std::setlocale(LC_NUMERIC, "C");
-        REQUIRE(String::FromCLocaleTo<double>("3,14").second == String::CLocateToResultStates::ScrapAtTheEnd);
+        REQUIRE(String::FromCLocaleTo<double>("3,14").second == String::FromCLocaleToState::ScrapAtTheEnd);
+
+        // from_chars is C locale only and uses '.' as decimal separator
+        auto [ok, okState] = String::FromCLocaleTo<double>("3.14");
+        REQUIRE(okState == String::FromCLocaleToState::Success);
+        REQUIRE(ok == Approx(3.14));
+
+        auto [comma, commaState] = String::FromCLocaleTo<double>("3,14");
+        REQUIRE(commaState == String::FromCLocaleToState::ScrapAtTheEnd);
+        REQUIRE(comma == Approx(3.0));
+
+        std::setlocale(LC_NUMERIC, oldLocale.c_str());
     }
 }
 

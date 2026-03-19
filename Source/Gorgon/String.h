@@ -288,7 +288,7 @@ namespace Gorgon {
         }
 
         /// Enumeration for the result of FromCLocaleTo.
-        enum class CLocateToResultStates {
+        enum class FromCLocaleToState {
             Success,
             Failed,
             ScrapAtTheEnd
@@ -300,13 +300,13 @@ namespace Gorgon {
         /// succeeds but there are extra characters at the end of the string, the second
         /// value will be set to ScrapAtTheEnd. Otherwise, the second value will be Success.
         template <class T_>
-        std::pair<T_, CLocateToResultStates> FromCLocaleTo(const std::string &value) {
+        std::pair<T_, FromCLocaleToState> FromCLocaleTo(const std::string &value) {
             static_assert(std::is_integral<T_>::value || std::is_floating_point<T_>::value,
                 "FromCLocaleTo is only available for integral and floating point types");
             const char* begin = value.c_str();
             const char* end = begin + value.size();
 
-            while(begin < end && std::isspace(*begin)) {
+            while(begin < end && std::isspace(static_cast<unsigned char>(*begin))) {
                 begin++;
             }
 
@@ -320,15 +320,19 @@ namespace Gorgon {
             }
 
             if(parseResult.ec == std::errc::invalid_argument || parseResult.ec == std::errc::result_out_of_range)
-                return {T_(), CLocateToResultStates::Failed};
+                return {T_(), FromCLocaleToState::Failed};
 
             if(parseResult.ptr == begin)
-                return {T_(), CLocateToResultStates::Failed};
+                return {T_(), FromCLocaleToState::Failed};
+
+            while(parseResult.ptr < end && std::isspace(static_cast<unsigned char>(*parseResult.ptr))) {
+                parseResult.ptr++;
+            }
 
             if(parseResult.ptr != end)
-                return {result, CLocateToResultStates::ScrapAtTheEnd};
+                return {result, FromCLocaleToState::ScrapAtTheEnd};
 
-            return {result, CLocateToResultStates::Success};
+            return {result, FromCLocaleToState::Success};
         }
 
         /// Converts a hexadecimal number stored in the string to a given
