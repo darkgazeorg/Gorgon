@@ -172,6 +172,27 @@ Synth::Node Synth::ParseNode(const std::string_view& token) {
     }
 }
 
+void Synth::Parse(std::istream &stream) {
+    std::string line;
+
+    while(std::getline(stream, line)) {
+        // remove comments
+        auto commentPos = line.find('#');
+        if(commentPos != std::string::npos) {
+            line = line.substr(0, commentPos);
+        }
+
+        if(String::Trim(line).empty()) continue;
+
+        auto tokens = String::Split(line, ' ');
+
+        for(const auto& token : tokens) {
+            if(String::Trim(token).empty()) continue;
+            Nodes.push_back(ParseNode(token));
+        }
+    }
+}
+
 Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
     if(token.empty()) return Duration::FromFraction(4);
 
@@ -179,6 +200,12 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
 
     if(normalized.find('/') != std::string::npos) {
         auto nominator = String::Extract(normalized, '/');
+        if(nominator.empty()) {
+            throw ParseError(ParseError::InvalidParameter, "Missing numerator in duration fraction: " + normalized);
+        }
+        if(normalized.empty()) {
+            throw ParseError(ParseError::InvalidParameter, "Missing denominator in duration fraction: " + normalized);
+        }
         int den;
         auto [nom, res] = String::FromCLocaleTo<int>(nominator);
         std::tie(den, res) = String::FromCLocaleTo<int>(normalized);

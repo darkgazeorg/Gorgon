@@ -129,3 +129,62 @@ TEST_CASE("ParseNote parses rest correctly", "[Synth][Parse][GMM]") {
     REQUIRE(restNode.note.duration.type == Synth::Duration::Units);
     REQUIRE(restNode.note.duration.units == Catch::Approx(0.5f));
 }
+
+TEST_CASE("ParseNode throws on invalid input", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("X100"), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("Oabc"), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V150"), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C#4"), Synth::ParseError); // should be C+4
+    REQUIRE_THROWS_AS(Synth::ParseNode("Db4"), Synth::ParseError); // should be D-4
+    REQUIRE_THROWS_AS(Synth::ParseNode("E(0.5"), Synth::ParseError); // missing closing parenthesis
+    REQUIRE_THROWS_AS(Synth::ParseNode("F3/"), Synth::ParseError); // missing denominator
+    REQUIRE_THROWS_AS(Synth::ParseNode("G/4"), Synth::ParseError); // missing numerator
+}
+
+TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    std::string gmm = R"(
+        # This is a simple melody in GMM format. 
+        T160 V100 O5 E4 < B8 > C8 D4 C8 < B8 A4 A8 > 
+        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4 R4 #another comment
+    )";
+
+    Synth synth;
+    synth.Parse(gmm);
+
+    REQUIRE(synth.Nodes.size() == 31);
+    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.Nodes[0].tempo == Catch::Approx(160.0f));
+    REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Volume);
+    REQUIRE(synth.Nodes[1].volume == Catch::Approx(1.0f));
+    REQUIRE(synth.Nodes[2].type == Synth::Node::Type::OctaveAbsolute);
+    REQUIRE(synth.Nodes[2].octave == 5);
+    REQUIRE(synth.Nodes[3].type == Synth::Node::Type::Note);
+    REQUIRE(synth.Nodes[3].note.note == Synth::Note::E);
+    REQUIRE(synth.Nodes[3].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[3].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[3].note.duration.fraction.denominator == 4);
+    REQUIRE(synth.Nodes[3].note.slide == false);
+    REQUIRE(synth.Nodes[4].type == Synth::Node::Type::OctaveRelative);
+    REQUIRE(synth.Nodes[4].octave == -1);
+    REQUIRE(synth.Nodes[5].type == Synth::Node::Type::Note);
+    REQUIRE(synth.Nodes[5].note.note == Synth::Note::B);
+    REQUIRE(synth.Nodes[5].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[5].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[5].note.duration.fraction.denominator == 8);
+    REQUIRE(synth.Nodes[5].note.slide == false);
+
+    REQUIRE(synth.Nodes[15].note.note == Synth::Note::C);
+    REQUIRE(synth.Nodes[15].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[15].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[15].note.duration.fraction.denominator == 8);
+    REQUIRE(synth.Nodes[15].note.slide == false);
+
+    REQUIRE(synth.Nodes[30].type == Synth::Node::Type::Rest);
+    REQUIRE(synth.Nodes[30].note.duration.type == Synth::Duration::Fraction);
+    REQUIRE(synth.Nodes[30].note.duration.fraction.numerator == 1);
+    REQUIRE(synth.Nodes[30].note.duration.fraction.denominator == 4);
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -140,6 +141,17 @@ namespace Gorgon :: Audio {
             static Node MakeVolume(float volume);
         };
 
+        /// Parses a GMM string into a sequence of nodes. Throws ParseError on invalid input.
+        void Parse(const std::string_view& gmm) {
+            std::istringstream stream(std::string{gmm});
+            Parse(stream);
+        }
+
+        /// Parses a GMM string from an input stream. Throws ParseError on invalid input.
+        void Parse(std::istream &stream);
+
+        /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
+        /// process comments.
         static Node ParseNode(const std::string_view& token);
 
         /// Converts a note and octave into frequency (Hz).
