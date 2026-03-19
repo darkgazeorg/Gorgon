@@ -11,6 +11,7 @@
 #include <istream>
 #include <memory>
 #include <functional>
+#include <atomic>
 #include "../TMP.h"
 #include "../Enum.h"
 #include "../Geometry/Point.h"
