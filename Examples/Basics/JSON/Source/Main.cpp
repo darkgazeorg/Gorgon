@@ -641,7 +641,7 @@ int Main(const std::vector<std::string> &) {
         const unsigned numSamples = 44100; // 1 second
         Gorgon::Containers::Wave sineWave(numSamples, sampleRate, {Gorgon::Audio::Channel::Mono});
         for(unsigned i = 0; i < numSamples; i++) {
-            sineWave(i, 0) = std::sin(2.0f * 3.14159265f * 440.0f * i / sampleRate);
+            sineWave(i, 0) = std::sin(2.0f * M_PIf * 440.0f * i / sampleRate);
         }
         sineWave.ExportWav("sine_440.wav");
         std::cout << "Exported sine_440.wav (" << sineWave.GetSize()
@@ -826,7 +826,9 @@ int Main(const std::vector<std::string> &) {
         auto moved = std::move(collection);
         std::cout << "After move: " << moved.GetCount() << " items" << std::endl;
 
-        moved.Destroy(); // free heap-allocated points
+        // free heap-allocated points. Collection does not auto delete on destruction
+        // Destroy will cleanup the memory used by the collection as well.
+        moved.Destroy(); 
     }
 
     // =====================================================================
@@ -845,6 +847,9 @@ int Main(const std::vector<std::string> &) {
     // the main thread during the window's event loop.  The .xz compressed
     // file is downloaded, decompressed, and loaded as a Bitmap automatically.
     auto downloadJson = Json.Parse(R"({"logo": {"url": "https://darkgaze.org/testing/Logo.png.xz"}})");
+    // The following object should out live the async callback since it is only
+    // used after the download completes. Since it contains a Bitmap, it too
+    // should live as long as it is displayed on the layer.
     LogoData logo;
     // This could be loaded like this:
     // downloadJson.ToStructAsync<LogoData>([&](LogoData data) {

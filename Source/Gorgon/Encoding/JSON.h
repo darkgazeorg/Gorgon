@@ -33,8 +33,14 @@ namespace Gorgon :: Encoding {
 /// This class provides JSON encoding, decoding, and schema validation
 /// functionality. Types are nested as JSON::Value, JSON::Error, etc.
 /// A default instance `Json` is provided for convenience.
+///
+/// The parser enforces a maximum nesting depth for JSON arrays/objects
+/// (1000 levels) to prevent stack overflows and denial-of-service attacks
+/// from extremely deep inputs.
 class JSON {
 public:
+    /// Maximum nesting depth for arrays/objects (parse and encode).
+    static constexpr int MaxNestingDepth = 1000;
 
     /// Structured error codes for JSON operations.
     enum class ErrorCode {

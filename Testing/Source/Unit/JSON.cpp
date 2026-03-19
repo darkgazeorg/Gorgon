@@ -1,3 +1,4 @@
+#include <iostream>
 #define CATCH_CONFIG_MAIN
 
 #define WINDOWS_LEAN_AND_MEAN
@@ -31,6 +32,10 @@
 #include <Gorgon/Main.h>
 #include <Gorgon/Filesystem.h>
 #include <Gorgon/OS.h>
+
+#include <thread>
+#include <chrono>
+
 
 using namespace Gorgon::Encoding;
 
@@ -2862,4 +2867,105 @@ TEST_CASE("ToStruct uses owner BasePath when no explicit basePath", "[JSON][Base
     Json.Prepare = true;
 
     Gorgon::Filesystem::Delete("bp_owner");
+}
+
+// ================================
+
+// Distinct struct name to prevent collisions in the master test file
+struct AsyncEdgeCaseConfig {
+    int id = 0;
+    Gorgon::Graphics::Bitmap image;
+    DefineStructMembers(AsyncEdgeCaseConfig, id, image)
+};
+
+TEST_CASE("JSON Parser: Deep Nesting / Stack Overflow Vulnerability", "[json][security]") {
+    // Generate a deeply nested array string: [[[[...]]]]
+    // Assumes JSON::MaxNestingDepth is defined (e.g., 256)
+    const int depthLimit = 1000; 
+    std::string deepJson;
+    for (int i = 0; i < depthLimit + 10; ++i) deepJson += "[";
+    for (int i = 0; i < depthLimit + 10; ++i) deepJson += "]";
+
+    SECTION("Parser throws rather than segfaulting on stack exhaustion") {
+        try {
+            Json.Parse(deepJson);
+            FAIL("Expected JSON::Error to be thrown due to stack exhaustion");
+        } catch (const JSON::Error& e) {
+            REQUIRE(e.GetCode() == JSON::ErrorCode::Generic);
+        }
+    }
+}
+
+TEST_CASE("JSON Parser: Strict Mode Escapes and Control Characters", "[json][strict]") {
+    // Ensure BestEffort is off for these tests
+    bool prevBestEffort = Json.BestEffort;
+    Json.BestEffort = false;
+
+    SECTION("Invalid escape sequences throw in strict mode") {
+        std::string invalidEscape = R"({"key": "bad \q escape"})";
+        try {
+            Json.Parse(invalidEscape);
+            FAIL("Expected JSON::Error to be thrown due to invalid escape");
+        } catch (const JSON::Error& e) {
+            REQUIRE(e.GetCode() == JSON::ErrorCode::InvalidEscape);
+        }
+    }
+
+    SECTION("Unescaped control characters throw in strict mode") {
+        // Actual byte < 0x20 inside the string, not the literal "\n"
+        std::string unescapedControl = "{\"key\": \"bad \n control\"}";
+        try {
+            Json.Parse(unescapedControl);
+            FAIL("Expected JSON::Error to be thrown due to unescaped control character");
+        } catch (const JSON::Error& e) {
+            REQUIRE(e.GetCode() == JSON::ErrorCode::UnescapedControl);
+        }
+    }
+
+    Json.BestEffort = prevBestEffort;
+}
+
+TEST_CASE("JSON Parser: Numeric Boundary and Overflow States", "[json][numbers]") {
+    bool prevBestEffort = Json.BestEffort;
+    Json.BestEffort = false;
+
+    SECTION("Massive exponent throws out of range rather than returning infinity") {
+        std::string overflowNum = R"({"value": 1e99999})";
+        try {
+            Json.Parse(overflowNum);
+            FAIL("Expected JSON::Error to be thrown due to out of range exponent");
+        } catch (const JSON::Error& e) {
+            REQUIRE(e.GetCode() == JSON::ErrorCode::InvalidNumber);
+        }
+    }
+
+    Json.BestEffort = prevBestEffort;
+}
+
+TEST_CASE("JSON Async: Lifetime and Destruction Safety", "[json][async]") {
+    auto jsonVal = Json.Parse(R"({"id": 42, "image": {"url": "https://darkgaze.org/testing/Logo.png"}})");
+
+    SECTION("Value-returning ToStructAsync is memory safe if initiating scope ends") {
+        bool callbackFired = false;
+        
+        {
+            std::cout << "Starting async test with id: " << jsonVal["id"].Get<int>() << std::endl;
+            // Simulate a temporary UI scope
+            jsonVal.ToStructAsync<AsyncEdgeCaseConfig>([&callbackFired](AsyncEdgeCaseConfig cfg) {
+                // By the time this fires, the initiating scope is dead, 
+                // but cfg is safely materialized.
+                std::cout << "Async callback fired with id: " << cfg.id << std::endl;
+                REQUIRE(cfg.id == 42);
+                callbackFired = true;
+            });
+        } // Scope ends immediately. Internal shared_ptr keeps it alive.
+
+        for(int i = 0; i < 3000 && !callbackFired; i++) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            Gorgon::BeforeFrameEvent();
+        }
+        
+        REQUIRE(callbackFired == true);
+        Json.ClearCache();
+    }
 }
