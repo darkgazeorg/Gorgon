@@ -38,6 +38,60 @@ TEST_CASE("Gorgon::String - From<T> Conversion") {
     REQUIRE(String::From(false) == "0");
 }
 
+TEST_CASE("Gorgon::String - FromCLocaleTo Conversion") {
+    auto [iSuccess, iState] = String::FromCLocaleTo<int>("123");
+    REQUIRE(iSuccess == 123);
+    REQUIRE(iState == String::CLocateToResultStates::Success);
+
+    auto [uSuccess, uState] = String::FromCLocaleTo<unsigned long long>("4294967295");
+    REQUIRE(uSuccess == 4294967295ull);
+    REQUIRE(uState == String::CLocateToResultStates::Success);
+
+    auto [dSuccess, dState] = String::FromCLocaleTo<double>("3.14159");
+    REQUIRE(dSuccess == Approx(3.14159));
+    REQUIRE(dState == String::CLocateToResultStates::Success);
+
+    auto [fScrap, fScrapState] = String::FromCLocaleTo<float>("1.23abc");
+    REQUIRE(fScrap == Approx(1.23f));
+    REQUIRE(fScrapState == String::CLocateToResultStates::ScrapAtTheEnd);
+
+    auto [failed, failedState] = String::FromCLocaleTo<long double>("not_a_number");
+    REQUIRE(failedState == String::CLocateToResultStates::Failed);
+
+    auto [empty, emptyState] = String::FromCLocaleTo<int>("");
+    REQUIRE(emptyState == String::CLocateToResultStates::Failed);
+}
+
+TEST_CASE("Gorgon::String - FromCLocaleTo locale behavior") {
+
+    // compare with std::stod under rooted locale if available
+    std::string oldLocale = std::setlocale(LC_NUMERIC, nullptr);
+    if(oldLocale.empty()) {
+        oldLocale = "C";
+    }
+
+    const char* target = "de_DE.UTF-8";
+    if(std::setlocale(LC_NUMERIC, target) != nullptr) {
+        double stodVal = std::stod("3,14");
+        REQUIRE(stodVal == Approx(3.14));
+
+        // from_chars is C locale only and uses '.' as decimal separator
+        auto [ok, okState] = String::FromCLocaleTo<double>("3.14");
+        REQUIRE(okState == String::CLocateToResultStates::Success);
+        REQUIRE(ok == Approx(3.14));
+
+        auto [comma, commaState] = String::FromCLocaleTo<double>("3,14");
+        REQUIRE(commaState == String::CLocateToResultStates::ScrapAtTheEnd);
+        REQUIRE(comma == Approx(3.0));
+
+        std::setlocale(LC_NUMERIC, oldLocale.c_str());
+    } else {
+        // Try alternative just for coverage; if unavailable we skip precise range check
+        std::setlocale(LC_NUMERIC, "C");
+        REQUIRE(String::FromCLocaleTo<double>("3,14").second == String::CLocateToResultStates::ScrapAtTheEnd);
+    }
+}
+
 TEST_CASE("Gorgon::String - Replace Function") {
     REQUIRE(String::Replace("hello world, world!", "world", "Earth") == "hello Earth, Earth!");
     REQUIRE(String::Replace("Hello World", "world", "Earth") == "Hello World");

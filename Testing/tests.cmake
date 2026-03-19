@@ -40,6 +40,7 @@ set(UnitTests
 	URI
 	IO
 	LZMA
+	Synth
 )
 
 if(${SCRIPTING})
