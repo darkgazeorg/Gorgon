@@ -269,7 +269,7 @@ public:
         const Value &operator[](int index) const;
 
         /// Returns the value for the given key, or a default if missing. Object only.
-        const Value GetOr(const std::string &key, const Value &def) const;
+        Value GetOr(const std::string &key, const Value &def) const;
 
         /// Returns true if the given key exists in this object.
         bool Has(const std::string &key) const;
@@ -1166,7 +1166,7 @@ void JSON::Value::ToStructArrayAsync(std::function<void(std::vector<T_>)> callba
     bool prepare = getPrepare();
     auto &arr = std::get<Array>(data);
     auto result = std::make_shared<std::vector<T_>>(arr.size());
-    auto pending = std::make_shared<int>(0);
+    auto pending = std::make_shared<std::atomic<int>>(0);
     auto cb = std::make_shared<std::function<void(std::vector<T_>)>>(std::move(callback));
 
     auto checkDone = std::make_shared<std::function<void()>>(
@@ -1284,10 +1284,10 @@ Containers::Collection<T_> JSON::Value::ToStructCollection(const R_ &ref) const 
     for(auto &elem : arr) {
         if(!elem.IsObject())
             throw Error(ErrorCode::TypeMismatch, "Collection element is not an object");
-        auto *item = new T_{};
+        auto item = std::make_unique<T_>();
         jsonToStruct(*item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
             typename TMP::Generate<R_::MemberCount>::Type());
-        result.Add(item);
+        result.Add(item.release());
     }
     return result;
 }
@@ -1303,10 +1303,10 @@ Containers::Collection<T_> JSON::Value::ToStructCollection(const std::string &ba
     for(auto &elem : arr) {
         if(!elem.IsObject())
             throw Error(ErrorCode::TypeMismatch, "Collection element is not an object");
-        auto *item = new T_{};
+        auto item = std::make_unique<T_>();
         jsonToStruct(*item, std::get<Object>(elem.GetVariant()), ref, basePath, prepare,
             typename TMP::Generate<R_::MemberCount>::Type());
-        result.Add(item);
+        result.Add(item.release());
     }
     return result;
 }

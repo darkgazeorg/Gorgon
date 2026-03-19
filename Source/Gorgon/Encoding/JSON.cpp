@@ -1,3 +1,4 @@
+#include <charconv>
 #include <string>
 #include <sstream>
 #include <cmath>
@@ -122,7 +123,7 @@ const JSON::Value &JSON::Value::operator[](int index) const {
     throw Error(ErrorCode::TypeMismatch, "JSON value is not an array");
 }
 
-const JSON::Value JSON::Value::GetOr(const std::string &key, const Value &def) const {
+JSON::Value JSON::Value::GetOr(const std::string &key, const Value &def) const {
     if(auto *obj = std::get_if<Object>(&data)) {
         auto it = obj->find(key);
         if(it != obj->end()) return it->second;
@@ -540,7 +541,16 @@ namespace {
 
             if(isFloat) {
                 try {
-                    return JSON::Value(std::stod(numstr));
+                    double value = 0;
+                    auto [ptr, ec] = std::from_chars(numstr.data(), numstr.data() + numstr.size(), value);
+                    if(ptr != numstr.data() + numstr.size() && !best_effort) {
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number: " + numstr);
+                    }
+                    if(ec == std::errc()) {
+                        return JSON::Value(value);
+                    }
+                    if(!best_effort)
+                        throw JSON::Error(JSON::ErrorCode::InvalidNumber, "Invalid number: " + numstr);
                 }
                 catch(const std::invalid_argument &) {
                     if(!best_effort)
@@ -1644,7 +1654,8 @@ namespace {
 
         // Determine if we have an extension
         auto ext = Filesystem::GetExtension(base);
-        base = base.substr(0, base.size() - ext.size() - 1);
+        if(!ext.empty())
+            base = base.substr(0, base.size() - ext.size() - 1);
 
 
         // Some URLs can be extremely long - use a hash for filesystem safety.

@@ -207,7 +207,7 @@ namespace Gorgon :: Utils {
         int c;
         switch (color) {
         case Console::Default:
-            c = consoleattributes::get(iserr).defaultback<<4;
+            c = consoleattributes::get(iserr).defaultback;
             break;
         case Console::Black:
             c = 0;
