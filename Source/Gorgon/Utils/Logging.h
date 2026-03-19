@@ -139,9 +139,11 @@ namespace Gorgon :: Utils {
 
 			if(stream.rdbuf() == std::cout.rdbuf()) {
             	console = StdConsole();
+				hasconsole = true;
 			}
 			else if(stream.rdbuf() == std::cerr.rdbuf()) {
 				console = StdErrorConsole();
+				hasconsole = true;
 			}
 		}
 

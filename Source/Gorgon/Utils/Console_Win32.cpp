@@ -15,8 +15,14 @@ namespace Gorgon :: Utils {
             ReadConsoleOutputAttribute(stdhandle, &attribs, 1, coords, &len);
 
             if(len != 0) {
+                // Foreground is stored as a 0..7 value (RGB bits).
                 fore = defaultfore = attribs & 0x07;
-                back = defaultback = attribs & 0x70;
+                // Preserve the original intensity state (bold) as well.
+                bold = defaultBold = (attribs & FOREGROUND_INTENSITY) != 0;
+
+                // Background is stored as a 0..7 value (RGB bits) as well.
+                // The console attribute uses background bits shifted left by 4.
+                back = defaultback = (attribs >> 4) & 0x07;
             }
         }
 
@@ -26,10 +32,10 @@ namespace Gorgon :: Utils {
 
         void set_() {
             if(negative) {
-                SetConsoleTextAttribute(stdhandle, (fore<<4) | (back>>4) | (bold ? FOREGROUND_INTENSITY : 0));
+                SetConsoleTextAttribute(stdhandle, (fore<<4) | (back) | (bold ? FOREGROUND_INTENSITY : 0));
             }
             else {
-                SetConsoleTextAttribute(stdhandle, fore | back | (bold ? FOREGROUND_INTENSITY : 0));
+                SetConsoleTextAttribute(stdhandle, fore | (back<<4) | (bold ? FOREGROUND_INTENSITY : 0));
             }
         }
 
@@ -50,8 +56,9 @@ namespace Gorgon :: Utils {
         }
 
         int fore = 7, back = 0;
-        int  defaultfore = 7, defaultback = 0;
+        int defaultfore = 7, defaultback = 0;
         bool bold = false;
+        bool defaultBold = false;
         bool negative = false;
 
         HANDLE stdhandle;
@@ -234,7 +241,7 @@ namespace Gorgon :: Utils {
             c = 5;
             break;
         }
-        consoleattributes::get(iserr).back = c<<4;
+        consoleattributes::get(iserr).back = c;
         consoleattributes::set(iserr);
     }
     
@@ -247,9 +254,10 @@ namespace Gorgon :: Utils {
             return;
         }
 
-        consoleattributes::get(iserr).bold = false;
-        consoleattributes::get(iserr).fore = consoleattributes::get(iserr).defaultfore;
-        consoleattributes::get(iserr).back = consoleattributes::get(iserr).defaultback;
+        auto &attrs = consoleattributes::get(iserr);
+        attrs.bold = attrs.defaultBold;
+        attrs.fore  = attrs.defaultfore;
+        attrs.back  = attrs.defaultback;
         consoleattributes::set(iserr);
     }
 
