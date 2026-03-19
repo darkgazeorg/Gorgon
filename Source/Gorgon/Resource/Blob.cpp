@@ -56,13 +56,12 @@ namespace Gorgon :: Resource {
 
 		entrypoint = reader->Tell();
 
-		unsigned long uncompressed = 0;
 		while(!target) {
 			auto gid = reader->ReadGID();
 			auto size= reader->ReadChunkSize();
 
 			if(gid==GID::Blob_Props) {
-				uncompressed=reader->ReadUInt32();
+				reader->ReadUInt32(); // uncompressed size (embedded in LZMA/XZ stream, not needed by decoder)
 				compression=reader->ReadGID();
 				type=reader->ReadInt32();
 
@@ -85,7 +84,7 @@ namespace Gorgon :: Resource {
 			} else if(gid==GID::Blob_Cmp_Data) {
 				if(load) {
 					if(size>0) {
-						Encoding::Lzma.Decode(reader->GetStream(), data, nullptr, uncompressed);
+						Encoding::Lzma.Decode(reader->GetStream(), data, size);
 					}
 					
 					isloaded=true;

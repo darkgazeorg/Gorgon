@@ -352,4 +352,3 @@ namespace Gorgon :: Network {
       void *requestHeaderList = nullptr;
     };
 }
-

@@ -75,6 +75,12 @@ namespace Gorgon :: Utils {
 		/// Returns if color is supported in this terminal. Even if this is false, bold can be emulated.
 		bool IsStylesSupported() const;
 
+        /// Returns if the current output encoding is UTF-8.
+        ///
+        /// On POSIX this typically maps to the locale's codeset (e.g. via nl_langinfo(CODESET)).
+        /// On Windows it maps to the console output code page (65001 == UTF-8).
+        bool IsUTF8() const;
+
 		/// Sets the color to the given value, avoid, black and white as console can have its
 		/// background color reversed. Use Default to set it to default color.
 		void SetColor(Color color);
@@ -143,7 +149,9 @@ namespace Gorgon :: Utils {
         virtual Console::ColorSupportLevel ColorSupport() const = 0;
         
         virtual bool IsStylesSupported() const = 0;
-        
+
+        /// Returns whether the current console output encoding is UTF-8.
+        virtual bool IsUTF8() const = 0;
         virtual void SetColor(Console::Color color) = 0;
         
         virtual void SetColor(Graphics::RGBA color) = 0;
@@ -175,13 +183,16 @@ namespace Gorgon :: Utils {
 		virtual std::ostream &OutStream() const = 0;
     };
     
-    class StdOutBackend : public ConsoleBackend {
-    public:        
+    class StdBackend : public ConsoleBackend {
+    public:
+		explicit StdBackend(bool err = false);
+		virtual ~StdBackend();
+
         virtual Console::ColorSupportLevel ColorSupport() const override;
-        
-        virtual bool IsStylesSupported() const override;
-        
-        virtual void SetColor(Console::Color color) override;
+		virtual bool IsStylesSupported() const override;
+
+		virtual bool IsUTF8() const override;
+		virtual void SetColor(Console::Color color) override;
         
         virtual void SetColor(Graphics::RGBA color) override;
         
@@ -209,14 +220,31 @@ namespace Gorgon :: Utils {
         
         virtual void ShowCaret() override;
 
-		virtual std::ostream &OutStream() const override { return std::cout; }
+		virtual std::ostream &OutStream() const override { 
+			if(iserr) return std::cerr; 
+			else      return std::cout; 
+		}
+
+	private:
+		bool iserr;
+
+		// Platform-specific backend data (stored as an opaque pointer).
+		// The implementation is responsible for allocating/freeing this.
+		void *platformData = nullptr;
 	};
 
 	/// Creates a standard IO console
 	inline Console StdConsole() {
-		static Console stdconsole = {*new StdOutBackend};
+		static Console stdconsole = {*new StdBackend};
 
 		return stdconsole;
+	}
+
+	/// Creates a standard error console
+	inline Console StdErrorConsole() {
+		static Console stderrconsole = {*new StdBackend(true)};
+
+		return stderrconsole;
 	}
 
 
@@ -258,6 +286,10 @@ namespace Gorgon :: Utils {
 		__mychk; return backend->IsStylesSupported();
 	}
 
+	inline bool Console::IsUTF8() const {
+		__mychk; return backend->IsUTF8();
+	}
+
 	inline void Console::SetColor(Color color) {
 		__mychk; backend->SetColor(color);
 	}
@@ -287,7 +319,7 @@ namespace Gorgon :: Utils {
 	}
 
 	inline void Console::SetItalic(bool italic) {
-		__mychk; backend->SetUnderline(italic);
+		__mychk; backend->SetItalic(italic);
 	}
 
 	inline void Console::SetNegative(bool negative) {

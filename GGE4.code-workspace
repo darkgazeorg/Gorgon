@@ -9,7 +9,8 @@
         	"--compile-commands-dir=${command:cmake.buildDirectory}"
         ],
         "chat.tools.terminal.autoApprove": {
-            "ctest": true
+            "ctest": true,
+            "cmake": true
         }
 	},
 	"tasks": {

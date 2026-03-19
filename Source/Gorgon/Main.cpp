@@ -7,6 +7,7 @@
 #include "Window.h"
 #include "OS.h"
 #include "Time.h"
+#include "Encoding.h"
 
 #ifdef GORGON_AUDIO_SUPPORT
 #	include "Audio.h"
@@ -83,6 +84,7 @@ namespace Gorgon {
 
 		internal::systemname=name;
 		
+		Encoding::Initialize();
 		Filesystem::Initialize();
 		WindowManager::Initialize();
 		
