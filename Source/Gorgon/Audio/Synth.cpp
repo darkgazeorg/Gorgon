@@ -418,12 +418,21 @@ Containers::Wave Synth::Render(float sample_rate) const {
             size_t duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
             size_t notesep = std::min(size_t(duration / 10), Duration::FromFraction(16).ToSamples(state.Tempo, sample_rate));
+            duration -= notesep;
 
-            for(size_t i = 0; i < duration - notesep; i++) {
+            for(size_t i = 0; i < duration; i++) {
+                float fade = 1.0f;
+                if(i < notesep) {
+                    fade = float(i) / notesep;
+                }
+                else if(i > duration - notesep) {
+                    fade = float(duration - i) / notesep;
+                }
+
                 float sample = std::sin(2.0f * float(M_PI) * frequency * (state.Sample + i) / sample_rate);
 
                 for(size_t ch = 0; ch < Channels.size(); ch++) {
-                    wave(state.Sample + i, ch) = sample * state.Volume[ch];
+                    wave(state.Sample + i, ch) = sample * state.Volume[ch] * fade;
                 }
             }
 
