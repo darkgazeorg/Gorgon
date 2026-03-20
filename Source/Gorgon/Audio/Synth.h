@@ -1,5 +1,8 @@
 #pragma once
 
+#include "Gorgon/Containers/Wave.h"
+#include "Gorgon/Utils/Assert.h"
+
 #include <cmath>
 #include <sstream>
 #include <string>
@@ -7,8 +10,6 @@
 #include <stdexcept>
 #include <string_view>
 #include <iosfwd>
-
-// #include "../Multimedia/Wave.h"
 
 namespace Gorgon :: Audio {
 
@@ -151,6 +152,12 @@ namespace Gorgon :: Audio {
 
         /// Parses a GMM string from an input stream. Throws ParseError on invalid input.
         void Parse(std::istream &stream);
+
+        float CalculateTotalDuration() const { Utils::NotImplemented(); }
+
+        int CalculateTotalSamples(float sample_rate = 44100.0f) const { Utils::NotImplemented(); }
+
+        Containers::Wave Render(float sample_rate = 44100.0f) const { Utils::NotImplemented(); }
 
         /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
         /// process comments.

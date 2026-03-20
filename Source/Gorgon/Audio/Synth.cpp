@@ -116,7 +116,7 @@ Synth::Node Synth::ParseNode(const std::string_view& token) {
     case '<':
         return Node::MakeOctaveRelative(-1);
     case 'v': {
-        auto [vol, res] = String::FromCLocaleTo<double>(normalized.substr(1));
+        auto [vol, res] = String::FromCLocaleTo<float>(normalized.substr(1));
 
         if(res == String::FromCLocaleToState::Failed) {
             throw ParseError(ParseError::InvalidParameter, "Invalid volume value: " + normalized.substr(1));
@@ -315,5 +315,6 @@ float Synth::Duration::ToSeconds(float tempo) const {
         return 0.0f;
     }
 }
+
 
 } // namespace Gorgon::Audio
