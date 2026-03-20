@@ -1,6 +1,7 @@
 #include "Synth.h"
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
+#include "Gorgon/Utils/Assert.h"
 #include <tuple>
 #include <iostream>
 
@@ -53,11 +54,12 @@ Synth::Node Synth::Node::MakeOctaveRelative(int delta) {
     return n;
 }
 
-Synth::Node Synth::Node::MakeVolume(float volume) {
+Synth::Node Synth::Node::MakeVolume(float volume, int channel) {
     Node n;
 
     n.type = Type::Volume;
-    n.volume = volume;
+    n.volume.volume = volume;
+    n.volume.channel = channel;
 
     return n;
 }
@@ -84,7 +86,7 @@ Synth::Duration Synth::Duration::FromSeconds(float seconds) {
     return d;
 }
 
-Synth::Node Synth::ParseNode(const std::string_view& token) {
+Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
 
     if(normalized.empty()) {
@@ -117,6 +119,35 @@ Synth::Node Synth::ParseNode(const std::string_view& token) {
     case '<':
         return Node::MakeOctaveRelative(-1);
     case 'v': {
+        int channel = 0;
+        if(normalized[1] == '{') {
+            auto endBrace = normalized.find('}');
+
+            if(endBrace == std::string::npos) {
+                throw ParseError(ParseError::InvalidParameter, "Missing closing brace for volume channel: " + normalized);
+            }
+
+            String::FromCLocaleToState res;
+            auto channelstr = normalized.substr(2, endBrace - 2);
+            std::tie(channel, res) = String::FromCLocaleTo<int>(channelstr);
+
+            if(res == String::FromCLocaleToState::Failed) {
+                throw ParseError(ParseError::InvalidParameter, "Invalid volume channel: " + channelstr);
+            }
+            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw ParseError(ParseError::InvalidParameter, "Extra characters after volume channel: " + channelstr);
+            }
+
+            if(channel < 0) {
+                throw ParseError(ParseError::InvalidParameter, "Volume channel cannot be negative: " + std::to_string(channel));
+            }
+            else if(channel > channels) {
+                throw ParseError(ParseError::InvalidParameter, "Volume channel index out of range: " + std::to_string(channel));
+            }
+
+            normalized.erase(1, endBrace);
+        }
+        
         auto [vol, res] = String::FromCLocaleTo<float>(normalized.substr(1));
 
         if(res == String::FromCLocaleToState::Failed) {
@@ -129,7 +160,7 @@ Synth::Node Synth::ParseNode(const std::string_view& token) {
             throw ParseError(ParseError::InvalidParameter, "Volume must be between 0 and 100: " + std::to_string(vol));
         }
 
-        return Node::MakeVolume(vol / 100.0f);
+        return Node::MakeVolume(vol / 100.0f, channel);
     }
 
     case 'r':
@@ -318,7 +349,7 @@ void Synth::Parse(std::istream &stream) {
     }
 }
 
-size_t Synth::CalculateTotalSamples(float sample_rate) const {
+size_t Synth::CalculateSamples(float sample_rate) const {
     double samples = 0;
     float tempo = 120.0f; 
 
@@ -339,10 +370,67 @@ size_t Synth::CalculateTotalSamples(float sample_rate) const {
     return size_t(samples);
 }
 
-float Synth::CalculateTotalDuration() const { return CalculateTotalSamples(151200) / 151200.0f; }
+float Synth::CalculateDuration() const { 
+    return CalculateSamples(151200) / 151200.0f; 
+}
 
 Containers::Wave Synth::Render(float sample_rate) const {
-    Containers::Wave wave(CalculateTotalSamples(sample_rate), sample_rate, Channels);
+    Containers::Wave wave(CalculateSamples(sample_rate), sample_rate, Channels);
+
+    if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
+        Utils::NotImplemented("Only mono output is supported currently");
+    }
+
+    TrackState state;
+    state.Volume = std::vector<float>(Channels.size(), 1.0f);
+
+    for(const auto &node: Nodes) {
+        switch(node.type) {
+        case Node::Type::Rest:
+            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
+            break;
+
+        case Node::Type::Tempo:
+            state.Tempo = node.tempo;
+            break;
+
+        case Node::Type::OctaveAbsolute:
+            state.Octave = node.octave;
+            break;
+
+        case Node::Type::OctaveRelative:
+            state.Octave += node.octave;
+            break;
+
+        case Node::Type::Volume:
+            if(node.volume.channel == 0) {
+                std::fill(state.Volume.begin(), state.Volume.end(), node.volume.volume);
+            }
+            else {
+                state.Volume[node.volume.channel - 1] = node.volume.volume;
+            }
+            break;
+        
+        case Node::Type::Note: {
+            float frequency = NoteToFrequency(node.note.note, state.Octave);
+            size_t duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+
+            for(size_t i = 0; i < duration; i++) {
+                float sample = std::sin(2.0f * float(M_PI) * frequency * (state.Sample + i) / sample_rate);
+
+                for(size_t ch = 0; ch < Channels.size(); ch++) {
+                    wave(state.Sample + i, ch) = sample * state.Volume[ch];
+                }
+            }
+
+            state.Sample += duration;
+            break;
+        }
+
+        case Node::Type::NoOp:
+            break;
+        }
+    }
 
     return wave;
 }

@@ -17,27 +17,35 @@ TEST_CASE("NoteToFrequency calculates standard note frequencies", "[Synth]") {
 TEST_CASE("ParseNode correctly parses tempo and volume nodes", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    auto tempoNode = Synth::ParseNode("T120");
+    auto tempoNode = Synth::ParseNode("T120", 6);
     REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
     REQUIRE(tempoNode.tempo == Catch::Approx(120.0f));
 
-    auto volumeNode = Synth::ParseNode("V80");
+    auto volumeNode = Synth::ParseNode("V80", 6);
     REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
-    REQUIRE(volumeNode.volume == Catch::Approx(0.8f));
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.8f));
+    REQUIRE(volumeNode.volume.channel == 0);
+
+    volumeNode = Synth::ParseNode("V{2}50", 2);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.5f));
+    REQUIRE(volumeNode.volume.channel == 2);
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("V{3}50", 2), Synth::ParseError);
 }
 
 TEST_CASE("ParseNode correctly parses octave shifts", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    auto octaveNode = Synth::ParseNode("O5");
+    auto octaveNode = Synth::ParseNode("O5", 6);
     REQUIRE(octaveNode.type == Synth::Node::Type::OctaveAbsolute);
     REQUIRE(octaveNode.octave == 5);
 
-    octaveNode = Synth::ParseNode(">"); // relative increase
+    octaveNode = Synth::ParseNode(">", 6); // relative increase
     REQUIRE(octaveNode.type == Synth::Node::Type::OctaveRelative);
     REQUIRE(octaveNode.octave == 1);
 
-    octaveNode = Synth::ParseNode("<"); // relative decrease
+    octaveNode = Synth::ParseNode("<", 6); // relative decrease
     REQUIRE(octaveNode.type == Synth::Node::Type::OctaveRelative);
     REQUIRE(octaveNode.octave == -1);
 }
@@ -45,7 +53,7 @@ TEST_CASE("ParseNode correctly parses octave shifts", "[Synth][Parse][GMM]") {
 TEST_CASE("ParseNode correctly parses simple notes", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    auto noteNode = Synth::ParseNode("C4");
+    auto noteNode = Synth::ParseNode("C4", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::C);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Fraction);
@@ -53,7 +61,7 @@ TEST_CASE("ParseNode correctly parses simple notes", "[Synth][Parse][GMM]") {
     REQUIRE(noteNode.note.duration.fraction.denominator == 4);
     REQUIRE(noteNode.note.slide == false);
 
-    noteNode = Synth::ParseNode("A+2");
+    noteNode = Synth::ParseNode("A+2", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::AS);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Fraction);
@@ -61,7 +69,7 @@ TEST_CASE("ParseNode correctly parses simple notes", "[Synth][Parse][GMM]") {
     REQUIRE(noteNode.note.duration.fraction.denominator == 2);
     REQUIRE(noteNode.note.slide == false);
 
-    noteNode = Synth::ParseNode("D-");
+    noteNode = Synth::ParseNode("D-", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::CS);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Fraction);
@@ -73,14 +81,14 @@ TEST_CASE("ParseNode correctly parses simple notes", "[Synth][Parse][GMM]") {
 TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    auto noteNode = Synth::ParseNode("E(0.5)");
+    auto noteNode = Synth::ParseNode("E(0.5)", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::E);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Seconds);
     REQUIRE(noteNode.note.duration.seconds == Catch::Approx(0.5f));
     REQUIRE(noteNode.note.slide == false);
 
-    noteNode = Synth::ParseNode("F3/4");
+    noteNode = Synth::ParseNode("F3/4", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::F);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Fraction);
@@ -88,7 +96,7 @@ TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM
     REQUIRE(noteNode.note.duration.fraction.denominator == 4);
     REQUIRE(noteNode.note.slide == false);
 
-    noteNode = Synth::ParseNode("G2.");
+    noteNode = Synth::ParseNode("G2.", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::G);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Fraction);
@@ -96,7 +104,7 @@ TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM
     REQUIRE(noteNode.note.duration.fraction.denominator == 4);
     REQUIRE(noteNode.note.slide == false);
 
-    noteNode = Synth::ParseNode("G0.22");
+    noteNode = Synth::ParseNode("G0.22", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::G);
     REQUIRE(noteNode.note.duration.type == Synth::Duration::Units);
@@ -107,24 +115,24 @@ TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM
 TEST_CASE("ParseNote parses rest correctly", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    auto restNode = Synth::ParseNode("R4");
+    auto restNode = Synth::ParseNode("R4", 6);
     REQUIRE(restNode.type == Synth::Node::Type::Rest);
     REQUIRE(restNode.note.duration.type == Synth::Duration::Fraction);
     REQUIRE(restNode.note.duration.fraction.numerator == 1);
     REQUIRE(restNode.note.duration.fraction.denominator == 4);
 
-    restNode = Synth::ParseNode("R2.");
+    restNode = Synth::ParseNode("R2.", 6);
     REQUIRE(restNode.type == Synth::Node::Type::Rest);
     REQUIRE(restNode.note.duration.type == Synth::Duration::Fraction);
     REQUIRE(restNode.note.duration.fraction.numerator == 3);
     REQUIRE(restNode.note.duration.fraction.denominator == 4);
 
-    restNode = Synth::ParseNode("R(4)");
+    restNode = Synth::ParseNode("R(4)", 6);
     REQUIRE(restNode.type == Synth::Node::Type::Rest);
     REQUIRE(restNode.note.duration.type == Synth::Duration::Seconds);
     REQUIRE(restNode.note.duration.seconds == Catch::Approx(4.0f));
 
-    restNode = Synth::ParseNode("R0.5");
+    restNode = Synth::ParseNode("R0.5", 6);
     REQUIRE(restNode.type == Synth::Node::Type::Rest);
     REQUIRE(restNode.note.duration.type == Synth::Duration::Units);
     REQUIRE(restNode.note.duration.units == Catch::Approx(0.5f));
@@ -133,14 +141,14 @@ TEST_CASE("ParseNote parses rest correctly", "[Synth][Parse][GMM]") {
 TEST_CASE("ParseNode throws on invalid input", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
-    REQUIRE_THROWS_AS(Synth::ParseNode("X100"), Synth::ParseError);
-    REQUIRE_THROWS_AS(Synth::ParseNode("Oabc"), Synth::ParseError);
-    REQUIRE_THROWS_AS(Synth::ParseNode("V150"), Synth::ParseError);
-    REQUIRE_THROWS_AS(Synth::ParseNode("C#4"), Synth::ParseError); // should be C+4
-    REQUIRE_THROWS_AS(Synth::ParseNode("Db4"), Synth::ParseError); // should be D-4
-    REQUIRE_THROWS_AS(Synth::ParseNode("E(0.5"), Synth::ParseError); // missing closing parenthesis
-    REQUIRE_THROWS_AS(Synth::ParseNode("F3/"), Synth::ParseError); // missing denominator
-    REQUIRE_THROWS_AS(Synth::ParseNode("G/4"), Synth::ParseError); // missing numerator
+    REQUIRE_THROWS_AS(Synth::ParseNode("X100", 6), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("Oabc", 6), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V150", 6), Synth::ParseError);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C#4", 6), Synth::ParseError); // should be C+4
+    REQUIRE_THROWS_AS(Synth::ParseNode("Db4", 6), Synth::ParseError); // should be D-4
+    REQUIRE_THROWS_AS(Synth::ParseNode("E(0.5", 6), Synth::ParseError); // missing closing parenthesis
+    REQUIRE_THROWS_AS(Synth::ParseNode("F3/", 6), Synth::ParseError); // missing denominator
+    REQUIRE_THROWS_AS(Synth::ParseNode("G/4", 6), Synth::ParseError); // missing numerator
 }
 
 TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
@@ -159,7 +167,8 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[0].type == Synth::Node::Type::Tempo);
     REQUIRE(synth.Nodes[0].tempo == Catch::Approx(160.0f));
     REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Volume);
-    REQUIRE(synth.Nodes[1].volume == Catch::Approx(1.0f));
+    REQUIRE(synth.Nodes[1].volume.volume == Catch::Approx(1.0f));
+    REQUIRE(synth.Nodes[1].volume.channel == 0);
     REQUIRE(synth.Nodes[2].type == Synth::Node::Type::OctaveAbsolute);
     REQUIRE(synth.Nodes[2].octave == 5);
     REQUIRE(synth.Nodes[3].type == Synth::Node::Type::Note);
@@ -202,8 +211,11 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[31].note.duration.fraction.numerator == 1);
     REQUIRE(synth.Nodes[31].note.duration.fraction.denominator == 4);
 
-    REQUIRE(synth.CalculateTotalSamples(160) == 1050);
-    REQUIRE(synth.CalculateTotalDuration() == Catch::Approx(6.5625f));
+    REQUIRE(synth.CalculateSamples(160) == 1050);
+    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.5625f));
+
+    auto wave = synth.Render(44100);
+    wave.ExportWav("test_output.wav");
 }
 
 TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {

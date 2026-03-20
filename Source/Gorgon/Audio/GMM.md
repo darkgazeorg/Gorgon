@@ -41,7 +41,7 @@ Example:
 2> @2 C2 C2 C2 C2
 
 # Example combining multi-channel panning, volume fades, and non-linear slides
-1> V(0, 100) V(1, 0) C4 V(0, 0:4){exp} V(1, 100:4){exp} C4~F4{sqrt} V0 R4
+1> V{0}100 V{1}0 C4 V{0}0:4{exp} V{1}100:4{exp} C4~F4{sqrt} V0 R4
 ```
 
 ## Core Commands
@@ -85,9 +85,9 @@ Rest (silence) with the given duration.
 Global volume adjustment (0–100%). Modifies all channels for the current track.
 Can be immediate (`V80`) or ramped over time (`V0:4{exp}`).
 
-### `V(<Channel>, <Percent>[:Duration]{Curve})`
+### `V{<Channel>}<Percent>[:Duration[{<Curve>}]]`
 Channel-specific volume override. Used for panning audio in multi-channel setups.
-Example: `V(0, 100)` sets Channel 0 (Left) to 100%. `V(1, 0:2)` fades Channel 1 (Right) to 0% over a half-note.
+Example: `V{0}100` sets Channel 0 (Left) to 100%. `V{1}0:2` fades Channel 1 (Right) to 0% over a half-note.
 
 ### `O<Octave>` / `<` / `>`
 Octave control. `O5` sets octave 5. `<` and `>` shift the current octave down/up by one.

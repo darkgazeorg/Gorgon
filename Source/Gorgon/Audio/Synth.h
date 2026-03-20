@@ -130,7 +130,11 @@ namespace Gorgon :: Audio {
                 } note;
                 float tempo;
                 int octave;
-                float volume;
+                struct {
+                    /// 0 -> all channels
+                    int channel;
+                    float volume;
+                } volume;
             };
 
             static Node MakeNote(Note note, Duration duration, bool slide);
@@ -143,7 +147,7 @@ namespace Gorgon :: Audio {
 
             static Node MakeOctaveRelative(int delta);
 
-            static Node MakeVolume(float volume);
+            static Node MakeVolume(float volume, int channel = 0);
         };
 
         /// Parses a GMM string into a sequence of nodes. Throws ParseError on invalid input.
@@ -155,15 +159,19 @@ namespace Gorgon :: Audio {
         /// Parses a GMM string from an input stream. Throws ParseError on invalid input.
         void Parse(std::istream &stream);
 
-        float CalculateTotalDuration() const;
+        float CalculateDuration() const;
 
-        size_t CalculateTotalSamples(float sample_rate = 44100.0f) const;
+        size_t CalculateSamples(float sample_rate = 44100.0f) const;
 
         Containers::Wave Render(float sample_rate = 44100.0f) const;
 
         /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
         /// process comments.
-        static Node ParseNode(const std::string_view& token);
+        static Node ParseNode(const std::string_view& token, int channels);
+
+        Node ParseNode(const std::string_view& token) const {
+            return ParseNode(token, Channels.size());
+        }
 
         /// Converts a note and octave into frequency (Hz).
         static float NoteToFrequency(Note note, int octave) {
@@ -177,10 +185,10 @@ namespace Gorgon :: Audio {
 
     private:
         struct TrackState {
-            float Time = 0.0f;
+            size_t Sample = 0;
             float Tempo = 120.0f;
             int Octave = 4;
-            float Volume = 1.0f;
+            std::vector<float> Volume;
         };
     };
 
