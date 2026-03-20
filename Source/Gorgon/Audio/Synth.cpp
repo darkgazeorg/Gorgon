@@ -1,4 +1,5 @@
 #include "Synth.h"
+#include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
 #include <tuple>
 #include <iostream>
@@ -194,7 +195,106 @@ void Synth::Parse(std::istream &stream) {
             line = line.substr(0, commentPos);
         }
 
-        if(String::Trim(line).empty()) continue;
+        line = String::Trim(line);
+        if(line.empty()) continue;
+
+        // render variables
+        if(line[0] == '%') {
+            line = String::Trim(line.substr(1));
+            auto var = String::Trim(String::ToLower(String::Extract(line, '=')));
+            line = String::Trim(line);
+
+            if(var == "channels") {
+                std::vector<Audio::Channel> channels;
+                std::string ch;
+
+                if(line.empty()) {
+                    throw ParseError(ParseError::InvalidParameter, "Channels variable cannot be empty");
+                }
+
+                if(line[0] == '[') {
+                    if(line.back() != ']') {
+                        throw ParseError(ParseError::InvalidParameter, "Mismatched brackets in channels variable: " + line);
+                    }
+
+                    line.pop_back();
+                    line.erase(0, 1);
+
+                    while(!line.empty()) {
+                        ch = String::Trim(String::Extract(line, ','));
+
+                        if(ch.empty()) {
+                            throw ParseError(ParseError::InvalidParameter, "Empty channel name in channels variable");
+                        }
+
+                        Audio::Channel channel = Channel::Unknown;
+                        channel = String::To<Audio::Channel>(ch);
+
+                        if(channel == Channel::Unknown) {
+                            throw ParseError(ParseError::InvalidParameter, "Unrecognized channel name: " + ch);
+                        }
+
+                        channels.push_back(channel);
+                    }
+                }
+                else {
+                    auto [channelcount, state] = String::FromCLocaleTo<int>(line);
+
+                    if(state == String::FromCLocaleToState::Failed) {
+                        throw ParseError(ParseError::InvalidParameter, "Invalid channel count: " + line);
+                    }
+                    if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                        throw ParseError(ParseError::InvalidParameter, "Extra characters after channel count: " + line);
+                    }
+                    if(channelcount < 1 || channelcount > 6) {
+                        throw ParseError(ParseError::InvalidParameter, "Channel count must be between 1 and 6: " + std::to_string(channelcount));
+                    }
+
+                    switch(channelcount) {
+                    case 1: 
+                        channels.push_back(Audio::Channel::Mono); 
+                        break;
+                    case 2: 
+                        channels.push_back(Audio::Channel::FrontLeft); 
+                        channels.push_back(Audio::Channel::FrontRight); 
+                        break;
+                    case 3: 
+                        channels.push_back(Audio::Channel::FrontLeft); 
+                        channels.push_back(Audio::Channel::FrontRight);
+                        channels.push_back(Audio::Channel::LowFreq);
+                        break;
+                    case 4:
+                        channels.push_back(Audio::Channel::FrontLeft); 
+                        channels.push_back(Audio::Channel::FrontRight);
+                        channels.push_back(Audio::Channel::BackLeft);
+                        channels.push_back(Audio::Channel::BackRight);
+                        break;
+                    case 5:
+                        channels.push_back(Audio::Channel::FrontLeft); 
+                        channels.push_back(Audio::Channel::FrontRight);
+                        channels.push_back(Audio::Channel::BackLeft);
+                        channels.push_back(Audio::Channel::BackRight);
+                        channels.push_back(Audio::Channel::LowFreq);
+                        break;
+                    case 6:
+                        channels.push_back(Audio::Channel::FrontLeft); 
+                        channels.push_back(Audio::Channel::FrontRight);
+                        channels.push_back(Audio::Channel::BackLeft);
+                        channels.push_back(Audio::Channel::BackRight);
+                        channels.push_back(Audio::Channel::Center);
+                        channels.push_back(Audio::Channel::LowFreq);
+                        break;
+                    }
+                }
+
+                Channels = std::move(channels);
+            }
+            else {
+                throw ParseError(ParseError::InvalidParameter, "Unrecognized variable: " + var);
+            }
+
+            continue;
+        }
 
         std::size_t pos = 0;
 

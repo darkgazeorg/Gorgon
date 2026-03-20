@@ -27,11 +27,20 @@ namespace Gorgon :: Audio {
         { Channel::Unknown    , "Unknown"     },
         { Channel::Mono       , "Mono"        },
         { Channel::FrontLeft  , "Front left"  },
+        { Channel::FrontLeft  , "FrontLeft"  },
+        { Channel::FrontLeft  , "FL"  },
         { Channel::FrontRight , "Front right" },
+        { Channel::FrontRight , "FrontRight" },
+        { Channel::FrontRight , "FR" },
         { Channel::BackLeft   , "Back left"   },
+        { Channel::BackLeft   , "BackLeft"   },
+        { Channel::BackLeft   , "BL"   },
         { Channel::BackRight  , "Back right"  },
+        { Channel::BackRight  , "BackRight"  },
+        { Channel::BackRight  , "BR"  },
         { Channel::Center     , "Center"      },
         { Channel::LowFreq    , "Bass"        },
+        { Channel::LowFreq    , "Low freq"    },
     );
 
 

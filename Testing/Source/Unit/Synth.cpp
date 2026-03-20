@@ -202,3 +202,129 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[31].note.duration.fraction.numerator == 1);
     REQUIRE(synth.Nodes[31].note.duration.fraction.denominator == 4);
 }
+
+TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    std::string gmm = R"(
+        # Define a 4 channel track
+        %channels=[FL,FR, BL,BR]
+    )";
+
+    Synth synth;
+
+    REQUIRE(synth.Channels.size() == 1);
+    REQUIRE(synth.Channels[0] == Channel::Mono);
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.Channels.size() == 4);
+    REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+    REQUIRE(synth.Channels[1] == Channel::FrontRight);
+    REQUIRE(synth.Channels[2] == Channel::BackLeft);
+    REQUIRE(synth.Channels[3] == Channel::BackRight);
+
+    gmm = R"(
+        %CHANNELS = 1
+    )";
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.Channels.size() == 1);
+    REQUIRE(synth.Channels[0] == Channel::Mono);
+
+
+    gmm = R"(
+        %CHANNELS=2
+    )";
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.Channels.size() == 2);
+    REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+    REQUIRE(synth.Channels[1] == Channel::FrontRight);
+
+
+}
+
+
+TEST_CASE("Parse channels variable with various formats", "[Synth][Parse][Channels]") {
+    using namespace Gorgon::Audio;
+
+    SECTION("Named channels - FL, FR, BL, BR") {
+        Synth synth;
+        synth.Parse("%channels=[FL,FR,BL,BR]");
+        
+        REQUIRE(synth.Channels.size() == 4);
+        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+        REQUIRE(synth.Channels[2] == Channel::BackLeft);
+        REQUIRE(synth.Channels[3] == Channel::BackRight);
+    }
+
+    SECTION("Named channels - uppercase with spaces") {
+        Synth synth;
+        synth.Parse("%CHANNELS = [ FL , FR , BL , BR ]");
+        
+        REQUIRE(synth.Channels.size() == 4);
+        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+        REQUIRE(synth.Channels[2] == Channel::BackLeft);
+        REQUIRE(synth.Channels[3] == Channel::BackRight);
+    }
+
+    SECTION("Named channels - no spaces after %") {
+        Synth synth;
+        synth.Parse("%channels=[FL,FR,BL,BR]");
+        
+        REQUIRE(synth.Channels.size() == 4);
+    }
+
+    SECTION("Numeric channels - mono (1)") {
+        Synth synth;
+        synth.Parse("%channels=1");
+        
+        REQUIRE(synth.Channels.size() == 1);
+        REQUIRE(synth.Channels[0] == Channel::Mono);
+    }
+
+    SECTION("Numeric channels - stereo (2)") {
+        Synth synth;
+        synth.Parse("%channels=2");
+        
+        REQUIRE(synth.Channels.size() == 2);
+        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+    }
+
+    SECTION("Numeric channels - 6 channel") {
+        Synth synth;
+        synth.Parse("% channels=6");
+        
+        REQUIRE(synth.Channels.size() == 6);
+        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+        REQUIRE(synth.Channels[2] == Channel::BackLeft);
+        REQUIRE(synth.Channels[3] == Channel::BackRight);
+        REQUIRE(synth.Channels[4] == Channel::Center);
+        REQUIRE(synth.Channels[5] == Channel::LowFreq);
+    }
+
+    SECTION("Numeric channels - uppercase with spacing") {
+        Synth synth;
+        synth.Parse("%CHANNELS = 3");
+        
+        REQUIRE(synth.Channels.size() == 3);
+        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
+        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+        REQUIRE(synth.Channels[2] == Channel::LowFreq);
+    }
+
+    SECTION("Numeric channels - no space after %") {
+        Synth synth;
+        synth.Parse("%channels=1");
+        
+        REQUIRE(synth.Channels.size() == 1);
+        REQUIRE(synth.Channels[0] == Channel::Mono);
+    }
+}

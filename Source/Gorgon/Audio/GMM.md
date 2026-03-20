@@ -49,6 +49,7 @@ Example:
 ### `%KEY = value`
 Global engine configuration. Must be defined in the header.
 - `%CHANNELS = 2` sets the engine to render interleaved stereo audio.
+- `%CHANNELS = [FL, FR]` to explicitly specify channels. See Gorgon::Audio::Channel for details
 
 ### `@ID = type, param=value`
 Defines an instrument in the header.

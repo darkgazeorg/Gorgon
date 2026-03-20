@@ -171,6 +171,8 @@ namespace Gorgon :: Audio {
         /// Sequence of nodes that define a track.
         std::vector<Node> Nodes;
 
+        std::vector<Audio::Channel> Channels = {Audio::Channel::Mono};
+
     private:
         struct TrackState {
             float Time = 0.0f;
