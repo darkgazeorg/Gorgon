@@ -66,7 +66,8 @@ Inline instrument switch. Changes the current track to use the specified instrum
 
 ### `T<Value>[:Duration]{Curve}`
 Tempo change (beats per minute). 
-Can be an immediate change (`T120`) or smoothly ramped over a duration (`T60:1{scurve}`).
+Can be an immediate change (`T120`) or smoothly ramped over a duration (`T60:1{scurve}`). Tempo change
+effects only the current track, if necessary use multiple tempo commands.
 
 ### Notes: `A`–`G` (optionally `+` or `-` for sharps/flats)
 A note can be followed by a duration token:
@@ -92,8 +93,7 @@ Example: `V(0, 100)` sets Channel 0 (Left) to 100%. `V(1, 0:2)` fades Channel 1 
 Octave control. `O5` sets octave 5. `<` and `>` shift the current octave down/up by one.
 
 ### `~[{Curve}]` (Slide/Portamento)
-Placed between two notes to smoothly glide pitch from the first note to the next over the first
-note’s duration. 
+Placed between two notes to smoothly glide pitch from the first note to the next over the total duration. 
 Example: `C2~B2`. Can accept a curve modifier for non-linear pitch sweeps (e.g., `C2~C6{sqrt}`).
 
 ---

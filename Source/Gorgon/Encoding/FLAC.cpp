@@ -506,7 +506,7 @@ namespace Encoding {
         FLAC__stream_decoder_delete((FLAC__StreamDecoder *)decoder);
     }
     
-    unsigned long FLACStream::DecodeSome(Containers::Wave &wave, unsigned long start) {
+    size_t FLACStream::DecodeSome(Containers::Wave &wave, size_t start) {
         ASSERT(streamer, "Stream decoding is not initialized");
         
         if(!streamer)
@@ -524,7 +524,7 @@ namespace Encoding {
         streamer->currentpos = 0;
         streamer->channels   = wave.GetChannelCount();
         
-        unsigned long target = wave.GetSize();
+        size_t target = wave.GetSize();
 
         if(start + target > total)
             target = total - start;

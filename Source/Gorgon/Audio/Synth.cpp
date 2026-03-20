@@ -318,6 +318,35 @@ void Synth::Parse(std::istream &stream) {
     }
 }
 
+size_t Synth::CalculateTotalSamples(float sample_rate) const {
+    double samples = 0;
+    float tempo = 120.0f; 
+
+    for(const auto& node : Nodes) {
+        switch(node.type) {
+        case Node::Type::Note:
+        case Node::Type::Rest:
+            samples += node.note.duration.ToSamples(tempo, sample_rate);
+            break;
+        case Node::Type::Tempo:
+            tempo = node.tempo;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return size_t(samples);
+}
+
+float Synth::CalculateTotalDuration() const { return CalculateTotalSamples(151200) / 151200.0f; }
+
+Containers::Wave Synth::Render(float sample_rate) const {
+    Containers::Wave wave(CalculateTotalSamples(sample_rate), sample_rate, Channels);
+
+    return wave;
+}
+
 Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
     if(token.empty()) return Duration::FromFraction(4);
 
@@ -406,9 +435,9 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
 float Synth::Duration::ToSeconds(float tempo) const {
     switch(type) {
     case Fraction:
-        return 60.0f / tempo * fraction.numerator / fraction.denominator;
+        return 240.0f / tempo * fraction.numerator / fraction.denominator;
     case Units:
-        return 60.0f / tempo * units;
+        return 240.0f / tempo * units;
     case Seconds:
         return seconds;
     default:
@@ -416,5 +445,17 @@ float Synth::Duration::ToSeconds(float tempo) const {
     }
 }
 
+size_t Synth::Duration::ToSamples(float tempo, float sample_rate) const {
+    switch(type) {
+    case Fraction:
+        return static_cast<size_t>(240.0f / tempo * fraction.numerator / fraction.denominator * sample_rate);
+    case Units:
+        return static_cast<size_t>(240.0f / tempo * units * sample_rate);
+    case Seconds:
+        return static_cast<size_t>(seconds * sample_rate);
+    default:
+        return 0;
+    }
+}
 
 } // namespace Gorgon::Audio

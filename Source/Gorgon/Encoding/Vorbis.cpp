@@ -104,7 +104,7 @@ namespace vorbis {
         delete ogg;
     }
     
-    unsigned long VorbisStream::DecodeSome(Containers::Wave &wave, unsigned long start) {
+    size_t VorbisStream::DecodeSome(Containers::Wave &wave, size_t start) {
         ASSERT(streamer, "Stream decoding is not initialized");
         
         if(!streamer)
@@ -117,7 +117,7 @@ namespace vorbis {
         
         auto ogg = (OggVorbis_File *)decoder;
         
-        unsigned long target = wave.GetSize();
+        size_t target = wave.GetSize();
 
         if(start + target > total)
             target = total - start;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <vector>
 #include <fstream>
 #include <string>
@@ -67,7 +68,7 @@ namespace Gorgon :: Containers {
             friend class Wave;
         public:
             
-            typedef unsigned long difference_type;
+            typedef std::ptrdiff_t difference_type;
             typedef Sample value_type;
             typedef Sample& reference;
             typedef Sample* pointer;
@@ -132,36 +133,36 @@ namespace Gorgon :: Containers {
                 return current!=r.current;
             }
             
-            Sample operator[](unsigned long pos) const {
+            Sample operator[](size_t pos) const {
                 return {current, channels};
             }
             
-            Iterator& operator+=(unsigned long diff) {
+            Iterator& operator+=(size_t diff) {
                 current+=diff*channels;
                 return *this;
             }
             
-            Iterator  operator+(unsigned long diff) const {
+            Iterator  operator+(size_t diff) const {
                 auto temp=*this;
                 temp.current+=diff*channels;
                 
                 return temp;
             }
             
-            Iterator& operator-=(unsigned long diff) {
+            Iterator& operator-=(size_t diff) {
                 current-=diff*channels;
                 return *this;
             }
             
-            Iterator  operator-(unsigned long diff) const {
+            Iterator  operator-(size_t diff) const {
                 auto temp=*this;
                 temp.current-=diff*channels;
                 
                 return temp;
             }
 
-            unsigned long operator-(const Iterator &r) const {
-                return (unsigned long)((current-r.current)/channels);
+            difference_type operator-(const Iterator &r) const {
+                return (difference_type)((current-r.current)/channels);
             }
             
         private:
@@ -178,7 +179,7 @@ namespace Gorgon :: Containers {
 
         /// Constructs a new wave data with the given number of samples and channels. This constructor 
         /// does not initialize data inside the wave
-        explicit Wave(unsigned long size, unsigned samplerate, std::vector<Audio::Channel> channels = {Audio::Channel::Mono}): size(size), channels(channels), samplerate(samplerate) {
+        explicit Wave(size_t size, unsigned samplerate, std::vector<Audio::Channel> channels = {Audio::Channel::Mono}): size(size), channels(channels), samplerate(samplerate) {
             data = (float*)malloc(size * channels.size() * sizeof(float));
         }
 
@@ -218,7 +219,7 @@ namespace Gorgon :: Containers {
 
         /// Resizes the wave to the given size and channels. This function discards the contents
         /// of the wave and does not perform any initialization.
-        void Resize(unsigned long size, std::vector<Audio::Channel> channels) {
+        void Resize(size_t size, std::vector<Audio::Channel> channels) {
             
             this->channels = std::move(channels);
 
@@ -233,7 +234,7 @@ namespace Gorgon :: Containers {
         /// Resizes the wave to the given size. This function discards the contents
         /// of the wave and does not perform any initialization. Previously set number
         /// of channels is used
-        void Resize(unsigned long size) {
+        void Resize(size_t size) {
 
             // Check if resize is really necessary
             if(this->size == size)
@@ -250,7 +251,7 @@ namespace Gorgon :: Containers {
         /// Copies the given data assigns the new data to this object, size is the number of samples. 
         /// Assumes number of channels stays the same. newdata should have size*channels number of
         /// entries
-        void Assign(float *newdata, unsigned long size) {
+        void Assign(float *newdata, size_t size) {
             this->size = size;
 
             if(data) {
@@ -267,7 +268,7 @@ namespace Gorgon :: Containers {
         
         /// Copies the given data assigns the new data to this object, size is the number of samples. 
         /// newdata should have size*channels number of entries
-        void Assign(float *newdata, unsigned long size, std::vector<Audio::Channel> channels) {
+        void Assign(float *newdata, size_t size, std::vector<Audio::Channel> channels) {
             this->size = size;
             
             this->channels = std::move(channels);
@@ -292,7 +293,7 @@ namespace Gorgon :: Containers {
         }
 
         /// Assumes the ownership of the data.
-        void Assume(float *newdata, unsigned long size) {
+        void Assume(float *newdata, size_t size) {
             this->size = size;
 
             if(data && newdata!=data) {
@@ -305,7 +306,7 @@ namespace Gorgon :: Containers {
         /// The given data should have the size of size*channels. This function does not perform any checks 
         /// for the data size while assuming it. newdata could be nullptr however, in this case size should 
         /// be 0.
-        void Assume(float *newdata, unsigned long size, std::vector<Audio::Channel> channels) {
+        void Assume(float *newdata, size_t size, std::vector<Audio::Channel> channels) {
             this->size = size;
             this->channels = std::move(channels);
 
@@ -369,34 +370,34 @@ namespace Gorgon :: Containers {
         }
 
         /// Allows access to individual members
-        float &operator()(unsigned long p, unsigned ch) {
+        float &operator()(size_t p, unsigned ch) {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size()+ch];
         }
 
         /// Allows access to individual members
-        float operator()(unsigned long p, unsigned ch) const {
+        float operator()(size_t p, unsigned ch) const {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size()+ch];
         }
 
         /// Allows access to individual members
-        float Get(unsigned long p, unsigned ch) const {
+        float Get(size_t p, unsigned ch) const {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size() + ch];
         }
 
         /// Returns the size of the wave in number of samples
-        unsigned long GetSize() const {
+        size_t GetSize() const {
             return size;
         }
 
         /// Returns the size of the wave in bytes
-        unsigned long GetBytes() const {
-            return (unsigned int)(size * channels.size() * sizeof(float));
+        size_t GetBytes() const {
+            return (size_t)(size * channels.size() * sizeof(float));
         }
 
         /// Returns the length of the wave data in seconds
@@ -455,7 +456,7 @@ namespace Gorgon :: Containers {
         }
         
         /// Imports a PCM based wav file. Leave channels empty to determine them automatically.
-        bool ImportWav(const std::string &filename, bool loaddata, unsigned long &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
+        bool ImportWav(const std::string &filename, bool loaddata, size_t &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
             std::ifstream file(filename, std::ios::binary);
             
             if(!file.is_open()) return false;
@@ -464,13 +465,13 @@ namespace Gorgon :: Containers {
         }
         
         bool ImportWav(std::istream &file, std::vector<Audio::Channel> channels = {}) {
-            unsigned long size;
+            size_t size;
             int samplesize, blocksize;
             
             return ImportWav(file, true, size, samplesize, blocksize, std::move(channels));
         }
 
-        bool ImportWav(std::istream &file, bool loaddata, unsigned long &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
+        bool ImportWav(std::istream &file, bool loaddata, size_t &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
             
             if(IO::ReadString(file, 4) != "RIFF") return false;
             
@@ -624,7 +625,7 @@ namespace Gorgon :: Containers {
         float *data = nullptr;
 
         /// Number of samples in the wave
-        unsigned long size = 0;
+        size_t size = 0;
 
         /// Number of channels
         std::vector<Audio::Channel> channels;

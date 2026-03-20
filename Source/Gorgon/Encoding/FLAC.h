@@ -81,7 +81,7 @@ namespace flac {
         /// Decodes data from the requested location. Container must be initialized. This function
         /// will try to fill the container if there is enough data. If not it will leave additional
         /// samples empty.
-        unsigned long DecodeSome(Containers::Wave &container, unsigned long start);
+        size_t DecodeSome(Containers::Wave &container, size_t start);
 
         /// Starts decoding the given %FLAC compressed data by obtaining metadata information.
         /// This function should require a new instance of Flac coder as it has to store some
@@ -97,8 +97,8 @@ namespace flac {
         flac::streamread *streamer = nullptr;
         std::ifstream *stream = nullptr;
         void *decoder = nullptr;
-        unsigned long total = 0;
-        unsigned long last = 0;
+        size_t total = 0;
+        size_t last = 0;
     };
 
 }

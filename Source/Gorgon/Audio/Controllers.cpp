@@ -77,7 +77,7 @@ namespace Gorgon :: Audio {
     
     BasicController &BasicController::Seek(float target) {
         if(wavedata) {
-            auto ret = wavedata->StartSeeking(long(target * wavedata->GetSampleRate()));
+            auto ret = wavedata->StartSeeking((size_t)(target * wavedata->GetSampleRate()));
             
             if(ret == Source::Done) {
                 position = target;

@@ -32,12 +32,12 @@ namespace Multimedia {
             
             /// This functions loads all necessary information to wave container without actually
             /// loading any data. Returns the total number of samples in the stream source.
-            virtual unsigned long Init(Containers::Wave &target) = 0;
+            virtual size_t Init(Containers::Wave &target) = 0;
             
             /// This function should check if there is data to be loaded. If there is, streamer
             /// should decode and pass data to audiostream. If there is any extra data that is 
             /// decoded, it should stay with the streamer.
-            virtual unsigned long LoadData(unsigned long samplestart, Containers::Wave &target) = 0;
+            virtual size_t LoadData(size_t samplestart, Containers::Wave &target) = 0;
         };
         
         /// Currently active streamers
@@ -64,7 +64,7 @@ namespace Multimedia {
     public:
         
         /// Constructor
-        explicit AudioStream(unsigned long buffersize = 8*1024) : buffersize(buffersize) 
+        explicit AudioStream(size_t buffersize = 8*1024) : buffersize(buffersize) 
         { }
         
         AudioStream(AudioStream &&other);
@@ -161,7 +161,7 @@ namespace Multimedia {
         void FillBuffer() override;
     
         
-        virtual unsigned long GetSize() const override final {
+        virtual size_t GetSize() const override final {
             return totalsize;
         }
         
@@ -194,8 +194,8 @@ namespace Multimedia {
         /// Starts seeking the stream to the given point. Only one buffer will start loading. The 
         /// other two buffers will continue playing from the old point. Once the data is started
         /// streaming from this new location, other buffers will be loaded as well.
-        virtual SeekResult StartSeeking(unsigned long) const override final;
-    
+        virtual SeekResult StartSeeking(size_t) const override final;
+
         virtual bool IsSeeking() const override final {
             return isseeking;
         }
@@ -204,7 +204,7 @@ namespace Multimedia {
             return seekcomplete;
         }
         
-        virtual unsigned long SeekTarget() const override final {
+        virtual size_t SeekTarget() const override final {
             return seektarget;
         }
         
@@ -217,27 +217,27 @@ namespace Multimedia {
         class bufferdata {
         public:
             Containers::Wave buffer;
-            unsigned long beg = 0;
-            unsigned long end = 0; //+1 last item
+            size_t beg = 0;
+            size_t end = 0; //+1 last item
         };
         
-        void loadbuffer(bufferdata &buffer, unsigned long startoff);
+        void loadbuffer(bufferdata &buffer, size_t startoff);
         
         internal::AudioStreamer *streamer = nullptr;
         
         /// Only the first buffer will contain valid information
         std::array<bufferdata, 3> buffers;
         
-        unsigned long totalsize  = 0;
+        size_t totalsize  = 0;
         /// Last sample accessed by audio loop
-        mutable unsigned long lastsample = 0;
+        mutable size_t lastsample = 0;
         
         // Seek operation is not considered as modifying
-        mutable unsigned long seektarget = 0;
+        mutable size_t seektarget = 0;
         mutable bool          isseeking    = false;
         mutable bool          seekcomplete = false;
         
-        unsigned long buffersize;
+        size_t buffersize;
         
         mutable std::mutex guard;
         

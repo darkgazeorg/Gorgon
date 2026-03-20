@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Gorgon/Containers/Wave.h"
-#include "Gorgon/Utils/Assert.h"
 
 #include <cmath>
 #include <sstream>
@@ -84,6 +83,9 @@ namespace Gorgon :: Audio {
             /// Converts this duration to seconds based on the given tempo (BPM).
             float ToSeconds(float tempo) const;
 
+            /// Converts this duration to number of samples based on the given tempo and sample rate.
+            size_t ToSamples(float tempo, float sample_rate) const;
+
             /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
             static Duration FromFraction(int numerator, int denominator);
 
@@ -153,11 +155,11 @@ namespace Gorgon :: Audio {
         /// Parses a GMM string from an input stream. Throws ParseError on invalid input.
         void Parse(std::istream &stream);
 
-        float CalculateTotalDuration() const { Utils::NotImplemented(); }
+        float CalculateTotalDuration() const;
 
-        int CalculateTotalSamples(float sample_rate = 44100.0f) const { Utils::NotImplemented(); }
+        size_t CalculateTotalSamples(float sample_rate = 44100.0f) const;
 
-        Containers::Wave Render(float sample_rate = 44100.0f) const { Utils::NotImplemented(); }
+        Containers::Wave Render(float sample_rate = 44100.0f) const;
 
         /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
         /// process comments.

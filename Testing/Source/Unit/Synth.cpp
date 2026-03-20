@@ -201,6 +201,9 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[31].note.duration.type == Synth::Duration::Fraction);
     REQUIRE(synth.Nodes[31].note.duration.fraction.numerator == 1);
     REQUIRE(synth.Nodes[31].note.duration.fraction.denominator == 4);
+
+    REQUIRE(synth.CalculateTotalSamples(160) == 1050);
+    REQUIRE(synth.CalculateTotalDuration() == Catch::Approx(6.5625f));
 }
 
 TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
