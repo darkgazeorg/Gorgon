@@ -214,6 +214,13 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.CalculateSamples(160) == 1050);
     REQUIRE(synth.CalculateDuration() == Catch::Approx(6.5625f));
 
+    synth.Parse(R"(
+        D E F G F G G G F G G G F2 E2
+        D E F G F G G G F G G G F2 E2
+        D E F G E F D E C C F E D2 D2
+        D E F G E F D E C C F E D2 D2
+    )");
+
     auto wave = synth.Render(44100);
     wave.ExportWav("test_output.wav");
 }

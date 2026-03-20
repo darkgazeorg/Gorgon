@@ -217,6 +217,8 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
 }
 
 void Synth::Parse(std::istream &stream) {
+    Nodes.clear();
+
     std::string line;
 
     while(std::getline(stream, line)) {
@@ -415,7 +417,9 @@ Containers::Wave Synth::Render(float sample_rate) const {
             float frequency = NoteToFrequency(node.note.note, state.Octave);
             size_t duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
-            for(size_t i = 0; i < duration; i++) {
+            size_t notesep = std::min(size_t(duration / 10), Duration::FromFraction(16).ToSamples(state.Tempo, sample_rate));
+
+            for(size_t i = 0; i < duration - notesep; i++) {
                 float sample = std::sin(2.0f * float(M_PI) * frequency * (state.Sample + i) / sample_rate);
 
                 for(size_t ch = 0; ch < Channels.size(); ch++) {
