@@ -967,14 +967,14 @@ namespace Gorgon {
                         inquotes = 2;
                         acc.push_back(c);
                     }
-                    else if(size_t ind = open.find_first_of(c); ind != std::string::npos) {
-                        closestack.push_back(close.at(ind));
-                        acc.push_back(c);
-                    }
                     else if(!closestack.empty() && closestack.back() == c) {
                             closestack.pop_back();
 
                             acc.push_back(c);
+                    }
+                    else if(size_t ind = open.find_first_of(c); ind != std::string::npos) {
+                        closestack.push_back(close.at(ind));
+                        acc.push_back(c);
                     }
                     else if(closestack.empty() && (c == assignment || delimeter.find_first_of(c) != std::string::npos) && key) {
                         if(trimkey)
@@ -982,7 +982,7 @@ namespace Gorgon {
 
                         currentkey = To<K_>(acc);
 
-                        ret[currentkey] = "";
+                        ret[currentkey] = V_{};
 
                         if(c == assignment) 
                             key = false;
@@ -1010,8 +1010,33 @@ namespace Gorgon {
                     }
                     else {
                         acc.push_back(c);
-
                     }
+                }
+            }
+
+            if(!acc.empty()) {
+                if(key) {
+                    if(trimkey)
+                        acc = Trim(acc);
+
+                    currentkey = To<K_>(acc);
+
+                    ret[currentkey] = V_{};
+                }
+                else {
+                    std::string value = acc;
+
+                    if(lefttrimvalue && righttrimvalue) {
+                        value = Trim(value);
+                    }
+                    else if(lefttrimvalue) {
+                        value = TrimStart(value);
+                    }
+                    else if(righttrimvalue) {
+                        value = TrimEnd(value);
+                    }
+
+                    ret[currentkey] = To<V_>(value);
                 }
             }
 

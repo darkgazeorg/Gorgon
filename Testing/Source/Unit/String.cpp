@@ -257,7 +257,19 @@ TEST_CASE("Gorgon::String - Map_UseQuotesAndParentheses") {
     // unbalanced parentheses should not crash; incomplete entries are not committed without delimiter
     auto unbalanced = String::Map_UseQuotesAndParentheses("a=(x,y,", '=', ",", String::QuoteType::Both, "()", ")(");
     REQUIRE(unbalanced.size() == 1);
-    REQUIRE(unbalanced["a"] == "");
+    REQUIRE(unbalanced["a"] == "(x,y,");
+
+    // sizable string to verify all key/value pairs are parsed and last argument is handled
+    std::string large = "k1=1; k2='2,2'; k3=(3,3); k4=4; k5='5;5'; k6=(6;(6)); k7=seven";
+    auto largeMap = String::Map_UseQuotesAndParentheses(large, '=', ";", String::QuoteType::Both, "(", ")", true, true, true);
+    REQUIRE(largeMap.size() == 7);
+    REQUIRE(largeMap["k1"] == "1");
+    REQUIRE(largeMap["k2"] == "'2,2'");
+    REQUIRE(largeMap["k3"] == "(3,3)");
+    REQUIRE(largeMap["k4"] == "4");
+    REQUIRE(largeMap["k5"] == "'5;5'");
+    REQUIRE(largeMap["k6"] == "(6;(6))");
+    REQUIRE(largeMap["k7"] == "seven");
 }
 
 TEST_CASE("Gorgon::String - Tokenizer Functionality") {
