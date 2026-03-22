@@ -166,6 +166,100 @@ TEST_CASE("Gorgon::String - Extract with Quotes") {
     REQUIRE(String::Extract_UseQuotes(input, ',') == "d");
 }
 
+TEST_CASE("Gorgon::String - Extract with Parentheses") {
+    // Regular marker split
+    std::string data = "one;two;three";
+    REQUIRE(String::Extract_UseParentheses(data, ';') == "one");
+    REQUIRE(data == "two;three");
+
+    // Marker inside parentheses is skipped
+    data = "one;(two;still);three;four";
+    REQUIRE(String::Extract_UseParentheses(data, ';') == "one");
+    REQUIRE(data == "(two;still);three;four");
+    REQUIRE(String::Extract_UseParentheses(data, ';') == "(two;still)");
+    REQUIRE(data == "three;four");
+
+    // Nested parentheses and custom brackets
+    data = "x([a,b]),c";
+    REQUIRE(String::Extract_UseParentheses(data, ',', "([", ")]", String::QuoteType::None) == "x([a,b])");
+    REQUIRE(data == "c");
+
+    // Marker inside quotes is skipped, quotes are preserved
+    data = "foo,'a,b',c";
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Both) == "foo");
+    REQUIRE(data == "'a,b',c");
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Both) == "'a,b'");
+    REQUIRE(data == "c");
+
+    // Quote type selection: only single quotes are respected
+    data = "foo,'a,b',c";
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Single) == "foo");
+    REQUIRE(data == "'a,b',c");
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Single) == "'a,b'");
+    REQUIRE(data == "c");
+
+    // Quote type selection: double quotes only, single-quoted comma is not skipped
+    data = "foo,'a,b',c";
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Double) == "foo");
+    REQUIRE(data == "'a,b',c");
+    REQUIRE(String::Extract_UseParentheses(data, ',', "()", ")(", String::QuoteType::Double) == "'a");
+    REQUIRE(data == "b',c");
+
+    // Unbalanced opening parentheses cause marker to be ignored
+    data = "a(b,c";
+    REQUIRE(String::Extract_UseParentheses(data, ',') == "a(b,c");
+    REQUIRE(data == "");
+
+    // Unbalanced closing parentheses are ignored and do not lock splitting
+    data = "a)b,c";
+    REQUIRE(String::Extract_UseParentheses(data, ',') == "a)b");
+    REQUIRE(data == "c");
+
+    // Custom open/close tokens
+    data = "A<B,C>,D";
+    REQUIRE(String::Extract_UseParentheses(data, ',', "<", ">") == "A<B,C>");
+    REQUIRE(data == "D");
+}
+
+TEST_CASE("Gorgon::String - Map_UseQuotesAndParentheses") {
+    // empty input
+    auto emptyResult = String::Map_UseQuotesAndParentheses("");
+    REQUIRE(emptyResult.empty());
+
+    // simple key/value parsing with newline delimiter
+    auto simple = String::Map_UseQuotesAndParentheses("a=1\nb=2\n");
+    REQUIRE(simple.size() == 2);
+    REQUIRE(simple["a"] == "1");
+    REQUIRE(simple["b"] == "2");
+
+    // whitespace trimming for keys and values
+    auto trim = String::Map_UseQuotesAndParentheses("  x  =  10  \n", '=', "\n", String::QuoteType::Both, "({", ")}", true, true, true);
+    REQUIRE(trim.size() == 1);
+    REQUIRE(trim["x"] == "10");
+
+    // parentheses-aware delimiter skipping
+    auto skipped = String::Map_UseQuotesAndParentheses("a=(b,c);d=2;", '=', ";", String::QuoteType::Both, "({", ")}");
+    REQUIRE(skipped.size() == 2);
+    REQUIRE(skipped["a"] == "(b,c)");
+    REQUIRE(skipped["d"] == "2");
+
+    // quoted value with delimiter inside quotes
+    auto quoted = String::Map_UseQuotesAndParentheses("a='1;2';", '=', ";", String::QuoteType::Both, "({", ")}");
+    REQUIRE(quoted.size() == 1);
+    REQUIRE(quoted["a"] == "'1;2'");
+
+    // single quote type only should ignore double quotes as quote delimiters
+    auto singleQuote = String::Map_UseQuotesAndParentheses("a=\"1,2\",", '=', ",", String::QuoteType::Single, "()", ")(");
+    REQUIRE(singleQuote.size() == 2);
+    REQUIRE(singleQuote["a"] == "\"1");
+    REQUIRE(singleQuote["2"] == "");
+
+    // unbalanced parentheses should not crash; incomplete entries are not committed without delimiter
+    auto unbalanced = String::Map_UseQuotesAndParentheses("a=(x,y,", '=', ",", String::QuoteType::Both, "()", ")(");
+    REQUIRE(unbalanced.size() == 1);
+    REQUIRE(unbalanced["a"] == "");
+}
+
 TEST_CASE("Gorgon::String - Tokenizer Functionality") {
     std::string data = "this is a test";
     String::Tokenizer tokenizer(data, " ");
