@@ -2,6 +2,7 @@
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
 #include "Gorgon/Utils/Assert.h"
+#include <string>
 #include <tuple>
 #include <iostream>
 
@@ -64,26 +65,341 @@ Synth::Node Synth::Node::MakeVolume(float volume, int channel) {
     return n;
 }
 
+Synth::Node Synth::Node::MakeSeparation(Duration duration) {
+    Node n;
+
+    n.type = Type::Separation;
+    n.duration = duration;
+
+    return n;
+}
+
+Synth::Node Synth::Node::MakeInstrumentChange(size_t instrument_index) {
+    Node n;
+
+    n.type = Type::InstrumentChange;
+    n.index = instrument_index;
+
+    return n;
+}
+
 Synth::Duration Synth::Duration::FromFraction(int numerator, int denominator) {
   Duration d;
-  d.type = Fraction;
-  d.fraction.numerator = numerator;
-  d.fraction.denominator = denominator;
+  d.type = TempoFraction;
+  d.Fraction.Numerator = numerator;
+  d.Fraction.Denominator = denominator;
   return d;
 }
 
 Synth::Duration Synth::Duration::FromUnits(float units) {
     Duration d;
-    d.type = Units;
-    d.units = units;
+    d.type = TempoUnits;
+    d.Units = units;
     return d;
 }
 
 Synth::Duration Synth::Duration::FromSeconds(float seconds) {
     Duration d;
-    d.type = Seconds;
-    d.seconds = seconds;
+    d.type = ClockSeconds;
+    d.Seconds = seconds;
     return d;
+}
+
+Synth::Duration Synth::Duration::FromNoteFraction(float fraction) {
+    Duration d;
+    d.type = NoteFraction;
+    d.Units = fraction;
+    return d;
+}
+
+Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
+    if(token.empty()) return Duration::FromFraction(4);
+
+    std::string normalized = String::ToLower(String::Trim(std::string{token}));
+
+    if(normalized.find('/') != std::string::npos) {
+        auto nominator = String::Extract(normalized, '/');
+        if(nominator.empty()) {
+            throw Error(Error::InvalidParameter, "Missing numerator in duration fraction: " + normalized);
+        }
+        if(normalized.empty()) {
+            throw Error(Error::InvalidParameter, "Missing denominator in duration fraction: " + normalized);
+        }
+        int den;
+        auto [nom, res] = String::FromCLocaleTo<int>(nominator);
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+            throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+        std::tie(den, res) = String::FromCLocaleTo<int>(normalized);
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+            throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+        return Duration::FromFraction(nom, den);
+    }
+    
+    if(normalized[0] == '(') {
+        if(normalized.back() != ')') {
+            throw Error(Error::InvalidToken, "Mismatched parentheses in duration token: " + std::string{token});
+        }
+
+        auto [seconds, res] = String::FromCLocaleTo<float>(normalized.substr(1, normalized.size() - 2));
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {   
+            throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+
+        return Duration::FromSeconds(seconds);
+    }
+
+
+    if(normalized[0] == '[') {
+        if(normalized.back() != ']') {
+            throw Error(Error::InvalidToken, "Mismatched brackets in duration token: " + std::string{token});
+        }
+
+        auto [units, res] = String::FromCLocaleTo<float>(normalized.substr(1, normalized.size() - 2));
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {   
+            throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+
+        return Duration::FromNoteFraction(units);
+    }
+
+    // this last state is 3 in 1. If ends with dot, it's a fraction with 1.5 multiplier.
+    // if it has a dot in the middle, it's unit based duration. Otherwise, it's a simple fraction.
+    if(auto pos = normalized.find('.'); pos != std::string::npos) {
+        if(pos == normalized.size() - 1) {
+            auto [base, res] = String::FromCLocaleTo<int>(normalized.substr(0, pos));
+            if(res == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized.substr(0, pos));
+            }
+            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized.substr(0, pos));
+            }
+            return Duration::FromFraction(3, base * 2);
+        }
+        else {
+            auto [units, res] = String::FromCLocaleTo<float>(normalized);
+            if(res == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+            }
+            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+            }
+            return Duration::FromUnits(units);
+        }
+    }
+    else {
+        auto [den, res] = String::FromCLocaleTo<int>(normalized);
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+            throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+        return Duration::FromFraction(den);
+    }
+
+    throw Error(Error::InvalidToken, "Unrecognized duration token: " + std::string{token});
+}
+
+float Synth::Duration::ToSeconds(float tempo) const {
+    switch(type) {
+    case TempoFraction:
+        return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
+    case TempoUnits:
+        return 240.0f / tempo * Units;
+    case ClockSeconds:
+        return Seconds;
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+size_t Synth::Duration::ToSamples(float tempo, float sample_rate) const {
+    switch(type) {
+    case TempoFraction:
+        return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
+    case TempoUnits:
+        return static_cast<size_t>(240.0f / tempo * Units * sample_rate);
+    case ClockSeconds:
+        return static_cast<size_t>(Seconds * sample_rate);
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+float Synth::Duration::ToSeconds(float tempo, float notelength) const {
+    switch(type) {
+    case TempoFraction:
+        return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
+    case TempoUnits:
+        return 240.0f / tempo * Units;
+    case ClockSeconds:
+        return Seconds;
+    case NoteFraction:
+        return notelength * Units;
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+size_t Synth::Duration::ToSamples(float tempo, float sample_rate, float notelength) const {
+    switch(type) {
+    case TempoFraction:
+        return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
+    case TempoUnits:
+        return static_cast<size_t>(240.0f / tempo * Units * sample_rate);
+    case ClockSeconds:
+        return static_cast<size_t>(Seconds * sample_rate);
+    case NoteFraction:
+        return static_cast<size_t>(notelength * Units * sample_rate);
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+Synth::Ramp Synth::Ramp::Parse(const std::string_view &token) {
+    std::string normalized = String::ToLower(String::Trim(std::string{token}));
+
+    auto type = String::Trim(String::Extract(normalized, ','));
+
+    RampType parsedtype = (RampType)-1; //invalid default value to trigger error
+    parsedtype = String::To<RampType>(type);
+
+    if(parsedtype == (RampType)-1) {
+        throw Error(Error::InvalidParameter, "Unrecognized ramp type: " + type);
+    }
+
+    Ramp ramp = {
+        parsedtype,
+    };  
+
+    if(parsedtype == RampType::None) {
+        if(!normalized.empty()) {
+            throw Error(Error::InvalidParameter, "Ramp type None should not have additional parameters: " + normalized);
+        }
+    }
+    else {
+        auto duration = String::Trim(String::Extract(normalized, ','));
+        ramp.Span = Duration::Parse(duration);
+    }
+
+    if(!normalized.empty()) {
+        if(parsedtype == RampType::Linear) {
+            throw Error(Error::InvalidParameter, "Ramp type Linear should not have shape factor: " + normalized);
+        }
+        
+        auto [shape, state] = String::FromCLocaleTo<float>(normalized);
+        if(state == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid ramp shape value: " + normalized);
+        }
+        if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+            throw Error(Error::InvalidParameter, "Extra characters after ramp shape value: " + normalized);
+        }
+        ramp.ShapeFactor = shape;
+    }
+    
+    return ramp;
+}
+
+void Synth::Sine::LoadSettings(const std::string_view &settings) {
+    std::string normalized = String::ToLower(String::Trim(std::string{settings}));
+
+    auto data = String::Map_UseQuotesAndParentheses(
+        normalized, 
+        '=', 
+        ",",
+        String::QuoteType::None,
+        "({",
+        ")}",
+        true, true, true
+    );
+
+    for(const auto& [key, value] : data) {
+        if(key == "attack") {
+            if(value.empty()) {
+                throw Error(Error::InvalidParameter, "Attack parameter cannot be empty");
+            }
+
+            if(value[0] == '{') {
+                if(value.back() != '}') {
+                    throw Error(Error::InvalidToken, "Mismatched braces in attack parameter: " + value);
+                }
+
+                Attack = Ramp::Parse(value.substr(1, value.size() - 2));
+            }
+            else if(value == "none") {
+                Attack.Type = RampType::None;
+            }
+            else {
+                Attack.Type = RampType::SCurve;
+                Attack.Span = Duration::Parse(value);
+            }
+        }
+        else if(key == "decay") {
+            if(value.empty()) {
+                throw Error(Error::InvalidParameter, "Decay parameter cannot be empty");
+            }
+
+            if(value[0] == '{') {
+                if(value.back() != '}') {
+                    throw Error(Error::InvalidToken, "Mismatched braces in decay parameter: " + value);
+                }
+                Decay = Ramp::Parse(value.substr(1, value.size() - 2));
+            }
+            else if(value == "none") {
+                Decay.Type = RampType::None;
+            }
+            else {
+                Decay.Type = RampType::SCurve;
+                Decay.Span = Duration::Parse(value);
+            }
+        }
+        else if(key == "release") {
+            if(value.empty()) {
+                throw Error(Error::InvalidParameter, "Release parameter cannot be empty");
+            }
+
+            if(value[0] == '{') {
+                if(value.back() != '}') {
+                    throw Error(Error::InvalidToken, "Mismatched braces in release parameter: " + value);
+                }
+                Release = Ramp::Parse(value.substr(1, value.size() - 2));
+            }
+            else if(value == "none") {
+                Release.Type = RampType::None;
+            }
+            else {
+                Release.Type = RampType::SCurve;
+                Release.Span = Duration::Parse(value);
+            }
+        }
+        else if(key == "sustain") {
+            auto [sustain, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid sustain value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after sustain value: " + value);
+            }
+            Sustain = sustain;
+        }
+        else {
+            throw Error(Error::InvalidParameter, "Unknown parameter for Sine instrument: " + key);
+        }
+    }
 }
 
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
@@ -97,20 +413,20 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     case 't': {
         auto [tempo, res] = String::FromCLocaleTo<float>(normalized.substr(1));
         if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid tempo value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Invalid tempo value: " + normalized.substr(1));
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after tempo value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Extra characters after tempo value: " + normalized.substr(1));
         }
         return Node::MakeTempo(tempo);
     }
     case 'o': {
         auto [oct, res] = String::FromCLocaleTo<int>(normalized.substr(1));
         if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid octave value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Invalid octave value: " + normalized.substr(1));
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after octave value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Extra characters after octave value: " + normalized.substr(1));
         }
         return Node::MakeOctaveAbsolute(oct);
     }
@@ -124,7 +440,7 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
             auto endBrace = normalized.find('}');
 
             if(endBrace == std::string::npos) {
-                throw ParseError(ParseError::InvalidParameter, "Missing closing brace for volume channel: " + normalized);
+                throw Error(Error::InvalidParameter, "Missing closing brace for volume channel: " + normalized);
             }
 
             String::FromCLocaleToState res;
@@ -132,17 +448,17 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
             std::tie(channel, res) = String::FromCLocaleTo<int>(channelstr);
 
             if(res == String::FromCLocaleToState::Failed) {
-                throw ParseError(ParseError::InvalidParameter, "Invalid volume channel: " + channelstr);
+                throw Error(Error::InvalidParameter, "Invalid volume channel: " + channelstr);
             }
             if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-                throw ParseError(ParseError::InvalidParameter, "Extra characters after volume channel: " + channelstr);
+                throw Error(Error::InvalidParameter, "Extra characters after volume channel: " + channelstr);
             }
 
             if(channel < 0) {
-                throw ParseError(ParseError::InvalidParameter, "Volume channel cannot be negative: " + std::to_string(channel));
+                throw Error(Error::InvalidParameter, "Volume channel cannot be negative: " + std::to_string(channel));
             }
             else if(channel > channels) {
-                throw ParseError(ParseError::InvalidParameter, "Volume channel index out of range: " + std::to_string(channel));
+                throw Error(Error::InvalidParameter, "Volume channel index out of range: " + std::to_string(channel));
             }
 
             normalized.erase(1, endBrace);
@@ -151,13 +467,13 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
         auto [vol, res] = String::FromCLocaleTo<float>(normalized.substr(1));
 
         if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid volume value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Invalid volume value: " + normalized.substr(1));
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after volume value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Extra characters after volume value: " + normalized.substr(1));
         }
         if(vol < 0 || vol > 100) {
-            throw ParseError(ParseError::InvalidParameter, "Volume must be between 0 and 100: " + std::to_string(vol));
+            throw Error(Error::InvalidParameter, "Volume must be between 0 and 100: " + std::to_string(vol));
         }
 
         return Node::MakeVolume(vol / 100.0f, channel);
@@ -166,6 +482,20 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     case 'r':
         return Node::MakeRest(Duration::Parse(normalized.substr(1)));
 
+    case 's':
+        return Node::MakeSeparation(Duration::Parse(normalized.substr(1)));
+    
+    case '@':{
+        auto [inst, res] = String::FromCLocaleTo<size_t>(normalized.substr(1));
+        if(res == String::FromCLocaleToState::Failed) {
+            throw Error(Error::InvalidParameter, "Invalid instrument index: " + normalized.substr(1));
+        }
+        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+            throw Error(Error::InvalidParameter, "Extra characters after instrument index: " + normalized.substr(1));
+        }
+        return Node::MakeInstrumentChange(inst);
+    
+    }
     default:
         if(normalized[0] >= 'a' && normalized[0] <= 'g') {
             Note note = Note::C;
@@ -179,7 +509,7 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
             case 'a': note = Note::A; break;
             case 'b': note = Note::B; break;
             default:
-                throw ParseError(ParseError::InvalidToken, "Invalid note: " + std::string{normalized[0]});
+                throw Error(Error::InvalidToken, "Invalid note: " + std::string{normalized[0]});
             }
 
             bool slide = false;
@@ -195,14 +525,14 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
             if(normalized.size() > 1) {
                 if(normalized[1] == '+') {
                     if(note == Note::B) {
-                        throw ParseError(ParseError::InvalidParameter, "Cannot apply sharp to note B: " + std::string{token});
+                        throw Error(Error::InvalidParameter, "Cannot apply sharp to note B: " + std::string{token});
                     }
                     note = static_cast<Note>((static_cast<int>(note) + 1) % 12);
                     off = 2;
                 }
                 else if(normalized[1] == '-') {
                     if(note == Note::C) {
-                        throw ParseError(ParseError::InvalidParameter, "Cannot apply flat to note C: " + std::string{token});
+                        throw Error(Error::InvalidParameter, "Cannot apply flat to note C: " + std::string{token});
                     }
                     note = static_cast<Note>((static_cast<int>(note) + 11) % 12);
                     off = 2;
@@ -212,12 +542,15 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
             return Node::MakeNote(note, Duration::Parse(normalized.substr(off)), slide);
         }
 
-        throw ParseError(ParseError::InvalidToken, "Unrecognized token: " + std::string{token});
+        throw Error(Error::InvalidToken, "Unrecognized token: " + std::string{token});
     }
 }
 
 void Synth::Parse(std::istream &stream) {
     Nodes.clear();
+    Instruments = {
+        new Sine()
+    };
 
     std::string line;
 
@@ -242,12 +575,12 @@ void Synth::Parse(std::istream &stream) {
                 std::string ch;
 
                 if(line.empty()) {
-                    throw ParseError(ParseError::InvalidParameter, "Channels variable cannot be empty");
+                    throw Error(Error::InvalidParameter, "Channels variable cannot be empty");
                 }
 
                 if(line[0] == '[') {
                     if(line.back() != ']') {
-                        throw ParseError(ParseError::InvalidParameter, "Mismatched brackets in channels variable: " + line);
+                        throw Error(Error::InvalidParameter, "Mismatched brackets in channels variable: " + line);
                     }
 
                     line.pop_back();
@@ -257,14 +590,14 @@ void Synth::Parse(std::istream &stream) {
                         ch = String::Trim(String::Extract(line, ','));
 
                         if(ch.empty()) {
-                            throw ParseError(ParseError::InvalidParameter, "Empty channel name in channels variable");
+                            throw Error(Error::InvalidParameter, "Empty channel name in channels variable");
                         }
 
                         Audio::Channel channel = Channel::Unknown;
                         channel = String::To<Audio::Channel>(ch);
 
                         if(channel == Channel::Unknown) {
-                            throw ParseError(ParseError::InvalidParameter, "Unrecognized channel name: " + ch);
+                            throw Error(Error::InvalidParameter, "Unrecognized channel name: " + ch);
                         }
 
                         channels.push_back(channel);
@@ -274,13 +607,13 @@ void Synth::Parse(std::istream &stream) {
                     auto [channelcount, state] = String::FromCLocaleTo<int>(line);
 
                     if(state == String::FromCLocaleToState::Failed) {
-                        throw ParseError(ParseError::InvalidParameter, "Invalid channel count: " + line);
+                        throw Error(Error::InvalidParameter, "Invalid channel count: " + line);
                     }
                     if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
-                        throw ParseError(ParseError::InvalidParameter, "Extra characters after channel count: " + line);
+                        throw Error(Error::InvalidParameter, "Extra characters after channel count: " + line);
                     }
                     if(channelcount < 1 || channelcount > 6) {
-                        throw ParseError(ParseError::InvalidParameter, "Channel count must be between 1 and 6: " + std::to_string(channelcount));
+                        throw Error(Error::InvalidParameter, "Channel count must be between 1 and 6: " + std::to_string(channelcount));
                     }
 
                     switch(channelcount) {
@@ -323,10 +656,90 @@ void Synth::Parse(std::istream &stream) {
                 Channels = std::move(channels);
             }
             else {
-                throw ParseError(ParseError::InvalidParameter, "Unrecognized variable: " + var);
+                throw Error(Error::InvalidParameter, "Unrecognized variable: " + var);
             }
 
             continue;
+        }
+
+        // check if this is an instrument definition line but a starting @
+        // is not enough as this could be a valid instrument change node. 
+        // we will check if there is a = sign in the line to determine if
+        // this is an instrument definition or not.
+        if(line[0] == '@') {
+            size_t pos;
+
+            pos = line.find_first_of("= ");
+
+            //eat up space
+            while(line[pos] == ' ' || line[pos] == '\t') {
+                pos++;
+            }
+
+            // we reached to = sign, this is an instrument definition line
+            if(pos != std::string::npos && line[pos] == '=') {
+                auto indexstr = String::Trim(line.substr(1, pos - 1));
+                auto [index, res] = String::FromCLocaleTo<size_t>(indexstr);
+
+                std::string type, name;
+
+                if(res == String::FromCLocaleToState::Failed) {
+                    throw Error(Error::InvalidParameter, "Invalid instrument index: " + indexstr);
+                }
+                if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+                    throw Error(Error::InvalidParameter, "Extra characters after instrument index: " + indexstr);
+                }
+                if(index == 0) {
+                    throw Error(Error::InvalidParameter, "Instrument index must be greater than 0: " + std::to_string(index));
+                }
+                index--; // make it 0 based index
+
+                line = String::Trim(line.substr(pos + 1));
+                
+                if(line.empty()) {
+                    throw Error(Error::InvalidParameter, "Instrument settings cannot be empty for instrument index: " + std::to_string(index));
+                }
+
+                pos = line.find_first_of(" \t(");
+
+                type = String::ToLower((pos == std::string::npos) ? line : line.substr(0, pos));
+                
+                if(pos != std::string::npos) {
+                    line = String::Trim(line.substr(pos));
+                }
+
+                if(line[0] == '(') {
+                    pos = line.find(')');
+                    if(pos == std::string::npos) {
+                        throw Error(Error::InvalidParameter, "Mismatched parentheses in instrument name for instrument index: " + std::to_string(index));
+                    }
+
+                    name = String::Trim(line.substr(1, pos - 1));
+
+                    line = String::Trim(line.substr(pos + 1));
+                }
+
+                if(type == "sine") {
+                    auto sine = new Sine;
+                    sine->Name = name;
+                    sine->LoadSettings(line);
+
+                    if(index == (size_t)Instruments.GetSize()) {
+                        Instruments.Add(sine);
+                    }
+                    else if(index > (size_t)Instruments.GetSize()) {
+                        throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
+                    }
+                    else {
+                        Instruments.Replace(index, sine, true);
+                    }
+                }
+                else {
+                    throw Error(Error::InvalidParameter, "Unrecognized instrument type: " + type);
+                }
+
+                continue;
+            }
         }
 
         std::size_t pos = 0;
@@ -343,6 +756,12 @@ void Synth::Parse(std::istream &stream) {
 
             if(String::Trim(token).empty()) continue;
             auto node = ParseNode(token);
+
+            if(node.type == Node::Type::InstrumentChange) {
+                if(node.index > (size_t)Instruments.GetSize()) {
+                    throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(node.index + 1));
+                }
+            }
 
             if(node.type != Node::Type::NoOp) {
                 Nodes.push_back(node);
@@ -413,11 +832,20 @@ Containers::Wave Synth::Render(float sample_rate) const {
             }
             break;
         
+        case Node::Type::Separation:
+            state.Separation = node.duration;
+
+            break;
+
+        case Node::Type::InstrumentChange:
+            state.InstrumentIndex = node.index;
+            break;
+
         case Node::Type::Note: {
             float frequency = NoteToFrequency(node.note.note, state.Octave);
             size_t duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
-            size_t notesep = std::min(size_t(duration / 10), Duration::FromFraction(16).ToSamples(state.Tempo, sample_rate));
+            size_t notesep = std::min(size_t(duration / 10), state.Separation.ToSamples(state.Tempo, sample_rate));
             duration -= notesep;
 
             for(size_t i = 0; i < duration; i++) {
@@ -429,7 +857,7 @@ Containers::Wave Synth::Render(float sample_rate) const {
                     fade = float(duration - i) / notesep;
                 }
 
-                float sample = std::sin(2.0f * float(M_PI) * frequency * (state.Sample + i) / sample_rate);
+                float sample = std::sin(2.0f * M_PIf * frequency * (state.Sample + i) / sample_rate);
 
                 for(size_t ch = 0; ch < Channels.size(); ch++) {
                     wave(state.Sample + i, ch) = sample * state.Volume[ch] * fade;
@@ -446,117 +874,6 @@ Containers::Wave Synth::Render(float sample_rate) const {
     }
 
     return wave;
-}
-
-Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
-    if(token.empty()) return Duration::FromFraction(4);
-
-    std::string normalized = String::ToLower(String::Trim(std::string{token}));
-
-    if(normalized.find('/') != std::string::npos) {
-        auto nominator = String::Extract(normalized, '/');
-        if(nominator.empty()) {
-            throw ParseError(ParseError::InvalidParameter, "Missing numerator in duration fraction: " + normalized);
-        }
-        if(normalized.empty()) {
-            throw ParseError(ParseError::InvalidParameter, "Missing denominator in duration fraction: " + normalized);
-        }
-        int den;
-        auto [nom, res] = String::FromCLocaleTo<int>(nominator);
-        if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized);
-        }
-        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized);
-        }
-        std::tie(den, res) = String::FromCLocaleTo<int>(normalized);
-        if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized);
-        }
-        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized);
-        }
-        return Duration::FromFraction(nom, den);
-    }
-    
-    if(normalized[0] == '(') {
-        if(normalized.back() != ')') {
-            throw ParseError(ParseError::InvalidToken, "Mismatched parentheses in duration token: " + std::string{token});
-        }
-
-        auto [seconds, res] = String::FromCLocaleTo<float>(normalized.substr(1, normalized.size() - 2));
-        if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized);
-        }
-        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {   
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized);
-        }
-
-        return Duration::FromSeconds(seconds);
-    }
-
-    // this last state is 3 in 1. If ends with dot, it's a fraction with 1.5 multiplier.
-    // if it has a dot in the middle, it's unit based duration. Otherwise, it's a simple fraction.
-    if(auto pos = normalized.find('.'); pos != std::string::npos) {
-        if(pos == normalized.size() - 1) {
-            auto [base, res] = String::FromCLocaleTo<int>(normalized.substr(0, pos));
-            if(res == String::FromCLocaleToState::Failed) {
-                throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized.substr(0, pos));
-            }
-            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-                throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized.substr(0, pos));
-            }
-            return Duration::FromFraction(3, base * 2);
-        }
-        else {
-            auto [units, res] = String::FromCLocaleTo<float>(normalized);
-            if(res == String::FromCLocaleToState::Failed) {
-                throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized);
-            }
-            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-                throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized);
-            }
-            return Duration::FromUnits(units);
-        }
-    }
-    else {
-        auto [den, res] = String::FromCLocaleTo<int>(normalized);
-        if(res == String::FromCLocaleToState::Failed) {
-            throw ParseError(ParseError::InvalidParameter, "Invalid duration value: " + normalized);
-        }
-        if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw ParseError(ParseError::InvalidParameter, "Extra characters after duration value: " + normalized);
-        }
-        return Duration::FromFraction(den);
-    }
-
-    throw ParseError(ParseError::InvalidToken, "Unrecognized duration token: " + std::string{token});
-}
-
-float Synth::Duration::ToSeconds(float tempo) const {
-    switch(type) {
-    case Fraction:
-        return 240.0f / tempo * fraction.numerator / fraction.denominator;
-    case Units:
-        return 240.0f / tempo * units;
-    case Seconds:
-        return seconds;
-    default:
-        return 0.0f;
-    }
-}
-
-size_t Synth::Duration::ToSamples(float tempo, float sample_rate) const {
-    switch(type) {
-    case Fraction:
-        return static_cast<size_t>(240.0f / tempo * fraction.numerator / fraction.denominator * sample_rate);
-    case Units:
-        return static_cast<size_t>(240.0f / tempo * units * sample_rate);
-    case Seconds:
-        return static_cast<size_t>(seconds * sample_rate);
-    default:
-        return 0;
-    }
 }
 
 } // namespace Gorgon::Audio

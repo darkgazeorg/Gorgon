@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Gorgon/Containers/Collection.h"
 #include "Gorgon/Containers/Wave.h"
+#include "Gorgon/Enum.h"
+#include "Gorgon/Utils/Assert.h"
 
 #include <cmath>
 #include <sstream>
@@ -13,10 +16,10 @@
 namespace Gorgon :: Audio {
 
     /**
-     * A lightweight text-based synthesizer for the Gorgon engine.
+     * A lightweight text-based synthesizer.
      *
-     * Synth implements a small custom Music Macro Language (GMM) that is optimized for
-     * defining retro-style background music and simple sound effects as strings.
+     * Synth implements a custom Gorgon Music Macro Language (GMM) that is optimized for
+     * defining background music as strings.
      *
      * The format is designed to keep sequences compact and readable by separating
      * instrument declarations (the header) from playback data (the body). A single
@@ -27,16 +30,203 @@ namespace Gorgon :: Audio {
      */
     class Synth {
     public:
+        /// A parsed note duration
+        struct Duration {
+            /// The type of duration (fraction, units, or seconds).
+            enum {
+                TempoFraction,
+                TempoUnits,
+                ClockSeconds,
+                NoteFraction
+            } type;
 
-        class ParseError : public std::runtime_error {
+            // The value of the duration, interpreted according to the type.
+            union {
+                struct { 
+                    int Numerator; 
+                    int Denominator; 
+                } Fraction;
+
+                float Units;
+                float Seconds;
+            };
+
+            /// Converts this duration to seconds based on the given tempo (BPM).
+            float ToSeconds(float tempo) const;
+
+            /// Converts this duration to number of samples based on the given tempo and sample rate.
+            size_t ToSamples(float tempo, float sample_rate) const;
+
+            /// Converts this duration to seconds based on the given tempo (BPM) and note length.
+            float ToSeconds(float tempo, float notelength) const;
+
+            /// Converts this duration to number of samples based on the given tempo, sample rate, and note length.
+            size_t ToSamples(float tempo, float sample_rate, float notelength) const;
+
+            /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
+            static Duration FromFraction(int numerator, int denominator);
+
+            /// Factory method for creating duration from a simple denominator (e.g., 4 for a quarter note).
+            static Duration FromFraction(int denominator) {
+                return FromFraction(1, denominator);
+            }
+
+            /// Factory method for creating durations from a number of units 
+            // (where 1 unit = a full note).
+            static Duration FromUnits(float units);
+
+            /// Factory method for creating durations from a number of seconds.
+            static Duration FromSeconds(float seconds);
+
+            /// Factory method for creating durations from a number of milliseconds.
+            static Duration FromMillis(float milliseconds) {
+                return FromSeconds(milliseconds / 1000.0f);
+            }
+
+            /// Factory method for creating durations from a number of fractions
+            /// of the current note. This not supported for note durations, but is
+            /// useful for ramp spans.
+            static Duration FromNoteFraction(float fraction);
+
+            static Duration Parse(const std::string_view& token);
+        };
+
+    private: 
+        
+        /// Internal state used during rendering. This keeps track of the current sample position,
+        struct TrackState {
+            size_t Sample = 0;
+            float Tempo = 120.0f;
+            int Octave = 4;
+            std::vector<float> Volume;
+            Duration Separation = Duration::FromFraction(64);
+            size_t InstrumentIndex = 1;
+        };
+
+    public:
+
+        /// Defines ramp types for volume or pitch changes.
+        enum class RampType {
+            None,
+            Linear,
+            Exponential,
+            SquareRoot,
+            Logarithmic,
+            SCurve
+        };
+
+        /// Defines a ramp curve for a slide or volume change.
+        struct Ramp {
+            RampType Type = RampType::Linear;
+
+            /// Duration of the ramp in seconds.
+            Duration Span = Duration::FromFraction(16);
+
+            /// Shape factor for the ramp curve. Controls the steepness or 
+            /// curvature of the ramp. None and Linear ramps ignore this
+            /// value.
+            float ShapeFactor = 0.5f;
+
+            /// Parses a ramp definition from a string. The format is defined as follows:
+            /// arguments are separated by commas, and the first argument is the ramp type 
+            /// (e.g., "Linear", "Exponential", etc.). The second argument is the duration of 
+            /// the ramp (e.g. 16 for a sixteenth note, or (0.5) for half a second). The
+            /// third argument is optional and defines the shape factor for the ramp curve 
+            /// (default is 1.0 for a standard curve). For None, only the first argument is
+            /// valid, others will throw. For linear, Duration is required but ShapeFactor
+            /// should not be specified. For other types, Duration is required and ShapeFactor 
+            /// is optional.
+            static Ramp Parse(const std::string_view& token);
+
+            /// Returns the multiplier for the ramp at a given time. Distance is the number
+            /// of samples since the start of the ramp (or to the end if it's a decay).
+            float GetMultiplier(size_t distance, float sample_rate) const;
+        };
+
+        /** Instrument is an abstract base class for different types of
+         *  synthesizer voices. Each instrument defines how to render a note
+         *  with specific settings (e.g., a sine wave with an attack and decay).
+         */
+        class Instrument {
+        public:
+            virtual ~Instrument() = default;
+
+            /// Renders a note into the given wave buffer based on the current
+            /// track state, sample rate, and note duration. The track state includes
+            /// information about the current tempo, octave, and volume levels.
+            virtual void Render(
+                Containers::Wave &wave, TrackState &state, float sample_rate, 
+                float duration
+            ) = 0;
+
+            /// Loads instrument settings from a string. The format of the settings string
+            /// is defined by each specific instrument type. This allows for flexible
+            /// configuration of different instruments (e.g., setting the rise and fall times
+            /// for a sine wave).
+            virtual void LoadSettings(const std::string_view& settings) {
+                if(!settings.empty()) {
+                    throw Error(Error::InvalidParameter, "This instrument does not accept settings: " + std::string{settings});
+                }
+            }
+
+            /// Returns the name of the instrument.
+            std::string GetInstrumentName() const {
+                return Name;
+            }
+
+            std::string Name;
+        };
+
+        /** A simple sine wave instrument with configurable attack and release ramps.
+         *  This is the default instrument for all notes unless changed by an @ command.
+         */
+        class Sine : public Instrument {
+        public:
+            Sine() {
+                Name = "Sine";
+            }
+            
+            void Render(
+                Containers::Wave &wave, TrackState &state, float sample_rate, 
+                float duration
+            ) override {
+                Utils::NotImplemented();
+            }
+
+            void LoadSettings(const std::string_view& settings) override;
+
+            /// Attack and release falloff settings for the sine wave. Attack 
+            /// controls how the note volume increases at the start, while release
+            /// controls how it decreases at the end. Neither attack nor release
+            /// can be more than 20% of the note duration to avoid silent notes.
+            Ramp Attack = {.Span=Duration::FromFraction(32)}, 
+                 Release;
+
+            /// This controls how fast the note fades regardless of the note
+            /// duration. If set to None, it will not affect the note. If set, 
+            /// the note will fall to Sustain level after this amount of time 
+            /// has passed.
+            Ramp Decay = {RampType::None};
+
+            /// Sustain level controls the volume level that the note holds after
+            /// the attack and decay phases. It is a multiplier from 0.0 (silent)
+            /// to 1.0 (full volume).
+            float Sustain = 1.0f;
+        };
+
+        /// If GMM encounters an error, it throws this exception with
+        /// details about the error type and the offending token.
+        class Error : public std::runtime_error {
         public:
             enum Type {
                 InvalidToken,
                 MissingParameter,
-                InvalidParameter
+                InvalidParameter,
+                InvalidDuration,
+                UnknownInstrument
             };
 
-            ParseError(Type type, const std::string& token)
+            Error(Type type, const std::string& token)
                 : std::runtime_error("GMM Parse Error: " + token), type(type) 
             { }
             
@@ -60,55 +250,6 @@ namespace Gorgon :: Audio {
             B = 11
         };
 
-        /// A parsed note duration
-        struct Duration {
-            /// The type of duration (fraction, units, or seconds).
-            enum {
-                Fraction,
-                Units,
-                Seconds
-            } type;
-
-            // The value of the duration, interpreted according to the type.
-            union {
-                struct { 
-                    int numerator; 
-                    int denominator; 
-                } fraction;
-
-                float units;
-                float seconds;
-            };
-
-            /// Converts this duration to seconds based on the given tempo (BPM).
-            float ToSeconds(float tempo) const;
-
-            /// Converts this duration to number of samples based on the given tempo and sample rate.
-            size_t ToSamples(float tempo, float sample_rate) const;
-
-            /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
-            static Duration FromFraction(int numerator, int denominator);
-
-            /// Factory method for creating duration from a simple denominator (e.g., 4 for a quarter note).
-            static Duration FromFraction(int denominator) {
-                return FromFraction(1, denominator);
-            }
-
-            /// Factory method for creating durations from a number of units 
-            // (where 1 unit = a full note).
-            static Duration FromUnits(float units);
-
-            /// Factory method for creating durations from a number of seconds.
-            static Duration FromSeconds(float seconds);
-
-            /// Factory method for creating durations from a number of milliseconds.
-            static Duration FromMillis(float milliseconds) {
-                return FromSeconds(milliseconds / 1000.0f);
-            }
-
-            static Duration Parse(const std::string_view& token);
-        };
-
         /// A single node in a track.
         struct Node {
             /// The type of node (note, tempo change, octave shift, etc.).
@@ -119,7 +260,9 @@ namespace Gorgon :: Audio {
                 OctaveAbsolute,
                 OctaveRelative, // increment/decrement from current octave
                 Volume,
-                Rest
+                Rest,
+                Separation, // articulation/separation between notes
+                InstrumentChange
             } type = Type::NoOp;
 
             union {
@@ -130,6 +273,8 @@ namespace Gorgon :: Audio {
                 } note;
                 float tempo;
                 int octave;
+                size_t index;
+                Duration duration;
                 struct {
                     /// 0 -> all channels
                     int channel;
@@ -148,6 +293,10 @@ namespace Gorgon :: Audio {
             static Node MakeOctaveRelative(int delta);
 
             static Node MakeVolume(float volume, int channel = 0);
+
+            static Node MakeSeparation(Duration duration);
+
+            static Node MakeInstrumentChange(size_t instrument_index);
         };
 
         /// Parses a GMM string into a sequence of nodes. Throws ParseError on invalid input.
@@ -183,13 +332,28 @@ namespace Gorgon :: Audio {
 
         std::vector<Audio::Channel> Channels = {Audio::Channel::Mono};
 
-    private:
-        struct TrackState {
-            size_t Sample = 0;
-            float Tempo = 120.0f;
-            int Octave = 4;
-            std::vector<float> Volume;
+        /// Map of instrument indices to their definitions. The first instrument 
+        /// @1 is used for the first note, @2 for the second, etc. @0 is always
+        /// silent. Due to this, instruments are 1-indexed in GMM, but 0-indexed
+        /// in the collection.
+        Containers::Collection<Instrument> Instruments = {
+            new Sine()
         };
     };
+
+    DefineEnumStringsCM(Synth, RampType, {
+        {Synth::RampType::None, "None"},
+        {Synth::RampType::Linear, "Linear"},
+        {Synth::RampType::Exponential, "Exponential"},
+        {Synth::RampType::Exponential, "exp"},
+        {Synth::RampType::SquareRoot, "Square root"},
+        {Synth::RampType::SquareRoot, "SquareRoot"},
+        {Synth::RampType::SquareRoot, "sqrt"},
+        {Synth::RampType::Logarithmic, "Logarithmic"},
+        {Synth::RampType::Logarithmic, "log"},
+        {Synth::RampType::SCurve, "S-curve"},
+        {Synth::RampType::SCurve, "SCurve"},
+        {Synth::RampType::SCurve, "s"}
+    })
 
 }
