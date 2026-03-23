@@ -2,14 +2,14 @@
 
 #include <algorithm>
 #include <cmath>
-#include <utility>
 #include <vector>
-
-#include "Gorgon/Geometry/Point.h"
-#include "Path.h"
 
 namespace Gorgon::CGI {
 
+/// A single vertex in a bulge-encoded polyline.
+///   - bulge != 0  -> the segment is a circular arc; bulge = tan(sweep/4),
+///                    positive = CCW, negative = CW.
+///   - isCurve     -> the segment is the destination of a flattened curve run
 struct PolyVertex {
   double x = 0.0;
   double y = 0.0;
@@ -17,578 +17,232 @@ struct PolyVertex {
   bool isCurve = false;
 };
 
+/// A closed or open polyline made of PolyVertex entries.
 struct Polyline {
   bool isClosed = false;
   bool isNegative = false;
-  bool closingCurve =
-      false; /// true when the last curve segment ends exactly at start
+  bool closingCurve = false;
   std::vector<PolyVertex> vertexes;
 };
 
-namespace detail {
+/// Axis-aligned bounding box.
+struct BoundingBox {
+  double minX, minY, maxX, maxY;
+  bool empty = true;
 
-inline Gorgon::Geometry::Pointf
-bezierAt(Gorgon::Geometry::Pointf p0, Gorgon::Geometry::Pointf p1,
-         Gorgon::Geometry::Pointf p2, Gorgon::Geometry::Pointf p3, double t) {
-  double u = 1.0 - t;
-  return p0 * (u * u * u) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) +
-         p3 * (t * t * t);
-}
-
-inline std::vector<double>
-chordParam(const std::vector<Gorgon::Geometry::Pointf> &pts) {
-  int n = (int)pts.size();
-  std::vector<double> u(n, 0.0);
-  for (int i = 1; i < n; ++i)
-    u[i] = u[i - 1] + (pts[i] - pts[i - 1]).Distance();
-
-  double total = u.back();
-  if (total > 1e-12) {
-    for (auto &v : u)
-      v /= total;
-  } else if (n > 1) {
-    for (int i = 0; i < n; ++i)
-      u[i] = double(i) / (n - 1);
-  }
-
-  return u;
-}
-
-inline std::vector<double>
-reparameterize(const std::vector<Gorgon::Geometry::Pointf> &pts,
-               const std::vector<double> &u, Gorgon::Geometry::Pointf p0,
-               Gorgon::Geometry::Pointf p1, Gorgon::Geometry::Pointf p2,
-               Gorgon::Geometry::Pointf p3) {
-  std::vector<double> uNew(u.size());
-
-  for (int i = 0; i < (int)u.size(); ++i) {
-    double t = u[i];
-    double mt = 1.0 - t;
-
-    Gorgon::Geometry::Pointf q = bezierAt(p0, p1, p2, p3, t);
-
-    Gorgon::Geometry::Pointf q1 = (p1 - p0) * (3.0 * mt * mt) +
-                                  (p2 - p1) * (6.0 * mt * t) +
-                                  (p3 - p2) * (3.0 * t * t);
-
-    Gorgon::Geometry::Pointf t0 = {p2.X - 2 * p1.X + p0.X,
-                                   p2.Y - 2 * p1.Y + p0.Y};
-    Gorgon::Geometry::Pointf t1 = {p3.X - 2 * p2.X + p1.X,
-                                   p3.Y - 2 * p2.Y + p1.Y};
-    Gorgon::Geometry::Pointf q2 = t0 * (6.0 * mt) + t1 * (6.0 * t);
-
-    Gorgon::Geometry::Pointf diff = q - pts[i];
-    double num = diff.DotProduct(q1);
-    double den = q1.DotProduct(q1) + diff.DotProduct(q2);
-
-    uNew[i] = (std::abs(den) < 1e-12)
-                  ? t
-                  : std::max(0.0, std::min(1.0, t - num / den));
-  }
-
-  return uNew;
-}
-
-inline std::pair<Gorgon::Geometry::Pointf, Gorgon::Geometry::Pointf>
-fitCubic(const std::vector<Gorgon::Geometry::Pointf> &pts,
-         const std::vector<double> &u, Gorgon::Geometry::Pointf t1,
-         Gorgon::Geometry::Pointf t2) {
-  int n = (int)pts.size();
-  Gorgon::Geometry::Pointf p0 = pts[0], p3 = pts[n - 1];
-
-  double c[2][2] = {}, x[2] = {};
-  for (int i = 0; i < n; ++i) {
-    double t = u[i], mt = 1.0 - t;
-    double b0 = mt * mt * mt, b1 = 3.0 * mt * mt * t, b2 = 3.0 * mt * t * t,
-           b3 = t * t * t;
-    Gorgon::Geometry::Pointf a1 = t1 * b1, a2 = t2 * b2;
-
-    c[0][0] += a1.DotProduct(a1);
-    c[0][1] += a1.DotProduct(a2);
-    c[1][0] += a2.DotProduct(a1);
-    c[1][1] += a2.DotProduct(a2);
-
-    Gorgon::Geometry::Pointf rhs = pts[i] - (p0 * (b0 + b1) + p3 * (b2 + b3));
-
-    x[0] += rhs.DotProduct(a1);
-    x[1] += rhs.DotProduct(a2);
-  }
-
-  double det = c[0][0] * c[1][1] - c[0][1] * c[1][0];
-  double alpha1, alpha2;
-  if (std::abs(det) < 1e-12) {
-    double len = (p3 - p0).Distance() / 3.0;
-    alpha1 = alpha2 = len;
-  } else {
-    alpha1 = (x[0] * c[1][1] - x[1] * c[0][1]) / det;
-    alpha2 = (c[0][0] * x[1] - c[1][0] * x[0]) / det;
-  }
-
-  double segLen = (p3 - p0).Distance() / 3.0;
-  if (alpha1 < 1e-9)
-    alpha1 = segLen;
-  if (alpha2 < 1e-9)
-    alpha2 = segLen;
-
-  return {p0 + t1 * alpha1, p3 + t2 * alpha2};
-}
-
-inline double maxSqError(const std::vector<Gorgon::Geometry::Pointf> &pts,
-                         const std::vector<double> &u,
-                         Gorgon::Geometry::Pointf p0,
-                         Gorgon::Geometry::Pointf p1,
-                         Gorgon::Geometry::Pointf p2,
-                         Gorgon::Geometry::Pointf p3, int &splitIdx) {
-  double best = 0.0;
-  splitIdx = (int)pts.size() / 2;
-
-  for (int i = 1; i < (int)pts.size() - 1; ++i) {
-    Gorgon::Geometry::Pointf d = bezierAt(p0, p1, p2, p3, u[i]) - pts[i];
-    double e = d.DotProduct(d);
-    if (e > best) {
-      best = e;
-      splitIdx = i;
+  void expand(double x, double y) {
+    if (empty) {
+      minX = maxX = x;
+      minY = maxY = y;
+      empty = false;
+    } else {
+      if (x < minX)
+        minX = x;
+      if (y < minY)
+        minY = y;
+      if (x > maxX)
+        maxX = x;
+      if (y > maxY)
+        maxY = y;
     }
   }
 
-  return best;
-}
-
-struct CubicCmd {
-  Gorgon::Geometry::Pointf c1, c2, to;
+  double width() const { return maxX - minX; }
+  double height() const { return maxY - minY; }
 };
 
-inline Gorgon::Geometry::Pointf
-edgeTangent(const std::vector<Gorgon::Geometry::Pointf> &pts, int index,
-            int dir, int reach = 3) {
-  int n = (int)pts.size();
-  for (int k = 1; k <= reach; ++k) {
-    int j = index + dir * k;
-    if (j < 0 || j >= n)
-      break;
-    Gorgon::Geometry::Pointf d = (pts[j] - pts[index]).Normalize();
-    if (d.Distance() > 1e-12)
-      return d;
-  }
-  return {0, 0};
-}
+/// Full geometric description of a single circular arc recovered from a
+/// bulge-encoded segment.
+struct ArcGeometry {
+  double cx = 0.0, cy = 0.0;
+  double radius = 0.0, startAngle = 0.0, endAngle = 0.0;
+  double sweep = 0.0, midX = 0.0, midY = 0.0;
+};
 
-inline void schneiderFit(const std::vector<Gorgon::Geometry::Pointf> &pts,
-                         int first, int last, Gorgon::Geometry::Pointf t1,
-                         Gorgon::Geometry::Pointf t2, double tolerance,
-                         int maxIter, std::vector<CubicCmd> &out) {
-  int n = last - first + 1;
-  if (n < 2)
-    return;
+/// A typed, standalone segment extracted from a Polyline.
+/// Arc geometry can be retrieved via ComputeArcGeometry().
+struct Segment {
+  enum class Type { Line, Arc };
 
-  if (n == 2) {
-    double len = (pts[last] - pts[first]).Distance() / 3.0;
-    Gorgon::Geometry::Pointf p0 = pts[first], p3 = pts[last];
-    out.push_back({p0 + t1 * len, p3 + t2 * len, p3});
-    return;
-  }
+  Type type = Type::Line;
+  double x0 = 0.0, y0 = 0.0;
+  double x1 = 0.0, y1 = 0.0;
+  double bulge = 0.0;
+  bool collapsedArc = false;
+  bool isCurve = false;
+};
 
-  std::vector<Gorgon::Geometry::Pointf> sub(pts.begin() + first,
-                                            pts.begin() + last + 1);
-  auto u = chordParam(sub);
-  auto [p1, p2] = fitCubic(sub, u, t1, t2);
-  Gorgon::Geometry::Pointf p0 = sub.front(), p3 = sub.back();
-
-  int splitIdx;
-  double thresh = tolerance * tolerance;
-  double err = maxSqError(sub, u, p0, p1, p2, p3, splitIdx);
-
-  if (err < thresh) {
-    out.push_back({p1, p2, p3});
-    return;
-  }
-
-  for (int iter = 0; iter < maxIter && err >= thresh; ++iter) {
-    u = reparameterize(sub, u, p0, p1, p2, p3);
-    auto [np1, np2] = fitCubic(sub, u, t1, t2);
-    p1 = np1;
-    p2 = np2;
-    err = maxSqError(sub, u, p0, p1, p2, p3, splitIdx);
-  }
-
-  if (err < thresh) {
-    out.push_back({p1, p2, p3});
-    return;
-  }
-
-  int si = first + splitIdx;
-  Gorgon::Geometry::Pointf tSplit;
-  if (si > first && si < last) {
-    tSplit = ((pts[si] - pts[si - 1]).Normalize() +
-              (pts[si + 1] - pts[si]).Normalize())
-                 .Normalize();
-  } else {
-    tSplit = (pts[si < last ? si + 1 : si] - pts[si]).Normalize();
-  }
-
-  if (tSplit.Distance() < 1e-12)
-    tSplit =
-        (pts[si + 1 < (int)pts.size() ? si + 1 : si] - pts[si]).Normalize();
-
-  schneiderFit(pts, first, si, t1, tSplit * -1.0, tolerance, maxIter, out);
-  schneiderFit(pts, si, last, tSplit, t2, tolerance, maxIter, out);
-}
-
-inline std::vector<CubicCmd>
-fitCurvesToRun(const std::vector<Gorgon::Geometry::Pointf> &pts,
-               double tolerance, int maxIter = 4) {
-  std::vector<CubicCmd> out;
-  int n = (int)pts.size();
-  if (n < 2)
-    return out;
-
-  Gorgon::Geometry::Pointf t1 = edgeTangent(pts, 0, +1);
-  Gorgon::Geometry::Pointf t2 = edgeTangent(pts, n - 1, -1);
-
-  schneiderFit(pts, 0, n - 1, t1, t2, tolerance, maxIter, out);
-  return out;
-}
-
-template <class Point>
-inline bool TryArcToBulge(const Point &from,
-                          const typename basic_Path<Point>::Arc &arc,
-                          double &bulge) {
-  if (std::abs(arc.Rx - arc.Ry) > Float(1e-4))
+/// Arc geometry for a bulge-encoded segment from (x0,y0) to (x1,y1).
+inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
+                               double bulge, ArcGeometry &out) {
+  if (std::abs(bulge) < 1e-15)
     return false;
-  // XAxisRotation is irrelevant for circles (Rx == Ry), so no check needed.
-  if (arc.Rx < Float(1e-6))
+  const double dx = x1 - x0, dy = y1 - y0;
+  const double chord = std::sqrt(dx * dx + dy * dy);
+  if (chord < 1e-12)
     return false;
 
-  Float rx = arc.Rx, ry = arc.Ry;
-  const Float dx = (from.X - arc.To.X) / Float(2);
-  const Float dy = (from.Y - arc.To.Y) / Float(2);
-  const Float x1p = dx, y1p = dy;
-
-  const Float lam = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
-  if (lam > Float(1)) {
-    Float s = std::sqrt(lam);
-    rx *= s;
-    ry *= s;
-  }
-
-  const Float denom = rx * rx * y1p * y1p + ry * ry * x1p * x1p;
-  if (denom <= Float(0))
+  out.sweep = 4.0 * std::atan(bulge);
+  const double halfSweep = out.sweep / 2.0;
+  const double sinHalf = std::sin(halfSweep);
+  if (std::abs(sinHalf) < 1e-12)
     return false;
 
-  const Float sq = std::max(
-      Float(0),
-      (rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p) / denom);
-  Float coef = std::sqrt(sq);
-  if (arc.LargeArc == arc.Sweep)
-    coef = -coef;
+  // Signed radius: positive = CCW, negative = CW
+  const double rSigned = (chord / 2.0) / sinHalf;
+  out.radius = std::abs(rSigned);
 
-  const Float cxp = coef * rx * y1p / ry;
-  const Float cyp = -coef * ry * x1p / rx;
+  // Centre: midpoint of chord displaced along left unit-perpendicular
+  const double midX = (x0 + x1) / 2.0;
+  const double midY = (y0 + y1) / 2.0;
+  const double perpX = -dy / chord;
+  const double perpY = dx / chord;
+  const double dist = rSigned * std::cos(halfSweep);
 
-  auto vecAngle = [](double ux, double uy, double vx, double vy) {
-    double dot = ux * vx + uy * vy;
-    double len = std::sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
-    if (len <= 0)
-      return 0.0;
-    double c = std::max(-1.0, std::min(1.0, dot / len));
-    double a = std::acos(c);
-    if (ux * vy - uy * vx < 0)
-      a = -a;
-    return a;
-  };
+  out.cx = midX + perpX * dist;
+  out.cy = midY + perpY * dist;
 
-  double dtheta =
-      vecAngle(double((x1p - cxp) / rx), double((y1p - cyp) / ry),
-               double((-x1p - cxp) / rx), double((-y1p - cyp) / ry));
+  out.startAngle = std::atan2(y0 - out.cy, x0 - out.cx);
+  out.endAngle = std::atan2(y1 - out.cy, x1 - out.cx);
 
-  if (arc.Sweep && dtheta < 0)
-    dtheta += 2 * PI;
-  if (!arc.Sweep && dtheta > 0)
-    dtheta -= 2 * PI;
-
-  bulge = std::tan(dtheta / 4.0);
+  const double midAngle = out.startAngle + halfSweep;
+  out.midX = out.cx + out.radius * std::cos(midAngle);
+  out.midY = out.cy + out.radius * std::sin(midAngle);
   return true;
+}
+
+/// Signed area of a closed polyline.
+/// @return Positive = CCW winding, Negative = CW winding.
+inline double SignedArea(const Polyline &poly) {
+  const int n = (int)poly.vertexes.size();
+  const int segments = poly.isClosed ? n : n - 1;
+  if (n < 2 || segments <= 0)
+    return 0.0;
+
+  double area = 0.0;
+  for (int i = 0; i < segments; ++i) {
+    const auto &v0 = poly.vertexes[i];
+    const auto &v1 = poly.vertexes[(i + 1) % n];
+    area += v0.x * v1.y - v1.x * v0.y;
+    if (v0.bulge != 0.0) {
+      const double dx = v1.x - v0.x, dy = v1.y - v0.y;
+      const double chord2 = dx * dx + dy * dy;
+      const double sweep = 4.0 * std::atan(v0.bulge);
+      const double sinHalf = std::sin(sweep / 2.0);
+      if (std::abs(sinHalf) > 1e-12) {
+        const double r2 = chord2 / (4.0 * sinHalf * sinHalf);
+        area += r2 * (sweep - std::sin(sweep));
+      }
+    }
+  }
+  return area / 2.0;
+}
+
+/// True if the polyline winds counter-clockwise (positive signed area).
+inline bool IsCounterClockwise(const Polyline &poly) {
+  return SignedArea(poly) > 0.0;
+}
+/// True if the polyline winds clockwise (negative signed area).
+inline bool IsClockwise(const Polyline &poly) { return SignedArea(poly) < 0.0; }
+
+/// Reverse the winding order of a polyline in place.
+inline void ReversePolyline(Polyline &poly) {
+  const int n = (int)poly.vertexes.size();
+  const int segments = poly.isClosed ? n : n - 1;
+  if (n < 2)
+    return;
+
+  std::vector<double> segBulge(segments);
+  std::vector<bool> segCurve(segments);
+  for (int i = 0; i < segments; ++i) {
+    segBulge[i] = poly.vertexes[i].bulge;
+    segCurve[i] = poly.vertexes[(i + 1) % n].isCurve;
+  }
+
+  std::reverse(poly.vertexes.begin(), poly.vertexes.end());
+  for (auto &v : poly.vertexes) {
+    v.bulge = 0.0;
+    v.isCurve = false;
+  }
+
+  for (int j = 0; j < segments; ++j) {
+    const int orig = (segments - 2 - j + segments) % segments;
+    poly.vertexes[j].bulge = -segBulge[orig];
+    poly.vertexes[(j + 1) % n].isCurve = segCurve[orig];
+  }
+  poly.isNegative = !poly.isNegative;
+}
+
+namespace detail {
+
+inline bool AngleInArcSweep(double a, double start, double sweep) {
+  double rel = a - start;
+  if (sweep > 0.0) {
+    while (rel <= 0.0)
+      rel += 2.0 * M_PI;
+    while (rel > 2.0 * M_PI)
+      rel -= 2.0 * M_PI;
+    return rel < sweep;
+  } else {
+    while (rel >= 0.0)
+      rel -= 2.0 * M_PI;
+    while (rel < -2.0 * M_PI)
+      rel += 2.0 * M_PI;
+    return rel > sweep;
+  }
 }
 
 } // namespace detail
 
-/// Convert every contour of @p path to a Polyline.
-///
-/// Circular ArcTo  → exact bulge on the preceding vertex.
-/// All other curves → Flatten() to consecutive vertices with isCurve = true.
-/// LineTo           → vertices with isCurve = false.
-///
-/// @param tolerance  Flattening tolerance for non-circular segments.
-template <class Point>
-inline std::vector<Polyline> PathToPolylines(const basic_Path<Point> &path,
-                                             Float tolerance = 0.72f) {
-  using VerbT = typename basic_Path<Point>::Verb;
+/// Compute the tight axis-aligned bounding box of a polyline.
+inline BoundingBox PolylineBounds(const Polyline &poly) {
+  BoundingBox bb;
+  const int n = (int)poly.vertexes.size();
+  const int segments = poly.isClosed ? n : n - 1;
+  if (n == 0)
+    return bb;
 
-  const auto &commands = path.GetCommands();
-  const auto &contours = path.GetContours();
-
-  std::vector<Polyline> result;
-  result.reserve(contours.size());
-
-  for (const auto &contour : contours) {
-    if (contour.CommandCount == 0)
-      continue;
-
-    const std::size_t begin = contour.FirstCommandIndex;
-    const std::size_t end = begin + contour.CommandCount;
-
-    Polyline poly;
-    poly.isNegative = contour.Negative();
-
-    Point current(0, 0), start(0, 0);
-
-    auto pushVertex = [&](const Point &p, bool isCurve) {
-      poly.vertexes.push_back({double(p.X), double(p.Y), 0.0, isCurve});
-    };
-
-    auto flushFlat = [&](const Geometry::PointList<Point> &pts) {
-      for (std::size_t pi = 1; pi < pts.GetSize(); ++pi)
-        pushVertex(pts[pi], true);
-    };
-
-    for (std::size_t i = begin; i < end; ++i) {
-      const auto &cmd = commands[i];
-
-      switch (cmd.Verb) {
-      case VerbT::MoveTo:
-        current = cmd.To;
-        start = current;
-        poly.vertexes.clear();
-        pushVertex(current, false);
-        break;
-
-      case VerbT::LineTo:
-        current = cmd.To;
-        pushVertex(current, false);
-        break;
-
-      case VerbT::QuadraticTo: {
-        const Point c1 =
-            current + (cmd.Quadratic.C - current) * (Float(2) / Float(3));
-        const Point c2 =
-            cmd.Quadratic.To +
-            (cmd.Quadratic.C - cmd.Quadratic.To) * (Float(2) / Float(3));
-        basic_Bezier<Point> bez(current, c1, c2, cmd.Quadratic.To);
-        flushFlat(bez.Flatten(tolerance));
-        current = cmd.Quadratic.To;
-        break;
-      }
-
-      case VerbT::CubicTo: {
-        basic_Bezier<Point> bez(current, cmd.Cubic.C1, cmd.Cubic.C2,
-                                cmd.Cubic.To);
-        flushFlat(bez.Flatten(tolerance));
-        current = cmd.Cubic.To;
-        break;
-      }
-
-      case VerbT::ArcTo: {
-        double bulge = 0.0;
-        if (detail::TryArcToBulge<Point>(current, cmd.Arc, bulge)) {
-          poly.vertexes.back().bulge = bulge;
-          poly.vertexes.push_back(
-              {double(cmd.Arc.To.X), double(cmd.Arc.To.Y), 0.0, false});
-        } else {
-          basic_Path<Point> tmp;
-          tmp.AddMoveTo(current);
-          tmp.AddArcTo(cmd.Arc.Rx, cmd.Arc.Ry, cmd.Arc.XAxisRotation,
-                       cmd.Arc.LargeArc, cmd.Arc.Sweep, cmd.Arc.To);
-          auto flat = tmp.Flatten(tolerance, false);
-          if (!flat.empty())
-            flushFlat(flat[0]);
-        }
-
-        current = cmd.Arc.To;
-        break;
-      }
-
-      case VerbT::Close: {
-        poly.isClosed = true;
-        if (poly.vertexes.size() >= 2) {
-          const auto &f = poly.vertexes.front();
-          const auto &b = poly.vertexes.back();
-          if (std::abs(b.x - f.x) < 1e-9 && std::abs(b.y - f.y) < 1e-9) {
-            poly.closingCurve = b.isCurve;
-            poly.vertexes.pop_back();
-          }
-        }
-
-        current = start;
-        i = end;
-        break;
-      }
-      }
-    }
-
-    if (poly.vertexes.size() >= 2)
-      result.push_back(std::move(poly));
-  }
-
-  return result;
-}
-
-/// Reconstruct a basic_Path from a collection of Polylines.
-///
-/// bulge != 0                     → AddArcTo
-/// bulge == 0 && isCurve == true  → consecutive runs fitted via Schneider →
-/// AddCubicTo bulge == 0 && isCurve == false → AddLineTo per vertex
-///
-/// @param fitTolerance  Max deviation for Schneider cubic fitting.
-template <class Point>
-inline basic_Path<Point> PolylinesToPath(const std::vector<Polyline> &polylines,
-                                         double fitTolerance = 0.5) {
-  basic_Path<Point> path;
-
-  for (const auto &poly : polylines) {
-    const int n = (int)poly.vertexes.size();
-    if (n == 0)
-      continue;
-
-    const int numSegments = poly.isClosed ? n : n - 1;
-    if (numSegments <= 0)
-      continue;
-
-    path.AddMoveTo(Point(Float(poly.vertexes[0].x), Float(poly.vertexes[0].y)),
-                   poly.isNegative);
-
-    std::vector<Gorgon::Geometry::Pointf> curveRun;
-    curveRun.push_back({Float(poly.vertexes[0].x), Float(poly.vertexes[0].y)});
-
-    auto flushCurveRun = [&]() {
-      if (curveRun.size() < 2) {
-        curveRun.clear();
-        return;
-      }
-      for (const auto &c : detail::fitCurvesToRun(curveRun, fitTolerance)) {
-        path.AddCubicTo(Point(Float(c.c1.X), Float(c.c1.Y)),
-                        Point(Float(c.c2.X), Float(c.c2.Y)),
-                        Point(Float(c.to.X), Float(c.to.Y)));
-      }
-      Gorgon::Geometry::Pointf last = curveRun.back();
-      curveRun.clear();
-      curveRun.push_back(last);
-    };
-
-    for (int i = 0; i < numSegments; ++i) {
-      const auto &v0 = poly.vertexes[i];
-      const auto &v1 = poly.vertexes[(i + 1) % n];
-      const Point to(Float(v1.x), Float(v1.y));
-
-      if (v0.bulge != 0.0) {
-        flushCurveRun();
-
-        const double sweep = 4.0 * std::atan(v0.bulge);
-        const double dx = v1.x - v0.x;
-        const double dy = v1.y - v0.y;
-        const double chord = std::sqrt(dx * dx + dy * dy);
-        const double sinHalf = std::sin(sweep / 2.0);
-
-        if (chord < 1e-9 || std::abs(sinHalf) < 1e-9) {
-          path.AddLineTo(to);
-        } else {
-          const double r = std::abs(chord / (2.0 * sinHalf));
-          path.AddArcTo(Float(r), Float(r), Float(0), std::abs(sweep) > PI,
-                        v0.bulge > 0.0, to);
-        }
-
-        curveRun.clear();
-        curveRun.push_back({Float(v1.x), Float(v1.y)});
-
-      } else if (v1.isCurve ||
-                 (poly.isClosed && i == numSegments - 1 && poly.closingCurve)) {
-        // Accumulate curve points, and absorb the closing vertex on a closed
-        // path only when the original curve genuinely ended at the start point.
-        curveRun.push_back({Float(v1.x), Float(v1.y)});
-
-      } else {
-        flushCurveRun();
-        path.AddLineTo(to);
-        curveRun.clear();
-        curveRun.push_back({Float(v1.x), Float(v1.y)});
-      }
-    }
-
-    flushCurveRun();
-
-    if (poly.isClosed)
-      path.CloseContour();
-  }
-
-  return path;
-}
-
-template <class Point>
-inline basic_Path<Point> PolylineToPath(const Polyline &poly,
-                                        double fitTolerance = 0.5) {
-  return PolylinesToPath<Point>({poly}, fitTolerance);
-}
-
-template <class Point>
-inline Polyline PointListToPolyline(const Geometry::PointList<Point> &points,
-                                    bool isClosed = false,
-                                    bool isNegative = false) {
-  Polyline poly;
-  poly.isClosed = isClosed;
-  poly.isNegative = isNegative;
-  poly.vertexes.reserve(points.GetSize());
-
-  for (const auto &p : points)
-    poly.vertexes.push_back({double(p.X), double(p.Y), 0.0, false});
-
-  if (poly.isClosed && poly.vertexes.size() >= 2) {
-    const auto &f = poly.vertexes.front();
-    const auto &b = poly.vertexes.back();
-    if (std::abs(b.x - f.x) < 1e-9 && std::abs(b.y - f.y) < 1e-9)
-      poly.vertexes.pop_back();
-  }
-
-  return poly;
-}
-
-template <class Point>
-inline Geometry::PointList<Point>
-PolylineToPointList(const Polyline &poly, bool includeClosure = false) {
-  Geometry::PointList<Point> points;
   for (const auto &v : poly.vertexes)
-    points.Push(Point(Float(v.x), Float(v.y)));
+    bb.expand(v.x, v.y);
 
-  if (includeClosure && poly.isClosed && !poly.vertexes.empty())
-    points.Push(Point(Float(poly.vertexes[0].x), Float(poly.vertexes[0].y)));
-
-  return points;
+  static const double cardinals[4] = {0.0, M_PI / 2.0, M_PI, 3.0 * M_PI / 2.0};
+  for (int i = 0; i < segments; ++i) {
+    const auto &v0 = poly.vertexes[i];
+    if (v0.bulge == 0.0)
+      continue;
+    const auto &v1 = poly.vertexes[(i + 1) % n];
+    ArcGeometry ag;
+    if (!ComputeArcGeometry(v0.x, v0.y, v1.x, v1.y, v0.bulge, ag))
+      continue;
+    for (double ang : cardinals)
+      if (detail::AngleInArcSweep(ang, ag.startAngle, ag.sweep))
+        bb.expand(ag.cx + ag.radius * std::cos(ang),
+                  ag.cy + ag.radius * std::sin(ang));
+  }
+  return bb;
 }
 
-template <class Point>
-inline std::vector<Geometry::PointList<Point>>
-PathToPointLists(const basic_Path<Point> &path, Float tolerance = 0.72f,
-                 bool includeClosure = false) {
-  std::vector<Geometry::PointList<Point>> out;
-  auto polylines = PathToPolylines(path, tolerance);
-  out.reserve(polylines.size());
+/// Build an explicit, typed segment list from a polyline.
+inline std::vector<Segment> ExtractSegments(const Polyline &poly) {
+  const int n = (int)poly.vertexes.size();
+  const int segments = poly.isClosed ? n : n - 1;
 
-  for (const auto &poly : polylines)
-    out.push_back(PolylineToPointList<Point>(poly, includeClosure));
-
+  std::vector<Segment> out;
+  out.reserve(segments);
+  for (int i = 0; i < segments; ++i) {
+    const auto &v0 = poly.vertexes[i];
+    const auto &v1 = poly.vertexes[(i + 1) % n];
+    Segment s;
+    s.x0 = v0.x;
+    s.y0 = v0.y;
+    s.x1 = v1.x;
+    s.y1 = v1.y;
+    s.bulge = v0.bulge;
+    s.type = (v0.bulge != 0.0) ? Segment::Type::Arc : Segment::Type::Line;
+    s.isCurve = v1.isCurve;
+    out.push_back(s);
+  }
   return out;
-}
-
-template <class Point>
-inline basic_Path<Point>
-PointListsToPath(const std::vector<Geometry::PointList<Point>> &pointLists,
-                 bool isClosed = true, bool isNegative = false,
-                 double fitTolerance = 0.5) {
-  std::vector<Polyline> polylines;
-  polylines.reserve(pointLists.size());
-
-  for (const auto &points : pointLists)
-    polylines.push_back(PointListToPolyline(points, isClosed, isNegative));
-
-  return PolylinesToPath<Point>(polylines, fitTolerance);
 }
 
 } // namespace Gorgon::CGI
