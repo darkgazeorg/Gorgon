@@ -8,6 +8,47 @@
 
 namespace Gorgon :: Audio {
 
+namespace {
+
+    /// Common overflow calculation from attack and release ramps for a note.
+    size_t CalculateOverflow(
+        const Synth::Ramp &attack, const Synth::Ramp &release, 
+        const Synth::Duration &separation,
+        float tempo, float sample_rate, size_t notelength
+    ) {
+        if(release.Type == Synth::RampType::None) {
+            return 0;
+        }
+
+        size_t atk = attack.Span.ToSamples(
+            tempo, sample_rate, 
+            notelength
+        );
+
+        if(atk > notelength) {
+            atk = notelength;
+        }
+
+        size_t S = separation.ToSamples(tempo, sample_rate, notelength);
+
+        if(S > notelength - atk) {
+            S = notelength - atk;
+        }
+
+        size_t rel = release.Span.ToSamples(tempo, sample_rate, notelength);
+
+        if(rel < S) {
+            rel = 0;
+        }
+        else {
+            rel -= S;
+        }
+
+        return rel;
+    }
+
+}
+
 Synth::Node Synth::Node::MakeNote(Note note, Duration duration, bool slide) {
     Node n;
 
@@ -403,37 +444,10 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 }
 
 size_t Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
-    if(Release.Type == RampType::None) {
-        return 0;
-    }
-
-    size_t attack = Attack.Span.ToSamples(
-        state.Tempo, sample_rate, 
-        note.note.duration.ToSeconds(state.Tempo)
+    return CalculateOverflow(
+        Attack, Release, state.Separation, 
+        state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo)
     );
-
-    size_t notelength = note.note.duration.ToSamples(state.Tempo, sample_rate);
-
-    if(attack > notelength) {
-        attack = notelength;
-    }
-
-    size_t S = state.Separation.ToSamples(state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo));
-
-    if(S > notelength - attack) {
-        S = notelength - attack;
-    }
-
-    size_t release = Release.Span.ToSamples(state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo));
-
-    if(release < S) {
-        release = 0;
-    }
-    else {
-        release -= S;
-    }
-
-    return release;
 }
 
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
