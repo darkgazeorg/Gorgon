@@ -11,6 +11,13 @@
 
 namespace Gorgon::CGI {
 namespace detail {
+/// Evaluate a cubic Bezier at parameter t.
+/// @param p0 Start point.
+/// @param p1 First control point.
+/// @param p2 Second control point.
+/// @param p3 End point.
+/// @param t Parameter in [0,1].
+/// @return Point on the cubic curve.
 inline Gorgon::Geometry::Pointf
 bezierAt(Gorgon::Geometry::Pointf p0, Gorgon::Geometry::Pointf p1,
          Gorgon::Geometry::Pointf p2, Gorgon::Geometry::Pointf p3, double t) {
@@ -491,7 +498,11 @@ inline basic_Path<Point> PolylineToPath(const Polyline &poly,
   return PolylinesToPath<Point>({poly}, fitTolerance);
 }
 
-// PointList ↔ Polyline ↔ Path helpers
+/// Convert a point list to a polyline with straight segments.
+/// @param points Input points.
+/// @param isClosed Whether the resulting polyline is closed.
+/// @param isNegative Stored contour winding flag.
+/// @return Polyline representation of the point list.
 template <class Point>
 inline Polyline PointListToPolyline(const Geometry::PointList<Point> &points,
                                     bool isClosed = false,
@@ -514,6 +525,10 @@ inline Polyline PointListToPolyline(const Geometry::PointList<Point> &points,
   return poly;
 }
 
+/// Convert a polyline to a point list.
+/// @param poly Input polyline.
+/// @param includeClosure Append first point again for closed polylines.
+/// @return Point list extracted from polyline vertices.
 template <class Point>
 inline Geometry::PointList<Point>
 PolylineToPointList(const Polyline &poly, bool includeClosure = false) {
@@ -527,6 +542,11 @@ PolylineToPointList(const Polyline &poly, bool includeClosure = false) {
   return points;
 }
 
+/// Convert a path to point-list contours via polylines.
+/// @param path Input path.
+/// @param tolerance Flattening tolerance for non-circular segments.
+/// @param includeClosure Append closure point for closed contours.
+/// @return Point-list contours extracted from the path.
 template <class Point>
 inline std::vector<Geometry::PointList<Point>>
 PathToPointLists(const basic_Path<Point> &path, Float tolerance = 0.72f,
@@ -539,6 +559,12 @@ PathToPointLists(const basic_Path<Point> &path, Float tolerance = 0.72f,
   return out;
 }
 
+/// Convert point-list contours to a path.
+/// @param pointLists Input point-list contours.
+/// @param isClosed Whether generated polylines are treated as closed.
+/// @param isNegative Stored contour winding flag.
+/// @param fitTolerance Max deviation for cubic fitting.
+/// @return Path reconstructed from the input point lists.
 template <class Point>
 inline basic_Path<Point>
 PointListsToPath(const std::vector<Geometry::PointList<Point>> &pointLists,

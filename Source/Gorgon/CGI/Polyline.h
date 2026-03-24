@@ -30,6 +30,9 @@ struct BoundingBox {
   double minX, minY, maxX, maxY;
   bool empty = true;
 
+  /// Expand the bounds to include a point.
+  /// @param x X coordinate.
+  /// @param y Y coordinate.
   void expand(double x, double y) {
     if (empty) {
       minX = maxX = x;
@@ -47,7 +50,11 @@ struct BoundingBox {
     }
   }
 
+  /// Get bounding box width.
+  /// @return Box width, computed as maxX - minX.
   double width() const { return maxX - minX; }
+  /// Get bounding box height.
+  /// @return Box height, computed as maxY - minY.
   double height() const { return maxY - minY; }
 };
 
@@ -62,6 +69,7 @@ struct ArcGeometry {
 /// A typed, standalone segment extracted from a Polyline.
 /// Arc geometry can be retrieved via ComputeArcGeometry().
 struct Segment {
+  /// Segment primitive type.
   enum class Type { Line, Arc };
 
   Type type = Type::Line;
@@ -72,7 +80,14 @@ struct Segment {
   bool isCurve = false;
 };
 
-/// Arc geometry for a bulge-encoded segment from (x0,y0) to (x1,y1).
+/// Recover full arc geometry from a bulge-encoded segment.
+/// @param x0 Start X coordinate.
+/// @param y0 Start Y coordinate.
+/// @param x1 End X coordinate.
+/// @param y1 End Y coordinate.
+/// @param bulge Bulge value where bulge = tan(sweep/4).
+/// @param[out] out Output arc geometry on success.
+/// @return True when a valid non-degenerate arc can be recovered.
 inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
                                double bulge, ArcGeometry &out) {
   if (std::abs(bulge) < 1e-15)
@@ -111,8 +126,10 @@ inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
   return true;
 }
 
-/// Signed area of a closed polyline.
-/// @return Positive = CCW winding, Negative = CW winding.
+/// Compute signed area for a polyline, including bulge arc contributions.
+/// @param poly Polyline to evaluate.
+/// @return Positive for CCW winding, negative for CW winding, zero for
+/// degenerate shapes.
 inline double SignedArea(const Polyline &poly) {
   const int n = (int)poly.vertexes.size();
   const int segments = poly.isClosed ? n : n - 1;
@@ -138,14 +155,19 @@ inline double SignedArea(const Polyline &poly) {
   return area / 2.0;
 }
 
-/// True if the polyline winds counter-clockwise (positive signed area).
+/// Test whether a polyline has counter-clockwise winding.
+/// @param poly Polyline to evaluate.
+/// @return True when signed area is positive.
 inline bool IsCounterClockwise(const Polyline &poly) {
   return SignedArea(poly) > 0.0;
 }
-/// True if the polyline winds clockwise (negative signed area).
+/// Test whether a polyline has clockwise winding.
+/// @param poly Polyline to evaluate.
+/// @return True when signed area is negative.
 inline bool IsClockwise(const Polyline &poly) { return SignedArea(poly) < 0.0; }
 
-/// Reverse the winding order of a polyline in place.
+/// Reverse polyline winding and remap segment attributes.
+/// @param poly Polyline to reverse in place.
 inline void ReversePolyline(Polyline &poly) {
   const int n = (int)poly.vertexes.size();
   const int segments = poly.isClosed ? n : n - 1;
@@ -175,6 +197,11 @@ inline void ReversePolyline(Polyline &poly) {
 
 namespace detail {
 
+/// Test whether an angle lies on the directed arc sweep.
+/// @param a Angle to test, in radians.
+/// @param start Arc start angle, in radians.
+/// @param sweep Signed arc sweep, in radians.
+/// @return True when @p a is inside the swept interval.
 inline bool AngleInArcSweep(double a, double start, double sweep) {
   double rel = a - start;
   if (sweep > 0.0) {
@@ -194,7 +221,9 @@ inline bool AngleInArcSweep(double a, double start, double sweep) {
 
 } // namespace detail
 
-/// Compute the tight axis-aligned bounding box of a polyline.
+/// Compute a tight axis-aligned bounding box for a polyline.
+/// @param poly Polyline to bound.
+/// @return Bounding box that includes line and arc extrema.
 inline BoundingBox PolylineBounds(const Polyline &poly) {
   BoundingBox bb;
   const int n = (int)poly.vertexes.size();
@@ -222,7 +251,9 @@ inline BoundingBox PolylineBounds(const Polyline &poly) {
   return bb;
 }
 
-/// Build an explicit, typed segment list from a polyline.
+/// Extract explicit typed segments from a polyline.
+/// @param poly Source polyline.
+/// @return Segment list preserving line/arc type and segment metadata.
 inline std::vector<Segment> ExtractSegments(const Polyline &poly) {
   const int n = (int)poly.vertexes.size();
   const int segments = poly.isClosed ? n : n - 1;
