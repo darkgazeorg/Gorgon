@@ -402,6 +402,40 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
     }
 }
 
+size_t Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
+    if(Release.Type == RampType::None) {
+        return 0;
+    }
+
+    size_t attack = Attack.Span.ToSamples(
+        state.Tempo, sample_rate, 
+        note.note.duration.ToSeconds(state.Tempo)
+    );
+
+    size_t notelength = note.note.duration.ToSamples(state.Tempo, sample_rate);
+
+    if(attack > notelength) {
+        attack = notelength;
+    }
+
+    size_t S = state.Separation.ToSamples(state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo));
+
+    if(S > notelength - attack) {
+        S = notelength - attack;
+    }
+
+    size_t release = Release.Span.ToSamples(state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo));
+
+    if(release < S) {
+        release = 0;
+    }
+    else {
+        release -= S;
+    }
+
+    return release;
+}
+
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
 
@@ -771,24 +805,38 @@ void Synth::Parse(std::istream &stream) {
 }
 
 size_t Synth::CalculateSamples(float sample_rate) const {
-    double samples = 0;
-    float tempo = 120.0f; 
+    TrackState state;
+
+    Node last_note = {};
 
     for(const auto& node : Nodes) {
         switch(node.type) {
         case Node::Type::Note:
+            last_note = node;
+            [[fallthrough]];
         case Node::Type::Rest:
-            samples += node.note.duration.ToSamples(tempo, sample_rate);
+            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
             break;
         case Node::Type::Tempo:
-            tempo = node.tempo;
+            state.Tempo = node.tempo;
+            break;
+        case Node::Type::Separation:
+            state.Separation = node.duration;
+            break;
+        case Node::Type::InstrumentChange:
+            state.InstrumentIndex = node.index;
             break;
         default:
             break;
         }
     }
 
-    return size_t(samples);
+    if(last_note.type != Node::Type::NoOp) {
+        auto releaseOverflow = Instruments[state.InstrumentIndex].ReleaseOverflow(state, sample_rate, last_note);
+        state.Sample += releaseOverflow;
+    }
+
+    return size_t(state.Sample);
 }
 
 float Synth::CalculateDuration() const { 

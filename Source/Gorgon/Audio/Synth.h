@@ -143,6 +143,8 @@ namespace Gorgon :: Audio {
             float GetMultiplier(size_t distance, float sample_rate) const;
         };
 
+        struct Node;
+
         /** Instrument is an abstract base class for different types of
          *  synthesizer voices. Each instrument defines how to render a note
          *  with specific settings (e.g., a sine wave with an attack and decay).
@@ -168,6 +170,11 @@ namespace Gorgon :: Audio {
                     throw Error(Error::InvalidParameter, "This instrument does not accept settings: " + std::string{settings});
                 }
             }
+
+            /// This function returns how much a given note's release phase would overflow
+            /// into the next note based on the current track state and sample rate. This is used to
+            /// determine unclipped length of the entire track.
+            virtual size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const;
 
             /// Returns the name of the instrument.
             std::string GetInstrumentName() const {
@@ -195,12 +202,14 @@ namespace Gorgon :: Audio {
 
             void LoadSettings(const std::string_view& settings) override;
 
+            size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const override;
+
             /// Attack and release falloff settings for the sine wave. Attack 
             /// controls how the note volume increases at the start, while release
             /// controls how it decreases at the end. Neither attack nor release
             /// can be more than 20% of the note duration to avoid silent notes.
             Ramp Attack = {.Span=Duration::FromFraction(32)}, 
-                 Release;
+                 Release = {.Span=Duration::FromFraction(16)};
 
             /// This controls how fast the note fades regardless of the note
             /// duration. If set to None, it will not affect the note. If set, 

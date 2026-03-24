@@ -100,7 +100,7 @@ A pure sine wave generator. With a smooth release, it mimics a flute.
 * **`attack`**: Controls how aggressively the note's volume increases (`none` can cause clicks). Specified as a ramp.
 * **`decay`**: Controls how quickly the sound fades after the attack phase (`none` sustains the note at full volume; other types cause it to fade before the note ends). Specified as a ramp.
 * **`sustain`**: The volume multiplier (0.0 to 1.0) held after the attack and decay phases.
-* **`release`**: Controls how quickly the sound fades after the sustain phase. Triggered by the `Q` quantization value (`none` abruptly ends the note). Specified as a ramp.
+* **`release`**: Controls how quickly the sound fades after the sustain phase. Triggered by the `S` separation value (`none` abruptly ends the note). Specified as a ramp.
 
 **Example Definition:**
 ```text
