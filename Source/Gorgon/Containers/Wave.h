@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <fstream>
 #include <string>
@@ -564,7 +565,8 @@ namespace Gorgon :: Containers {
         bool ExportWav(std::ostream &file, int bits = 16) {
             using namespace IO;
 
-            int hs = 44, ds;
+            int hs = 44;
+            size_t ds;
             if(bits == 8) {
                 ds = GetSize() * GetChannelCount();
             }
@@ -575,21 +577,25 @@ namespace Gorgon :: Containers {
                 throw std::runtime_error("Invalid number of bits for wav file");
             }
 
+            if(ds > 0xFFFFFFFF - hs) {
+                throw std::runtime_error("Wave data is too large to be written to a wav file");
+            }
+
             WriteString(file, "RIFF");
-            WriteInt32(file, hs+ds-8);
+            WriteUInt32(file, static_cast<uint32_t>(hs+ds-8));
 
             WriteString(file, "WAVEfmt ");
-            WriteInt32(file, 16);
-            WriteInt16(file, 1);
+            WriteUInt32(file, 16);
+            WriteUInt16(file, 1);
 
-            WriteInt16(file, GetChannelCount());
-            WriteInt32(file, GetSampleRate());
-            WriteInt32(file, GetSampleRate() * bits * GetChannelCount() / 8);
-            WriteInt16(file, bits * GetChannelCount() / 8);
-            WriteInt16(file, bits);
+            WriteUInt16(file, GetChannelCount());
+            WriteUInt32(file, GetSampleRate());
+            WriteUInt32(file, static_cast<uint32_t>(GetSampleRate() * bits * GetChannelCount() / 8));
+            WriteUInt16(file, bits * GetChannelCount() / 8);
+            WriteUInt16(file, bits);
 
             WriteString(file, "data");
-            WriteInt32(file, ds);
+            WriteUInt32(file, static_cast<uint32_t>(ds));
 
             float *ptr = data;
             float *end = data + GetChannelCount() * GetSize();

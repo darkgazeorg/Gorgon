@@ -174,7 +174,7 @@ namespace Gorgon :: Audio {
             /// This function returns how much a given note's release phase would overflow
             /// into the next note based on the current track state and sample rate. This is used to
             /// determine unclipped length of the entire track.
-            virtual size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const;
+            virtual size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const = 0;
 
             /// Returns the name of the instrument.
             std::string GetInstrumentName() const {
