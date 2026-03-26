@@ -156,7 +156,7 @@ namespace vorbis {
             int current_section;
             
             float **data;
-            auto sz = ov_read_float(ogg, &data, target - processed, &current_section);
+            auto sz = ov_read_float(ogg, &data, int(target - processed), &current_section);
             
             if(sz < 0) {
                 err = sz;

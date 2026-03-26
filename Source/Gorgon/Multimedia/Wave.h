@@ -171,10 +171,10 @@ namespace Multimedia {
         void Assign(Containers::Wave &wave);
 
         /// Uses the supplied data for this object. Ownership of the wave data is not transferred.
-void Assign(float *data, size_t size);
+        void Assign(float *data, unsigned long size);
 
         /// Uses the supplied data for this object. Ownership of the wave data is not transferred.
-        void Assign(float *data, size_t size, std::vector<Audio::Channel> channels);
+        void Assign(float *data, unsigned long size, std::vector<Audio::Channel> channels);
         
         
         /// Assumes the ownership of the given wave container as the data for this object.
@@ -186,10 +186,10 @@ void Assign(float *data, size_t size);
         }
         
         /// Assumes the ownership of the given wave data as the data for this object.
-        void Assume(float *data, size_t size);
+        void Assume(float *data, unsigned long size);
         
         /// Assumes the ownership of the given wave data as the data for this object.
-        void Assume(float *data, size_t size, std::vector<Audio::Channel> channels);
+        void Assume(float *data, unsigned long size, std::vector<Audio::Channel> channels);
         
 
         

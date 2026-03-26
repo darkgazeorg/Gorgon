@@ -39,6 +39,7 @@
  */
 
 #include "Gorgon/Graphics/FreeType.h"
+#include "Gorgon/Types.h"
 #ifdef GORGON_AUDIO_SUPPORT
 #include "Gorgon/Audio/Controllers.h"
 #endif
@@ -641,7 +642,7 @@ int Main(const std::vector<std::string> &) {
         const unsigned numSamples = 44100; // 1 second
         Gorgon::Containers::Wave sineWave(numSamples, sampleRate, {Gorgon::Audio::Channel::Mono});
         for(unsigned i = 0; i < numSamples; i++) {
-            sineWave(i, 0) = std::sin(2.0f * M_PIf * 440.0f * i / sampleRate);
+            sineWave(i, 0) = std::sin(2.0f * Gorgon::PI * 440.0f * i / sampleRate);
         }
         sineWave.ExportWav("sine_440.wav");
         std::cout << "Exported sine_440.wav (" << sineWave.GetSize()

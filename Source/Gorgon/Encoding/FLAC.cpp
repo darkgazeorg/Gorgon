@@ -535,7 +535,7 @@ namespace Encoding {
             
             return std::min<unsigned long>(
                 streamer->currentpos / wave.GetChannelCount(),
-                target
+                (unsigned long)target
             );
         };
             

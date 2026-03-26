@@ -15,7 +15,7 @@ namespace {
     size_t CalculateOverflow(
         const Synth::Ramp &attack, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, float sample_rate, float notelength
+        float tempo, unsigned sample_rate, float notelength
     ) {
         if(release.Type == Synth::RampType::None) {
             return 0;
@@ -271,7 +271,7 @@ float Synth::Duration::ToSeconds(float tempo) const {
     }
 }
 
-size_t Synth::Duration::ToSamples(float tempo, float sample_rate) const {
+size_t Synth::Duration::ToSamples(float tempo, unsigned sample_rate) const {
     switch(type) {
     case TempoFraction:
         return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
@@ -299,7 +299,7 @@ float Synth::Duration::ToSeconds(float tempo, float notelength) const {
     }
 }
 
-size_t Synth::Duration::ToSamples(float tempo, float sample_rate, float notelength) const {
+size_t Synth::Duration::ToSamples(float tempo, unsigned sample_rate, float notelength) const {
     switch(type) {
     case TempoFraction:
         return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
@@ -446,7 +446,7 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
     }
 }
 
-size_t Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
+size_t Synth::Sine::ReleaseOverflow(TrackState &state, unsigned sample_rate, const Node &note) const {
     return CalculateOverflow(
         Attack, Release, state.Separation, 
         state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo)
@@ -821,7 +821,7 @@ void Synth::Parse(std::istream &stream) {
     }
 }
 
-size_t Synth::CalculateSamples(float sample_rate) const {
+size_t Synth::CalculateSamples(unsigned sample_rate) const {
     TrackState state;
 
     Node last_note = {};
@@ -849,7 +849,7 @@ size_t Synth::CalculateSamples(float sample_rate) const {
     }
 
     if(last_note.type != Node::Type::NoOp) {
-        auto releaseOverflow = Instruments[state.InstrumentIndex].ReleaseOverflow(state, sample_rate, last_note);
+        auto releaseOverflow = Instruments[(long)state.InstrumentIndex].ReleaseOverflow(state, sample_rate, last_note);
         state.Sample += releaseOverflow;
     }
 
@@ -860,7 +860,7 @@ float Synth::CalculateDuration() const {
     return CalculateSamples(151200) / 151200.0f; 
 }
 
-Containers::Wave Synth::Render(float sample_rate) const {
+Containers::Wave Synth::Render(unsigned sample_rate) const {
     Containers::Wave wave(CalculateSamples(sample_rate), sample_rate, Channels);
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
@@ -924,7 +924,7 @@ Containers::Wave Synth::Render(float sample_rate) const {
 
                 float sample = std::sin(2.0f * PI * frequency * (state.Sample + i) / sample_rate);
 
-                for(size_t ch = 0; ch < Channels.size(); ch++) {
+                for(int ch = 0; ch < (int)Channels.size(); ch++) {
                     wave(state.Sample + i, ch) = sample * state.Volume[ch] * fade;
                 }
             }

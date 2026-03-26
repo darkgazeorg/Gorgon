@@ -55,13 +55,13 @@ namespace Gorgon :: Audio {
             float ToSeconds(float tempo) const;
 
             /// Converts this duration to number of samples based on the given tempo and sample rate.
-            size_t ToSamples(float tempo, float sample_rate) const;
+            size_t ToSamples(float tempo, unsigned sample_rate) const;
 
             /// Converts this duration to seconds based on the given tempo (BPM) and note length.
             float ToSeconds(float tempo, float notelength) const;
 
             /// Converts this duration to number of samples based on the given tempo, sample rate, and note length.
-            size_t ToSamples(float tempo, float sample_rate, float notelength) const;
+            size_t ToSamples(float tempo, unsigned sample_rate, float notelength) const;
 
             /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
             static Duration FromFraction(int numerator, int denominator);
@@ -140,7 +140,7 @@ namespace Gorgon :: Audio {
 
             /// Returns the multiplier for the ramp at a given time. Distance is the number
             /// of samples since the start of the ramp (or to the end if it's a decay).
-            float GetMultiplier(size_t distance, float sample_rate) const;
+            float GetMultiplier(size_t distance, unsigned sample_rate) const;
         };
 
         struct Node;
@@ -157,7 +157,7 @@ namespace Gorgon :: Audio {
             /// track state, sample rate, and note duration. The track state includes
             /// information about the current tempo, octave, and volume levels.
             virtual void Render(
-                Containers::Wave &wave, TrackState &state, float sample_rate, 
+                Containers::Wave &wave, TrackState &state, unsigned sample_rate, 
                 float duration
             ) = 0;
 
@@ -174,7 +174,7 @@ namespace Gorgon :: Audio {
             /// This function returns how much a given note's release phase would overflow
             /// into the next note based on the current track state and sample rate. This is used to
             /// determine unclipped length of the entire track.
-            virtual size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const = 0;
+            virtual size_t ReleaseOverflow(TrackState &state, unsigned sample_rate, const Node &note) const = 0;
 
             /// Returns the name of the instrument.
             std::string GetInstrumentName() const {
@@ -196,7 +196,7 @@ namespace Gorgon :: Audio {
             }
             
             void Render(
-                Containers::Wave &wave, TrackState &state, float sample_rate, 
+                Containers::Wave &wave, TrackState &state, unsigned sample_rate, 
                 float duration
             ) override {
                 Utils::NotImplemented();
@@ -204,7 +204,7 @@ namespace Gorgon :: Audio {
 
             void LoadSettings(const std::string_view& settings) override;
 
-            size_t ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const override;
+            size_t ReleaseOverflow(TrackState &state, unsigned sample_rate, const Node &note) const override;
 
             /// Attack and release falloff settings for the sine wave. Attack 
             /// controls how the note volume increases at the start, while release
@@ -320,9 +320,9 @@ namespace Gorgon :: Audio {
 
         float CalculateDuration() const;
 
-        size_t CalculateSamples(float sample_rate = 44100.0f) const;
+        size_t CalculateSamples(unsigned sample_rate = 44100.0f) const;
 
-        Containers::Wave Render(float sample_rate = 44100.0f) const;
+        Containers::Wave Render(unsigned sample_rate = 44100.0f) const;
 
         /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
         /// process comments.
