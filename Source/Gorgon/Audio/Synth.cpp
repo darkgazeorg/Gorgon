@@ -1,6 +1,7 @@
 #include "Synth.h"
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
+#include "Gorgon/Types.h"
 #include "Gorgon/Utils/Assert.h"
 #include <string>
 #include <tuple>
@@ -14,25 +15,27 @@ namespace {
     size_t CalculateOverflow(
         const Synth::Ramp &attack, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, float sample_rate, size_t notelength
+        float tempo, float sample_rate, float notelength
     ) {
         if(release.Type == Synth::RampType::None) {
             return 0;
         }
+
+        size_t notesamples = size_t(notelength * sample_rate);
 
         size_t atk = attack.Span.ToSamples(
             tempo, sample_rate, 
             notelength
         );
 
-        if(atk > notelength) {
-            atk = notelength;
+        if(atk > notesamples) {
+            atk = notesamples;
         }
 
         size_t S = separation.ToSamples(tempo, sample_rate, notelength);
 
-        if(S > notelength - atk) {
-            S = notelength - atk;
+        if(S > notesamples - atk) {
+            S = notesamples - atk;
         }
 
         size_t rel = release.Span.ToSamples(tempo, sample_rate, notelength);
@@ -779,7 +782,7 @@ void Synth::Parse(std::istream &stream) {
                         throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
                     }
                     else {
-                        Instruments.Replace(index, sine, true);
+                        Instruments.Replace((long)index, sine, true);
                     }
                 }
                 else {
@@ -919,7 +922,7 @@ Containers::Wave Synth::Render(float sample_rate) const {
                     fade = float(duration - i) / notesep;
                 }
 
-                float sample = std::sin(2.0f * M_PIf * frequency * (state.Sample + i) / sample_rate);
+                float sample = std::sin(2.0f * PI * frequency * (state.Sample + i) / sample_rate);
 
                 for(size_t ch = 0; ch < Channels.size(); ch++) {
                     wave(state.Sample + i, ch) = sample * state.Volume[ch] * fade;

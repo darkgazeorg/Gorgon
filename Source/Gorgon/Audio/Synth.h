@@ -191,6 +191,8 @@ namespace Gorgon :: Audio {
         public:
             Sine() {
                 Name = "Sine";
+                Attack.Span = Duration::FromFraction(32);
+                Release.Span = Duration::FromFraction(16);
             }
             
             void Render(
@@ -208,8 +210,7 @@ namespace Gorgon :: Audio {
             /// controls how the note volume increases at the start, while release
             /// controls how it decreases at the end. Neither attack nor release
             /// can be more than 20% of the note duration to avoid silent notes.
-            Ramp Attack = {.Span=Duration::FromFraction(32)}, 
-                 Release = {.Span=Duration::FromFraction(16)};
+            Ramp Attack, Release;
 
             /// This controls how fast the note fades regardless of the note
             /// duration. If set to None, it will not affect the note. If set, 
@@ -328,7 +329,7 @@ namespace Gorgon :: Audio {
         static Node ParseNode(const std::string_view& token, int channels);
 
         Node ParseNode(const std::string_view& token) const {
-            return ParseNode(token, Channels.size());
+            return ParseNode(token, (int)Channels.size());
         }
 
         /// Converts a note and octave into frequency (Hz).
