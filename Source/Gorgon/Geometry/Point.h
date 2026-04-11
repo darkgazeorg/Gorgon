@@ -631,8 +631,8 @@ namespace Gorgon {
 		/// Returns true if two points are within eps of each other on each axis
 		template<class T_>
 		bool NearlyEqual(const basic_Point<T_> &a, const basic_Point<T_> &b, Float eps = Float(1e-9)) {
-			return std::abs(Float(a.X - b.X)) < eps &&
-			       std::abs(Float(a.Y - b.Y)) < eps;
+			return std::abs(Float(a.X) - Float(b.X)) < eps &&
+			       std::abs(Float(a.Y) - Float(b.Y)) < eps;
 		}
 
 		/// Returns true if a point is within eps of the origin on each axis
