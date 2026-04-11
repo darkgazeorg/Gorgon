@@ -1131,6 +1131,17 @@ namespace Gorgon {
         /// the string. Multiple types of parentheses can be specified. Close and open should be
         /// matched. Unbalanced parentheses will be silently ignored. Quotes will not be removed.
         std::string Extract_UseParentheses(std::string &original, char marker, std::string open = "(", std::string close = ")", QuoteType quotetype = QuoteType::Both);
+
+        /// This function will extract the part of the string until a given marker. Specified 
+        /// marker will be removed from the original string. If the marker is not found, entire
+        /// string will be extracted. This function will skip parentheses and quoted sections of 
+        /// the string. Multiple types of parentheses can be specified. Close and open should be
+        /// matched. Unbalanced parentheses will be silently ignored. Quotes will not be removed.
+        template <std::size_t N, std::size_t M>
+        std::string Extract_UseParentheses(std::string &original, char marker, const char (&open)[N], const char (&close)[M], QuoteType quotetype = QuoteType::Both) {
+            static_assert(N == M, "Extract_UseParentheses: open and close delimiters must have equal length");
+            return Extract_UseParentheses(original, marker, std::string(open, N - 1), std::string(close, M - 1), quotetype);
+        }
     }
 }
 

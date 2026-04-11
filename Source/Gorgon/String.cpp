@@ -1,4 +1,5 @@
 #include "String.h"
+#include <stdexcept>
 
 namespace Gorgon :: String {
 
@@ -46,6 +47,10 @@ std::string Extract_UseQuotes(std::string &original, char marker, QuoteType quot
 /// the string. Multiple types of parentheses can be specified. Close and open should be
 /// matched. Unbalanced parentheses will be silently ignored. Quotes will not be removed.
 std::string Extract_UseParentheses(std::string &original, char marker, std::string open, std::string close, QuoteType quotetype) {
+    if (open.size() != close.size()) {
+        throw std::runtime_error("Extract_UseParentheses: open and close delimiters must have equal length");
+    }
+
     int inquotes = 0;
     std::vector<char> parentheses;
 
