@@ -361,8 +361,8 @@ namespace Gorgon {
 
 			/// Compares two points with an epsilon tolerance. Useful for floating
 			bool NearlyEqual(const basic_Point &point, Float eps = Float(1e-9)) const {
-				return std::abs(Float(X - point.X)) < eps &&
-				       std::abs(Float(Y - point.Y)) < eps;
+				return std::abs(Float(X) - Float(point.X)) < eps &&
+				       std::abs(Float(Y) - Float(point.Y)) < eps;
 			}
 
 			/// Returns true if both components are within eps of zero
