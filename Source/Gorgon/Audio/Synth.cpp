@@ -271,14 +271,14 @@ float Synth::Duration::ToSeconds(float tempo) const {
     }
 }
 
-size_t Synth::Duration::ToSamples(float tempo, unsigned sample_rate) const {
+double Synth::Duration::ToSamples(float tempo, float sample_rate) const {
     switch(type) {
     case TempoFraction:
-        return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
+        return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
     case TempoUnits:
-        return static_cast<size_t>(240.0f / tempo * Units * sample_rate);
+        return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
-        return static_cast<size_t>(Seconds * sample_rate);
+        return Seconds * sample_rate;
     default:
         throw Error(Error::InvalidDuration, "Unsupported duration type");
     }
@@ -299,16 +299,16 @@ float Synth::Duration::ToSeconds(float tempo, float notelength) const {
     }
 }
 
-size_t Synth::Duration::ToSamples(float tempo, unsigned sample_rate, float notelength) const {
+double Synth::Duration::ToSamples(float tempo, float sample_rate, float notelength) const {
     switch(type) {
     case TempoFraction:
-        return static_cast<size_t>(240.0f / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate);
+        return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
     case TempoUnits:
-        return static_cast<size_t>(240.0f / tempo * Units * sample_rate);
+        return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
-        return static_cast<size_t>(Seconds * sample_rate);
+        return Seconds * sample_rate;
     case NoteFraction:
-        return static_cast<size_t>(notelength * Units * sample_rate);
+        return notelength * Units * sample_rate;
     default:
         throw Error(Error::InvalidDuration, "Unsupported duration type");
     }
@@ -446,7 +446,7 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
     }
 }
 
-size_t Synth::Sine::ReleaseOverflow(TrackState &state, unsigned sample_rate, const Node &note) const {
+double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
     return CalculateOverflow(
         Attack, Release, state.Separation, 
         state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo)
@@ -821,7 +821,12 @@ void Synth::Parse(std::istream &stream) {
     }
 }
 
-size_t Synth::CalculateSamples(unsigned sample_rate) const {
+Synth::AudioDuration Synth::CalculateSamples(float sample_rate) const {
+    auto [total, end] = calculatesamples(sample_rate);
+    return {static_cast<size_t>(std::ceil(total)), static_cast<size_t>(std::ceil(end))};
+}
+
+std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
     TrackState state;
 
     Node last_note = {};
@@ -848,20 +853,25 @@ size_t Synth::CalculateSamples(unsigned sample_rate) const {
         }
     }
 
-    if(last_note.type != Node::Type::NoOp) {
-        auto releaseOverflow = Instruments[(long)state.InstrumentIndex].ReleaseOverflow(state, sample_rate, last_note);
+    auto end = state.Sample;
+
+    if(last_note.type != Node::Type::NoOp && state.InstrumentIndex > 0) {
+        if(state.InstrumentIndex > (size_t)Instruments.GetSize()) {
+            throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
+        }
+        auto releaseOverflow = Instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, last_note);
         state.Sample += releaseOverflow;
     }
 
-    return size_t(state.Sample);
+    return {state.Sample, end};
 }
 
 float Synth::CalculateDuration() const { 
-    return CalculateSamples(151200) / 151200.0f; 
+    return CalculateSamples(151200).Total / 151200.0f; 
 }
 
-Containers::Wave Synth::Render(unsigned sample_rate) const {
-    Containers::Wave wave(CalculateSamples(sample_rate), sample_rate, Channels);
+Containers::Wave Synth::Render(float sample_rate) const {
+    Containers::Wave wave(size_t(std::ceil(CalculateSamples(sample_rate).Total)), sample_rate, Channels);
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
         Utils::NotImplemented("Only mono output is supported currently");
@@ -908,9 +918,9 @@ Containers::Wave Synth::Render(unsigned sample_rate) const {
 
         case Node::Type::Note: {
             float frequency = NoteToFrequency(node.note.note, state.Octave);
-            size_t duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+            double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
-            size_t notesep = std::min(size_t(duration / 10), state.Separation.ToSamples(state.Tempo, sample_rate));
+            double notesep = std::min(duration / 10, state.Separation.ToSamples(state.Tempo, sample_rate));
             duration -= notesep;
 
             for(size_t i = 0; i < duration; i++) {
@@ -924,12 +934,12 @@ Containers::Wave Synth::Render(unsigned sample_rate) const {
 
                 float sample = std::sin(2.0f * PI * frequency * (state.Sample + i) / sample_rate);
 
-                for(int ch = 0; ch < (int)Channels.size(); ch++) {
-                    wave(state.Sample + i, ch) = sample * state.Volume[ch] * fade;
+                for(size_t ch = 0; ch < Channels.size(); ch++) {
+                    wave(size_t(std::round(state.Sample)) + i, ch) = sample * state.Volume[ch] * fade;
                 }
             }
 
-            state.Sample += duration;
+            state.Sample += duration + notesep;
             break;
         }
 

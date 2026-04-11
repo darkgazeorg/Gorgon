@@ -10,6 +10,7 @@ GMM supports comments through the `#` symbol. Anything following `#` on a line i
 - Slide
 - Tempo and volume ramps
 - Tracks
+- Vibrato
 
 ---
 
@@ -36,7 +37,7 @@ The body contains one or more tracks, each tagged with a track identifier (`1>`,
 2> @2 C2 C2 C2 C2
 
 # Multi-channel panning, volume fades, and non-linear slides
-1> V[0]100 V[1]0 C4 V[0]0:4{exp} V[1]100:4{exp} C4~F4{sqrt} V0 R4
+1> V[0]100 V[1]0 C4 V[0]0:4{exp} V[1]100:4{exp} C4^F4{sqrt} V0 R4
 ```
 
 ---
@@ -58,8 +59,13 @@ The body contains one or more tracks, each tagged with a track identifier (`1>`,
 * **`A`–`G`**: Musical notes. Can be followed by `+` (sharp) or `-` (flat). If no duration is specified, a quarter note is used.
 * **`R<Duration>`**: Rest (silence) for the given duration.
 * **`O<Octave>` / `<` / `>`**: Octave control. `O5` sets octave 5. `<` and `>` shift the current octave down or up by one.
-* **`~[{Curve}]` (Slide/Portamento)**: Smoothly glides pitch from the first note to the next over the total duration. Example: `C2~B2`. Accepts an optional curve modifier (e.g., `C2~C6{sqrt}`).
-* **`S<Duration>`**: Sets note separation (articulation). Controls how long before the end of the note the release phase is triggered. Example: `S8` triggers the release an eighth note before the note ends. Release will never trigger before the attack phase finishes; if S is longer, it clamps to the attack duration. If attack is longer than the note duration, attack is shortened to fit the note duration, and S is ignored.
+* **`~[{Rate, Depth, Delay, End, Curve}]` (Vibrato)**: Applies pitch modulation to the preceding note to simulate a vibrating string or breath.
+    * If used alone (`C4~`), it applies the instrument's default vibrato settings.
+    * Can be overridden inline with tuple parameters: `C4~{5.0, 0.5, 0}` (5Hz rate, half-semitone depth, no delay).
+* **`^` (Slide/Portamento)**: A single command that smoothly glides pitch from a starting note to a target note over a specified duration.
+    * **Syntax:** `<StartNote>^<TargetNote><Duration>[{Curve}]`
+    * **Example:** `C4^G4:2` slides from C4 to G4 over a half note.
+    * **Example:** `C4^C5:4{s}` slides an entire octave over a quarter note using an S-Curve for a smooth takeoff and landing.* **`S<Duration>`**: Sets note separation (articulation). Controls how long before the end of the note the release phase is triggered. Example: `S8` triggers the release an eighth note before the note ends. Release will never trigger before the attack phase finishes; if S is longer, it clamps to the attack duration. If attack is longer than the note duration, attack is shortened to fit the note duration, and S is ignored.
 
 ---
 
@@ -105,5 +111,16 @@ A pure sine wave generator. With a smooth release, it mimics a flute.
 **Example Definition:**
 ```text
 @1 = sine(Guitar), attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}
+```
+
+**Vibrato Settings**
+Instruments can define a default vibrato profile. This allows notes to organically modulate without needing track-level modifiers. It requires three parameters defined as a tuple: `{Rate, Depth, Delay}`.
+* **`Rate`**: The speed of the wobble in Hz (e.g., `5.0` to `7.0` is typical for acoustic instruments).
+* **`Depth`**: The maximum pitch deviation in semitones (e.g., `0.5` is a quarter-step bend).
+* **`Delay`**: Absolute time in seconds (e.g., `(0.2)`) or duration fraction (e.g., `8`) before the vibrato effect begins, mimicking a human player settling on a note before applying vibrato.
+
+**Example Definition:**
+```text
+@1 = sine(Violin), attack={s, 32}, vibrato={6.0, 0.25, 16}
 ```
 */

@@ -371,8 +371,10 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.Nodes[31].note.duration.Fraction.Numerator == 1);
     REQUIRE(synth.Nodes[31].note.duration.Fraction.Denominator == 4);
 
-    REQUIRE(synth.CalculateSamples(160) == 1050);
-    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.5625f));
+    auto [total, end] = synth.CalculateSamples(160);
+    REQUIRE(end == 1050); //1050 from notes + 15 from release
+    REQUIRE(total == 1065); 
+    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.65625f));
 }
 
 TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
