@@ -113,16 +113,11 @@ namespace Gorgon :: Utils {
         };
         
 		/// Default constructor. Allows you to specify a section
-		Logger(const std::string &section = "", bool marktime = true, bool markdate = false) : 
+		explicit Logger(const std::string &section = "", bool marktime = true, bool markdate = false) : 
 			marktime(marktime), markdate(markdate), section(section)
 		{ }
 
-		/// Default constructor. Allows you to specify a section
-		Logger(const char *section, bool marktime = true, bool markdate = false) : 
-			Logger(std::string(section), marktime, markdate) 
-		{ }
-		
-		Logger(bool marktime, bool markdate = false) : Logger("", marktime, markdate) { }
+		explicit Logger(bool marktime, bool markdate = false) : Logger("", marktime, markdate) { }
 		
 		Logger(std::ostream &stream, const std::string &section = "", bool marktime = true, bool markdate = false) : 
 			stream(&stream), marktime(marktime), markdate(markdate), section(section)
@@ -134,11 +129,25 @@ namespace Gorgon :: Utils {
 			CleanUp();
 		}
 
-		void InitializeConsole() {
+		/// Initializes the logger to direct its input to the console.
+		/// Only std::cout and std::cerr are supported. 
+		void InitializeConsole(std::ostream &stream = std::cout) {
 			CleanUp();
-			stream=&std::cout;
+			
+			this->stream=&stream;
 			owner=false;
-            console = StdConsole();
+
+			if(stream.rdbuf() == std::cout.rdbuf()) {
+            	console = StdConsole();
+				hasconsole = true;
+			}
+			else if(stream.rdbuf() == std::cerr.rdbuf()) {
+				console = StdErrorConsole();
+				hasconsole = true;
+			}
+			else {
+				hasconsole = false;
+			}
 		}
 
 		/// Initializes the logger to direct its input to the given stream. 
@@ -151,7 +160,7 @@ namespace Gorgon :: Utils {
 #endif
 		}
 
-		/// Opens and initializer the logger using the given filename. The file
+		/// Opens and initializes the logger using the given filename. The file
 		/// will automatically be closed when CleanUp is performed.
 		void InitializeFile(const std::string &filename, bool append = false) {
 #ifndef NO_LOGGING

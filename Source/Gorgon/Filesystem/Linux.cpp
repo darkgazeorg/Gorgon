@@ -91,6 +91,10 @@ namespace Gorgon :: Filesystem {
 
 		return false;
 	}
+
+	bool IsRelative(const std::string &path) {
+		return !path.empty() && path[0] != '/';
+	}
 	
 	std::string Canonical(const std::string &path) {
 		char *newpath;

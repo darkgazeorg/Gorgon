@@ -15,7 +15,7 @@
 
 namespace Mechanics {
 
-    void Game::DoFrame(unsigned delta) {
+    bool Game::DoFrame(unsigned delta) {
         // Step 1: update the player's position
         player.DoFrame(delta);
 
@@ -32,7 +32,7 @@ namespace Mechanics {
             // a pointer. The collection takes ownership of this pointer.
             // The asteroid's constructor already randomizes its start position
             // and velocity, so we do not need to configure it here.
-            enemies.Add(new Astroid());
+            enemies.Add(new Astroid(difficulty));
         }
 
         // Step 4: remove enemies that have left the screen
@@ -42,6 +42,7 @@ namespace Mechanics {
         // element that was shifted down).
         for(int i = 0; i < enemies.GetSize(); i++) {
             if(enemies[i].canBeDestroyed()) {
+                score += enemies[i].GetPoints();
                 enemies.Delete(i);
                 i--;  // Adjust index because the list just got shorter
             }
@@ -65,13 +66,12 @@ namespace Mechanics {
                 // If that distance is smaller than the combined radii, the circles
                 // overlap and the player has been hit.
                 if(enemy.GetPosition().Distance(player.GetPosition()) < astroidsize / 2.f + playerSize / 2.f) {
-                    // For now we end the game immediately.
-                    // In a more complete game you would reduce lives, show a
-                    // game-over screen, and let the player restart cleanly.
-                    exit(0);
+                    return false;
                 }
             }
         }
+
+        return true;
     }
 
 }

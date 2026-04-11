@@ -60,7 +60,7 @@ namespace Gorgon :: OS {
 		}
 
 		std::string GetDataPath() {
-			return GetEnvVar("HOME");
+			return GetEnvVar("HOME") + "/.local/share";
 		}
 		
 		bool IsAdmin() {

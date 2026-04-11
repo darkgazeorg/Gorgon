@@ -19,7 +19,6 @@
 #pragma once
 
 #include "Assets/Player.h"   // Loads and stores the ship sprite
-#include "Assets/UI.h"       // Loads and stores the scrolling background
 #include "Mechanics/Game.h" // Runs frame-by-frame game logic
 
 #include <Gorgon/Scene.h>   // Base class for all scenes
@@ -34,6 +33,18 @@ class Game : public Gorgon::Scene {
 public:
     Game(Gorgon::SceneManager &parent, Gorgon::SceneID id);
 
+    void NewGame(int difficulty) {
+        delete game;
+        game = new Mechanics::Game(difficulty);
+        scrollSpeed = 700 - difficulty * 300;
+    }
+
+    static auto &GetCurrent() {
+        assert(current != nullptr);  // We should have already created the game in NewGame()
+        
+        return *current;
+    }
+
 protected:
 
     // Called only once, the first time this scene is activated.
@@ -44,7 +55,9 @@ protected:
 
     // Called every time the scene becomes active (e.g. player starts a new
     // game). Currently empty - we could reset the game state here later.
-	virtual void activate() override { }
+	virtual void activate() override {
+        assert(game != nullptr);  // We should have already created the game in NewGame()
+    }
 
     // Called every frame with "delta" = milliseconds since the last frame.
     // Using delta time instead of a fixed value keeps the game speed the same
@@ -71,17 +84,18 @@ private:
     // Visual assets (sprites / images).  The string "red" selects which ship
     // color variant to load from disk.
     Assets::Player playerAssets{"red"};
-	Assets::UI uiAssets;  // Background image
 
     // The game logic object. All positions, velocities, and collision checks
     // live here. Separating logic from the scene keeps this file focused on
     // "what to draw" rather than "how the game works".
-    Mechanics::Game game;
+    Mechanics::Game *game = nullptr;
 
     // Background scrolling state.
     // scrollSpeed: how many pixels per second the background moves downward.
     //              A higher value gives a stronger sense of speed.
-	const int scrollSpeed = 500;
+	int scrollSpeed = 500;
     float scroll = 0;  // Current vertical offset of the background (in pixels)
+
+    static Game *current;  // A static pointer to the currently active game scene, used by the main menu to start a new game
 };
 

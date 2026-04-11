@@ -28,6 +28,7 @@ set(UnitTests
 	Geometry
 	Hashmap
 	HTTP
+	JSON
 	KeyRepeater
 	Layer
 	Logging

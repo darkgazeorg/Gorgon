@@ -5,4 +5,5 @@ add_subdirectory("Simple Games/1- Green Shooter")
 add_subdirectory("Simple Games/2- Space Shooter")
 add_subdirectory("Computer Graphics")
 add_subdirectory("CGAnimationTemplate")
-
+add_subdirectory("Basics/JSON")
+add_subdirectory("Basics/Console")

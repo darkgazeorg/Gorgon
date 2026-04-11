@@ -234,7 +234,7 @@ namespace Gorgon :: Audio {
             
             result = pa_stream_connect_playback(pa_strm, NULL, &attr, PA_STREAM_NOFLAGS, NULL, NULL);
             
-            if(!result) {
+            if(result) {
                 Log.Log("Cannot connect to stream");
                 return;
             }

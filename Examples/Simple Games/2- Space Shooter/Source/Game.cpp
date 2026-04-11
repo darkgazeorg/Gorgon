@@ -12,15 +12,25 @@
 // =============================================================================
 
 #include "Game.h"
+#include "EndGame.h"
+#include "Gorgon/Graphics.h"
+#include "Gorgon/Graphics/Font.h"
 #include "Scenes.h"
 #include "Assets/Enemy.h"  // Needed so we can load/prepare asteroid images
+#include "Assets/UI.h"       // Loads and stores the scrolling background
+
+#include <Gorgon/Widgets/Registry.h>
+
+namespace W = Gorgon::Widgets;
 
 // Constructor: just calls the parent Scene constructor to register this scene
 // with the scene manager.  No heavy work here - the engine creates all scenes
 // at startup, so we want construction to be as fast as possible.
 Game::Game(Gorgon::SceneManager &parent, Gorgon::SceneID id) : 
     Gorgon::Scene(parent, id) 
-{ }
+{ 
+    current = this;
+}
 
 // first_activation() runs exactly once, the first time this scene is shown.
 // This is the right place to load files from disk because:
@@ -34,8 +44,8 @@ void Game::first_activation() {
     playerAssets.Load();
     playerAssets.Prepare();
 
-    uiAssets.Load();
-    uiAssets.Prepare();
+    Assets::UI::Get().Load();
+    Assets::UI::Get().Prepare();
 
     // Asteroids are shared across the whole game (hence the static helpers).
     Assets::Astroid::LoadAll();
@@ -49,7 +59,11 @@ void Game::first_activation() {
 void Game::doframe(unsigned delta) {
     // Let the mechanics layer update player position, spawn asteroids, and
     // check for collisions.
-    game.DoFrame(delta);
+    if(!game->DoFrame(delta)) {
+        EndGame::GetCurrent().SetScore(game->GetScore());
+        parent->SwitchScene(END_GAME);
+        return;
+    }
 
     // Advance the background scroll position. Dividing by 1000 converts
     // milliseconds to seconds, so scrollSpeed is in pixels-per-second.
@@ -71,45 +85,51 @@ void Game::render() {
     //      the old one moves off the top, giving a seamless loop.
     //   2. Use fmod (floating-point modulo) to prevent scroll from growing
     //      forever - once it equals bgHeight we reset to 0.
-    int bgHeight = uiAssets.GetBackground().GetHeight();
+    int bgHeight = Assets::UI::Get().GetBackground().GetHeight();
     auto layerSize = graphics.GetCalculatedSize();
     layerSize.Height += bgHeight;  // Extend the draw area so the bottom copy is fully visible
 
     scroll = std::fmod(scroll, float(bgHeight));  // Wrap around when we complete one cycle
-    uiAssets.GetBackground().DrawIn(graphics, 0, int(scroll) - bgHeight, layerSize);
+    Assets::UI::Get().GetBackground().DrawIn(graphics, 0, int(scroll) - bgHeight, layerSize);
 
     // --- Player ship ---
     // We draw the ship centered on the player's position.
     // GetWidth()/2 shifts the anchor point from the top-left corner to the
     // horizontal center of the sprite.
     int w = playerAssets.GetShip().GetWidth();
-    playerAssets.GetShip().Draw(graphics, game.GetPlayer().GetPosition() - Point(w/2, 0));
+    playerAssets.GetShip().Draw(graphics, game->GetPlayer().GetPosition() - Point(w/2, 0));
 
     // --- Asteroids ---
     // Iterate over every active enemy.  If it is an asteroid (the only enemy
     // type right now), cast it to Astroid so we can read its specific properties
     // (like the visual variant), then draw it stretched to a 64x64 box.
-    for(int i = 0; i < game.GetEnemies().GetSize(); i++) {
-        auto &enemy = game.GetEnemies()[i];
+    for(int i = 0; i < game->GetEnemies().GetSize(); i++) {
+        auto &enemy = game->GetEnemies()[i];
 
         if(enemy.GetEnemyType() == Mechanics::Enemy::Astroid) {
             // A static_cast is safe here because we just confirmed the type.
             auto &astroid = static_cast<Mechanics::Astroid&>(enemy);
 
-            // The type number selects which asteroid sprite to use.
-            // Modulo wraps the index so we never go out of bounds in the
-            // assets array even if astroidType is a large random number.
-            int type = astroid.GetType();
             auto &image = astroid.GetAnimation();
 
-            float w = 64;
-            float h = 64;
+            auto [w, h] = image.GetSize();
             
             // DrawStretched draws the sprite at the given top-left position
             // and scales it to the given {w, h} dimensions.
-            image.DrawStretched(graphics, astroid.GetPosition() - Pointf(w/2.f, h/2.f), {w, h});
+            image.Draw(graphics, astroid.GetPosition() - Pointf(w/2.f, h/2.f));
         }
     }
+
+    auto font = W::Registry::Active().Printer(Gorgon::Graphics::NamedFont::H1);
+    font.SetColor(Gorgon::Graphics::Color::White);
+
+    font.Print(
+        graphics, 
+        "Score: " + std::to_string((int)std::round(game->GetScore())), 
+        10, 10, 
+        this->parent->GetWidth() - 20,
+        Gorgon::Graphics::TextAlignment::Center
+    );
 }
 
 // KeyEvent() is called by the engine whenever a key is pressed or released.
@@ -128,15 +148,17 @@ void Game::KeyEvent(Gorgon::Input::Key key, float state) {
     // Passing the state (true/false) rather than calling two separate functions
     // (startMovingLeft / stopMovingLeft) keeps the API simple.
     if(key == Keycodes::A) {
-        game.GetPlayer().MoveLeft(state == 1);
+        game->GetPlayer().MoveLeft(state == 1);
     }
     if(key == Keycodes::D) {
-        game.GetPlayer().MoveRight(state == 1);
+        game->GetPlayer().MoveRight(state == 1);
     }
     if(key == Keycodes::W) {
-        game.GetPlayer().MoveUp(state == 1);
+        game->GetPlayer().MoveUp(state == 1);
     }
     if(key == Keycodes::S) {
-        game.GetPlayer().MoveDown(state == 1);
+        game->GetPlayer().MoveDown(state == 1);
     }
 }
+
+Game *Game::current = nullptr;

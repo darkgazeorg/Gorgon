@@ -13,9 +13,13 @@ set(APP_SOURCES
     Source/Scenes.h
 
     Source/MainMenu.h
+    Source/MainMenu.cpp
 
     Source/Game.h
     Source/Game.cpp
+
+    Source/EndGame.h
+    Source/EndGame.cpp
 
     Source/Assets/Player.h
     Source/Assets/Player.cpp

@@ -1,7 +1,6 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
-#include <algorithm>
 
 #include "../Utils/Assert.h"
 
@@ -12,7 +11,7 @@
 #define WINDOWS_LEAN_AND_MEAN
 #include <curl/curl.h>
 
-namespace Gorgon ::Network {
+namespace Gorgon :: Network {
 
 // ---- Static helpers ----
 

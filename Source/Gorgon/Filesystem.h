@@ -131,6 +131,9 @@ namespace Gorgon {
 		///         to find relative path.
 		std::string Relative(std::string path, std::string base=".");
 
+		/// Determine if a path is relative. This check is operating system aware.
+		bool IsRelative(const std::string &path);
+
 		/// Deletes the given file or directory. If the directory is not empty,
 		/// this function will delete all its contents.
 		/// @param  path is the file/directory to be deleted. Should contain

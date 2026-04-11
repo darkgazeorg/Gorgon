@@ -1,10 +1,12 @@
-﻿#include "Gorgon/Graphics/Color.h"
+﻿#include "Gorgon/Encoding/LZMA.h"
+#include "Gorgon/Graphics/Color.h"
 #include "Gorgon/Types.h"
 #include "GraphicsHelper.h"
 #include <Gorgon/Graphics/Bitmap.h>
 
 #include <Gorgon/ImageProcessing/Kernel.h>
 #include <Gorgon/ImageProcessing/Filters.h>
+#include <fstream>
 
 using namespace Gorgon::ImageProcessing;
 std::string helptext = 
@@ -17,7 +19,7 @@ using namespace Gorgon::Graphics;
 
 int main() {
     Application app("generictest", "Test", helptext, 10);
-
+    
     Graphics::Layer layer;
     app.wind.Add(layer);
     

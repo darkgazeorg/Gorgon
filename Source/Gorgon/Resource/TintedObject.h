@@ -2,6 +2,7 @@
 
 #include "AnimationStorage.h"
 #include "../Graphics/TintedObject.h"
+#include <memory>
 
 
 namespace Gorgon :: Resource {

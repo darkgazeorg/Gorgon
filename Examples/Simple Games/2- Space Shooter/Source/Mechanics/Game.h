@@ -29,6 +29,18 @@ namespace Mechanics {
 class Game {
 public:
 
+    explicit Game(int difficulty) :
+        difficulty(difficulty),
+        // spawnTimeout controls how many milliseconds must pass between asteroid
+        // spawns.  The formula makes the gap shrink as difficulty rises:
+        //   difficulty 0 -> 800 / 4  = 200 ms between spawns
+        //   difficulty 1 -> 800 / 7  ≈ 114 ms
+        //   difficulty 3 -> 800 / 13 ≈  62 ms
+        // A smaller timeout means more asteroids per second, making the game harder.
+        spawnTimeout(800 / (4 + difficulty * 3))
+    {
+    }
+
     // Destructor: explicitly destroy the enemies collection.
     // The collection holds pointers to Enemy objects allocated on the heap
     // (via "new Astroid()").  Calling Destroy() frees that memory so we
@@ -37,8 +49,9 @@ public:
         enemies.Destroy();
     }
 
-    // Advance the whole simulation by one frame.
-    void DoFrame(unsigned delta);
+    // Advance the whole simulation by one frame. Returns false if the game is
+    // ended
+    bool DoFrame(unsigned delta);
 
     // Expose the player object so the scene can read its position for
     // rendering, and so KeyEvent() can toggle movement flags.
@@ -50,6 +63,13 @@ public:
     // each enemy at its current position.
     auto &GetEnemies() {
         return enemies;
+    }
+
+    // Returns the accumulated score so the gameplay scene and end-game screen
+    // can display it.  Score increases when asteroids scroll off the bottom of
+    // the screen - the faster the asteroid, the more points it is worth.
+    auto GetScore() const {
+        return score;
     }
 
 private:
@@ -65,9 +85,15 @@ private:
     unsigned long spawnTimer = 0;
 
     // How many milliseconds between asteroid spawns.
-    // 100 ms = one new asteroid every 0.1 seconds. Lowering this makes the
-    // game harder; raising it makes it easier.
+    // Calculated from difficulty in the constructor; a smaller value means
+    // asteroids appear more frequently, making the game harder.
     const unsigned long spawnTimeout = 100;
+
+    int difficulty = 0;
+
+    // Running total of points earned this game.  The score goes up each time
+    // an asteroid scrolls off the bottom of the screen (see Game.cpp step 4).
+    float score = 0;
 };
 
 }

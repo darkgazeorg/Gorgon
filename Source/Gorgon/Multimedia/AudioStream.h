@@ -3,7 +3,6 @@
 #include "../Containers/Wave.h"
 #include "../Containers/Collection.h"
 #include "../Audio/Source.h"
-#include "../Utils/Assert.h"
 
 #include "Stream.h"
 
@@ -69,6 +68,8 @@ namespace Multimedia {
         { }
         
         AudioStream(AudioStream &&other);
+
+        AudioStream &operator=(AudioStream &&other);
         
         /// Starts streaming the given file. File type will be determined automatically from the 
         /// extension. Only a portion of the file will be loaded immediately and it will be loaded

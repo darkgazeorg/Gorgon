@@ -9,6 +9,7 @@
 // produce the actual gameplay.
 // =============================================================================
 
+#include "EndGame.h"
 #include "MainMenu.h"  // The main menu screen
 #include "Game.h"      // The gameplay screen
 #include "Scenes.h"    // The numeric IDs that identify each scene
@@ -49,6 +50,7 @@ int Main(const std::vector<std::string> &args) {
     // it inside the manager under the given ID. The scenes are not shown yet.
     manager.NewScene<MainMenu>(MAIN_MENU);
     manager.NewScene<Game>(GAME_SCENE);
+    manager.NewScene<EndGame>(END_GAME);
     
     // Start with the main menu. The player will navigate to the game from there.
     manager.SwitchScene(MAIN_MENU);
