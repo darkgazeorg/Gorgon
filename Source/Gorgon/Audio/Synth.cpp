@@ -511,6 +511,10 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     case '<':
         return Node::MakeOctaveRelative(-1);
     case 'v': {
+        if(normalized.size() < 2) {
+            throw Error(Error::InvalidParameter, "Volume token must have a value: " + normalized);
+        }
+
         int channel = 0;
         if(normalized[1] == '{') {
             auto endBrace = normalized.find('}');
@@ -747,9 +751,11 @@ void Synth::Parse(std::istream &stream) {
 
             pos = line.find_first_of("= ");
 
-            //eat up space
-            while(line[pos] == ' ' || line[pos] == '\t') {
-                pos++;
+            if(pos != std::string::npos) {
+                //eat up space
+                while(line[pos] == ' ' || line[pos] == '\t') {
+                    pos++;
+                }
             }
 
             // we reached to = sign, this is an instrument definition line

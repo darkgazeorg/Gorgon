@@ -159,6 +159,10 @@ TEST_CASE("ParseNode throws on invalid input", "[Synth][Parse][GMM]") {
 
     REQUIRE_THROWS_AS(Synth::ParseNode("X100", 6), Synth::Error);
     REQUIRE_THROWS_AS(Synth::ParseNode("Oabc", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("O", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("T", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V{2}", 6), Synth::Error);
     REQUIRE_THROWS_AS(Synth::ParseNode("V150", 6), Synth::Error);
     REQUIRE_THROWS_AS(Synth::ParseNode("C#4", 6), Synth::Error); // should be C+4
     REQUIRE_THROWS_AS(Synth::ParseNode("Db4", 6), Synth::Error); // should be D-4
