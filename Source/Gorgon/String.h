@@ -941,7 +941,7 @@ namespace Gorgon {
             if(str.empty())
                 return {};
 
-            std::map<std::string, std::string> ret;
+            std::map<K_, V_> ret;
             std::vector<char> closestack;
             std::string acc;
 
