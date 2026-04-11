@@ -177,12 +177,19 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
             throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
         }
+        if(nom < 0) {
+            throw Error(Error::InvalidParameter, "Nominator cannot be zero in duration fraction: " + normalized);
+        }
+
         std::tie(den, res) = String::FromCLocaleTo<int>(normalized);
         if(res == String::FromCLocaleToState::Failed) {
             throw Error(Error::InvalidParameter, "Invalid duration value: " + normalized);
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
             throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+        if(den <= 0) {
+            throw Error(Error::InvalidParameter, "Denominator cannot be zero in duration fraction: " + normalized);
         }
         return Duration::FromFraction(nom, den);
     }
@@ -198,6 +205,10 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {   
             throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+
+        if(seconds < 0) {
+            throw Error(Error::InvalidParameter, "Duration in seconds cannot be negative: " + normalized);
         }
 
         return Duration::FromSeconds(seconds);
@@ -216,6 +227,9 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {   
             throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
         }
+        if(units < 0) {
+            throw Error(Error::InvalidParameter, "Duration in units cannot be negative: " + normalized);
+        }
 
         return Duration::FromNoteFraction(units);
     }
@@ -231,6 +245,10 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
             if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
                 throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized.substr(0, pos));
             }
+            if(base <= 0) {
+                throw Error(Error::InvalidParameter, "Denominator cannot be zero in duration fraction: " + normalized.substr(0, pos));
+            }
+
             return Duration::FromFraction(3, base * 2);
         }
         else {
@@ -241,6 +259,10 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
             if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
                 throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
             }
+            if(units < 0) {
+                throw Error(Error::InvalidParameter, "Duration in units cannot be negative: " + normalized);
+            }
+
             return Duration::FromUnits(units);
         }
     }
@@ -251,6 +273,9 @@ Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
             throw Error(Error::InvalidParameter, "Extra characters after duration value: " + normalized);
+        }
+        if(den <= 0) {
+            throw Error(Error::InvalidParameter, "Denominator cannot be zero in duration fraction: " + normalized);
         }
         return Duration::FromFraction(den);
     }

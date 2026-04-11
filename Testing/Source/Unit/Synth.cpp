@@ -182,6 +182,37 @@ TEST_CASE("Duration::Parse handles note-length and tempo durations", "[Synth][Du
     REQUIRE(duration.ToSeconds(120.0f) == Catch::Approx(1.5f));
 }
 
+TEST_CASE("ParseNode rejects zero and negative duration values", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("C0", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C1/0", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C(-0.5)", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C[-0.5]", 6), Synth::Error);
+}
+
+TEST_CASE("Duration::Parse accepts zero durations and rejects invalid ones", "[Synth][Duration]") {
+    using namespace Gorgon::Audio;
+
+    auto duration = Synth::Duration::Parse("0/4");
+    REQUIRE(duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(duration.Fraction.Numerator == 0);
+    REQUIRE(duration.Fraction.Denominator == 4);
+
+    duration = Synth::Duration::Parse("0.0");
+    REQUIRE(duration.type == Synth::Duration::TempoUnits);
+    REQUIRE(duration.Units == Catch::Approx(0.0f));
+
+    duration = Synth::Duration::Parse("(0)");
+    REQUIRE(duration.type == Synth::Duration::ClockSeconds);
+    REQUIRE(duration.Seconds == Catch::Approx(0.0f));
+
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("1/0"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("-1/4"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("(-0.5)"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("[-0.5]"), Synth::Error);
+}
+
 TEST_CASE("Ramp::Parse handles various ramp definitions", "[Synth][Ramp]") {
     using namespace Gorgon::Audio;
 
