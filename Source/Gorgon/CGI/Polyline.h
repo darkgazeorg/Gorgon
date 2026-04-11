@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../Geometry/Bounds.h"
+#include "../Types.h"
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -11,9 +14,9 @@ namespace Gorgon::CGI {
 ///                    positive = CCW, negative = CW.
 ///   - isCurve     -> the segment is the destination of a flattened curve run
 struct PolyVertex {
-  double x = 0.0;
-  double y = 0.0;
-  double bulge = 0.0;
+  Float x = 0.0;
+  Float y = 0.0;
+  Float bulge = 0.0;
   bool isCurve = false;
 };
 
@@ -25,45 +28,12 @@ struct Polyline {
   std::vector<PolyVertex> vertexes;
 };
 
-/// Axis-aligned bounding box.
-struct BoundingBox {
-  double minX, minY, maxX, maxY;
-  bool empty = true;
-
-  /// Expand the bounds to include a point.
-  /// @param x X coordinate.
-  /// @param y Y coordinate.
-  void expand(double x, double y) {
-    if (empty) {
-      minX = maxX = x;
-      minY = maxY = y;
-      empty = false;
-    } else {
-      if (x < minX)
-        minX = x;
-      if (y < minY)
-        minY = y;
-      if (x > maxX)
-        maxX = x;
-      if (y > maxY)
-        maxY = y;
-    }
-  }
-
-  /// Get bounding box width.
-  /// @return Box width, computed as maxX - minX.
-  double width() const { return maxX - minX; }
-  /// Get bounding box height.
-  /// @return Box height, computed as maxY - minY.
-  double height() const { return maxY - minY; }
-};
-
 /// Full geometric description of a single circular arc recovered from a
 /// bulge-encoded segment.
 struct ArcGeometry {
-  double cx = 0.0, cy = 0.0;
-  double radius = 0.0, startAngle = 0.0, endAngle = 0.0;
-  double sweep = 0.0, midX = 0.0, midY = 0.0;
+  Float cx = 0.0, cy = 0.0;
+  Float radius = 0.0, startAngle = 0.0, endAngle = 0.0;
+  Float sweep = 0.0, midX = 0.0, midY = 0.0;
 };
 
 /// A typed, standalone segment extracted from a Polyline.
@@ -73,9 +43,9 @@ struct Segment {
   enum class Type { Line, Arc };
 
   Type type = Type::Line;
-  double x0 = 0.0, y0 = 0.0;
-  double x1 = 0.0, y1 = 0.0;
-  double bulge = 0.0;
+  Float x0 = 0.0, y0 = 0.0;
+  Float x1 = 0.0, y1 = 0.0;
+  Float bulge = 0.0;
   bool collapsedArc = false;
   bool isCurve = false;
 };
@@ -88,31 +58,31 @@ struct Segment {
 /// @param bulge Bulge value where bulge = tan(sweep/4).
 /// @param[out] out Output arc geometry on success.
 /// @return True when a valid non-degenerate arc can be recovered.
-inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
-                               double bulge, ArcGeometry &out) {
-  if (std::abs(bulge) < 1e-15)
+inline bool ComputeArcGeometry(Float x0, Float y0, Float x1, Float y1,
+                               Float bulge, ArcGeometry &out) {
+  if (std::abs(bulge) < static_cast<Float>(1e-15))
     return false;
-  const double dx = x1 - x0, dy = y1 - y0;
-  const double chord = std::sqrt(dx * dx + dy * dy);
-  if (chord < 1e-12)
+  const Float dx = x1 - x0, dy = y1 - y0;
+  const Float chord = std::sqrt(dx * dx + dy * dy);
+  if (chord < static_cast<Float>(1e-12))
     return false;
 
-  out.sweep = 4.0 * std::atan(bulge);
-  const double halfSweep = out.sweep / 2.0;
-  const double sinHalf = std::sin(halfSweep);
-  if (std::abs(sinHalf) < 1e-12)
+  out.sweep = static_cast<Float>(4.0) * std::atan(bulge);
+  const Float halfSweep = out.sweep / static_cast<Float>(2.0);
+  const Float sinHalf = std::sin(halfSweep);
+  if (std::abs(sinHalf) < static_cast<Float>(1e-12))
     return false;
 
   // Signed radius: positive = CCW, negative = CW
-  const double rSigned = (chord / 2.0) / sinHalf;
+  const Float rSigned = (chord / static_cast<Float>(2.0)) / sinHalf;
   out.radius = std::abs(rSigned);
 
   // Centre: midpoint of chord displaced along left unit-perpendicular
-  const double midX = (x0 + x1) / 2.0;
-  const double midY = (y0 + y1) / 2.0;
-  const double perpX = -dy / chord;
-  const double perpY = dx / chord;
-  const double dist = rSigned * std::cos(halfSweep);
+  const Float midX = (x0 + x1) / static_cast<Float>(2.0);
+  const Float midY = (y0 + y1) / static_cast<Float>(2.0);
+  const Float perpX = -dy / chord;
+  const Float perpY = dx / chord;
+  const Float dist = rSigned * std::cos(halfSweep);
 
   out.cx = midX + perpX * dist;
   out.cy = midY + perpY * dist;
@@ -120,7 +90,7 @@ inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
   out.startAngle = std::atan2(y0 - out.cy, x0 - out.cx);
   out.endAngle = std::atan2(y1 - out.cy, x1 - out.cx);
 
-  const double midAngle = out.startAngle + halfSweep;
+  const Float midAngle = out.startAngle + halfSweep;
   out.midX = out.cx + out.radius * std::cos(midAngle);
   out.midY = out.cy + out.radius * std::sin(midAngle);
   return true;
@@ -130,29 +100,29 @@ inline bool ComputeArcGeometry(double x0, double y0, double x1, double y1,
 /// @param poly Polyline to evaluate.
 /// @return Positive for CCW winding, negative for CW winding, zero for
 /// degenerate shapes.
-inline double SignedArea(const Polyline &poly) {
+inline Float SignedArea(const Polyline &poly) {
   const int n = (int)poly.vertexes.size();
   const int segments = poly.isClosed ? n : n - 1;
   if (n < 2 || segments <= 0)
     return 0.0;
 
-  double area = 0.0;
+  Float area = 0.0;
   for (int i = 0; i < segments; ++i) {
     const auto &v0 = poly.vertexes[i];
     const auto &v1 = poly.vertexes[(i + 1) % n];
     area += v0.x * v1.y - v1.x * v0.y;
     if (v0.bulge != 0.0) {
-      const double dx = v1.x - v0.x, dy = v1.y - v0.y;
-      const double chord2 = dx * dx + dy * dy;
-      const double sweep = 4.0 * std::atan(v0.bulge);
-      const double sinHalf = std::sin(sweep / 2.0);
-      if (std::abs(sinHalf) > 1e-12) {
-        const double r2 = chord2 / (4.0 * sinHalf * sinHalf);
+      const Float dx = v1.x - v0.x, dy = v1.y - v0.y;
+      const Float chord2 = dx * dx + dy * dy;
+      const Float sweep = static_cast<Float>(4.0) * std::atan(v0.bulge);
+      const Float sinHalf = std::sin(sweep / static_cast<Float>(2.0));
+      if (std::abs(sinHalf) > static_cast<Float>(1e-12)) {
+        const Float r2 = chord2 / (static_cast<Float>(4.0) * sinHalf * sinHalf);
         area += r2 * (sweep - std::sin(sweep));
       }
     }
   }
-  return area / 2.0;
+  return area / static_cast<Float>(2.0);
 }
 
 /// Test whether a polyline has counter-clockwise winding.
@@ -174,7 +144,7 @@ inline void ReversePolyline(Polyline &poly) {
   if (n < 2)
     return;
 
-  std::vector<double> segBulge(segments);
+  std::vector<Float> segBulge(segments);
   std::vector<bool> segCurve(segments);
   for (int i = 0; i < segments; ++i) {
     segBulge[i] = poly.vertexes[i].bulge;
@@ -202,19 +172,19 @@ namespace detail {
 /// @param start Arc start angle, in radians.
 /// @param sweep Signed arc sweep, in radians.
 /// @return True when @p a is inside the swept interval.
-inline bool AngleInArcSweep(double a, double start, double sweep) {
-  double rel = a - start;
+inline bool AngleInArcSweep(Float a, Float start, Float sweep) {
+  Float rel = a - start;
   if (sweep > 0.0) {
     while (rel <= 0.0)
-      rel += 2.0 * M_PI;
-    while (rel > 2.0 * M_PI)
-      rel -= 2.0 * M_PI;
+      rel += static_cast<Float>(2.0 * M_PI);
+    while (rel > static_cast<Float>(2.0 * M_PI))
+      rel -= static_cast<Float>(2.0 * M_PI);
     return rel < sweep;
   } else {
     while (rel >= 0.0)
-      rel -= 2.0 * M_PI;
-    while (rel < -2.0 * M_PI)
-      rel += 2.0 * M_PI;
+      rel -= static_cast<Float>(2.0 * M_PI);
+    while (rel < static_cast<Float>(-2.0 * M_PI))
+      rel += static_cast<Float>(2.0 * M_PI);
     return rel > sweep;
   }
 }
@@ -224,17 +194,37 @@ inline bool AngleInArcSweep(double a, double start, double sweep) {
 /// Compute a tight axis-aligned bounding box for a polyline.
 /// @param poly Polyline to bound.
 /// @return Bounding box that includes line and arc extrema.
-inline BoundingBox PolylineBounds(const Polyline &poly) {
-  BoundingBox bb;
+inline Geometry::Boundsf PolylineBounds(const Polyline &poly) {
+  Geometry::Boundsf bb(0.0, 0.0, 0.0, 0.0);
+  bool hasBounds = false;
+  auto expand = [&](Float x, Float y) {
+    if (!hasBounds) {
+      bb.Left = bb.Right = x;
+      bb.Top = bb.Bottom = y;
+      hasBounds = true;
+      return;
+    }
+    if (x < bb.Left)
+      bb.Left = x;
+    if (y < bb.Top)
+      bb.Top = y;
+    if (x > bb.Right)
+      bb.Right = x;
+    if (y > bb.Bottom)
+      bb.Bottom = y;
+  };
+
   const int n = (int)poly.vertexes.size();
   const int segments = poly.isClosed ? n : n - 1;
   if (n == 0)
     return bb;
 
   for (const auto &v : poly.vertexes)
-    bb.expand(v.x, v.y);
+    expand(v.x, v.y);
 
-  static const double cardinals[4] = {0.0, M_PI / 2.0, M_PI, 3.0 * M_PI / 2.0};
+  static const Float cardinals[4] = {0.0, static_cast<Float>(M_PI / 2.0),
+                                     static_cast<Float>(M_PI),
+                                     static_cast<Float>(3.0 * M_PI / 2.0)};
   for (int i = 0; i < segments; ++i) {
     const auto &v0 = poly.vertexes[i];
     if (v0.bulge == 0.0)
@@ -243,10 +233,10 @@ inline BoundingBox PolylineBounds(const Polyline &poly) {
     ArcGeometry ag;
     if (!ComputeArcGeometry(v0.x, v0.y, v1.x, v1.y, v0.bulge, ag))
       continue;
-    for (double ang : cardinals)
+    for (Float ang : cardinals)
       if (detail::AngleInArcSweep(ang, ag.startAngle, ag.sweep))
-        bb.expand(ag.cx + ag.radius * std::cos(ang),
-                  ag.cy + ag.radius * std::sin(ang));
+        expand(ag.cx + ag.radius * std::cos(ang),
+               ag.cy + ag.radius * std::sin(ang));
   }
   return bb;
 }
