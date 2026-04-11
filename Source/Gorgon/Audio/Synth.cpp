@@ -15,7 +15,7 @@ namespace {
     size_t CalculateOverflow(
         const Synth::Ramp &attack, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, unsigned sample_rate, float notelength
+        float tempo, float sample_rate, float notelength
     ) {
         if(release.Type == Synth::RampType::None) {
             return 0;
