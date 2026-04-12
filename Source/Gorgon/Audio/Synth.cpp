@@ -12,7 +12,7 @@ namespace Gorgon :: Audio {
 namespace {
 
     /// Common overflow calculation from attack and release ramps for a note.
-    size_t CalculateOverflow(
+    double CalculateOverflow(
         const Synth::Ramp &attack, const Synth::Ramp &release, 
         const Synth::Duration &separation,
         float tempo, float sample_rate, float notelength
@@ -21,9 +21,7 @@ namespace {
             return 0;
         }
 
-        size_t notesamples = size_t(notelength * sample_rate);
-
-        size_t atk = attack.Span.ToSamples(
+        double atk = attack.Span.ToSamples(
             tempo, sample_rate, 
             notelength
         );
@@ -32,13 +30,13 @@ namespace {
             atk = notesamples;
         }
 
-        size_t S = separation.ToSamples(tempo, sample_rate, notelength);
+        double S = separation.ToSamples(tempo, sample_rate, notelength);
 
         if(S > notesamples - atk) {
             S = notesamples - atk;
         }
 
-        size_t rel = release.Span.ToSamples(tempo, sample_rate, notelength);
+        double rel = release.Span.ToSamples(tempo, sample_rate, notelength);
 
         if(rel < S) {
             rel = 0;
@@ -478,6 +476,8 @@ double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const 
     );
 }
 
+
+
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
 
@@ -628,8 +628,10 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
 
 void Synth::Parse(std::istream &stream) {
     Nodes.clear();
+
+    Instruments.DeleteAll();
     Instruments = {
-        new Sine()
+        InstrumentFactories["Sine"]()
     };
 
     std::string line;
@@ -801,10 +803,10 @@ void Synth::Parse(std::istream &stream) {
                     line = String::Trim(line.substr(pos + 1));
                 }
 
-                if(type == "sine") {
-                    auto sine = new Sine;
-                    sine->Name = name;
-                    sine->LoadSettings(line);
+                if(auto inst = InstrumentFactories.find(type); inst != InstrumentFactories.end()) {
+                    auto &sine = inst->second();
+                    sine.Name = name;
+                    sine.LoadSettings(line);
 
                     if(index == (size_t)Instruments.GetSize()) {
                         Instruments.Add(sine);
@@ -813,7 +815,7 @@ void Synth::Parse(std::istream &stream) {
                         throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
                     }
                     else {
-                        Instruments.Replace((long)index, sine, true);
+                        Instruments.Replace(index, &sine, true);
                     }
                 }
                 else {

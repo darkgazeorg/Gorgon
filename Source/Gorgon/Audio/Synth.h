@@ -6,6 +6,7 @@
 #include "Gorgon/Utils/Assert.h"
 
 #include <cmath>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -345,6 +346,17 @@ namespace Gorgon :: Audio {
             return ParseNode(token, (int)Channels.size());
         }
 
+        /// Registers a new instrument factory function with the given name. The factory
+        /// should return a reference to a new instance of the instrument when called. 
+        void AddInstrumentFactory(std::function<Instrument&()> factory, const std::string& name) {
+            InstrumentFactories[name] = factory;
+        }
+
+        /// Clears all nodes from the track, resetting it to an empty state.
+        void Clear() {
+            Nodes.clear();
+        }
+
         /// Converts a note and octave into frequency (Hz).
         static float NoteToFrequency(Note note, int octave) {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9) / 12.0f);
@@ -362,6 +374,13 @@ namespace Gorgon :: Audio {
         Containers::Collection<Instrument> Instruments = {
             new Sine()
         };
+
+        /// Factory functions for creating instruments by name. This allows for dynamic
+        /// registration of new instrument types without modifying the Synth class.
+        std::map<std::string, std::function<Instrument&()>> InstrumentFactories = {
+            {"Sine", []() -> Instrument& { return *new Sine(); }}
+        };
+
     private:
         std::pair<double, double> calculatesamples(float sample_rate) const;
     };
