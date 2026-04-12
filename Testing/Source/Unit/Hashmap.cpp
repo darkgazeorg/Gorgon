@@ -102,6 +102,8 @@ TEST_CASE("Hashmap iterators", "[Hashmap]") {
 		}
 		i++;
 	}
+
+	delete &a3;
 }
 
 TEST_CASE("Hashmap constructors", "[Hashmap]") {
