@@ -305,9 +305,9 @@ TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
     Synth synth;
     synth.Parse(gmm);
 
-    REQUIRE(synth.Instruments.GetSize() == 2); // default instrument + custom instruments
+    REQUIRE(synth.GetInstrumentCount() == 2); // default instrument + custom instruments
 
-    auto& sine = dynamic_cast<Synth::Sine&>(synth.Instruments[0]);
+    const auto& sine = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(1));
     REQUIRE(sine.Attack.Type == Synth::RampType::SquareRoot);
     REQUIRE(sine.Attack.Span.type == Synth::Duration::TempoFraction);
     REQUIRE(sine.Attack.Span.Fraction.Numerator == 1);
@@ -315,32 +315,32 @@ TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
     REQUIRE(sine.Attack.ShapeFactor == Catch::Approx(0.5f));
     REQUIRE(sine.Sustain == Catch::Approx(0.8f));
 
-    REQUIRE(synth.Nodes.size() == 6);
-    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::Tempo);
-    REQUIRE(synth.Nodes[0].tempo == Catch::Approx(120.0f));
-    REQUIRE(synth.Nodes[2].type == Synth::Node::Type::InstrumentChange);
-    REQUIRE(synth.Nodes[2].index == 1);
-    REQUIRE(synth.Nodes[3].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[3].note.note == Synth::Note::C);
-    REQUIRE(synth.Nodes[3].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[3].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[3].note.duration.Fraction.Denominator == 4);
-    REQUIRE(synth.Nodes[3].note.slide == false);
-    REQUIRE(synth.Nodes[4].type == Synth::Node::Type::InstrumentChange);
-    REQUIRE(synth.Nodes[4].index == 2);
+    REQUIRE(synth.GetNodeCount() == 6);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(120.0f));
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(2).index == 1);
+    REQUIRE(synth.GetNode(3).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(3).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(3).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(3).note.slide == false);
+    REQUIRE(synth.GetNode(4).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(4).index == 2);
 
     gmm = "@1 C4"; //this is instrument change, not note definition
     synth.Parse(gmm);
-    REQUIRE(synth.Instruments.GetSize() == 1);
-    REQUIRE(synth.Nodes.size() == 2);
-    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::InstrumentChange);
-    REQUIRE(synth.Nodes[0].index == 1);
-    REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[1].note.note == Synth::Note::C);
-    REQUIRE(synth.Nodes[1].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[1].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[1].note.duration.Fraction.Denominator == 4);
-    REQUIRE(synth.Nodes[1].note.slide == false);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(0).index == 1);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(1).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(1).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(1).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(1).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(1).note.slide == false);
 
     gmm = "@2 C4"; // this should throw because @2 is not defined in this context
     REQUIRE_THROWS_AS(synth.Parse(gmm), Synth::Error);
@@ -368,11 +368,11 @@ TEST_CASE("Instrument factory registration and unknown instrument type handling"
     )";
 
     synth.Parse(gmm);
-    REQUIRE(synth.Instruments.GetSize() == 1);
-    REQUIRE(synth.Nodes.size() == 2);
-    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::InstrumentChange);
-    REQUIRE(synth.Nodes[0].index == 1);
-    REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(0).index == 1);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
 
     REQUIRE_THROWS_AS(synth.Parse("@1 = UnknownType"), Synth::Error);
 }
@@ -389,53 +389,53 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     Synth synth;
     synth.Parse(gmm);
 
-    REQUIRE(synth.Nodes.size() == 32);
-    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::Tempo);
-    REQUIRE(synth.Nodes[0].tempo == Catch::Approx(160.0f));
-    REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Volume);
-    REQUIRE(synth.Nodes[1].volume.volume == Catch::Approx(1.0f));
-    REQUIRE(synth.Nodes[1].volume.channel == 0);
-    REQUIRE(synth.Nodes[2].type == Synth::Node::Type::OctaveAbsolute);
-    REQUIRE(synth.Nodes[2].octave == 5);
-    REQUIRE(synth.Nodes[3].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[3].note.note == Synth::Note::E);
-    REQUIRE(synth.Nodes[3].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[3].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[3].note.duration.Fraction.Denominator == 4);
-    REQUIRE(synth.Nodes[3].note.slide == false);
-    REQUIRE(synth.Nodes[4].type == Synth::Node::Type::OctaveRelative);
-    REQUIRE(synth.Nodes[4].octave == -1);
-    REQUIRE(synth.Nodes[5].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[5].note.note == Synth::Note::B);
-    REQUIRE(synth.Nodes[5].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[5].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[5].note.duration.Fraction.Denominator == 8);
-    REQUIRE(synth.Nodes[5].note.slide == false);
+    REQUIRE(synth.GetNodeCount() == 32);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(160.0f));
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Volume);
+    REQUIRE(synth.GetNode(1).volume.volume == Catch::Approx(1.0f));
+    REQUIRE(synth.GetNode(1).volume.channel == 0);
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::OctaveAbsolute);
+    REQUIRE(synth.GetNode(2).octave == 5);
+    REQUIRE(synth.GetNode(3).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(3).note.note == Synth::Note::E);
+    REQUIRE(synth.GetNode(3).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(3).note.slide == false);
+    REQUIRE(synth.GetNode(4).type == Synth::Node::Type::OctaveRelative);
+    REQUIRE(synth.GetNode(4).octave == -1);
+    REQUIRE(synth.GetNode(5).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(5).note.note == Synth::Note::B);
+    REQUIRE(synth.GetNode(5).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(5).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(5).note.duration.Fraction.Denominator == 8);
+    REQUIRE(synth.GetNode(5).note.slide == false);
 
-    REQUIRE(synth.Nodes[15].note.note == Synth::Note::C);
-    REQUIRE(synth.Nodes[15].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[15].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[15].note.duration.Fraction.Denominator == 8);
-    REQUIRE(synth.Nodes[15].note.slide == false);
+    REQUIRE(synth.GetNode(15).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(15).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(15).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(15).note.duration.Fraction.Denominator == 8);
+    REQUIRE(synth.GetNode(15).note.slide == false);
 
-    REQUIRE(synth.Nodes[29].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[29].note.note == Synth::Note::A);
-    REQUIRE(synth.Nodes[29].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[29].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[29].note.duration.Fraction.Denominator == 4);
-    REQUIRE(synth.Nodes[29].note.slide == true);
+    REQUIRE(synth.GetNode(29).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(29).note.note == Synth::Note::A);
+    REQUIRE(synth.GetNode(29).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(29).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(29).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(29).note.slide == true);
 
-    REQUIRE(synth.Nodes[30].type == Synth::Node::Type::Note);
-    REQUIRE(synth.Nodes[30].note.note == Synth::Note::B);
-    REQUIRE(synth.Nodes[30].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[30].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[30].note.duration.Fraction.Denominator == 4);
-    REQUIRE(synth.Nodes[30].note.slide == false);
+    REQUIRE(synth.GetNode(30).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(30).note.note == Synth::Note::B);
+    REQUIRE(synth.GetNode(30).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(30).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(30).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(30).note.slide == false);
 
-    REQUIRE(synth.Nodes[31].type == Synth::Node::Type::Rest);
-    REQUIRE(synth.Nodes[31].note.duration.type == Synth::Duration::TempoFraction);
-    REQUIRE(synth.Nodes[31].note.duration.Fraction.Numerator == 1);
-    REQUIRE(synth.Nodes[31].note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(31).type == Synth::Node::Type::Rest);
+    REQUIRE(synth.GetNode(31).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(31).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(31).note.duration.Fraction.Denominator == 4);
 
     auto [total, end] = synth.CalculateSamples(160);
     REQUIRE(end == 1050); //1050 from notes + 15 from release
@@ -512,16 +512,16 @@ TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
 
     Synth synth;
 
-    REQUIRE(synth.Channels.size() == 1);
-    REQUIRE(synth.Channels[0] == Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
 
     synth.Parse(gmm);
 
-    REQUIRE(synth.Channels.size() == 4);
-    REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-    REQUIRE(synth.Channels[1] == Channel::FrontRight);
-    REQUIRE(synth.Channels[2] == Channel::BackLeft);
-    REQUIRE(synth.Channels[3] == Channel::BackRight);
+    REQUIRE(synth.GetChannels().size() == 4);
+    REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+    REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+    REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
 
     gmm = R"(
         %CHANNELS = 1
@@ -529,8 +529,8 @@ TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
 
     synth.Parse(gmm);
 
-    REQUIRE(synth.Channels.size() == 1);
-    REQUIRE(synth.Channels[0] == Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
 
 
     gmm = R"(
@@ -539,9 +539,9 @@ TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
 
     synth.Parse(gmm);
 
-    REQUIRE(synth.Channels.size() == 2);
-    REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-    REQUIRE(synth.Channels[1] == Channel::FrontRight);
+    REQUIRE(synth.GetChannels().size() == 2);
+    REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
 
 
 }
@@ -554,76 +554,182 @@ TEST_CASE("Parse channels variable with various formats", "[Synth][Parse][Channe
         Synth synth;
         synth.Parse("%channels=[FL,FR,BL,BR]");
         
-        REQUIRE(synth.Channels.size() == 4);
-        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-        REQUIRE(synth.Channels[1] == Channel::FrontRight);
-        REQUIRE(synth.Channels[2] == Channel::BackLeft);
-        REQUIRE(synth.Channels[3] == Channel::BackRight);
+        REQUIRE(synth.GetChannels().size() == 4);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
     }
 
     SECTION("Named channels - uppercase with spaces") {
         Synth synth;
         synth.Parse("%CHANNELS = [ FL , FR , BL , BR ]");
         
-        REQUIRE(synth.Channels.size() == 4);
-        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-        REQUIRE(synth.Channels[1] == Channel::FrontRight);
-        REQUIRE(synth.Channels[2] == Channel::BackLeft);
-        REQUIRE(synth.Channels[3] == Channel::BackRight);
+        REQUIRE(synth.GetChannels().size() == 4);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
     }
 
     SECTION("Named channels - no spaces after %") {
         Synth synth;
         synth.Parse("%channels=[FL,FR,BL,BR]");
         
-        REQUIRE(synth.Channels.size() == 4);
+        REQUIRE(synth.GetChannels().size() == 4);
     }
 
     SECTION("Numeric channels - mono (1)") {
         Synth synth;
         synth.Parse("%channels=1");
         
-        REQUIRE(synth.Channels.size() == 1);
-        REQUIRE(synth.Channels[0] == Channel::Mono);
+        REQUIRE(synth.GetChannels().size() == 1);
+        REQUIRE(synth.GetChannels()[0] == Channel::Mono);
     }
 
     SECTION("Numeric channels - stereo (2)") {
         Synth synth;
         synth.Parse("%channels=2");
         
-        REQUIRE(synth.Channels.size() == 2);
-        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-        REQUIRE(synth.Channels[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels().size() == 2);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
     }
 
     SECTION("Numeric channels - 6 channel") {
         Synth synth;
         synth.Parse("% channels=6");
         
-        REQUIRE(synth.Channels.size() == 6);
-        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-        REQUIRE(synth.Channels[1] == Channel::FrontRight);
-        REQUIRE(synth.Channels[2] == Channel::BackLeft);
-        REQUIRE(synth.Channels[3] == Channel::BackRight);
-        REQUIRE(synth.Channels[4] == Channel::Center);
-        REQUIRE(synth.Channels[5] == Channel::LowFreq);
+        REQUIRE(synth.GetChannels().size() == 6);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
+        REQUIRE(synth.GetChannels()[4] == Channel::Center);
+        REQUIRE(synth.GetChannels()[5] == Channel::LowFreq);
     }
 
     SECTION("Numeric channels - uppercase with spacing") {
         Synth synth;
         synth.Parse("%CHANNELS = 3");
         
-        REQUIRE(synth.Channels.size() == 3);
-        REQUIRE(synth.Channels[0] == Channel::FrontLeft);
-        REQUIRE(synth.Channels[1] == Channel::FrontRight);
-        REQUIRE(synth.Channels[2] == Channel::LowFreq);
+        REQUIRE(synth.GetChannels().size() == 3);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::LowFreq);
     }
 
     SECTION("Numeric channels - no space after %") {
         Synth synth;
         synth.Parse("%channels=1");
         
-        REQUIRE(synth.Channels.size() == 1);
-        REQUIRE(synth.Channels[0] == Channel::Mono);
+        REQUIRE(synth.GetChannels().size() == 1);
+        REQUIRE(synth.GetChannels()[0] == Channel::Mono);
     }
+}
+
+TEST_CASE("Channel management API", "[Synth][Channels]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    REQUIRE(synth.HasChannel(Channel::Mono));
+    REQUIRE_FALSE(synth.HasChannel(Channel::FrontLeft));
+
+    // Adding existing channel is silently ignored
+    synth.AddChannel(Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 1);
+
+    // Add new channels and verify normalized order (by enum value)
+    synth.AddChannel(Channel::BackLeft);
+    synth.AddChannel(Channel::FrontLeft);
+    REQUIRE(synth.GetChannels().size() == 3);
+    REQUIRE(synth.HasChannel(Channel::FrontLeft));
+    REQUIRE(synth.HasChannel(Channel::BackLeft));
+    // Normalized order: Mono(1) < FrontLeft(2) < BackLeft(6)
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+
+    // Remove existing channel
+    synth.RemoveChannel(Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 2);
+    REQUIRE_FALSE(synth.HasChannel(Channel::Mono));
+
+    // Removing non-existent channel is silently ignored
+    synth.RemoveChannel(Channel::Center);
+    REQUIRE(synth.GetChannels().size() == 2);
+}
+
+TEST_CASE("Instrument management API", "[Synth][Instrument]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    // Default synth starts with one sine instrument
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    const auto& def = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(1));
+    REQUIRE(def.Name == "Sine");
+
+    // Out-of-range access throws
+    REQUIRE_THROWS_AS(synth.GetInstrument(0), Synth::Error);
+    REQUIRE_THROWS_AS(synth.GetInstrument(2), Synth::Error);
+
+    // AddInstrument takes ownership and returns 1-based index
+    auto* custom = new Synth::Sine();
+    custom->Sustain = 0.5f;
+    size_t idx = synth.AddInstrument(*custom);
+    REQUIRE(idx == 2);
+    REQUIRE(synth.GetInstrumentCount() == 2);
+    const auto& got = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(2));
+    REQUIRE(got.Sustain == Catch::Approx(0.5f));
+
+    // SetInstrument replaces and deletes old
+    auto* replacement = new Synth::Sine();
+    replacement->Sustain = 0.9f;
+    synth.SetInstrument(2, *replacement);
+    REQUIRE(synth.GetInstrumentCount() == 2);
+    const auto& replaced = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(2));
+    REQUIRE(replaced.Sustain == Catch::Approx(0.9f));
+
+    // SetInstrument out of range throws
+    auto* extra = new Synth::Sine();
+    REQUIRE_THROWS_AS(synth.SetInstrument(0, *extra), Synth::Error);
+    REQUIRE_THROWS_AS(synth.SetInstrument(5, *extra), Synth::Error);
+    delete extra;
+
+    // RemoveInstrument
+    synth.RemoveInstrument(2);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE_THROWS_AS(synth.RemoveInstrument(0), Synth::Error);
+    REQUIRE_THROWS_AS(synth.RemoveInstrument(2), Synth::Error);
+}
+
+TEST_CASE("Node management API", "[Synth][Nodes]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.GetNodeCount() == 0);
+
+    synth.AddNode(Synth::Node::MakeTempo(140.0f));
+    synth.AddNode(Synth::Node::MakeNote(Synth::Note::C, Synth::Duration::FromFraction(4), false));
+    synth.AddNode(Synth::Node::MakeRest(Synth::Duration::FromFraction(8)));
+
+    REQUIRE(synth.GetNodeCount() == 3);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(140.0f));
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(1).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::Rest);
+
+    synth.RemoveNode(1); // remove the note
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Rest);
+
+    synth.Clear();
+    REQUIRE(synth.GetNodeCount() == 0);
 }

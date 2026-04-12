@@ -4,10 +4,10 @@
 #include "Gorgon/Containers/Wave.h"
 #include "Gorgon/Enum.h"
 #include "Gorgon/String.h"
-#include "Gorgon/Utils/Assert.h"
 
 #include <cmath>
 #include <functional>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -28,6 +28,10 @@ namespace Gorgon :: Audio {
      * instrument declarations (the header) from playback data (the body). A single
      * GMM string can express multiple simultaneous voices, tempo changes, octave shifts,
      * and basic slides.
+     * 
+     * While Synth can be used by multiple threads, most functions are forced to acquire a lock
+     * to protect the internal state of the synthesizer, so it is recommended to create separate
+     * Synth instances for each thread if concurrent rendering is needed.
      *
      * @see \ref gmm_syntax "GMM syntax"
      */
@@ -171,9 +175,17 @@ namespace Gorgon :: Audio {
             /// Renders a note into the given wave buffer based on the current
             /// track state, sample rate, and note duration. The track state includes
             /// information about the current tempo, octave, and volume levels.
-            virtual void Render(
-                Containers::Wave &wave, TrackState &state, float sample_rate, 
-                float duration
+            /// Should return the number of samples rendered for this note (not including 
+            /// release overflow). State can be modified, but the sample advance should not 
+            /// be applied by the instrument itself, unless it needs to be modified beyond 
+            /// the note duration. Node could be any node, Render is expected to return
+            /// 0 if node is not a note, however, if necessary, it can modify the state.
+            /// Octave, tempo, volume and separation changes will be handled by the caller before the
+            /// call to Render, so the instrument can assume that the state is already updated
+            /// but could override it if necessary.
+            virtual double Render(
+                Containers::Wave &wave, const Node &node, 
+                TrackState &state, float sample_rate
             ) = 0;
 
             /// Loads instrument settings from a string. The format of the settings string
@@ -210,12 +222,10 @@ namespace Gorgon :: Audio {
                 Release.Span = Duration::FromFraction(16);
             }
             
-            void Render(
-                Containers::Wave &wave, TrackState &state, float sample_rate, 
-                float duration
-            ) override {
-                Utils::NotImplemented();
-            }
+            double Render(
+                Containers::Wave &wave, const Node &node,
+                TrackState &state, float sample_rate
+            ) override;
 
             void LoadSettings(const std::string_view& settings) override;
 
@@ -351,35 +361,72 @@ namespace Gorgon :: Audio {
         /// should return a reference to a new instance of the instrument when called. 
         /// This will replace any existing factory with the same name. Instrument names
         /// are case-insensitive.
-        void AddInstrumentFactory(std::function<Instrument&()> factory, const std::string& name) {
-            if(name.empty()) {
-                throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
-            }
-            if(!factory) {
-                throw Error(Error::InvalidParameter, "Instrument factory cannot be empty");
-            }
-            instrumentfactories[String::ToLower(name)] = factory;
-        }
+        void AddInstrumentFactory(std::function<Instrument &()> factory, const std::string &name);
 
         /// Removes the instrument factory with the given name. If no such factory exists, 
         /// this function does nothing.
-        void RemoveInstrumentFactory(const std::string& name) {
-            instrumentfactories.erase(String::ToLower(name));
-        }
+        void RemoveInstrumentFactory(const std::string &name);
 
         /// Removes all registered instrument factories and resets to only the default sine wave.
-        void ClearInstrumentFactories() {
-            instrumentfactories.clear();
-            instrumentfactories["sine"] = []() -> Instrument& { return *new Sine(); };
-        }
+        void ClearInstrumentFactories();
 
         /// Checks if an instrument factory with the given name exists.
         bool HasInstrumentFactory(const std::string& name) const {
             return instrumentfactories.find(String::ToLower(name)) != instrumentfactories.end();
         }
 
+        /// Adds an instrument to the synthesizer, taking ownership.
+        /// Returns the 1-based index of the newly added instrument.
+        size_t AddInstrument(Instrument& instrument);
+
+        /// Replaces the instrument at the given 1-based index, taking ownership
+        /// and deleting the previous instrument.
+        void SetInstrument(size_t index, Instrument& instrument);
+
+        /// Returns a const reference to the instrument at the given 1-based index.
+        const Instrument& GetInstrument(size_t index) const;
+
+        /// Returns the number of instruments.
+        size_t GetInstrumentCount() const;
+
+        /// Removes and deletes the instrument at the given 1-based index.
+        void RemoveInstrument(size_t index);
+
+        /// Adds a channel to the output. Silently ignores if already present.
+        /// Channel order is normalized after adding.
+        void AddChannel(Audio::Channel channel);
+
+        /// Returns true if the given channel is present in the output configuration.
+        bool HasChannel(Audio::Channel channel) const;
+
+        /// Removes the given channel from the output. Silently ignores if not present.
+        void RemoveChannel(Audio::Channel channel);
+
+        /// Returns the current channel configuration.
+        const std::vector<Audio::Channel>& GetChannels() const {
+            return Channels;
+        }
+
+        /// Appends a node to the end of the track.
+        void AddNode(Node node);
+
+        /// Returns a const reference to the node at the given index.
+        const Node& GetNode(size_t index) const {
+            return Nodes[index];
+        }
+
+        /// Returns the number of nodes in the track.
+        size_t GetNodeCount() const {
+            return Nodes.size();
+        }
+
+        /// Removes the node at the given index.
+        void RemoveNode(size_t index);
+
         /// Clears all nodes from the track, resetting it to an empty state.
         void Clear() {
+            auto guard = std::lock_guard(critical);
+
             Nodes.clear();
         }
 
@@ -387,22 +434,13 @@ namespace Gorgon :: Audio {
         static float NoteToFrequency(Note note, int octave) {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9) / 12.0f);
         }
+    private:
+        std::pair<double, double> calculatesamples(float sample_rate) const;
 
         /// Sequence of nodes that define a track.
         std::vector<Node> Nodes;
 
         std::vector<Audio::Channel> Channels = {Audio::Channel::Mono};
-
-        /// Map of instrument indices to their definitions. The first instrument 
-        /// @1 is used for the first note, @2 for the second, etc. @0 is always
-        /// silent. Due to this, instruments are 1-indexed in GMM, but 0-indexed
-        /// in the collection.
-        Containers::Collection<Instrument> Instruments = {
-            new Sine()
-        };
-
-    private:
-        std::pair<double, double> calculatesamples(float sample_rate) const;
 
         /// Factory functions for creating instruments by name. This allows for dynamic
         /// registration of new instrument types without modifying the Synth class.
@@ -410,6 +448,15 @@ namespace Gorgon :: Audio {
             {"sine", []() -> Instrument& { return *new Sine(); }}
         };
 
+        /// Map of instrument indices to their definitions. The first instrument 
+        /// @1 is used for the first note, @2 for the second, etc. @0 is always
+        /// silent. Due to this, instruments are 1-indexed in GMM, but 0-indexed
+        /// in the collection.
+        Containers::Collection<Instrument> instruments = {
+            new Sine()
+        };
+
+        mutable std::mutex critical;
     };
 
     DefineEnumStringsCM(Synth, RampType, {

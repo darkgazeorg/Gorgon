@@ -3,6 +3,8 @@
 #include "Gorgon/String.h"
 #include "Gorgon/Types.h"
 #include "Gorgon/Utils/Assert.h"
+#include <algorithm>
+#include <mutex>
 #include <string>
 #include <tuple>
 #include <iostream>
@@ -476,7 +478,30 @@ double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const 
     );
 }
 
+double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, float sample_rate) {
+    float frequency = NoteToFrequency(node.note.note, state.Octave);
+    double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
+    double notesep = std::min(duration / 10, state.Separation.ToSamples(state.Tempo, sample_rate));
+
+    for(size_t i = 0; i < duration - notesep; i++) {
+        float fade = 1.0f;
+        if(i < notesep) {
+            fade = float(i) / notesep;
+        }
+        else if(i > duration - notesep) {
+            fade = float(duration - i) / notesep;
+        }
+
+        float sample = std::sin(2.0f * M_PIf * frequency * (state.Sample + i) / sample_rate);
+
+        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
+            wave(size_t(std::round(state.Sample)) + i, ch) = sample * state.Volume[ch] * fade;
+        }
+    }
+    
+    return duration;
+}
 
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
@@ -627,10 +652,12 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
 }
 
 void Synth::Parse(std::istream &stream) {
+    auto guard = std::lock_guard(critical);
+
     Nodes.clear();
 
-    Instruments.DeleteAll();
-    Instruments = {
+    instruments.DeleteAll();
+    instruments = {
         instrumentfactories["sine"]()
     };
 
@@ -811,14 +838,14 @@ void Synth::Parse(std::istream &stream) {
                     sine.Name = name;
                     sine.LoadSettings(line);
 
-                    if(index == (size_t)Instruments.GetSize()) {
-                        Instruments.Add(sine);
+                    if(index == (size_t)instruments.GetSize()) {
+                        instruments.Add(sine);
                     }
-                    else if(index > (size_t)Instruments.GetSize()) {
+                    else if(index > (size_t)instruments.GetSize()) {
                         throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
                     }
                     else {
-                        Instruments.Replace(index, &sine, true);
+                        instruments.Replace(index, &sine, true);
                     }
                 }
                 else {
@@ -845,7 +872,7 @@ void Synth::Parse(std::istream &stream) {
             auto node = ParseNode(token);
 
             if(node.type == Node::Type::InstrumentChange) {
-                if(node.index > (size_t)Instruments.GetSize()) {
+                if(node.index > (size_t)instruments.GetSize()) {
                     throw Error(Error::UnknownInstrument, "Instrument index out of range: " + std::to_string(node.index + 1));
                 }
             }
@@ -863,6 +890,8 @@ Synth::AudioDuration Synth::CalculateSamples(float sample_rate) const {
 }
 
 std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
+    auto guard = std::lock_guard(critical);
+
     TrackState state;
 
     Node last_note = {};
@@ -892,10 +921,10 @@ std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
     auto end = state.Sample;
 
     if(last_note.type != Node::Type::NoOp && state.InstrumentIndex > 0) {
-        if(state.InstrumentIndex > (size_t)Instruments.GetSize()) {
+        if(state.InstrumentIndex > (size_t)instruments.GetSize()) {
             throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
         }
-        auto releaseOverflow = Instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, last_note);
+        auto releaseOverflow = instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, last_note);
         state.Sample += releaseOverflow;
     }
 
@@ -907,6 +936,8 @@ float Synth::CalculateDuration() const {
 }
 
 Containers::Wave Synth::Render(float sample_rate) const {
+    auto guard = std::lock_guard(critical);
+
     Containers::Wave wave(size_t(std::ceil(CalculateSamples(sample_rate).Total)), sample_rate, Channels);
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
@@ -918,10 +949,6 @@ Containers::Wave Synth::Render(float sample_rate) const {
 
     for(const auto &node: Nodes) {
         switch(node.type) {
-        case Node::Type::Rest:
-            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
-            break;
-
         case Node::Type::Tempo:
             state.Tempo = node.tempo;
             break;
@@ -945,37 +972,30 @@ Containers::Wave Synth::Render(float sample_rate) const {
         
         case Node::Type::Separation:
             state.Separation = node.duration;
-
             break;
 
         case Node::Type::InstrumentChange:
             state.InstrumentIndex = node.index;
+
+            if(state.InstrumentIndex > size_t(instruments.GetSize())) {
+                throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
+            }
+            
             break;
 
+        case Node::Type::Rest:
         case Node::Type::Note: {
-            float frequency = NoteToFrequency(node.note.note, state.Octave);
-            double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+            double duration;
 
-            double notesep = std::min(duration / 10, state.Separation.ToSamples(state.Tempo, sample_rate));
-            duration -= notesep;
-
-            for(size_t i = 0; i < duration; i++) {
-                float fade = 1.0f;
-                if(i < notesep) {
-                    fade = float(i) / notesep;
-                }
-                else if(i > duration - notesep) {
-                    fade = float(duration - i) / notesep;
-                }
-
-                float sample = std::sin(2.0f * PI * frequency * (state.Sample + i) / sample_rate);
-
-                for(size_t ch = 0; ch < Channels.size(); ch++) {
-                    wave(size_t(std::round(state.Sample)) + i, ch) = sample * state.Volume[ch] * fade;
-                }
+            // Instrument index 0 is silent, we just advance the sample position without rendering anything
+            if(state.InstrumentIndex == 0) {
+                duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+            }
+            else {
+                duration = instruments[state.InstrumentIndex - 1].Render(wave, node, state, sample_rate);
             }
 
-            state.Sample += duration + notesep;
+            state.Sample += duration;
             break;
         }
 
@@ -985,6 +1005,104 @@ Containers::Wave Synth::Render(float sample_rate) const {
     }
 
     return wave;
+}
+
+void Synth::AddInstrumentFactory(std::function<Instrument &()> factory, const std::string &name) {
+  auto guard = std::lock_guard(critical);
+
+  if(name.empty()) {
+    throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
+  }
+  if(!factory) {
+    throw Error(Error::InvalidParameter, "Instrument factory cannot be empty");
+  }
+
+  instrumentfactories[String::ToLower(name)] = factory;
+}
+
+void Synth::RemoveInstrumentFactory(const std::string &name) {
+  auto guard = std::lock_guard(critical);
+
+  instrumentfactories.erase(String::ToLower(name));
+}
+
+void Synth::ClearInstrumentFactories() {
+  auto guard = std::lock_guard(critical);
+
+  instrumentfactories.clear();
+  instrumentfactories["sine"] = []() -> Instrument & { return *new Sine(); };
+}
+
+size_t Synth::AddInstrument(Instrument& instrument) {
+    auto guard = std::lock_guard(critical);
+    
+    instruments.Add(instrument);
+    return size_t(instruments.GetSize());
+}
+
+void Synth::SetInstrument(size_t index, Instrument& instrument) {
+    auto guard = std::lock_guard(critical);
+
+    if(index == 0 || index > size_t(instruments.GetSize())) {
+        throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(index));
+    }
+    instruments.Replace(long(index - 1), &instrument, true);
+}
+
+const Synth::Instrument& Synth::GetInstrument(size_t index) const {
+    if(index == 0 || index > size_t(instruments.GetSize())) {
+        throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(index));
+    }
+    return instruments[long(index - 1)];
+}
+
+size_t Synth::GetInstrumentCount() const {
+    return size_t(instruments.GetSize());
+}
+
+void Synth::RemoveInstrument(size_t index) {
+    auto guard = std::lock_guard(critical);
+
+    if(index == 0 || index > size_t(instruments.GetSize())) {
+        throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(index));
+    }
+    instruments.Delete(long(index - 1));
+}
+
+void Synth::AddChannel(Audio::Channel channel) {
+    auto guard = std::lock_guard(critical);
+
+    if(HasChannel(channel)) return;
+
+    Channels.push_back(channel);
+    std::sort(Channels.begin(), Channels.end(), [](Audio::Channel a, Audio::Channel b) {
+        return static_cast<int>(a) < static_cast<int>(b);
+    });
+}
+
+bool Synth::HasChannel(Audio::Channel channel) const {
+    return std::find(Channels.begin(), Channels.end(), channel) != Channels.end();
+}
+
+void Synth::RemoveChannel(Audio::Channel channel) {
+    auto guard = std::lock_guard(critical);
+
+    auto it = std::find(Channels.begin(), Channels.end(), channel);
+    if(it != Channels.end()) {
+        Channels.erase(it);
+    }
+}
+
+void Synth::AddNode(Node node) {
+    auto guard = std::lock_guard(critical);
+
+    Nodes.push_back(node);
+}
+
+void Synth::RemoveNode(size_t index) {
+    auto guard = std::lock_guard(critical);
+
+    Nodes.erase(Nodes.begin() + index);
 }
 
 } // namespace Gorgon::Audio

@@ -17,10 +17,10 @@ namespace Gorgon :: Audio {
         Mono,
         FrontLeft,
         FrontRight,
+        Center,
+        LowFreq,
         BackLeft,
         BackRight,
-        Center,
-        LowFreq
     };
     
     DefineEnumStrings(Channel, 
@@ -32,15 +32,15 @@ namespace Gorgon :: Audio {
         { Channel::FrontRight , "Front right" },
         { Channel::FrontRight , "FrontRight" },
         { Channel::FrontRight , "FR" },
+        { Channel::Center     , "Center"      },
+        { Channel::LowFreq    , "Bass"        },
+        { Channel::LowFreq    , "Low freq"    },
         { Channel::BackLeft   , "Back left"   },
         { Channel::BackLeft   , "BackLeft"   },
         { Channel::BackLeft   , "BL"   },
         { Channel::BackRight  , "Back right"  },
         { Channel::BackRight  , "BackRight"  },
         { Channel::BackRight  , "BR"  },
-        { Channel::Center     , "Center"      },
-        { Channel::LowFreq    , "Bass"        },
-        { Channel::LowFreq    , "Low freq"    },
     );
 
 
