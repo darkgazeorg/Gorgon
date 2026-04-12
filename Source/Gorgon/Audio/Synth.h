@@ -3,6 +3,7 @@
 #include "Gorgon/Containers/Collection.h"
 #include "Gorgon/Containers/Wave.h"
 #include "Gorgon/Enum.h"
+#include "Gorgon/String.h"
 #include "Gorgon/Utils/Assert.h"
 
 #include <cmath>
@@ -348,8 +349,33 @@ namespace Gorgon :: Audio {
 
         /// Registers a new instrument factory function with the given name. The factory
         /// should return a reference to a new instance of the instrument when called. 
+        /// This will replace any existing factory with the same name. Instrument names
+        /// are case-insensitive.
         void AddInstrumentFactory(std::function<Instrument&()> factory, const std::string& name) {
-            InstrumentFactories[name] = factory;
+            if(name.empty()) {
+                throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
+            }
+            if(!factory) {
+                throw Error(Error::InvalidParameter, "Instrument factory cannot be empty");
+            }
+            instrumentfactories[String::ToLower(name)] = factory;
+        }
+
+        /// Removes the instrument factory with the given name. If no such factory exists, 
+        /// this function does nothing.
+        void RemoveInstrumentFactory(const std::string& name) {
+            instrumentfactories.erase(String::ToLower(name));
+        }
+
+        /// Removes all registered instrument factories and resets to only the default sine wave.
+        void ClearInstrumentFactories() {
+            instrumentfactories.clear();
+            instrumentfactories["sine"] = []() -> Instrument& { return *new Sine(); };
+        }
+
+        /// Checks if an instrument factory with the given name exists.
+        bool HasInstrumentFactory(const std::string& name) const {
+            return instrumentfactories.find(String::ToLower(name)) != instrumentfactories.end();
         }
 
         /// Clears all nodes from the track, resetting it to an empty state.
@@ -375,14 +401,15 @@ namespace Gorgon :: Audio {
             new Sine()
         };
 
-        /// Factory functions for creating instruments by name. This allows for dynamic
-        /// registration of new instrument types without modifying the Synth class.
-        std::map<std::string, std::function<Instrument&()>> InstrumentFactories = {
-            {"Sine", []() -> Instrument& { return *new Sine(); }}
-        };
-
     private:
         std::pair<double, double> calculatesamples(float sample_rate) const;
+
+        /// Factory functions for creating instruments by name. This allows for dynamic
+        /// registration of new instrument types without modifying the Synth class.
+        std::map<std::string, std::function<Instrument&()>> instrumentfactories = {
+            {"sine", []() -> Instrument& { return *new Sine(); }}
+        };
+
     };
 
     DefineEnumStringsCM(Synth, RampType, {

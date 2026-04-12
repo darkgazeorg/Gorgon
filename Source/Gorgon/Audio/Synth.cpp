@@ -631,7 +631,7 @@ void Synth::Parse(std::istream &stream) {
 
     Instruments.DeleteAll();
     Instruments = {
-        InstrumentFactories["Sine"]()
+        instrumentfactories["sine"]()
     };
 
     std::string line;
@@ -791,8 +791,11 @@ void Synth::Parse(std::istream &stream) {
                 if(pos != std::string::npos) {
                     line = String::Trim(line.substr(pos));
                 }
+                else {
+                    line = "";
+                }
 
-                if(line[0] == '(') {
+                if(!line.empty() && line[0] == '(') {
                     pos = line.find(')');
                     if(pos == std::string::npos) {
                         throw Error(Error::InvalidParameter, "Mismatched parentheses in instrument name for instrument index: " + std::to_string(index));
@@ -803,7 +806,7 @@ void Synth::Parse(std::istream &stream) {
                     line = String::Trim(line.substr(pos + 1));
                 }
 
-                if(auto inst = InstrumentFactories.find(type); inst != InstrumentFactories.end()) {
+                if(auto inst = instrumentfactories.find(type); inst != instrumentfactories.end()) {
                     auto &sine = inst->second();
                     sine.Name = name;
                     sine.LoadSettings(line);
@@ -819,7 +822,7 @@ void Synth::Parse(std::istream &stream) {
                     }
                 }
                 else {
-                    throw Error(Error::InvalidParameter, "Unrecognized instrument type: " + type);
+                    throw Error(Error::UnknownInstrument, "Unrecognized instrument type: " + type);
                 }
 
                 continue;
@@ -843,7 +846,7 @@ void Synth::Parse(std::istream &stream) {
 
             if(node.type == Node::Type::InstrumentChange) {
                 if(node.index > (size_t)Instruments.GetSize()) {
-                    throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(node.index + 1));
+                    throw Error(Error::UnknownInstrument, "Instrument index out of range: " + std::to_string(node.index + 1));
                 }
             }
 

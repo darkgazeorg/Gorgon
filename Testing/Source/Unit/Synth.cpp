@@ -346,6 +346,37 @@ TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
     REQUIRE_THROWS_AS(synth.Parse(gmm), Synth::Error);
 }
 
+TEST_CASE("Instrument factory registration and unknown instrument type handling", "[Synth][Instrument][Factory]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.HasInstrumentFactory("Sine"));
+    REQUIRE(synth.HasInstrumentFactory("sine"));
+    REQUIRE_FALSE(synth.HasInstrumentFactory("pulse"));
+
+    REQUIRE_THROWS_AS(synth.AddInstrumentFactory({}, "Pulse"), Synth::Error);
+    REQUIRE_THROWS_AS(synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, ""), Synth::Error);
+
+    synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, "Pulse");
+    REQUIRE(synth.HasInstrumentFactory("pulse"));
+    REQUIRE(synth.HasInstrumentFactory("PULSE"));
+
+    std::string gmm = R"(
+        @1 = Pulse
+        @1 C4
+    )";
+
+    synth.Parse(gmm);
+    REQUIRE(synth.Instruments.GetSize() == 1);
+    REQUIRE(synth.Nodes.size() == 2);
+    REQUIRE(synth.Nodes[0].type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.Nodes[0].index == 1);
+    REQUIRE(synth.Nodes[1].type == Synth::Node::Type::Note);
+
+    REQUIRE_THROWS_AS(synth.Parse("@1 = UnknownType"), Synth::Error);
+}
+
 TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
