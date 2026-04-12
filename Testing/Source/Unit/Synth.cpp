@@ -383,7 +383,7 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     std::string gmm = R"(
         # This is a simple melody in GMM format. 
         T160 V100 O5 E4 < B8 > C8 D4 C8 < B8 A4 A8 > 
-        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4~B4 R4 #another comment
+        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4~B4 B4 #another comment
     )";
 
     Synth synth;
@@ -432,15 +432,47 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.GetNode(30).note.duration.Fraction.Denominator == 4);
     REQUIRE(synth.GetNode(30).note.slide == false);
 
-    REQUIRE(synth.GetNode(31).type == Synth::Node::Type::Rest);
+    REQUIRE(synth.GetNode(31).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(31).note.note == Synth::Note::B);
     REQUIRE(synth.GetNode(31).note.duration.type == Synth::Duration::TempoFraction);
     REQUIRE(synth.GetNode(31).note.duration.Fraction.Numerator == 1);
     REQUIRE(synth.GetNode(31).note.duration.Fraction.Denominator == 4);
 
-    auto [total, end] = synth.CalculateSamples(160);
-    REQUIRE(end == 1050); //1050 from notes + 15 from release
-    REQUIRE(total == 1065); 
-    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.65625f));
+    auto [total, end] = synth.CalculateSamples(640);
+    //4200 from notes + 60 from release but there is also 15 samples of 
+    //separation at the end, so 4200 + 60 - 15 = 4245
+    REQUIRE(end == 4200); 
+    REQUIRE(total == 4245); 
+    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.63282f));
+
+    {
+        // Test release trail
+        auto gmm = R"(
+            @1 = Sine release=1
+            T240 B4 R4
+        )";
+
+        synth.Parse(gmm);
+
+        auto [total, end] = synth.CalculateSamples(4);
+        REQUIRE(end == 2); 
+        REQUIRE(total == 5);
+    }
+
+    {
+        // Test release trail
+        auto gmm = R"(
+            @1 = Sine release=64
+            T240 B4 R4
+        )";
+
+        synth.Parse(gmm);
+
+        auto [total, end] = synth.CalculateSamples(4);
+        REQUIRE(end == 2); 
+        REQUIRE(total == 2);
+    }
+
 }
 
 TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {

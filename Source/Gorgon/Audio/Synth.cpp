@@ -11,7 +11,51 @@
 
 namespace Gorgon :: Audio {
 
-namespace {
+namespace internal {
+
+    struct ADSRInfo {
+        double attack,
+               decay,
+               sustain,
+               release;
+    };
+
+    /// Common function to calculate durations of attack, decay
+    /// sustain and release phases in samples for a note.
+    ADSRInfo CalculateADSR(
+        const Synth::Ramp &attack, const Synth::Ramp &decay, const Synth::Ramp &release, 
+        const Synth::Duration &separation,
+        float tempo, float sample_rate, float notelength
+    ) {
+        double length = notelength * sample_rate;
+
+        double sep = separation.ToSamples(tempo, sample_rate, notelength);
+
+        if(sep > length) {
+            sep = length;
+        }
+
+        double total = notelength * sample_rate;
+        auto [atk, dec, sus, rel] = CalculateADSR(attack, {}, release, separation, tempo, sample_rate, notelength);
+
+        if(atk > length - sep) {
+            atk = length - sep;
+        }
+
+        double dec = decay.Span.ToSamples(tempo, sample_rate, notelength);
+
+        if(S > notesamples - atk) {
+            S = notesamples - atk;
+        if(dec > length - atk - sep) {
+            dec = length - atk - sep;
+        }
+
+        double rel = release.Span.ToSamples(tempo, sample_rate, notelength);
+
+        double sus = length - atk - sep - dec;
+
+        return {atk, dec, sus, rel};
+    }
 
     /// Common overflow calculation from attack and release ramps for a note.
     double CalculateOverflow(
@@ -23,28 +67,16 @@ namespace {
             return 0;
         }
 
-        double atk = attack.Span.ToSamples(
-            tempo, sample_rate, 
-            notelength
-        );
+        double total = notelength * sample_rate;
+        auto [atk, dec, sus, rel] = CalculateADSR(attack, {}, release, separation, tempo, sample_rate, notelength);
 
-        if(atk > notesamples) {
-            atk = notesamples;
-        }
+        auto sep = total - atk - dec - sus;
 
-        double S = separation.ToSamples(tempo, sample_rate, notelength);
-
-        if(S > notesamples - atk) {
-            S = notesamples - atk;
-        }
-
-        double rel = release.Span.ToSamples(tempo, sample_rate, notelength);
-
-        if(rel < S) {
+        if(rel < sep) {
             rel = 0;
         }
         else {
-            rel -= S;
+            rel -= sep;
         }
 
         return rel;
@@ -472,7 +504,7 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 }
 
 double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
-    return CalculateOverflow(
+    return internal::CalculateOverflow(
         Attack, Release, state.Separation, 
         state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo)
     );
@@ -885,25 +917,32 @@ void Synth::Parse(std::istream &stream) {
 }
 
 Synth::AudioDuration Synth::CalculateSamples(float sample_rate) const {
+    auto guard = std::lock_guard(critical);
+
     auto [total, end] = calculatesamples(sample_rate);
     return {static_cast<size_t>(std::ceil(total)), static_cast<size_t>(std::ceil(end))};
 }
 
 std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
-    auto guard = std::lock_guard(critical);
-
     TrackState state;
 
-    Node last_note = {};
+    double end = 0;
 
     for(const auto& node : Nodes) {
         switch(node.type) {
-        case Node::Type::Note:
-            last_note = node;
-            [[fallthrough]];
-        case Node::Type::Rest:
-            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
+        case Node::Type::Note: {
+            auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+            auto overflow = instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, node);
+            state.Sample += duration;
+            end = std::max(end, state.Sample + overflow);
             break;
+        }
+        case Node::Type::Rest: {
+            auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+            state.Sample += duration;
+            end = std::max(end, state.Sample);
+            break;
+        }
         case Node::Type::Tempo:
             state.Tempo = node.tempo;
             break;
@@ -918,17 +957,7 @@ std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
         }
     }
 
-    auto end = state.Sample;
-
-    if(last_note.type != Node::Type::NoOp && state.InstrumentIndex > 0) {
-        if(state.InstrumentIndex > (size_t)instruments.GetSize()) {
-            throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
-        }
-        auto releaseOverflow = instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, last_note);
-        state.Sample += releaseOverflow;
-    }
-
-    return {state.Sample, end};
+    return {end, state.Sample};
 }
 
 float Synth::CalculateDuration() const { 
@@ -938,7 +967,7 @@ float Synth::CalculateDuration() const {
 Containers::Wave Synth::Render(float sample_rate) const {
     auto guard = std::lock_guard(critical);
 
-    Containers::Wave wave(size_t(std::ceil(CalculateSamples(sample_rate).Total)), sample_rate, Channels);
+    Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), sample_rate, Channels);
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
         Utils::NotImplemented("Only mono output is supported currently");
