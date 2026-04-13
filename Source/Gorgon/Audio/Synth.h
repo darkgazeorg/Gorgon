@@ -118,7 +118,7 @@ namespace Gorgon :: Audio {
             float Tempo = 120.0f;
             int Octave = 4;
             std::vector<float> Volume;
-            Duration Separation = Duration::FromFraction(64);
+            Duration Separation = Duration::FromFraction(32);
             size_t InstrumentIndex = 1;
         };
 

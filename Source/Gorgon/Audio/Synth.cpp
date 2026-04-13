@@ -1,7 +1,6 @@
 #include "Synth.h"
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
-#include "Gorgon/Types.h"
 #include "Gorgon/Utils/Assert.h"
 #include <algorithm>
 #include <cmath>
@@ -36,8 +35,10 @@ namespace internal {
             sep = length;
         }
 
-        double total = notelength * sample_rate;
-        auto [atk, dec, sus, rel] = CalculateADSR(attack, {}, release, separation, tempo, sample_rate, notelength);
+        double atk = attack.Span.ToSamples(
+            tempo, sample_rate, 
+            notelength
+        );
 
         if(atk > length - sep) {
             atk = length - sep;
@@ -45,8 +46,6 @@ namespace internal {
 
         double dec = decay.Span.ToSamples(tempo, sample_rate, notelength);
 
-        if(S > notesamples - atk) {
-            S = notesamples - atk;
         if(dec > length - atk - sep) {
             dec = length - atk - sep;
         }
@@ -1135,7 +1134,6 @@ Containers::Wave Synth::Render(float sample_rate) const {
         case Node::Type::Rest:
             state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
             break;
-
         case Node::Type::Note: {
             double duration;
 

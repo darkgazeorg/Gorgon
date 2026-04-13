@@ -439,11 +439,11 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     REQUIRE(synth.GetNode(31).note.duration.Fraction.Denominator == 4);
 
     auto [total, end] = synth.CalculateSamples(640);
-    //4200 from notes + 60 from release but there is also 15 samples of 
-    //separation at the end, so 4200 + 60 - 15 = 4245
+    //4200 from notes + 60 from release but there is also 30 samples of 
+    //separation at the end, so 4200 + 60 - 30 = 4230
     REQUIRE(end == 4200); 
-    REQUIRE(total == 4245); 
-    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.63282f));
+    REQUIRE(total == 4230); 
+    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.609375f));
 
     {
         // Test release trail
@@ -521,7 +521,7 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
     wave.ExportWav("test_output.wav");
     Gorgon::Encoding::Flac.Encode(wave, "test_output.flac");
     {
-        synth.Parse(R"(V50 O4 T160
+        synth.Parse(R"(O4 T160
             D E F G F G G G4. R8 F G G G4. R8 F2 E2
             D E F G F G G G2 F G G G2 F2 E2
             D E F G E F D E C C F E D2 D2
