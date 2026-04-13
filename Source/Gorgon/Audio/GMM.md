@@ -91,7 +91,7 @@ Ramps govern how values transition over time (tempo, volume, and envelopes). The
 * `log` (Logarithmic): Like square root, but more aggressive.
 * `s` (SCurve): Soft start and stop for the smoothest transition.
 
-If the type is not `none`, a duration must be specified. If the type is not `linear`, a shape factor (0 = near linear, 1 = extreme curve) can be specified.
+If the type is not `none`, a duration must be specified. If the type is not `linear`, a shape factor (0 = linear, close to 1 = extreme curve) can be specified. Shape must be in the range [0, 1). Do not use values too close to 1 as they can cause extreme curves that may cause audio artifacts.
 
 ---
 

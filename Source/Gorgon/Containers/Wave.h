@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -601,7 +602,7 @@ namespace Gorgon :: Containers {
             float *end = data + GetChannelCount() * GetSize();
             if(bits == 8) {
                 while(ptr<end) {
-                    WriteUInt8(file, (Byte)std::round((((*ptr) + 1) / 2) * 255) );
+                    WriteUInt8(file, (Byte)std::clamp(std::round((((*ptr) + 1) / 2) * 255), 0.0f, 255.0f));
 
                     ++ptr;
                 }
@@ -609,7 +610,7 @@ namespace Gorgon :: Containers {
             else {
                 int16_t multiplier = (1<<(bits-1))-1;
                 while(ptr<end) {
-                    WriteInt16(file, (int)std::round((*ptr) * multiplier));
+                    WriteInt16(file, (int)std::clamp(std::round((*ptr) * multiplier), static_cast<float>(-multiplier), static_cast<float>(multiplier)));
 
                     ++ptr;
                 }

@@ -126,13 +126,20 @@ namespace Gorgon :: Audio {
 
         /// Defines ramp types for volume or pitch changes.
         enum class RampType {
+            /// No ramp, instant change
             None,
+            /// Linear ramp, constant rate of change, ShapeFactor is ignored.
             Linear,
+            /// Exponential ramp, rate of change increases or decreases exponentially based on ShapeFactor.
+            /// ShapeFactor of 0 results in a linear ramp, while higher values create a more pronounced curve.
             Exponential,
+            /// Square root ramp, rate of change follows a square root curve
             SquareRoot,
             Logarithmic,
             SCurve
         };
+
+        //TODO: Add support for center point for S curve.
 
         /// Defines a ramp curve for a slide or volume change.
         struct Ramp {
@@ -143,7 +150,9 @@ namespace Gorgon :: Audio {
 
             /// Shape factor for the ramp curve. Controls the steepness or 
             /// curvature of the ramp. None and Linear ramps ignore this
-            /// value.
+            /// value. ShapeFactor of 0 creates a linear ramp while a value
+            /// close to 1 creates a more pronounced curve. The value must
+            /// be in the range [0, 1), avoid getting too close to 1.
             float ShapeFactor = 0.5f;
 
             /// Parses a ramp definition from a string. The format is defined as follows:
@@ -151,7 +160,7 @@ namespace Gorgon :: Audio {
             /// (e.g., "Linear", "Exponential", etc.). The second argument is the duration of 
             /// the ramp (e.g. 16 for a sixteenth note, or (0.5) for half a second). The
             /// third argument is optional and defines the shape factor for the ramp curve 
-            /// (default is 1.0 for a standard curve). For None, only the first argument is
+            /// (default is 0.5 for a standard curve). For None, only the first argument is
             /// valid, others will throw. For linear, Duration is required but ShapeFactor
             /// should not be specified. For other types, Duration is required and ShapeFactor 
             /// is optional.
@@ -159,7 +168,11 @@ namespace Gorgon :: Audio {
 
             /// Returns the multiplier for the ramp at a given time. Distance is the number
             /// of samples since the start of the ramp (or to the end if it's a decay).
-            float GetMultiplier(size_t distance, unsigned sample_rate) const;
+            float GetMultiplier(size_t distance, float tempo, float sample_rate, float note_length) const;
+
+            /// Returns the multiplier for the ramp at a given fraction. Distance is the number
+            /// of samples since the start of the ramp (or to the end if it's a decay).
+            float GetMultiplier(float t) const;
         };
 
         struct Node;

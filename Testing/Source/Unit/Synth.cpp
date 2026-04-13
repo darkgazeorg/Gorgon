@@ -449,14 +449,14 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
         // Test release trail
         auto gmm = R"(
             @1 = Sine release=1
-            T240 B4 R4
+            T240 S8 B4 R4
         )";
 
         synth.Parse(gmm);
 
-        auto [total, end] = synth.CalculateSamples(4);
-        REQUIRE(end == 2); 
-        REQUIRE(total == 5);
+        auto [total, end] = synth.CalculateSamples(4000);
+        REQUIRE(end == 2000); 
+        REQUIRE(total == 4500);
     }
 
     {
@@ -468,9 +468,9 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
 
         synth.Parse(gmm);
 
-        auto [total, end] = synth.CalculateSamples(4);
-        REQUIRE(end == 2); 
-        REQUIRE(total == 2);
+        auto [total, end] = synth.CalculateSamples(4000);
+        REQUIRE(end == 2000); 
+        REQUIRE(total == 2000);
     }
 
 }
@@ -521,7 +521,7 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
     wave.ExportWav("test_output.wav");
     Gorgon::Encoding::Flac.Encode(wave, "test_output.flac");
     {
-        synth.Parse(R"(O5 T160
+        synth.Parse(R"(V50 O4 T160
             D E F G F G G G4. R8 F G G G4. R8 F2 E2
             D E F G F G G G2 F G G G2 F2 E2
             D E F G E F D E C C F E D2 D2

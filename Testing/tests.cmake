@@ -11,6 +11,7 @@ set(ManualTests
 	Audio
 	PDParser
 	Scene
+	Synth
 	Window
 	Font
 	HTMLRenderer

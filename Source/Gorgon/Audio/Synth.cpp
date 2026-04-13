@@ -4,6 +4,7 @@
 #include "Gorgon/Types.h"
 #include "Gorgon/Utils/Assert.h"
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 #include <string>
 #include <tuple>
@@ -59,16 +60,17 @@ namespace internal {
 
     /// Common overflow calculation from attack and release ramps for a note.
     double CalculateOverflow(
-        const Synth::Ramp &attack, const Synth::Ramp &release, 
+        const Synth::Ramp &attack, const Synth::Ramp &decay, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, float sample_rate, float notelength
+        float tempo, float sample_rate, const Synth::Node &note
     ) {
         if(release.Type == Synth::RampType::None) {
             return 0;
         }
 
-        double total = notelength * sample_rate;
-        auto [atk, dec, sus, rel] = CalculateADSR(attack, {}, release, separation, tempo, sample_rate, notelength);
+        auto notelength = note.note.duration.ToSeconds(tempo);
+        double total = note.note.duration.ToSamples(tempo, sample_rate);
+        auto [atk, dec, sus, rel] = CalculateADSR(attack, decay, release, separation, tempo, sample_rate, notelength);
 
         auto sep = total - atk - dec - sus;
 
@@ -83,6 +85,8 @@ namespace internal {
     }
 
 }
+
+///// Node FUNCTIONS /////
 
 Synth::Node Synth::Node::MakeNote(Note note, Duration duration, bool slide) {
     Node n;
@@ -158,6 +162,8 @@ Synth::Node Synth::Node::MakeInstrumentChange(size_t instrument_index) {
 
     return n;
 }
+
+///// DURATION FUNCTIONS /////
 
 Synth::Duration Synth::Duration::FromFraction(int numerator, int denominator) {
   Duration d;
@@ -371,6 +377,8 @@ double Synth::Duration::ToSamples(float tempo, float sample_rate, float noteleng
     }
 }
 
+///// RAMP FUNCTIONS /////
+
 Synth::Ramp Synth::Ramp::Parse(const std::string_view &token) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
 
@@ -409,11 +417,56 @@ Synth::Ramp Synth::Ramp::Parse(const std::string_view &token) {
         if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
             throw Error(Error::InvalidParameter, "Extra characters after ramp shape value: " + normalized);
         }
+
+        if(shape < 0.0f || shape >= 1.0f) {
+            throw Error(Error::InvalidParameter, "Ramp shape factor must be in the range [0, 1): " + normalized);
+        }
+
         ramp.ShapeFactor = shape;
     }
     
     return ramp;
 }
+
+float Synth::Ramp::GetMultiplier(float t) const {
+    if(Type == RampType::None) return 1.0f;
+    if(t >= 1.0f) return 1.0f;
+    if(ShapeFactor == 0.0f || Type == RampType::Linear) return t;
+
+    auto p = 1.0f - ShapeFactor;
+
+    switch(Type) {
+    case RampType::Exponential:
+        return std::pow(t, 1.0f / p);
+    case RampType::SquareRoot:
+        return std::pow(t, p);
+    case RampType::Logarithmic:
+        return (std::pow(p, t) - 1.0f) / (p - 1.0f);
+    case RampType::SCurve: {
+        if(p == 0.5f) return t * t * (3.0f - 2.0f * t);
+        auto tp = std::pow(t, 1.0f / p);
+        return tp / (tp + std::pow(1.0f - t, 1.0f / p));
+    }
+    default:
+        throw Error(Error::InvalidParameter, "Unsupported ramp type");
+    }
+}
+
+float Synth::Ramp::GetMultiplier(size_t distance, float tempo, float sample_rate, float note_length) const {
+    if(Type == RampType::None) {
+        return 1.0f;
+    }
+
+    auto total = Span.ToSamples(tempo, sample_rate, note_length);
+
+    if(total == 0) return 1;
+
+    float t = float(distance) / float(total);
+
+    return GetMultiplier(t);
+}
+
+///// SINE FUNCTIONS /////
 
 void Synth::Sine::LoadSettings(const std::string_view &settings) {
     std::string normalized = String::ToLower(String::Trim(std::string{settings}));
@@ -505,35 +558,101 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 
 double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
     return internal::CalculateOverflow(
-        Attack, Release, state.Separation, 
-        state.Tempo, sample_rate, note.note.duration.ToSeconds(state.Tempo)
+        Attack, Decay, Release, state.Separation, 
+        state.Tempo, sample_rate, note
     );
 }
 
 double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, float sample_rate) {
     float frequency = NoteToFrequency(node.note.note, state.Octave);
-    double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
 
-    double notesep = std::min(duration / 10, state.Separation.ToSamples(state.Tempo, sample_rate));
+    double phase = 0.0;
+    double phasechange = double(frequency) / sample_rate;
+    
+    auto [atk, dec, sus, rel] = internal::CalculateADSR(
+        Attack, Decay, Release, 
+        state.Separation, state.Tempo,
+        sample_rate, 
+        node.note.duration.ToSeconds(state.Tempo)
+    );
 
-    for(size_t i = 0; i < duration - notesep; i++) {
-        float fade = 1.0f;
-        if(i < notesep) {
-            fade = float(i) / notesep;
-        }
-        else if(i > duration - notesep) {
-            fade = float(duration - i) / notesep;
-        }
+    size_t start = size_t(std::round(state.Sample));
+    size_t end = size_t(std::round(state.Sample + atk));
 
-        float sample = std::sin(2.0f * M_PIf * frequency * (state.Sample + i) / sample_rate);
+    float tchange = 1.0f / (end - start);
+    float t = 0;
+    float env = 0.0f;
+
+    for(size_t i=start; i<end; i++) {
+        env = Attack.GetMultiplier(t);
 
         for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
-            wave(size_t(std::round(state.Sample)) + i, ch) = sample * state.Volume[ch] * fade;
+            float sample = std::sin(2.0 * M_PI * phase);
+            wave(i, ch) +=  env * sample * state.Volume[ch];;
         }
+
+        phase += phasechange;
+        if(phase >= 1.0) phase -= 1.0;
+        t += tchange;
+    }
+
+    start = end;
+    end = size_t(std::round(state.Sample + atk + dec));
+    tchange = 1.0f / (end - start);
+    t = 0;
+
+    for(size_t i=start; i<end; i++) {
+        env = 1.0f - Decay.GetMultiplier(t) * (1.0f - Sustain);
+
+        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(2.0 * M_PI * phase);
+            wave(i, ch) +=  env * sample * state.Volume[ch];;
+        }
+
+        phase += phasechange;
+        if(phase >= 1.0) phase -= 1.0;
+        t += tchange;
+    }
+
+    start = end;
+    end = size_t(std::round(state.Sample + atk + dec + sus));
+    tchange = 1.0f / (end - start);
+    t = 0;
+
+    for(size_t i=start; i<end; i++) {
+        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(2.0 * M_PI * phase);
+            wave(i, ch) +=  env * sample * state.Volume[ch];
+        }
+
+        phase += phasechange;
+        if(phase >= 1.0) phase -= 1.0;
+        t += tchange;
+    }
+
+    start = end;
+    end = size_t(std::round(state.Sample + atk + dec + sus + rel));
+    tchange = 1.0f / (end - start);
+    t = 0;
+    auto sustain = env; // sustain level at the start of release phase
+
+    for(size_t i=start; i<end; i++) {
+        env = sustain - Release.GetMultiplier(t) * sustain;
+
+        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(2.0 * M_PI * phase);
+            wave(i, ch) +=  env * sample * state.Volume[ch];
+        }
+
+        phase += phasechange;
+        if(phase >= 1.0) phase -= 1.0;
+        t += tchange;
     }
     
-    return duration;
+    return node.note.duration.ToSamples(state.Tempo, sample_rate);
 }
+
+///// SYNTH FUNCTIONS /////
 
 Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
@@ -968,13 +1087,14 @@ Containers::Wave Synth::Render(float sample_rate) const {
     auto guard = std::lock_guard(critical);
 
     Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), sample_rate, Channels);
+    wave.Clear();
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
         Utils::NotImplemented("Only mono output is supported currently");
     }
 
     TrackState state;
-    state.Volume = std::vector<float>(Channels.size(), 1.0f);
+    state.Volume = std::vector<float>(Channels.size(), 0.6f);
 
     for(const auto &node: Nodes) {
         switch(node.type) {
@@ -1013,6 +1133,9 @@ Containers::Wave Synth::Render(float sample_rate) const {
             break;
 
         case Node::Type::Rest:
+            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
+            break;
+
         case Node::Type::Note: {
             double duration;
 
