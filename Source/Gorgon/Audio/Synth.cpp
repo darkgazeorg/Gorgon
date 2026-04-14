@@ -1,6 +1,7 @@
 #include "Synth.h"
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
+#include "Gorgon/Types.h"
 #include "Gorgon/Utils/Assert.h"
 #include <algorithm>
 #include <cmath>
@@ -585,8 +586,8 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     for(size_t i=start; i<end; i++) {
         env = Attack.GetMultiplier(t);
 
-        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(2.0 * M_PI * phase);
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
             wave(i, ch) +=  env * sample * state.Volume[ch];;
         }
 
@@ -603,8 +604,8 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     for(size_t i=start; i<end; i++) {
         env = 1.0f - Decay.GetMultiplier(t) * (1.0f - Sustain);
 
-        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(2.0 * M_PI * phase);
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
             wave(i, ch) +=  env * sample * state.Volume[ch];;
         }
 
@@ -619,8 +620,8 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     t = 0;
 
     for(size_t i=start; i<end; i++) {
-        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(2.0 * M_PI * phase);
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
             wave(i, ch) +=  env * sample * state.Volume[ch];
         }
 
@@ -638,8 +639,8 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     for(size_t i=start; i<end; i++) {
         env = sustain - Release.GetMultiplier(t) * sustain;
 
-        for(size_t ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(2.0 * M_PI * phase);
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            float sample = std::sin(float(2.0 * Gorgon::PI * phase))    ;
             wave(i, ch) +=  env * sample * state.Volume[ch];
         }
 
@@ -995,7 +996,7 @@ void Synth::Parse(std::istream &stream) {
                         throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
                     }
                     else {
-                        instruments.Replace(index, &sine, true);
+                        instruments.Replace(long(index), &sine, true);
                     }
                 }
                 else {
@@ -1050,7 +1051,7 @@ std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
         switch(node.type) {
         case Node::Type::Note: {
             auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-            auto overflow = instruments[state.InstrumentIndex - 1].ReleaseOverflow(state, sample_rate, node);
+            auto overflow = instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
             state.Sample += duration;
             end = std::max(end, state.Sample + overflow);
             break;
@@ -1085,7 +1086,7 @@ float Synth::CalculateDuration() const {
 Containers::Wave Synth::Render(float sample_rate) const {
     auto guard = std::lock_guard(critical);
 
-    Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), sample_rate, Channels);
+    Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), unsigned(sample_rate), Channels);
     wave.Clear();
 
     if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
@@ -1142,7 +1143,7 @@ Containers::Wave Synth::Render(float sample_rate) const {
                 duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
             }
             else {
-                duration = instruments[state.InstrumentIndex - 1].Render(wave, node, state, sample_rate);
+                duration = instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
             }
 
             state.Sample += duration;
