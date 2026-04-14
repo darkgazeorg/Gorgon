@@ -62,13 +62,13 @@ namespace Gorgon :: Audio {
             float ToSeconds(float tempo) const;
 
             /// Converts this duration to number of samples based on the given tempo and sample rate.
-            double ToSamples(float tempo, float sample_rate) const;
+            double ToSamples(float tempo, unsigned int sample_rate) const;
 
             /// Converts this duration to seconds based on the given tempo (BPM) and note length.
             float ToSeconds(float tempo, float notelength) const;
 
             /// Converts this duration to number of samples based on the given tempo, sample rate, and note length.
-            double ToSamples(float tempo, float sample_rate, float notelength) const;
+            double ToSamples(float tempo, unsigned int sample_rate, float notelength) const;
 
             /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
             static Duration FromFraction(int numerator, int denominator);
@@ -168,7 +168,7 @@ namespace Gorgon :: Audio {
 
             /// Returns the multiplier for the ramp at a given time. Distance is the number
             /// of samples since the start of the ramp (or to the end if it's a decay).
-            float GetMultiplier(size_t distance, float tempo, float sample_rate, float note_length) const;
+            float GetMultiplier(size_t distance, float tempo, unsigned int sample_rate, float note_length) const;
 
             /// Returns the multiplier for the ramp at a given fraction. Distance is the number
             /// of samples since the start of the ramp (or to the end if it's a decay).
@@ -198,7 +198,7 @@ namespace Gorgon :: Audio {
             /// but could override it if necessary.
             virtual double Render(
                 Containers::Wave &wave, const Node &node, 
-                TrackState &state, float sample_rate
+                TrackState &state, unsigned int sample_rate
             ) = 0;
 
             /// Loads instrument settings from a string. The format of the settings string
@@ -214,7 +214,7 @@ namespace Gorgon :: Audio {
             /// This function returns how much a given note's release phase would overflow
             /// into the next note based on the current track state and sample rate. This is used to
             /// determine unclipped length of the entire track.
-            virtual double ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const = 0;
+            virtual double ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const = 0;
 
             /// Returns the name of the instrument.
             std::string GetInstrumentName() const {
@@ -237,12 +237,12 @@ namespace Gorgon :: Audio {
             
             double Render(
                 Containers::Wave &wave, const Node &node,
-                TrackState &state, float sample_rate
+                TrackState &state, unsigned int sample_rate
             ) override;
 
             void LoadSettings(const std::string_view& settings) override;
 
-            double ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const override;
+            double ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const override;
 
             /// Attack and release falloff settings for the sine wave. Attack 
             /// controls how the note volume increases at the start, while release
@@ -358,9 +358,9 @@ namespace Gorgon :: Audio {
 
         float CalculateDuration() const;
 
-        AudioDuration CalculateSamples(float sample_rate = 44100.0f) const;
+        AudioDuration CalculateSamples(unsigned int sample_rate = 44100u) const;
 
-        Containers::Wave Render(float sample_rate = 44100.0f) const;
+        Containers::Wave Render(unsigned int sample_rate = 44100u) const;
 
         /// Parses a single GMM token into a Node. Throws ParseError on invalid input. Cannot
         /// process comments.
@@ -448,7 +448,7 @@ namespace Gorgon :: Audio {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9) / 12.0f);
         }
     private:
-        std::pair<double, double> calculatesamples(float sample_rate) const;
+        std::pair<double, double> calculatesamples(unsigned int sample_rate) const;
 
         /// Sequence of nodes that define a track.
         std::vector<Node> Nodes;

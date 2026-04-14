@@ -26,7 +26,7 @@ namespace internal {
     ADSRInfo CalculateADSR(
         const Synth::Ramp &attack, const Synth::Ramp &decay, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, float sample_rate, float notelength
+        float tempo, unsigned int sample_rate, float notelength
     ) {
         double length = notelength * sample_rate;
 
@@ -62,7 +62,7 @@ namespace internal {
     double CalculateOverflow(
         const Synth::Ramp &attack, const Synth::Ramp &decay, const Synth::Ramp &release, 
         const Synth::Duration &separation,
-        float tempo, float sample_rate, const Synth::Node &note
+        float tempo, unsigned int sample_rate, const Synth::Node &note
     ) {
         if(release.Type == Synth::RampType::None) {
             return 0;
@@ -334,7 +334,7 @@ float Synth::Duration::ToSeconds(float tempo) const {
     }
 }
 
-double Synth::Duration::ToSamples(float tempo, float sample_rate) const {
+double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate) const {
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
@@ -362,16 +362,16 @@ float Synth::Duration::ToSeconds(float tempo, float notelength) const {
     }
 }
 
-double Synth::Duration::ToSamples(float tempo, float sample_rate, float notelength) const {
+double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate, float notelength) const {
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
     case TempoUnits:
         return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
-        return Seconds * sample_rate;
+        return double(Seconds) * sample_rate;
     case NoteFraction:
-        return notelength * Units * sample_rate;
+        return double(notelength) * Units * sample_rate;
     default:
         throw Error(Error::InvalidDuration, "Unsupported duration type");
     }
@@ -452,7 +452,7 @@ float Synth::Ramp::GetMultiplier(float t) const {
     }
 }
 
-float Synth::Ramp::GetMultiplier(size_t distance, float tempo, float sample_rate, float note_length) const {
+float Synth::Ramp::GetMultiplier(size_t distance, float tempo, unsigned int sample_rate, float note_length) const {
     if(Type == RampType::None) {
         return 1.0f;
     }
@@ -556,14 +556,14 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
     }
 }
 
-double Synth::Sine::ReleaseOverflow(TrackState &state, float sample_rate, const Node &note) const {
+double Synth::Sine::ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const {
     return internal::CalculateOverflow(
         Attack, Decay, Release, state.Separation, 
         state.Tempo, sample_rate, note
     );
 }
 
-double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, float sample_rate) {
+double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, unsigned int sample_rate) {
     float frequency = NoteToFrequency(node.note.note, state.Octave);
 
     double phase = 0.0;
@@ -1035,14 +1035,14 @@ void Synth::Parse(std::istream &stream) {
     }
 }
 
-Synth::AudioDuration Synth::CalculateSamples(float sample_rate) const {
+Synth::AudioDuration Synth::CalculateSamples(unsigned int sample_rate) const {
     auto guard = std::lock_guard(critical);
 
     auto [total, end] = calculatesamples(sample_rate);
     return {static_cast<size_t>(std::ceil(total)), static_cast<size_t>(std::ceil(end))};
 }
 
-std::pair<double, double> Synth::calculatesamples(float sample_rate) const {
+std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) const {
     TrackState state;
 
     double end = 0;
@@ -1083,7 +1083,7 @@ float Synth::CalculateDuration() const {
     return CalculateSamples(151200).Total / 151200.0f; 
 }
 
-Containers::Wave Synth::Render(float sample_rate) const {
+Containers::Wave Synth::Render(unsigned int sample_rate) const {
     auto guard = std::lock_guard(critical);
 
     Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), unsigned(sample_rate), Channels);
