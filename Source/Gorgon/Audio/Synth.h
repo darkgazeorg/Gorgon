@@ -173,6 +173,9 @@ namespace Gorgon :: Audio {
             /// Returns the multiplier for the ramp at a given fraction. Distance is the number
             /// of samples since the start of the ramp (or to the end if it's a decay).
             float GetMultiplier(float t) const;
+
+            /// Converts the ramp span to number of samples based on the given tempo and sample rate.
+            double ToSamples(float tempo, unsigned int sample_rate, float note_length) const;
         };
 
         struct Node;

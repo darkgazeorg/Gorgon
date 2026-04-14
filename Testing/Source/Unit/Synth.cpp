@@ -485,12 +485,14 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 %CHANNELS = 1
 
 # --- Instrument Bank ---
+@1 = Sine attack=128, release=4, decay=8, sustain=0.5
+
 
 # ==========================================
 # VARIATION 1: The Quiet Introduction
 # Tests baseline parsing, dotted notes, and standard timing
 # ==========================================
-T100 V70 O4
+T100 V40 O4
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O3 G2
@@ -500,7 +502,7 @@ O4 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 # VARIATION 2: The March 
 # Tests inline tempo shifts and octave jumps
 # ==========================================
-T120 V85 O5
+T120 V60 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
@@ -510,7 +512,7 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 # VARIATION 3: The Grand Finale 
 # Tests volume peaks, the updated slide (~), and absolute time rests
 # ==========================================
-T110 V100 O5
+T110 V70 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
@@ -521,7 +523,10 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
     wave.ExportWav("test_output.wav");
     Gorgon::Encoding::Flac.Encode(wave, "test_output.flac");
     {
-        synth.Parse(R"(O4 T160
+        synth.Parse(R"(
+            #@1 = Sine attack=128, release=3, decay=8, sustain=0.5
+            @1 = Sine attack=256, release=256, decay=0/1, sustain=1
+            V60 O5 T160 S32
             D E F G F G G G4. R8 F G G G4. R8 F2 E2
             D E F G F G G G2 F G G G2 F2 E2
             D E F G E F D E C C F E D2 D2
@@ -529,7 +534,6 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
         )");
 
         auto wave = synth.Render(44100);
-        wave.ExportWav("test_output.wav");
         Gorgon::Encoding::Flac.Encode(wave, "sut.flac");
     }
 }

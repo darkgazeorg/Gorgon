@@ -36,7 +36,7 @@ namespace internal {
             sep = length;
         }
 
-        double atk = attack.Span.ToSamples(
+        double atk = attack.ToSamples(
             tempo, sample_rate, 
             notelength
         );
@@ -45,13 +45,13 @@ namespace internal {
             atk = length - sep;
         }
 
-        double dec = decay.Span.ToSamples(tempo, sample_rate, notelength);
+        double dec = decay.ToSamples(tempo, sample_rate, notelength);
 
         if(dec > length - atk - sep) {
             dec = length - atk - sep;
         }
 
-        double rel = release.Span.ToSamples(tempo, sample_rate, notelength);
+        double rel = release.ToSamples(tempo, sample_rate, notelength);
 
         double sus = length - atk - sep - dec;
 
@@ -464,6 +464,14 @@ float Synth::Ramp::GetMultiplier(size_t distance, float tempo, unsigned int samp
     float t = float(distance) / float(total);
 
     return GetMultiplier(t);
+}
+
+double Synth::Ramp::ToSamples(float tempo, unsigned int sample_rate, float note_length) const {
+    if(Type == RampType::None) {
+        return 0;
+    }
+    
+    return Span.ToSamples(tempo, sample_rate, note_length);
 }
 
 ///// SINE FUNCTIONS /////
