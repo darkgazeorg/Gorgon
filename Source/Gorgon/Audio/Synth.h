@@ -6,8 +6,11 @@
 #include "Gorgon/String.h"
 
 #include <cmath>
+#include <cstddef>
 #include <functional>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -244,7 +247,11 @@ namespace Gorgon :: Audio {
                 return Name;
             }
 
+            /// A unique name for the instrument, used for referencing in GMM.
             std::string Name;
+
+            /// Optional description of the instrument, can be used for documentation.
+            std::string Description;
         };
 
         /** A simple sine wave instrument with configurable attack and release ramps.
@@ -433,7 +440,40 @@ namespace Gorgon :: Audio {
 
         /// Checks if an instrument factory with the given name exists.
         bool HasInstrumentFactory(const std::string& name) const {
-            return instrumentfactories.find(String::ToLower(name)) != instrumentfactories.end();
+            return 
+                findinstrument(name, instrumentfactories).has_value() ||
+                findinstrument(name, baseinstrumentfactories).has_value()
+            ;
+        }
+
+        /// Returns a list of all system instrument names.
+        static std::vector<std::string> GetInstrumentRegistry();
+
+        /// Returns a new instance of the instrument with the given name. If no such instrument exists, returns nullptr.
+        static std::unique_ptr<Instrument> CreateRegistryInstrument(const std::string& name) {
+            auto type = String::ToLower(name);
+
+            if(auto it = findinstrument(name, baseinstrumentfactories); it.has_value()) {
+                return std::unique_ptr<Instrument>(&it.value()());
+            }
+            else {
+                return {};
+            }
+        }
+
+        /// Returns a new instance of the instrument with the given name. If no such instrument exists, returns nullptr.
+        std::unique_ptr<Instrument> CreateInstrument(const std::string& name) {
+            auto type = String::ToLower(name);
+
+            if(auto it = findinstrument(name, instrumentfactories); it.has_value()) {
+                return std::unique_ptr<Instrument>(&it.value()());
+            }
+            else if(auto it = findinstrument(name, baseinstrumentfactories); it.has_value()) {
+                return std::unique_ptr<Instrument>(&it.value()());
+            }
+            else {
+                return {};
+            }
         }
 
         /// Adds an instrument to the synthesizer, taking ownership.
@@ -496,6 +536,8 @@ namespace Gorgon :: Audio {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9 + pitch_offset) / 12.0f);
         }
     private:
+        using FactoryEntry = std::pair<std::string, Instrument::Factory>;
+        
         std::pair<double, double> calculatesamples(unsigned int sample_rate) const;
 
         /// Sequence of nodes that define a track.
@@ -505,14 +547,47 @@ namespace Gorgon :: Audio {
 
         /// Factory functions for creating instruments by name. This allows for dynamic
         /// registration of new instrument types without modifying the Synth class.
-        std::map<std::string, Instrument::Factory> instrumentfactories = {
+        std::vector<FactoryEntry> instrumentfactories = {
             {"sine", []() -> Instrument& { return *new Sine(); }}
         };
 
         /// Base factory functions for creating instruments by name. This is used as
         /// fallback when the requested instrument factory is not found in the current
         /// instrumentfactories map.
-        static const std::map<std::string, Instrument::Factory> baseinstrumentfactories;
+        static const std::vector<FactoryEntry> baseinstrumentfactories;
+
+        static std::optional<Instrument::Factory> findinstrument(const std::string &name, const std::vector<FactoryEntry> &factories) {
+            auto type = String::ToLower(name);
+
+            for(const auto& [key, factory] : factories) {
+                if(key == type) {
+                    return factory;
+                }
+                else if(String::Replace(key, " ", "") == type) {
+                    return factory;
+                }
+            }
+
+            return std::nullopt;
+        }
+
+        static std::optional<size_t> findinstrumentindex(const std::string &name, const std::vector<FactoryEntry> &factories) {
+            auto type = String::ToLower(name);
+
+            size_t index = 0;
+            for(const auto& [key, factory] : factories) {
+                if(key == type) {
+                    return index;
+                }
+                else if(String::Replace(key, " ", "") == type) {
+                    return index;
+                }
+
+                index++;
+            }
+
+            return std::nullopt;
+        }
 
         /// Map of instrument indices to their definitions. The first instrument 
         /// @1 is used for the first note, @2 for the second, etc. @0 is always

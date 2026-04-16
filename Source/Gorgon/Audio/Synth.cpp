@@ -846,7 +846,7 @@ void Synth::Parse(std::istream &stream) {
 
     instruments.DeleteAll();
     instruments = {
-        instrumentfactories["sine"]()
+        CreateInstrument("synth").release()
     };
 
     std::string line;
@@ -999,10 +999,25 @@ void Synth::Parse(std::istream &stream) {
                     throw Error(Error::InvalidParameter, "Instrument settings cannot be empty for instrument index: " + std::to_string(index));
                 }
 
-                pos = line.find_first_of(" \t(");
+                if(line[0] == '"' || line[0] == '\'') {
+                    char quote = line[0];
+                    pos = line.find(quote, 1);
+                    if(pos == std::string::npos) {
+                        throw Error(Error::InvalidParameter, "Mismatched quotes in instrument name for instrument index: " + std::to_string(index));
+                    }
 
-                type = String::ToLower((pos == std::string::npos) ? line : line.substr(0, pos));
-                
+                    type = line.substr(1, pos - 1);
+                    line = String::Trim(line.substr(pos + 1));
+                    pos = 0;
+                }
+                else {
+                    pos = line.find_first_of(" \t(");
+
+                    type = String::ToLower((pos == std::string::npos) ? line : line.substr(0, pos));
+                }
+
+                type = String::Replace(type, "_", " ");
+
                 if(pos != std::string::npos) {
                     line = String::Trim(line.substr(pos));
                 }
@@ -1023,11 +1038,11 @@ void Synth::Parse(std::istream &stream) {
 
                 Instrument::Factory factory;
 
-                if(auto inst = instrumentfactories.find(type); inst != instrumentfactories.end()) {
-                    factory = inst->second;
+                if(auto inst = findinstrument(type, instrumentfactories); inst.has_value()) {
+                    factory = inst.value();
                 }
-                else if(auto inst = baseinstrumentfactories.find(type); inst != baseinstrumentfactories.end()) {
-                    factory = inst->second;
+                else if(auto inst = findinstrument(type, baseinstrumentfactories); inst.has_value()) {
+                    factory = inst.value();
                 }
                 else {
                     throw Error(Error::UnknownInstrument, "Unrecognized instrument type: " + type);
@@ -1203,29 +1218,38 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
 }
 
 void Synth::AddInstrumentFactory(std::function<Instrument &()> factory, const std::string &name) {
-  auto guard = std::lock_guard(critical);
+    auto guard = std::lock_guard(critical);
 
-  if(name.empty()) {
-    throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
-  }
-  if(!factory) {
-    throw Error(Error::InvalidParameter, "Instrument factory cannot be empty");
-  }
+    if(name.empty()) {
+        throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
+    }
+    if(!factory) {
+        throw Error(Error::InvalidParameter, "Instrument factory cannot be empty");
+    }
 
-  instrumentfactories[String::ToLower(name)] = factory;
+    auto current = findinstrumentindex(name, instrumentfactories);
+    if(current.has_value()) {
+        instrumentfactories[current.value()] = {name, factory};
+    }
+    else {
+        instrumentfactories.push_back({String::ToLower(name), factory});
+    }
 }
 
 void Synth::RemoveInstrumentFactory(const std::string &name) {
   auto guard = std::lock_guard(critical);
 
-  instrumentfactories.erase(String::ToLower(name));
+    auto index = findinstrumentindex(name, instrumentfactories);
+    if(index.has_value()) {
+        instrumentfactories.erase(instrumentfactories.begin() + index.value());
+    }
 }
 
 void Synth::ClearInstrumentFactories() {
   auto guard = std::lock_guard(critical);
 
   instrumentfactories.clear();
-  instrumentfactories["sine"] = []() -> Instrument & { return *new Sine(); };
+  instrumentfactories.push_back({"sine", []() -> Instrument & { return *new Sine(); }});
 }
 
 size_t Synth::AddInstrument(Instrument& instrument) {
@@ -1300,58 +1324,17 @@ void Synth::RemoveNode(size_t index) {
     Nodes.erase(Nodes.begin() + index);
 }
 
-const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfactories = {
-    {"chiptune", []() -> Instrument& { 
-        static Sine sine;
-        sine.Name = "Chiptune";
-        sine.Attack = {RampType::None};
-        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
-        sine.Sustain = 0.0f;
-        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
-        sine.Volume = 1.0f;
-        return sine.Clone(); 
-    }},
-    {"ambientpad", []() -> Instrument& { 
-        static Sine sine;
-        sine.Name = "Ambient Pad";
-        sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(2)};
-        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(4)};
-        sine.Sustain = 0.8f;
-        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(1)};
-        sine.Volume = 0.4f;
-        return sine.Clone(); 
-    }},
-    {"electricpiano", []() -> Instrument& { 
-        static Sine sine;
-        sine.Name = "Electric Piano";
-        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.02f)};
-        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.3f)};
-        sine.Sustain = 0.3f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
-        return sine.Clone(); 
-    }},
-    {"deepsubbass", []() -> Instrument& { 
-        static Sine sine;
-        sine.Name = "Deep Sub Bass";
-        sine.Attack = {RampType::Linear, Synth::Duration::FromSeconds(0.01f)};
-        sine.Decay = {RampType::None};
-        sine.Sustain = 1.0f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f)};
-        sine.PitchOffset = -24.0f; // 2 octaves down
-        sine.Volume = 0.7f;
-        return sine.Clone(); 
-    }},
-    {"xylophone", []() -> Instrument& { 
-        static Sine sine;
-        sine.Name = "Xylaphone";
-        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f)};
-        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
-        sine.Sustain = 0.3f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f)};
-        sine.Volume = 0.6f;
-        sine.PitchOffset = 12.0f; // 1 octave up
-        return sine.Clone(); 
-    }},
+std::vector<std::string> Synth::GetInstrumentRegistry() {
+    std::vector<std::string> names;
+
+    for(const auto& [name, factory] : baseinstrumentfactories) {
+        names.push_back(name);
+    }
+
+    return names;
+}
+
+const std::vector<Synth::FactoryEntry> Synth::baseinstrumentfactories = {
     {"synth", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Synth";
@@ -1359,6 +1342,7 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
         sine.Sustain = 0.8f;
         sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Description = "A classic synth sound with a quick attack and moderate decay, perfect for leads and pads.";
         return sine.Clone(); 
     }},
     {"flute", []() -> Instrument& { 
@@ -1370,6 +1354,63 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Release = {RampType::Logarithmic, Synth::Duration::FromSeconds(0.06f)};
         sine.Separation = Synth::Duration::FromSeconds(0.2f);
         sine.Volume = 1.0f;
+        sine.Description = "A soft and airy flute sound with a gentle attack and long release, ideal for melodic lines and atmospheric textures.";
+        return sine.Clone(); 
+    }},
+    {"chiptune", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Chiptune";
+        sine.Attack = {RampType::None};
+        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Sustain = 0.0f;
+        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Volume = 1.0f;
+        sine.Description = "A classic chiptune sound with a quick attack and short decay, ideal for retro game music.";
+        return sine.Clone(); 
+    }},
+    {"ambientpad", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Ambient Pad";
+        sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(2)};
+        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(4)};
+        sine.Sustain = 0.8f;
+        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(1)};
+        sine.Volume = 0.4f;
+        sine.Description = "A soft and evolving ambient pad sound with a slow attack and long release, perfect for atmospheric textures.";
+        return sine.Clone(); 
+    }},
+    {"electric piano", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Electric Piano";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.02f)};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.3f)};
+        sine.Sustain = 0.3f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
+        sine.Description = "A classic electric piano sound with a quick attack and moderate decay, ideal for chords and melodic lines.";
+        return sine.Clone(); 
+    }},
+    {"deep sub bass", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Deep Sub Bass";
+        sine.Attack = {RampType::Linear, Synth::Duration::FromSeconds(0.01f)};
+        sine.Decay = {RampType::None};
+        sine.Sustain = 1.0f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f)};
+        sine.PitchOffset = -24.0f; // 2 octaves down
+        sine.Volume = 0.7f;
+        sine.Description = "A deep sub bass sound with a quick attack and long sustain, ideal for low-end support.";
+        return sine.Clone(); 
+    }},
+    {"xylophone", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Xylophone";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f)};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
+        sine.Sustain = 0.3f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f)};
+        sine.Volume = 0.6f;
+        sine.PitchOffset = 12.0f; // 1 octave up
+        sine.Description = "A bright and percussive xylophone sound with a quick attack and moderate decay, perfect for melodic lines and rhythmic patterns.";
         return sine.Clone(); 
     }},
     {"bell", []() -> Instrument& { 
@@ -1381,6 +1422,7 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Release = {RampType::Logarithmic, Synth::Duration::FromSeconds(1.5f)};
         sine.Volume = 0.4f;
         sine.PitchOffset = 12.0f; // 1 octave up
+        sine.Description = "A bright and resonant bell sound with a quick attack and long decay, ideal for melodic accents and atmospheric effects.";
         return sine.Clone(); 
     }},
 };

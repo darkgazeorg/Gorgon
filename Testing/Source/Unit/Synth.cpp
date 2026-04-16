@@ -486,9 +486,9 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 %CHANNELS = 1
 
 # --- Instrument Bank ---
-@1 = deepsubbass
+@1 = flute
 @2 = xylophone
-@3 = flute
+@3 = "deep sub_bass" #quoted names with spaces are supported, _ is treated as space. Spaces can be ommitted too.
 
 # ==========================================
 # VARIATION 1: The Quiet Introduction
