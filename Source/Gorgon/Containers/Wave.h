@@ -392,6 +392,24 @@ namespace Gorgon :: Containers {
             return data[p*channels.size() + ch];
         }
 
+        /// Normalizes the wave data to the range of -1.0f to 1.0f.
+        void Normalize() {
+            float maxval = 0.0f;
+
+            for(size_t i=0; i<size*channels.size(); i++) {
+                auto val = std::abs(data[i]);
+                if(val > maxval) maxval = val;
+            }
+
+            if(maxval > 0.0f) {
+                float invmax = 1.0f / maxval;
+
+                for(size_t i=0; i<size*channels.size(); i++) {
+                    data[i] *= invmax;
+                }
+            }
+        }
+
         /// Returns the size of the wave in number of samples
         size_t GetSize() const {
             return size;

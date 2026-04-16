@@ -486,7 +486,9 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 %CHANNELS = 1
 
 # --- Instrument Bank ---
-@1 = bell
+@1 = deepsubbass
+@2 = xylophone
+@3 = flute
 
 # ==========================================
 # VARIATION 1: The Quiet Introduction
@@ -502,7 +504,7 @@ O4 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 # VARIATION 2: The March 
 # Tests inline tempo shifts and octave jumps
 # ==========================================
-T120 V60 O5
+@2 T120 V60 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
@@ -512,7 +514,7 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 # VARIATION 3: The Grand Finale 
 # Tests volume peaks, the updated slide (~), and absolute time rests
 # ==========================================
-T110 V70 O5
+@3 T110 V70 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
@@ -521,6 +523,7 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
 
     auto wave = synth.Render(44100);
     wave.ExportWav("test_output.wav");
+    wave.Normalize();
     Gorgon::Encoding::Flac.Encode(wave, "test_output.flac");
     {
         synth.Parse(R"(

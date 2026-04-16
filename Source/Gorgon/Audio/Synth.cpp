@@ -576,6 +576,17 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 
             Volume = volume / 100.0f;
         }
+        else if(key == "pitchoffset") {
+            auto [offset, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid pitch offset value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after pitch offset value: " + value);
+            }
+
+            PitchOffset = offset;
+        }
         else {
             throw Error(Error::InvalidParameter, "Unknown parameter for Sine instrument: " + key);
         }
@@ -590,7 +601,7 @@ double Synth::Sine::ReleaseOverflow(TrackState &state, unsigned int sample_rate,
 }
 
 double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, unsigned int sample_rate) {
-    float frequency = NoteToFrequency(node.note.note, state.Octave);
+    float frequency = NoteToFrequency(node.note.note, state.Octave, PitchOffset);
 
     double phase = 0.0;
     double phasechange = double(frequency) / sample_rate;
@@ -1326,9 +1337,11 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Decay = {RampType::None};
         sine.Sustain = 1.0f;
         sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f)};
+        sine.PitchOffset = -24.0f; // 2 octaves down
+        sine.Volume = 0.7f;
         return sine.Clone(); 
     }},
-    {"xylaphone", []() -> Instrument& { 
+    {"xylophone", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Xylaphone";
         sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f)};
@@ -1336,6 +1349,7 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Sustain = 0.3f;
         sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f)};
         sine.Volume = 0.6f;
+        sine.PitchOffset = 12.0f; // 1 octave up
         return sine.Clone(); 
     }},
     {"synth", []() -> Instrument& { 
@@ -1366,6 +1380,7 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Sustain = 0.0f;
         sine.Release = {RampType::Logarithmic, Synth::Duration::FromSeconds(1.5f)};
         sine.Volume = 0.4f;
+        sine.PitchOffset = 12.0f; // 1 octave up
         return sine.Clone(); 
     }},
 };

@@ -295,6 +295,11 @@ namespace Gorgon :: Audio {
 
             /// Default separation between notes.
             Duration Separation = Duration::FromFraction(32);
+
+            /// Modifies the pitch of the sine wave. A full number represents a semitone.
+            /// A fraction can be used for microtonal adjustments, +/-12 can be used for
+            /// full octave shifts.
+            float PitchOffset = 0.0f;
         };
 
         /// If GMM encounters an error, it throws this exception with
@@ -487,8 +492,8 @@ namespace Gorgon :: Audio {
         }
 
         /// Converts a note and octave into frequency (Hz).
-        static float NoteToFrequency(Note note, int octave) {
-            return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9) / 12.0f);
+        static float NoteToFrequency(Note note, int octave, float pitch_offset = 0.0f) {
+            return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9 + pitch_offset) / 12.0f);
         }
     private:
         std::pair<double, double> calculatesamples(unsigned int sample_rate) const;

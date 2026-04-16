@@ -345,7 +345,7 @@ namespace Encoding {
             
             for(int j=0; j<tobeenc; j++) {
                 for(int c=0; c<channels; c++) {
-                    buffer[j * channels + c] = (int32_t)( std::round(multiplier * input(i + j, c)) );
+                    buffer[j * channels + c] = (int32_t)( std::round(multiplier * std::clamp(input(i + j, c), -1.0f, 1.0f)) );
                 }
             }
 
