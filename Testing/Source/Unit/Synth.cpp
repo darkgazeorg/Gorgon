@@ -486,13 +486,13 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 %CHANNELS = 1
 
 # --- Instrument Bank ---
-@1 = chiptune
+@1 = bell
 
 # ==========================================
 # VARIATION 1: The Quiet Introduction
 # Tests baseline parsing, dotted notes, and standard timing
 # ==========================================
-T100 V60 O5
+T100 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O3 G2

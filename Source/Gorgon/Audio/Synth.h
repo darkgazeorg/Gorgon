@@ -41,6 +41,8 @@ namespace Gorgon :: Audio {
         struct Duration {
             /// The type of duration (fraction, units, or seconds).
             enum {
+                // Only used in state to indicate default should be used
+                None,
                 TempoFraction,
                 TempoUnits,
                 ClockSeconds,
@@ -70,6 +72,12 @@ namespace Gorgon :: Audio {
             /// Converts this duration to number of samples based on the given tempo, sample rate, and note length.
             double ToSamples(float tempo, unsigned int sample_rate, float notelength) const;
 
+            /// Returns the first non-empty duration between this and another duration. If both are empty, returns an empty duration.
+            Duration Or(const Duration& other) const {
+                if(type != None) return *this;
+                return other;
+            }
+
             /// Factory method for creating duration from a fraction (e.g., 1/4 for a quarter note).
             static Duration FromFraction(int numerator, int denominator);
 
@@ -95,7 +103,13 @@ namespace Gorgon :: Audio {
             /// useful for ramp spans.
             static Duration FromNoteFraction(float fraction);
 
-            static Duration Parse(const std::string_view& token);
+            static Duration Empty() {
+                Duration d;
+                d.type = None;
+                return d;
+            }
+
+            static Duration Parse(const std::string_view& token, bool allow_empty = false);
         };
 
         /// Defines length of the rendered audio.
@@ -118,7 +132,7 @@ namespace Gorgon :: Audio {
             float Tempo = 120.0f;
             int Octave = 4;
             std::vector<float> Volume;
-            Duration Separation = Duration::FromFraction(32);
+            Duration Separation = Duration::Empty();
             size_t InstrumentIndex = 1;
         };
 
@@ -274,6 +288,13 @@ namespace Gorgon :: Audio {
             /// the attack and decay phases. It is a multiplier from 0.0 (silent)
             /// to 1.0 (full volume).
             float Sustain = 0.8f;
+
+            /// Scales the track volume. Can be used to avoid clipping when release
+            /// overflow is expected.
+            float Volume = 0.7f;
+
+            /// Default separation between notes.
+            Duration Separation = Duration::FromFraction(32);
         };
 
         /// If GMM encounters an error, it throws this exception with

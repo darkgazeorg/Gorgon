@@ -195,8 +195,11 @@ Synth::Duration Synth::Duration::FromNoteFraction(float fraction) {
     return d;
 }
 
-Synth::Duration Synth::Duration::Parse(const std::string_view& token) {
-    if(token.empty()) return Duration::FromFraction(4);
+Synth::Duration Synth::Duration::Parse(const std::string_view& token, bool allow_empty) {
+    if(token.empty()) {
+        if(allow_empty) return Duration::Empty();
+        return Duration::FromFraction(4);
+    }
 
     std::string normalized = String::ToLower(String::Trim(std::string{token}));
 
@@ -559,6 +562,20 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
             }
             Sustain = sustain;
         }
+        else if(key == "separation") {
+            Separation = Duration::Parse(value);
+        }
+        else if(key == "volume") {
+            auto [volume, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid volume value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after volume value: " + value);
+            }
+
+            Volume = volume / 100.0f;
+        }
         else {
             throw Error(Error::InvalidParameter, "Unknown parameter for Sine instrument: " + key);
         }
@@ -567,7 +584,7 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 
 double Synth::Sine::ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const {
     return internal::CalculateOverflow(
-        Attack, Decay, Release, state.Separation, 
+        Attack, Decay, Release, state.Separation.Or(Separation), 
         state.Tempo, sample_rate, note
     );
 }
@@ -580,7 +597,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     
     auto [atk, dec, sus, rel] = internal::CalculateADSR(
         Attack, Decay, Release, 
-        state.Separation, state.Tempo,
+        state.Separation.Or(Separation), state.Tempo,
         sample_rate, 
         node.note.duration.ToSeconds(state.Tempo)
     );
@@ -597,7 +614,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * state.Volume[ch];;
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
         }
 
         phase += phasechange;
@@ -615,7 +632,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * state.Volume[ch];;
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
         }
 
         phase += phasechange;
@@ -631,7 +648,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     for(size_t i=start; i<end; i++) {
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
         }
 
         phase += phasechange;
@@ -650,7 +667,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase))    ;
-            wave(i, ch) +=  env * sample * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
         }
 
         phase += phasechange;
@@ -748,7 +765,7 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
         return Node::MakeRest(Duration::Parse(normalized.substr(1)));
 
     case 's':
-        return Node::MakeSeparation(Duration::Parse(normalized.substr(1)));
+        return Node::MakeSeparation(Duration::Parse(normalized.substr(1), true));
     
     case '@':{
         auto [inst, res] = String::FromCLocaleTo<size_t>(normalized.substr(1));
@@ -1110,7 +1127,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
     }
 
     TrackState state;
-    state.Volume = std::vector<float>(Channels.size(), 0.6f);
+    state.Volume = std::vector<float>(Channels.size(), 1.0f);
 
     for(const auto &node: Nodes) {
         switch(node.type) {
@@ -1280,42 +1297,45 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
         sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
         sine.Sustain = 0.0f;
         sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Volume = 1.0f;
         return sine.Clone(); 
     }},
-    {"ambient pad", []() -> Instrument& { 
+    {"ambientpad", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Ambient Pad";
         sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(2)};
         sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(4)};
         sine.Sustain = 0.8f;
         sine.Release = {RampType::Linear, Synth::Duration::FromFraction(1)};
+        sine.Volume = 0.4f;
         return sine.Clone(); 
     }},
-    {"electric piano", []() -> Instrument& { 
+    {"electricpiano", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Electric Piano";
-        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.02f), 0.5f};
-        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.3f), 0.5f};
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.02f)};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.3f)};
         sine.Sustain = 0.3f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f), 0.5f};
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
         return sine.Clone(); 
     }},
-    {"deep sub bass", []() -> Instrument& { 
+    {"deepsubbass", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Deep Sub Bass";
         sine.Attack = {RampType::Linear, Synth::Duration::FromSeconds(0.01f)};
         sine.Decay = {RampType::None};
         sine.Sustain = 1.0f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f), 0.5f};
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f)};
         return sine.Clone(); 
     }},
     {"xylaphone", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Xylaphone";
-        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f), 0.5f};
-        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f), 0.5f};
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f)};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f)};
         sine.Sustain = 0.3f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f), 0.5f};
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f)};
+        sine.Volume = 0.6f;
         return sine.Clone(); 
     }},
     {"synth", []() -> Instrument& { 
@@ -1330,10 +1350,22 @@ const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfac
     {"flute", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Flute";
-        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.0375f), 0.5f};
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.04f)};
         sine.Decay = {RampType::None};
         sine.Sustain = 1.0f;
-        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.075f), 0.5f};
+        sine.Release = {RampType::Logarithmic, Synth::Duration::FromSeconds(0.06f)};
+        sine.Separation = Synth::Duration::FromSeconds(0.2f);
+        sine.Volume = 1.0f;
+        return sine.Clone(); 
+    }},
+    {"bell", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Bell";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f)};
+        sine.Decay = {RampType::Logarithmic, Synth::Duration::FromSeconds(1.5f)};
+        sine.Sustain = 0.0f;
+        sine.Release = {RampType::Logarithmic, Synth::Duration::FromSeconds(1.5f)};
+        sine.Volume = 0.4f;
         return sine.Clone(); 
     }},
 };

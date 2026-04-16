@@ -65,7 +65,8 @@ The body contains one or more tracks, each tagged with a track identifier (`1>`,
 * **`^` (Slide/Portamento)**: A single command that smoothly glides pitch from a starting note to a target note over a specified duration.
     * **Syntax:** `<StartNote>^<TargetNote><Duration>[{Curve}]`
     * **Example:** `C4^G4:2` slides from C4 to G4 over a half note.
-    * **Example:** `C4^C5:4{s}` slides an entire octave over a quarter note using an S-Curve for a smooth takeoff and landing.* **`S<Duration>`**: Sets note separation (articulation). Controls how long before the end of the note the release phase is triggered. Example: `S8` triggers the release an eighth note before the note ends. Release will never trigger before the attack phase finishes; if S is longer, it clamps to the attack duration. If attack is longer than the note duration, attack is shortened to fit the note duration, and S is ignored.
+    * **Example:** `C4^C5:4{s}` slides an entire octave over a quarter note using an S-Curve for a smooth takeoff and landing.
+* **`S<Duration>`**: Sets note separation (articulation). Controls how long before the end of the note the release phase is triggered. Example: `S8` triggers the release an eighth note before the note ends. This allows for more staccato or legato phrasing by controlling how much of the release ramp is audible. `S` without a duration returns to the default separation defined in the instrument.
 
 ---
 
