@@ -1,3 +1,4 @@
+#include <functional>
 #define CATCH_CONFIG_MAIN
 
 #include <catch2/catch_approx.hpp>
@@ -355,7 +356,7 @@ TEST_CASE("Instrument factory registration and unknown instrument type handling"
     REQUIRE(synth.HasInstrumentFactory("sine"));
     REQUIRE_FALSE(synth.HasInstrumentFactory("pulse"));
 
-    REQUIRE_THROWS_AS(synth.AddInstrumentFactory({}, "Pulse"), Synth::Error);
+    REQUIRE_THROWS_AS(synth.AddInstrumentFactory(std::function<Synth::Instrument&()>{}, "Pulse"), Synth::Error);
     REQUIRE_THROWS_AS(synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, ""), Synth::Error);
 
     synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, "Pulse");
@@ -485,14 +486,13 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 %CHANNELS = 1
 
 # --- Instrument Bank ---
-@1 = Sine attack=128, release=4, decay=8, sustain=0.5
-
+@1 = chiptune
 
 # ==========================================
 # VARIATION 1: The Quiet Introduction
 # Tests baseline parsing, dotted notes, and standard timing
 # ==========================================
-T100 V40 O4
+T100 V60 O5
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O3 G2
@@ -741,6 +741,31 @@ TEST_CASE("Instrument management API", "[Synth][Instrument]") {
     REQUIRE(synth.GetInstrumentCount() == 1);
     REQUIRE_THROWS_AS(synth.RemoveInstrument(0), Synth::Error);
     REQUIRE_THROWS_AS(synth.RemoveInstrument(2), Synth::Error);
+}
+
+TEST_CASE("Instrument 0 remains silent and cannot be modified", "[Synth][Instrument][Silent]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+    synth.Parse("T120 @0 C4");
+
+    const auto expected_samples = Synth::Duration::FromFraction(4).ToSamples(120.0f, 44100u);
+    const auto audio_duration = synth.CalculateSamples(44100);
+
+    REQUIRE(audio_duration.Total == size_t(std::ceil(expected_samples)));
+    REQUIRE(audio_duration.End == size_t(std::ceil(expected_samples)));
+    REQUIRE(audio_duration.Total == audio_duration.End);
+
+    const auto wave = synth.Render(44100);
+    REQUIRE(wave.GetSize() == size_t(std::ceil(expected_samples)));
+    REQUIRE(wave.GetChannelCount() == 1);
+    REQUIRE(wave.GetSampleRate() == 44100u);
+
+    for(size_t i = 0; i < wave.GetSize(); ++i) {
+        REQUIRE(wave.Get(i, 0) == Catch::Approx(0.0f));
+    }
+
+    REQUIRE_THROWS(synth.Parse("@0 = Sine"));
 }
 
 TEST_CASE("Node management API", "[Synth][Nodes]") {

@@ -186,7 +186,13 @@ namespace Gorgon :: Audio {
          */
         class Instrument {
         public:
+
+            using Factory = std::function<Instrument&()>;
+
             virtual ~Instrument() = default;
+
+            /// Creates a new instance of the instrument with the same settings.
+            virtual Instrument &Clone() const = 0;
 
             /// Renders a note into the given wave buffer based on the current
             /// track state, sample rate, and note duration. The track state includes
@@ -234,10 +240,15 @@ namespace Gorgon :: Audio {
         public:
             Sine() {
                 Name = "Sine";
-                Attack.Span = Duration::FromFraction(32);
+                Attack.Span = Duration::FromFraction(128);
                 Release.Span = Duration::FromFraction(16);
+                Decay.Span = Duration::FromFraction(16);
             }
-            
+
+            Instrument &Clone() const override {
+                return *new Sine(*this);
+            }
+
             double Render(
                 Containers::Wave &wave, const Node &node,
                 TrackState &state, unsigned int sample_rate
@@ -257,12 +268,12 @@ namespace Gorgon :: Audio {
             /// duration. If set to None, it will not affect the note. If set, 
             /// the note will fall to Sustain level after this amount of time 
             /// has passed.
-            Ramp Decay = {RampType::None};
+            Ramp Decay;
 
             /// Sustain level controls the volume level that the note holds after
             /// the attack and decay phases. It is a multiplier from 0.0 (silent)
             /// to 1.0 (full volume).
-            float Sustain = 1.0f;
+            float Sustain = 0.8f;
         };
 
         /// If GMM encounters an error, it throws this exception with
@@ -376,8 +387,16 @@ namespace Gorgon :: Audio {
         /// Registers a new instrument factory function with the given name. The factory
         /// should return a reference to a new instance of the instrument when called. 
         /// This will replace any existing factory with the same name. Instrument names
-        /// are case-insensitive.
-        void AddInstrumentFactory(std::function<Instrument &()> factory, const std::string &name);
+        /// are case-insensitive. Factory generated objects will be owned and managed by the
+        /// Synth class, and will be deleted when replaced or when the Synth is destroyed.
+        void AddInstrumentFactory(Instrument::Factory factory, const std::string &name);
+
+        /// Convenience overload that takes an instrument instance instead of a factory function. 
+        /// The instrument will be cloned using its Clone method to create new instances when needed. 
+        /// This is useful for derived instruments that have specific settings.
+        void AddInstrumentFactory(const Instrument &instrument, const std::string &name) {
+            AddInstrumentFactory([&instrument]() -> Instrument& { return instrument.Clone(); }, name);
+        }
 
         /// Removes the instrument factory with the given name. If no such factory exists, 
         /// this function does nothing.
@@ -460,9 +479,14 @@ namespace Gorgon :: Audio {
 
         /// Factory functions for creating instruments by name. This allows for dynamic
         /// registration of new instrument types without modifying the Synth class.
-        std::map<std::string, std::function<Instrument&()>> instrumentfactories = {
+        std::map<std::string, Instrument::Factory> instrumentfactories = {
             {"sine", []() -> Instrument& { return *new Sine(); }}
         };
+
+        /// Base factory functions for creating instruments by name. This is used as
+        /// fallback when the requested instrument factory is not found in the current
+        /// instrumentfactories map.
+        static const std::map<std::string, Instrument::Factory> baseinstrumentfactories;
 
         /// Map of instrument indices to their definitions. The first instrument 
         /// @1 is used for the first note, @2 for the second, etc. @0 is always

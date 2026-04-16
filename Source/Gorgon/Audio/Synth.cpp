@@ -5,6 +5,7 @@
 #include "Gorgon/Utils/Assert.h"
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <tuple>
@@ -992,23 +993,30 @@ void Synth::Parse(std::istream &stream) {
                     line = String::Trim(line.substr(pos + 1));
                 }
 
-                if(auto inst = instrumentfactories.find(type); inst != instrumentfactories.end()) {
-                    auto &sine = inst->second();
-                    sine.Name = name;
-                    sine.LoadSettings(line);
+                Instrument::Factory factory;
 
-                    if(index == (size_t)instruments.GetSize()) {
-                        instruments.Add(sine);
-                    }
-                    else if(index > (size_t)instruments.GetSize()) {
-                        throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
-                    }
-                    else {
-                        instruments.Replace(long(index), &sine, true);
-                    }
+                if(auto inst = instrumentfactories.find(type); inst != instrumentfactories.end()) {
+                    factory = inst->second;
+                }
+                else if(auto inst = baseinstrumentfactories.find(type); inst != baseinstrumentfactories.end()) {
+                    factory = inst->second;
                 }
                 else {
                     throw Error(Error::UnknownInstrument, "Unrecognized instrument type: " + type);
+                }
+
+                auto &instr = factory();
+                instr.Name = name;
+                instr.LoadSettings(line);
+
+                if(index == (size_t)instruments.GetSize()) {
+                    instruments.Add(instr);
+                }
+                else if(index > (size_t)instruments.GetSize()) {
+                    throw Error(Error::InvalidParameter, "Instrument index cannot have gaps: " + std::to_string(index));
+                }
+                else {
+                    instruments.Replace(long(index), &instr, true);
                 }
 
                 continue;
@@ -1059,7 +1067,7 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
         switch(node.type) {
         case Node::Type::Note: {
             auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-            auto overflow = instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
+            auto overflow = state.InstrumentIndex == 0 ? 0 : instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
             state.Sample += duration;
             end = std::max(end, state.Sample + overflow);
             break;
@@ -1263,5 +1271,71 @@ void Synth::RemoveNode(size_t index) {
 
     Nodes.erase(Nodes.begin() + index);
 }
+
+const std::map<std::string, Synth::Instrument::Factory> Synth::baseinstrumentfactories = {
+    {"chiptune", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Chiptune";
+        sine.Attack = {RampType::None};
+        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Sustain = 0.0f;
+        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        return sine.Clone(); 
+    }},
+    {"ambient pad", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Ambient Pad";
+        sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(2)};
+        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(4)};
+        sine.Sustain = 0.8f;
+        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(1)};
+        return sine.Clone(); 
+    }},
+    {"electric piano", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Electric Piano";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.02f), 0.5f};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.3f), 0.5f};
+        sine.Sustain = 0.3f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f), 0.5f};
+        return sine.Clone(); 
+    }},
+    {"deep sub bass", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Deep Sub Bass";
+        sine.Attack = {RampType::Linear, Synth::Duration::FromSeconds(0.01f)};
+        sine.Decay = {RampType::None};
+        sine.Sustain = 1.0f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.15f), 0.5f};
+        return sine.Clone(); 
+    }},
+    {"xylaphone", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Xylaphone";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.01f), 0.5f};
+        sine.Decay = {RampType::SCurve, Synth::Duration::FromSeconds(0.6f), 0.5f};
+        sine.Sustain = 0.3f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(1.2f), 0.5f};
+        return sine.Clone(); 
+    }},
+    {"synth", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Synth";
+        sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(128)};
+        sine.Decay = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        sine.Sustain = 0.8f;
+        sine.Release = {RampType::Linear, Synth::Duration::FromFraction(16)};
+        return sine.Clone(); 
+    }},
+    {"flute", []() -> Instrument& { 
+        static Sine sine;
+        sine.Name = "Flute";
+        sine.Attack = {RampType::SCurve, Synth::Duration::FromSeconds(0.0375f), 0.5f};
+        sine.Decay = {RampType::None};
+        sine.Sustain = 1.0f;
+        sine.Release = {RampType::SCurve, Synth::Duration::FromSeconds(0.075f), 0.5f};
+        return sine.Clone(); 
+    }},
+};
 
 } // namespace Gorgon::Audio
