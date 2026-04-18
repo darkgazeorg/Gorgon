@@ -164,6 +164,15 @@ Synth::Node Synth::Node::MakeInstrumentChange(size_t instrument_index) {
     return n;
 }
 
+Synth::Node Synth::Node::MakeTrackChange(size_t track_index) {
+    Node n;
+
+    n.type = Type::TrackChange;
+    n.index = track_index;
+
+    return n;
+}
+
 ///// DURATION FUNCTIONS /////
 
 Synth::Duration Synth::Duration::FromFraction(int numerator, int denominator) {
@@ -834,22 +843,38 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
 
             return Node::MakeNote(note, Duration::Parse(normalized.substr(off)), slide);
         }
+        else if(normalized[0] >= '0' && normalized[0] <= '9') { //if a number is followed by > , it's a track change.
+            if(normalized.back() != '>') {
+                throw Error(Error::InvalidToken, "Unrecognized token: " + std::string{token});
+            }
+            else {
+                normalized.pop_back();
+            }
+
+            auto [inst, res] = String::FromCLocaleTo<size_t>(normalized);
+            if(res == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid instrument index: " + normalized);
+            }
+            if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after instrument index: " + normalized);
+            }
+            
+            return Node::MakeTrackChange(inst);
+        }
 
         throw Error(Error::InvalidToken, "Unrecognized token: " + std::string{token});
     }
 }
 
 void Synth::Parse(std::istream &stream) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
-    Nodes.clear();
-
-    instruments.DeleteAll();
-    instruments = {
-        CreateInstrument("synth").release()
-    };
+    Reset();
 
     std::string line;
+
+    size_t track_index = 0;
+    Track *track = &tracks[0];
 
     while(std::getline(stream, line)) {
         // remove comments
@@ -950,7 +975,7 @@ void Synth::Parse(std::istream &stream) {
                     }
                 }
 
-                Channels = std::move(channels);
+                this->channels = std::move(channels);
             }
             else {
                 throw Error(Error::InvalidParameter, "Unrecognized variable: " + var);
@@ -1087,55 +1112,89 @@ void Synth::Parse(std::istream &stream) {
                 }
             }
 
+            // if this is a note or rest node and we are still on track 0, move to track 1 as track 0 is reserved for global settings
+            if(track_index == 0 && (node.type == Node::Type::Note || node.type == Node::Type::Rest)) {
+                track_index = 1;
+                tracks.push_back(Track{track_index});
+                track = &tracks.back();
+                track->Nodes = tracks[0].Nodes; // copy global settings to the new track
+            }
+            else if(node.type == Node::Type::TrackChange) {
+                track_index = node.index;
+                if(track_index == tracks.size()) {
+                    tracks.push_back(Track{track_index});
+                    tracks.back().Nodes = tracks[0].Nodes; // copy global settings to the new track
+                }
+                else if(track_index > tracks.size()) {
+                    throw Error(Error::InvalidParameter, "Track index cannot have gaps: " + std::to_string(track_index));
+                }
+
+                track = &tracks[track_index];
+
+                continue; // track change node is not needed to be stored in track data
+            }
+
             if(node.type != Node::Type::NoOp) {
-                Nodes.push_back(node);
+                track->Nodes.push_back(node);
             }
         }
     }
 }
 
 Synth::AudioDuration Synth::CalculateSamples(unsigned int sample_rate) const {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
     auto [total, end] = calculatesamples(sample_rate);
     return {static_cast<size_t>(std::ceil(total)), static_cast<size_t>(std::ceil(end))};
 }
 
 std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) const {
-    TrackState state;
+    double total_data = 0, music_end = 0;
 
-    double end = 0;
+    for(const auto &track : tracks) {
+        TrackState state;
 
-    for(const auto& node : Nodes) {
-        switch(node.type) {
-        case Node::Type::Note: {
-            auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-            auto overflow = state.InstrumentIndex == 0 ? 0 : instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
-            state.Sample += duration;
-            end = std::max(end, state.Sample + overflow);
-            break;
+        double total = 0;
+
+        for(const auto& node : track.Nodes) {
+            switch(node.type) {
+            case Node::Type::Note: {
+                auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+                auto overflow = state.InstrumentIndex == 0 ? 0 : instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
+                state.Sample += duration;
+                total = std::max(total, state.Sample + overflow);
+                break;
+            }
+            case Node::Type::Rest: {
+                auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+                state.Sample += duration;
+                total = std::max(total, state.Sample);
+                break;
+            }
+            case Node::Type::Tempo:
+                state.Tempo = node.tempo;
+                break;
+            case Node::Type::Separation:
+                state.Separation = node.duration;
+                break;
+            case Node::Type::InstrumentChange:
+                state.InstrumentIndex = node.index;
+                break;
+            default:
+                break;
+            }
         }
-        case Node::Type::Rest: {
-            auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-            state.Sample += duration;
-            end = std::max(end, state.Sample);
-            break;
+
+        if(total > total_data) {
+            total_data = total;
+            music_end = state.Sample;
         }
-        case Node::Type::Tempo:
-            state.Tempo = node.tempo;
-            break;
-        case Node::Type::Separation:
-            state.Separation = node.duration;
-            break;
-        case Node::Type::InstrumentChange:
-            state.InstrumentIndex = node.index;
-            break;
-        default:
-            break;
+        if(state.Sample > music_end) {
+            music_end = state.Sample;
         }
     }
 
-    return {end, state.Sample};
+    return {total_data, music_end};
 }
 
 float Synth::CalculateDuration() const { 
@@ -1143,74 +1202,82 @@ float Synth::CalculateDuration() const {
 }
 
 Containers::Wave Synth::Render(unsigned int sample_rate) const {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
-    Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), unsigned(sample_rate), Channels);
+    Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), unsigned(sample_rate), channels);
     wave.Clear();
 
-    if(Channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
+    if(channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
         Utils::NotImplemented("Only mono output is supported currently");
     }
 
-    TrackState state;
-    state.Volume = std::vector<float>(Channels.size(), 1.0f);
+    // track 0 is reserved for global settings and is not rendered, we start from track 1
+    for(size_t i=1; i<tracks.size(); i++) {
+        const auto &track = tracks[i];
 
-    for(const auto &node: Nodes) {
-        switch(node.type) {
-        case Node::Type::Tempo:
-            state.Tempo = node.tempo;
-            break;
+        TrackState state;
+        state.Volume = std::vector<float>(channels.size(), 1.0f);
 
-        case Node::Type::OctaveAbsolute:
-            state.Octave = node.octave;
-            break;
+        for(const auto &node: track.Nodes) {
+            switch(node.type) {
+            case Node::Type::Tempo:
+                state.Tempo = node.tempo;
+                break;
 
-        case Node::Type::OctaveRelative:
-            state.Octave += node.octave;
-            break;
+            case Node::Type::OctaveAbsolute:
+                state.Octave = node.octave;
+                break;
 
-        case Node::Type::Volume:
-            if(node.volume.channel == 0) {
-                std::fill(state.Volume.begin(), state.Volume.end(), node.volume.volume);
-            }
-            else {
-                state.Volume[node.volume.channel - 1] = node.volume.volume;
-            }
-            break;
-        
-        case Node::Type::Separation:
-            state.Separation = node.duration;
-            break;
+            case Node::Type::OctaveRelative:
+                state.Octave += node.octave;
+                break;
 
-        case Node::Type::InstrumentChange:
-            state.InstrumentIndex = node.index;
-
-            if(state.InstrumentIndex > size_t(instruments.GetSize())) {
-                throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
-            }
+            case Node::Type::Volume:
+                if(node.volume.channel == 0) {
+                    std::fill(state.Volume.begin(), state.Volume.end(), node.volume.volume);
+                }
+                else {
+                    state.Volume[node.volume.channel - 1] = node.volume.volume;
+                }
+                break;
             
-            break;
+            case Node::Type::Separation:
+                state.Separation = node.duration;
+                break;
 
-        case Node::Type::Rest:
-            state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
-            break;
-        case Node::Type::Note: {
-            double duration;
+            case Node::Type::InstrumentChange:
+                state.InstrumentIndex = node.index;
 
-            // Instrument index 0 is silent, we just advance the sample position without rendering anything
-            if(state.InstrumentIndex == 0) {
-                duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+                if(state.InstrumentIndex > size_t(instruments.GetSize())) {
+                    throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(state.InstrumentIndex));
+                }
+                
+                break;
+
+            case Node::Type::Rest:
+                state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
+                break;
+            case Node::Type::Note: {
+                double duration;
+
+                // Instrument index 0 is silent, we just advance the sample position without rendering anything
+                if(state.InstrumentIndex == 0) {
+                    duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+                }
+                else {
+                    duration = instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
+                }
+
+                state.Sample += duration;
+                break;
             }
-            else {
-                duration = instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
+
+            case Node::Type::NoOp:
+                break;
+
+            case Node::Type::TrackChange:
+                throw Error(Error::InvalidToken, "Track change cannot exists in track data, it should have been processed during parsing: " + std::to_string(node.index));
             }
-
-            state.Sample += duration;
-            break;
-        }
-
-        case Node::Type::NoOp:
-            break;
         }
     }
 
@@ -1218,7 +1285,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
 }
 
 void Synth::AddInstrumentFactory(std::function<Instrument &()> factory, const std::string &name) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
     if(name.empty()) {
         throw Error(Error::InvalidParameter, "Instrument factory name cannot be empty");
@@ -1237,7 +1304,7 @@ void Synth::AddInstrumentFactory(std::function<Instrument &()> factory, const st
 }
 
 void Synth::RemoveInstrumentFactory(const std::string &name) {
-  auto guard = std::lock_guard(critical);
+  auto guard = std::scoped_lock(critical);
 
     auto index = findinstrumentindex(name, instrumentfactories);
     if(index.has_value()) {
@@ -1246,21 +1313,21 @@ void Synth::RemoveInstrumentFactory(const std::string &name) {
 }
 
 void Synth::ClearInstrumentFactories() {
-  auto guard = std::lock_guard(critical);
+  auto guard = std::scoped_lock(critical);
 
   instrumentfactories.clear();
   instrumentfactories.push_back({"sine", []() -> Instrument & { return *new Sine(); }});
 }
 
 size_t Synth::AddInstrument(Instrument& instrument) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
     
     instruments.Add(instrument);
     return size_t(instruments.GetSize());
 }
 
 void Synth::SetInstrument(size_t index, Instrument& instrument) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
     if(index == 0 || index > size_t(instruments.GetSize())) {
         throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(index));
@@ -1280,7 +1347,7 @@ size_t Synth::GetInstrumentCount() const {
 }
 
 void Synth::RemoveInstrument(size_t index) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
     if(index == 0 || index > size_t(instruments.GetSize())) {
         throw Error(Error::InvalidParameter, "Instrument index out of range: " + std::to_string(index));
@@ -1289,39 +1356,50 @@ void Synth::RemoveInstrument(size_t index) {
 }
 
 void Synth::AddChannel(Audio::Channel channel) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
     if(HasChannel(channel)) return;
 
-    Channels.push_back(channel);
-    std::sort(Channels.begin(), Channels.end(), [](Audio::Channel a, Audio::Channel b) {
+    channels.push_back(channel);
+    std::sort(channels.begin(), channels.end(), [](Audio::Channel a, Audio::Channel b) {
         return static_cast<int>(a) < static_cast<int>(b);
     });
 }
 
 bool Synth::HasChannel(Audio::Channel channel) const {
-    return std::find(Channels.begin(), Channels.end(), channel) != Channels.end();
+    return std::find(channels.begin(), channels.end(), channel) != channels.end();
 }
 
 void Synth::RemoveChannel(Audio::Channel channel) {
-    auto guard = std::lock_guard(critical);
+    auto guard = std::scoped_lock(critical);
 
-    auto it = std::find(Channels.begin(), Channels.end(), channel);
-    if(it != Channels.end()) {
-        Channels.erase(it);
+    auto it = std::find(channels.begin(), channels.end(), channel);
+    if(it != channels.end()) {
+        channels.erase(it);
     }
 }
 
-void Synth::AddNode(Node node) {
-    auto guard = std::lock_guard(critical);
+void Synth::AddNode(Node node, size_t track) {
+    auto guard = std::scoped_lock(critical);
 
-    Nodes.push_back(node);
+    if(track == tracks.size()) {
+        tracks.resize(track + 1);
+    }
+    else if(track > tracks.size()) {
+        throw Error(Error::InvalidParameter, "Track index cannot have gaps: " + std::to_string(track));
+    }
+
+    if(node.type == Node::Type::TrackChange) {
+        throw Error(Error::InvalidToken, "Track change node cannot be added to track data");
+    }
+
+    tracks[track].Nodes.push_back(node);
 }
 
-void Synth::RemoveNode(size_t index) {
-    auto guard = std::lock_guard(critical);
+void Synth::RemoveNode(size_t index, size_t track) {
+    auto guard = std::scoped_lock(critical);
 
-    Nodes.erase(Nodes.begin() + index);
+    tracks[track].Nodes.erase(tracks[track].Nodes.begin() + index);
 }
 
 std::vector<std::string> Synth::GetInstrumentRegistry() {
@@ -1368,7 +1446,7 @@ const std::vector<Synth::FactoryEntry> Synth::baseinstrumentfactories = {
         sine.Description = "A classic chiptune sound with a quick attack and short decay, ideal for retro game music.";
         return sine.Clone(); 
     }},
-    {"ambientpad", []() -> Instrument& { 
+    {"ambient pad", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Ambient Pad";
         sine.Attack = {RampType::Linear, Synth::Duration::FromFraction(2)};

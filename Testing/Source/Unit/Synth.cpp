@@ -495,7 +495,7 @@ TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
 # Tests baseline parsing, dotted notes, and standard timing
 # ==========================================
 T100 O5
-E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
+@1 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
 D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O3 G2
 O4 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
@@ -539,6 +539,112 @@ O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
         auto wave = synth.Render(44100);
         Gorgon::Encoding::Flac.Encode(wave, "sut.flac");
     }
+}
+
+TEST_CASE("Multi-track render and save test", "[Synth][Parse][Render][GMM]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    synth.Parse(R"(
+# ==========================================
+# HEADER PHASE
+# ==========================================
+@1 = flute
+@2 = "electric piano"
+@3 = "deep sub bass"
+
+T100
+
+# ==========================================
+# TRACK 1: Melody
+# ==========================================
+1> 
+@1 O5 V90 S20
+
+# M0 (Pickup)
+R4 E16 D+16
+# M1 - M3
+E16 D+16 E16 O4 B16 O5 D16 C16
+O4 A8 R16 C16 E16 A16
+B8 R16 E16 G+16 B16
+# M4 - M7
+O5 C8 R16 O4 E16 O5 E16 D+16
+E16 D+16 E16 O4 B16 O5 D16 C16
+O4 A8 R16 C16 E16 A16
+B8 R16 E16 O5 C16 O4 B16
+
+# M8 (Transition into B-Section)
+A8 R16 B16 O5 C16 D16
+# M9 (C Major)
+E8 R16 O4 G16 O5 F16 E16
+# M10 (G Major)
+D8 R16 O4 F16 O5 E16 D16
+# M11 (A Minor)
+C8 R16 O4 E16 O5 D16 C16
+# M12 (E Major - The rapid octave jumps)
+O4 B8 R16 E16 O5 E16 O4 E16
+
+# ==========================================
+# TRACK 2: Arpeggios
+# ==========================================
+2> 
+@2 V70
+
+# M0 to M1
+R4.
+R4.
+# M2 to M7
+O2 A16 O3 E16 A16 R8 R16
+O2 E16 O3 E16 G+16 R8 R16
+O2 A16 O3 E16 A16 R8 R16
+R4.
+O2 A16 O3 E16 A16 R8 R16
+O2 E16 O3 E16 G+16 R8 R16
+
+# M8 (Transition)
+O2 A16 O3 E16 A16 R8 R16
+# M9 (C Major Arp)
+O2 C16 O3 G16 O4 C16 R8 R16
+# M10 (G Major Arp)
+O2 G16 O3 G16 O4 B16 R8 R16
+# M11 (A Minor Arp)
+O2 A16 O3 E16 A16 R8 R16
+# M12 (E Major Arp)
+O2 E16 O3 E16 G+16 R8 R16
+
+# ==========================================
+# TRACK 3: Sub Bass Root
+# ==========================================
+3> 
+@3 V100
+
+# M0 to M1
+R4.
+R4.
+# M2 to M7
+A4.
+E4.
+A4.
+R4.
+A4.
+E4.
+
+# M8 (Transition)
+A4.
+# M9 (C Major Root)
+C4.
+# M10 (G Major Root)
+O2 G4.
+# M11 (A Minor Root)
+O3 A4.
+# M12 (E Major Root)
+E4.
+    )");
+
+    auto wave = synth.Render(44100);
+    wave.Normalize();
+    Gorgon::Encoding::Flac.Encode(wave, "fur-elise.flac");
 }
 
 TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
@@ -776,7 +882,8 @@ TEST_CASE("Node management API", "[Synth][Nodes]") {
 
     Synth synth;
 
-    REQUIRE(synth.GetNodeCount() == 0);
+    REQUIRE(synth.GetTrackCount() == 0);
+    REQUIRE(synth.GetNodeCount(0) == 0);
 
     synth.AddNode(Synth::Node::MakeTempo(140.0f));
     synth.AddNode(Synth::Node::MakeNote(Synth::Note::C, Synth::Duration::FromFraction(4), false));

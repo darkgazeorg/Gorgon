@@ -30,11 +30,16 @@ namespace Gorgon :: Audio {
      * The format is designed to keep sequences compact and readable by separating
      * instrument declarations (the header) from playback data (the body). A single
      * GMM string can express multiple simultaneous voices, tempo changes, octave shifts,
-     * and basic slides.
+     * and multiple tracks.
      * 
      * While Synth can be used by multiple threads, most functions are forced to acquire a lock
      * to protect the internal state of the synthesizer, so it is recommended to create separate
      * Synth instances for each thread if concurrent rendering is needed.
+     *
+     * For multi-track rendering, using Normalize on the rendered wave is recommended to avoid
+     * clipping, as the current implementation simply sums the samples of each track without any
+     * dynamic range management. However, single track rendering should not require normalization
+     * as default instruments are designed to avoid clipping when played at full volume.
      *
      * @see \ref gmm_syntax "GMM syntax"
      */
@@ -195,6 +200,7 @@ namespace Gorgon :: Audio {
             double ToSamples(float tempo, unsigned int sample_rate, float note_length) const;
         };
 
+        
         struct Node;
 
         /** Instrument is an abstract base class for different types of
@@ -357,7 +363,8 @@ namespace Gorgon :: Audio {
                 Volume,
                 Rest,
                 Separation, // articulation/separation between notes
-                InstrumentChange
+                InstrumentChange,
+                TrackChange
             } type = Type::NoOp;
 
             union {
@@ -392,6 +399,28 @@ namespace Gorgon :: Audio {
             static Node MakeSeparation(Duration duration);
 
             static Node MakeInstrumentChange(size_t instrument_index);
+
+            static Node MakeTrackChange(size_t track_index);
+        };
+
+        /// A track is a sequence of nodes that are played in order. Multiple tracks can be 
+        /// played simultaneously to create polyphony. Each track has its own state 
+        /// (e.g., current octave, tempo, etc.) that is modified by the nodes in the track 
+        /// and used during rendering.
+        struct Track {
+            explicit Track(size_t index = 0) : Index(index) { }
+
+            std::vector<Node> Nodes;
+
+            size_t Index = 0;
+
+            auto begin() { return Nodes.begin(); }
+            auto end() { return Nodes.end(); }
+            auto begin() const { return Nodes.begin(); }
+            auto end() const { return Nodes.end(); }
+            auto size() const { return Nodes.size(); }
+            auto &operator[](size_t index) { return Nodes[index]; }
+            const auto &operator[](size_t index) const { return Nodes[index]; }
         };
 
         /// Parses a GMM string into a sequence of nodes. Throws ParseError on invalid input.
@@ -414,7 +443,7 @@ namespace Gorgon :: Audio {
         static Node ParseNode(const std::string_view& token, int channels);
 
         Node ParseNode(const std::string_view& token) const {
-            return ParseNode(token, (int)Channels.size());
+            return ParseNode(token, (int)channels.size());
         }
 
         /// Registers a new instrument factory function with the given name. The factory
@@ -505,45 +534,77 @@ namespace Gorgon :: Audio {
 
         /// Returns the current channel configuration.
         const std::vector<Audio::Channel>& GetChannels() const {
-            return Channels;
+            return channels;
         }
 
-        /// Appends a node to the end of the track.
-        void AddNode(Node node);
+        /// Appends a node to the end of a track.
+        void AddNode(Node node, size_t track = 1);
 
         /// Returns a const reference to the node at the given index.
-        const Node& GetNode(size_t index) const {
-            return Nodes[index];
+        const Node& GetNode(size_t index, size_t track = 1) const {
+            return tracks[track][index];
         }
 
         /// Returns the number of nodes in the track.
-        size_t GetNodeCount() const {
-            return Nodes.size();
+        size_t GetNodeCount(size_t track = 1) const {
+            return tracks[track].size();
+        }
+
+        /// Returns the number of actual tracks in the synthesizer.
+        /// Track 0 is reserved for global settings and is not counted
+        /// in this total. Therefore, actual track indices start from 1.
+        size_t GetTrackCount() const {
+            return tracks.size() - 1;
         }
 
         /// Removes the node at the given index.
-        void RemoveNode(size_t index);
+        void RemoveNode(size_t index, size_t track = 1);
 
         /// Clears all nodes from the track, resetting it to an empty state.
-        void Clear() {
+        void Clear(size_t track = 1) {
             auto guard = std::lock_guard(critical);
 
-            Nodes.clear();
+            tracks[track].Nodes.clear();
+        }
+
+        /// Clears all nodes from all tracks.
+        void ClearAll() {
+            auto guard = std::lock_guard(critical);
+
+            for(auto& track : tracks) {
+                track.Nodes.clear();
+            }
+        }
+
+        /// Resets the synthesizer to its initial state, ready to parse a new GMM string. 
+        void Reset() {
+            auto guard = std::lock_guard(critical);
+
+            tracks = {Track()};
+            channels = {Audio::Channel::Mono};
+
+            instruments.DeleteAll();
+            instruments.Add(new Sine());
         }
 
         /// Converts a note and octave into frequency (Hz).
         static float NoteToFrequency(Note note, int octave, float pitch_offset = 0.0f) {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9 + pitch_offset) / 12.0f);
         }
+
     private:
         using FactoryEntry = std::pair<std::string, Instrument::Factory>;
         
+        /// Internal function to calculate total data samples and music end samples.
+        /// Total data includes release overflow, while music end is the point at which
+        /// the last note ends without overflow. This is used to determine the actual length 
+        /// of the track to have gapless looping or chaining.
         std::pair<double, double> calculatesamples(unsigned int sample_rate) const;
 
-        /// Sequence of nodes that define a track.
-        std::vector<Node> Nodes;
+        /// List of tracks
+        std::vector<Track> tracks = {Track()};
 
-        std::vector<Audio::Channel> Channels = {Audio::Channel::Mono};
+        std::vector<Audio::Channel> channels = {Audio::Channel::Mono};
 
         /// Factory functions for creating instruments by name. This allows for dynamic
         /// registration of new instrument types without modifying the Synth class.
@@ -597,7 +658,7 @@ namespace Gorgon :: Audio {
             new Sine()
         };
 
-        mutable std::mutex critical;
+        mutable std::recursive_mutex critical;
     };
 
     DefineEnumStringsCM(Synth, RampType, {
