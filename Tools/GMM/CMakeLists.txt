@@ -51,7 +51,7 @@ if(WIN32)
     add_custom_target(gmm-register-file-association
         COMMAND reg add "HKCU\\Software\\Classes\\.gmm" /ve /d "GorgonMusicMacro" /f
         COMMAND reg add "HKCU\\Software\\Classes\\GorgonMusicMacro" /ve /d "Gorgon Music Macro File" /f
-        COMMAND reg add "HKCU\\Software\\Classes\\GorgonMusicMacro\\shell\\open\\command" /ve /d "\"$<TARGET_FILE:gmm>\" \"%1\"" /f
+        COMMAND reg add "HKCU\\Software\\Classes\\GorgonMusicMacro\\shell\\open\\command" /ve /d "\"$<PATH:NATIVE_PATH,$<TARGET_FILE:gmm>>\" \"--play\" \"%1\"" /f
         COMMENT "Registering .gmm file association on Windows"
         VERBATIM
     )
