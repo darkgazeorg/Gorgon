@@ -15,6 +15,7 @@
 #include <Gorgon/Encoding/FLAC.h>
 #include <Gorgon/Network/HTTP.h>
 #include <Gorgon/Input/DnD.h>
+#include <Gorgon/Widgets/DialogWindow.h>
 #include <Gorgon/Main.h>
 
 #include <string>
@@ -297,12 +298,18 @@ private:
         quitbtn.SetWidth(3_u);
         quitbtn.ClickEvent.Register([this] { window.Quit(); });
 
-        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << quitbtn;
+        helpbtn.Text = "Help";
+        helpbtn.SetWidth(3_u);
+        helpbtn.ClickEvent.Register([this] { showHelp(); });
+
+        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << helpbtn << quitbtn;
 
         // Layout
         relayout();
 
         window.ResizedEvent.Register([this] { relayout(); });
+
+        setStatus("Ready");
 
         // Setup drag & drop
         setupDragDrop();
@@ -423,6 +430,7 @@ private:
             }
             file << textarea.GetText();
             setStatus("Saved: " + currentFilePath);
+            scheduleStatusReset();
         } catch (const std::exception &e) {
             UI::ShowMessage("Save Error", e.what());
         }
@@ -444,7 +452,7 @@ private:
             else {
                 doSaveAs(fname);
             }
-        }, defaultname);
+        }, defaultname, {}, UI::CloseOption::Cancel);
     }
 
     void doSaveAs(const std::string &fname) {
@@ -457,13 +465,29 @@ private:
             file << textarea.GetText();
             currentFilePath = fname;
             setStatus("Saved: " + fname);
+            scheduleStatusReset();
         } catch (const std::exception &e) {
             UI::ShowMessage("Save Error", e.what());
         }
     }
 
     void setStatus(const std::string &msg) {
+        if (statusResetInterval != 0) {
+            Gorgon::DisableInterval(statusResetInterval);
+            statusResetInterval = 0;
+        }
         statuslabel.Text = msg;
+    }
+
+    void scheduleStatusReset() {
+        if (statusResetInterval != 0) {
+            Gorgon::DisableInterval(statusResetInterval);
+        }
+        statusResetInterval = Gorgon::RegisterInterval(3000, [this]() {
+            Gorgon::DisableInterval(statusResetInterval);
+            statusResetInterval = 0;
+            statuslabel.Text = "Ready";
+        });
     }
 
     void parseGMM() {
@@ -584,7 +608,93 @@ private:
             } catch (const std::exception &e) {
                 UI::ShowMessage("Export Error", e.what());
             }
-        }, defaultname);
+        }, defaultname, {}, UI::CloseOption::Cancel);
+    }
+
+    void showHelp() {
+        static const std::string helptext =
+            "# GMM Syntax Reference\n"
+            "\n"
+            "Gorgon Music Macro (GMM) is a compact text format for describing "
+            "polyphonic, retro-style music and sound effects directly as strings.\n"
+            "\n"
+            "GMM supports comments through the `#` symbol.\n"
+            "\n"
+            "## File Structure\n"
+            "\n"
+            "**Header** consists of global engine configurations (starting with `%`) "
+            "and instrument declarations (starting with `@`).\n"
+            "\n"
+            "**Body** contains one or more tracks tagged with a track identifier (`1>`, `2>`, ...).\n"
+            "\n"
+            "    # --- Engine Config ---\n"
+            "    %CHANNELS = 2\n"
+            "    \n"
+            "    # --- Instrument Bank ---\n"
+            "    @1 = sine(Flute), attack={s, 64}, decay={linear, 2/1}, sustain=0, release={exp, 4}\n"
+            "    @2 = pulse(Lead), duty=50\n"
+            "    @3 = noise(Snare), bitdepth=8\n"
+            "    \n"
+            "    # --- Sequence Data ---\n"
+            "    1> T120 @1 C4 D4 E3/4 R4 G2.\n"
+            "    2> @2 C2 C2 C2 C2\n"
+            "\n"
+            "## Core Commands\n"
+            "\n"
+            "### Engine Configuration\n"
+            "* `%KEY = value` - Global engine config (header only)\n"
+            "* `%CHANNELS = 2` - Stereo audio\n"
+            "* `%CHANNELS = [FL, FR]` - Explicit channel spec\n"
+            "\n"
+            "### Track & Playback Control\n"
+            "* `N>` - Track identifier (e.g., `1>`, `2>`). Default: `1>`\n"
+            "* `T<Value>[:Duration]{Curve}` - Tempo (BPM). Immediate or ramped\n"
+            "* `V<Percent>[:Duration]{Curve}` - Track volume (0-100%)\n"
+            "* `V[<Channel>]<Percent>[:Duration[{Curve}]]` - Channel-specific volume\n"
+            "\n"
+            "### Musical Notation\n"
+            "* `A`-`G` - Notes. `+` (sharp), `-` (flat). Default: quarter note\n"
+            "* `R<Duration>` - Rest\n"
+            "* `O<Octave>` / `<` / `>` - Octave control\n"
+            "* `~[{Rate, Depth, Delay}]` - Vibrato modulation\n"
+            "* `^` - Slide/Portamento: `C4^G4:2` slides C4 to G4 over half note\n"
+            "* `S<Duration>` - Note separation (articulation)\n"
+            "\n"
+            "## Durations & Ramps\n"
+            "\n"
+            "### Durations\n"
+            "* `2` - Fraction of whole note (half note)\n"
+            "* `.` - Dotted (extend by 50%)\n"
+            "* `3/4` - Explicit fraction\n"
+            "* `(0.5)` - Absolute time in seconds\n"
+            "* `0.22` - Absolute tempo units\n"
+            "\n"
+            "### Ramp Types\n"
+            "* `none` - Direct transition\n"
+            "* `linear` - Standard linear\n"
+            "* `exp` - Exponential (slow start, aggressive end)\n"
+            "* `sqrt` - Square root (aggressive start, slow end)\n"
+            "* `log` - Logarithmic\n"
+            "* `s` - S-Curve (smoothest)\n"
+            "\n"
+            "## Instruments\n"
+            "\n"
+            "Defined in header with `@ID = type(Name), params...`\n"
+            "\n"
+            "### Sine\n"
+            "* `attack` - Volume increase ramp\n"
+            "* `decay` - Fade after attack (ramp)\n"
+            "* `sustain` - Volume multiplier (0.0-1.0) after decay\n"
+            "* `release` - Fade after sustain (ramp)\n"
+            "\n"
+            "    @1 = sine(Guitar), attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}\n"
+            "\n"
+            "### Vibrato Settings\n"
+            "Defined as tuple: `vibrato={Rate, Depth, Delay}`\n"
+            "\n"
+            "    @1 = sine(Violin), attack={s, 32}, vibrato={6.0, 0.25, 16}\n";
+
+        UI::ShowMessage("GMM Syntax", "[!md!]" + helptext);
     }
 
     UI::Window &window;
@@ -596,7 +706,7 @@ private:
     UI::Organizers::Flow buttonflow;
     Widgets::FloatProgress progress;
     Widgets::Label statuslabel;
-    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, quitbtn;
+    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, helpbtn, quitbtn;
 
     Gorgon::Audio::Synth synth;
     Gorgon::Containers::Wave wave;
@@ -610,6 +720,7 @@ private:
     bool playing = false;
     bool downloading = false;
     size_t progressInterval = 0;
+    size_t statusResetInterval = 0;
     std::string currentFilePath;
 };
 
@@ -667,8 +778,9 @@ int Main(const std::vector<std::string> &args) {
 
     GMMApp app(window, opts);
 
-    window.ClosingEvent.Register([&app](bool &allow) {
+    window.ClosingEvent.Register([&](bool &allow) {
         allow = app.Quit();
+        if(allow) window.Quit();
     });
 
     window.Run();

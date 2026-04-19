@@ -26,7 +26,17 @@ if(UNIX AND NOT APPLE)
         COMMAND xdg-mime install --novendor "${CMAKE_CURRENT_SOURCE_DIR}/gmm-mime.xml"
         COMMAND xdg-desktop-menu install --novendor "${CMAKE_CURRENT_SOURCE_DIR}/gmm.desktop"
         COMMAND update-mime-database "$ENV{HOME}/.local/share/mime" || true
-        COMMENT "Registering .gmm file association"
+        COMMENT "Registering .gmm file association on Linux"
+        VERBATIM
+    )
+endif()
+
+if(WIN32)
+    add_custom_target(gmm-register-file-association
+        COMMAND reg add "HKCU\\Software\\Classes\\.gmm" /ve /d "GorgonMusicMacro" /f
+        COMMAND reg add "HKCU\\Software\\Classes\\GorgonMusicMacro" /ve /d "Gorgon Music Macro File" /f
+        COMMAND reg add "HKCU\\Software\\Classes\\GorgonMusicMacro\\shell\\open\\command" /ve /d "\"$<TARGET_FILE:gmm>\" \"%1\"" /f
+        COMMENT "Registering .gmm file association on Windows"
         VERBATIM
     )
 endif()

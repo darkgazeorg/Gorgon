@@ -124,3 +124,21 @@ int Main(const std::vector<std::string>& args) {
 ```
 
 Check the `Examples` folder for sample programs. Copy them to your development directories and load them up using VS Code, compile them in the terminal, or use `cmake-gui` to create project files.
+
+---
+
+## File Association (GMM Tool)
+
+The `gmm` tool supports `.gmm` file associations so that double-clicking a `.gmm` file opens it in the GMM player. To register the file association after building:
+
+### Linux
+```bash
+cmake --build build/Maintainer --target gmm-register-file-association:Debug
+```
+This installs the MIME type definition and desktop entry using `xdg-mime` and `xdg-desktop-menu`.
+
+### Windows
+```cmd
+cmake --build build/WindowsDefault --target gmm-register-file-association:Debug
+```
+This creates registry entries under `HKCU\Software\Classes` to associate `.gmm` files with the gmm executable.
