@@ -54,6 +54,8 @@ namespace Gorgon :: Widgets {
         
         
         virtual UI::Template Panel() = 0;
+
+        virtual UI::Template FullscreenPanel() = 0;
         
         virtual UI::Template TopPanel() = 0;
         
@@ -137,6 +139,8 @@ namespace Gorgon :: Widgets {
                 return *new UI::Template(Inputbox());
             case Panel_Regular:
                 return *new UI::Template(Panel());
+            case Panel_Fullscreen:
+                return *new UI::Template(FullscreenPanel());
             case Panel_Blank:
                 return *new UI::Template(BlankPanel());
             case Panel_Top:
@@ -594,6 +598,8 @@ namespace Gorgon :: Widgets {
         
         
         virtual UI::Template BlankPanel() override;
+
+        virtual UI::Template FullscreenPanel() override;
         
         virtual UI::Template Panel() override;
         

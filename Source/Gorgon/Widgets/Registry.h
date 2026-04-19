@@ -40,6 +40,7 @@ namespace Gorgon :: Widgets {
             
             Panel_Regular,
             Panel_Blank,
+            Panel_Fullscreen,
             Panel_Top,
             Panel_Left,
             Panel_Bottom,

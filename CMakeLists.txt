@@ -46,6 +46,8 @@ target_include_directories(Gorgon PUBLIC
 
 include(Dependencies)
 
+add_subdirectory(Tools/GMM)
+
 if(BUILD_EXAMPLES)
     include(Scripts/Public.cmake)
     add_subdirectory(Examples)
