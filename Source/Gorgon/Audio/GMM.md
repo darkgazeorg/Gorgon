@@ -101,6 +101,7 @@ If the type is not `none`, a duration must be specified. If the type is not `lin
 Instruments are defined in the header and can be assigned inline using `@ID`. Each instrument has a waveform type and optional envelope parameters. A custom name can be specified in `()` immediately after the type for readability. All ramps default to S curve with a shape factor of 0.5, if only the duration is specified. None can also be used without `{}` for attack, decay, and release to set the ramp to be none. Example:
 ```text
 @1 = sine (Flute) attack=none, decay=none, sustain=0
+```
 
 ### Sine
 A pure sine wave generator. With a smooth release, it mimics a flute.

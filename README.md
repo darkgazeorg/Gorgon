@@ -133,12 +133,10 @@ The `gmm` tool supports `.gmm` file associations so that double-clicking a `.gmm
 
 ### Linux
 ```bash
-cmake --build build/Maintainer --target gmm-register-file-association:Debug
+cmake --build build/Default --target gmm-register-file-association:Debug
 ```
-This installs the MIME type definition and desktop entry using `xdg-mime` and `xdg-desktop-menu`.
 
 ### Windows
 ```cmd
 cmake --build build/WindowsDefault --target gmm-register-file-association:Debug
 ```
-This creates registry entries under `HKCU\Software\Classes` to associate `.gmm` files with the gmm executable.

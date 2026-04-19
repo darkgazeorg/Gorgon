@@ -336,17 +336,18 @@ namespace Gorgon :: String {
                         }
                     }
                     
-                    if(!pre && g == '#') {
-                        header++;
-                        continue;
-                    }
-                    else if(pre && !fenced && spacecount < 4) {
+                    if(pre && !fenced && spacecount < 4) {
                         builder.SetFont(useinfofont ? NamedFont::Info : NamedFont::Regular);
                         builder.SetIndent(0, 0);
                         builder.VerticalSpace(0, 50);
                         builder.UseDefaultColor();
                         
                         pre = false;
+                    }
+                    
+                    if(!pre && g == '#') {
+                        header++;
+                        continue;
                     }
                     else if(!newpar && linecount > 0 && outchars != 0 && spaceadded == 0 && !pre) {
                         result.push_back(spc);

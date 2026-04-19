@@ -14,9 +14,9 @@
 #include <Gorgon/Multimedia/Wave.h>
 #include <Gorgon/Encoding/FLAC.h>
 #include <Gorgon/Network/HTTP.h>
-#include <Gorgon/Input/DnD.h>
-#include <Gorgon/Widgets/DialogWindow.h>
 #include <Gorgon/Main.h>
+
+#include "GMMHelpText.h"
 
 #include <string>
 #include <vector>
@@ -311,8 +311,8 @@ private:
 
         setStatus("Ready");
 
-        // Setup drag & drop
-        setupDragDrop();
+        // Help panel
+        buildHelp();
     }
 
     void relayout() {
@@ -339,45 +339,42 @@ private:
 
         buttonpanel.Move(Gorgon::UI::Pixels(0, yoffset));
         buttonpanel.Resize(Gorgon::UI::Pixels(size.Width, buttonHeight));
+
+        // Help panel layout
+        relayoutHelp();
     }
 
-    void setupDragDrop() {
-        droptarget.SetHitCheck([](auto &, Gorgon::Geometry::Point) -> bool {
-            // Accept drops anywhere on the window
-            return true;
-        });
-        droptarget.SetOver([](Gorgon::Input::DragInfo &info) -> bool {
-            // Accept file drops
-            if (info.HasData(Gorgon::Resource::GID::File))
-                return true;
-            if (info.HasData(Gorgon::Resource::GID::Text))
-                return true;
-            return false;
-        });
+    void buildHelp() {
+        window.Add(helppanel);
+        helppanel.SetWidth(100_perc);
+        helppanel.SetHeight(100_perc);
+        helppanel.EnableScroll(false, false);
+        helppanel.SetVisible(false);
 
-        droptarget.SetDrop([this](Gorgon::Input::DragInfo &info) -> bool {
-            if (info.HasData(Gorgon::Resource::GID::File)) {
-                auto &filedata = dynamic_cast<Gorgon::FileData&>(info.GetData(Gorgon::Resource::GID::File));
-                if (filedata.GetSize() > 0) {
-                    std::string filepath = filedata[0];
-                    loadFile(filepath);
-                    currentFilePath = filepath;
-                    setStatus("Dropped: " + filepath);
-                    return true;
-                }
-            }
-            else if (info.HasData(Gorgon::Resource::GID::Text)) {
-                auto &textdata = dynamic_cast<Gorgon::TextData&>(info.GetData(Gorgon::Resource::GID::Text));
-                textarea.SetText(textdata.GetText());
-                parsed = false;
-                setStatus("Dropped text data");
-                return true;
-            }
-            return false;
-        });
+        helppanel.Add(helpscroll);
+        helpscroll.SetWidth(100_perc);
 
-        window.Add(droptarget);
-        droptarget.PlaceToTop();
+        helplabel.SetText(GMM_HELP_TEXT);
+        helplabel.SetAutosize(Gorgon::UI::Autosize::None, Gorgon::UI::Autosize::Automatic);
+        helpscroll.Add(helplabel);
+
+        helpclosebtn.Text = "Close";
+        helpclosebtn.SetWidth(3_u);
+        helpclosebtn.ClickEvent.Register([this] { hideHelp(); });
+        helppanel.Add(helpclosebtn);
+    }
+
+    void relayoutHelp() {
+        auto size = helppanel.GetInteriorSize();
+        int spacing = helppanel.GetSpacing();
+        int unit = helppanel.GetUnitSize();
+        int btnHeight = unit + spacing;
+
+        helpscroll.Move(0_px, 0_px);
+        helpscroll.Resize(Gorgon::UI::Pixels(size.Width, size.Height - btnHeight - spacing));
+        helplabel.SetWidth(Gorgon::UI::Pixels(helpscroll.GetInteriorSize().Width));
+
+        helpclosebtn.Move(Gorgon::UI::Pixels(0, size.Height - btnHeight));
     }
 
     void startAsyncLoad(const std::string &url) {
@@ -612,89 +609,14 @@ private:
     }
 
     void showHelp() {
-        static const std::string helptext =
-            "# GMM Syntax Reference\n"
-            "\n"
-            "Gorgon Music Macro (GMM) is a compact text format for describing "
-            "polyphonic, retro-style music and sound effects directly as strings.\n"
-            "\n"
-            "GMM supports comments through the `#` symbol.\n"
-            "\n"
-            "## File Structure\n"
-            "\n"
-            "**Header** consists of global engine configurations (starting with `%`) "
-            "and instrument declarations (starting with `@`).\n"
-            "\n"
-            "**Body** contains one or more tracks tagged with a track identifier (`1>`, `2>`, ...).\n"
-            "\n"
-            "    # --- Engine Config ---\n"
-            "    %CHANNELS = 2\n"
-            "    \n"
-            "    # --- Instrument Bank ---\n"
-            "    @1 = sine(Flute), attack={s, 64}, decay={linear, 2/1}, sustain=0, release={exp, 4}\n"
-            "    @2 = pulse(Lead), duty=50\n"
-            "    @3 = noise(Snare), bitdepth=8\n"
-            "    \n"
-            "    # --- Sequence Data ---\n"
-            "    1> T120 @1 C4 D4 E3/4 R4 G2.\n"
-            "    2> @2 C2 C2 C2 C2\n"
-            "\n"
-            "## Core Commands\n"
-            "\n"
-            "### Engine Configuration\n"
-            "* `%KEY = value` - Global engine config (header only)\n"
-            "* `%CHANNELS = 2` - Stereo audio\n"
-            "* `%CHANNELS = [FL, FR]` - Explicit channel spec\n"
-            "\n"
-            "### Track & Playback Control\n"
-            "* `N>` - Track identifier (e.g., `1>`, `2>`). Default: `1>`\n"
-            "* `T<Value>[:Duration]{Curve}` - Tempo (BPM). Immediate or ramped\n"
-            "* `V<Percent>[:Duration]{Curve}` - Track volume (0-100%)\n"
-            "* `V[<Channel>]<Percent>[:Duration[{Curve}]]` - Channel-specific volume\n"
-            "\n"
-            "### Musical Notation\n"
-            "* `A`-`G` - Notes. `+` (sharp), `-` (flat). Default: quarter note\n"
-            "* `R<Duration>` - Rest\n"
-            "* `O<Octave>` / `<` / `>` - Octave control\n"
-            "* `~[{Rate, Depth, Delay}]` - Vibrato modulation\n"
-            "* `^` - Slide/Portamento: `C4^G4:2` slides C4 to G4 over half note\n"
-            "* `S<Duration>` - Note separation (articulation)\n"
-            "\n"
-            "## Durations & Ramps\n"
-            "\n"
-            "### Durations\n"
-            "* `2` - Fraction of whole note (half note)\n"
-            "* `.` - Dotted (extend by 50%)\n"
-            "* `3/4` - Explicit fraction\n"
-            "* `(0.5)` - Absolute time in seconds\n"
-            "* `0.22` - Absolute tempo units\n"
-            "\n"
-            "### Ramp Types\n"
-            "* `none` - Direct transition\n"
-            "* `linear` - Standard linear\n"
-            "* `exp` - Exponential (slow start, aggressive end)\n"
-            "* `sqrt` - Square root (aggressive start, slow end)\n"
-            "* `log` - Logarithmic\n"
-            "* `s` - S-Curve (smoothest)\n"
-            "\n"
-            "## Instruments\n"
-            "\n"
-            "Defined in header with `@ID = type(Name), params...`\n"
-            "\n"
-            "### Sine\n"
-            "* `attack` - Volume increase ramp\n"
-            "* `decay` - Fade after attack (ramp)\n"
-            "* `sustain` - Volume multiplier (0.0-1.0) after decay\n"
-            "* `release` - Fade after sustain (ramp)\n"
-            "\n"
-            "    @1 = sine(Guitar), attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}\n"
-            "\n"
-            "### Vibrato Settings\n"
-            "Defined as tuple: `vibrato={Rate, Depth, Delay}`\n"
-            "\n"
-            "    @1 = sine(Violin), attack={s, 32}, vibrato={6.0, 0.25, 16}\n";
+        panel.SetVisible(false);
+        helppanel.SetVisible(true);
+        relayoutHelp();
+    }
 
-        UI::ShowMessage("GMM Syntax", "[!md!]" + helptext);
+    void hideHelp() {
+        helppanel.SetVisible(false);
+        panel.SetVisible(true);
     }
 
     UI::Window &window;
@@ -708,12 +630,17 @@ private:
     Widgets::Label statuslabel;
     Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, helpbtn, quitbtn;
 
+    // Help panel
+    Widgets::Panel helppanel{Widgets::Registry::Panel_Fullscreen};
+    Widgets::Panel helpscroll;
+    Widgets::MarkdownLabel helplabel;
+    Widgets::Button helpclosebtn;
+
     Gorgon::Audio::Synth synth;
     Gorgon::Containers::Wave wave;
     Gorgon::Multimedia::Wave source;
     Gorgon::Audio::BasicController controller;
 
-    Gorgon::Input::DropTarget droptarget;
     Gorgon::Network::HTTP http;
 
     bool parsed = false;

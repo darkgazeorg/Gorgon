@@ -1,8 +1,23 @@
 cmake_minimum_required(VERSION 3.25)
 
-add_executable(gmm Source/Main.cpp)
+set(GMM_HELP_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/../../Source/Gorgon/Audio/GMM.md")
+set(GMM_HELP_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/GMMHelpText.h")
+
+add_custom_command(
+    OUTPUT "${GMM_HELP_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND}
+        -DINPUT_FILE=${GMM_HELP_INPUT}
+        -DOUTPUT_FILE=${GMM_HELP_OUTPUT}
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/GenerateHelpText.cmake"
+    DEPENDS "${GMM_HELP_INPUT}" "${CMAKE_CURRENT_SOURCE_DIR}/GenerateHelpText.cmake"
+    COMMENT "Generating GMM help text from GMM.md"
+    VERBATIM
+)
+
+add_executable(gmm Source/Main.cpp "${GMM_HELP_OUTPUT}")
 
 target_link_libraries(gmm PRIVATE Gorgon::Gorgon)
+target_include_directories(gmm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 set_target_properties(gmm PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/Bin"
