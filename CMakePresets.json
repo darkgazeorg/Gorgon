@@ -207,7 +207,8 @@
           "type": "STRING",
           "value": "flac;ogg;vorbis;freetype;curl" 
         },
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
   ],
