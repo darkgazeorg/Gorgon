@@ -502,7 +502,8 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
         true, true, true
     );
 
-    for(const auto& [key, value] : data) {
+    for(const auto& [k, value] : data) {
+        std::string key = String::Replace(k, " ", "");
         if(key == "attack") {
             if(value.empty()) {
                 throw Error(Error::InvalidParameter, "Attack parameter cannot be empty");
@@ -585,7 +586,7 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 
             Volume = volume / 100.0f;
         }
-        else if(key == "pitchoffset") {
+        else if(key == "pitchoffset" || key == "pitch") {
             auto [offset, state] = String::FromCLocaleTo<float>(value);
             if(state == String::FromCLocaleToState::Failed) {
                 throw Error(Error::InvalidParameter, "Invalid pitch offset value: " + value);
@@ -614,6 +615,8 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
     double phase = 0.0;
     double phasechange = double(frequency) / sample_rate;
+
+    if(node.type == Node::Type::Rest) return node.note.duration.ToSamples(state.Tempo, sample_rate);
     
     auto [atk, dec, sus, rel] = internal::CalculateADSR(
         Attack, Decay, Release, 
@@ -696,6 +699,149 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     }
     
     return node.note.duration.ToSamples(state.Tempo, sample_rate);
+}
+
+///// PWM FUNCTIONS /////
+
+void Synth::PWM::LoadSettings(const std::string_view &settings) {
+    std::string normalized = String::ToLower(String::Trim(std::string{settings}));
+
+    auto data = String::Map_UseQuotesAndParentheses(
+        normalized, 
+        '=', 
+        ",",
+        String::QuoteType::None,
+        "({",
+        ")}",
+        true, true, true
+    );
+
+    for(const auto& [k, value] : data) {
+        std::string key = String::Replace(k, " ", "");
+        if(key == "volume") {
+            auto [volume, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid volume value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after volume value: " + value);
+            }
+
+            Volume = volume / 100.0f;
+        }
+        else if(key == "rise" || key == "slew") {
+            auto [rise, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid rise/slew time: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after rise/slew time: " + value);
+            }
+
+            Trise = rise;
+        }
+        else if(key == "dutycycle" || key == "duty") {
+            auto [duty, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid duty cycle value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after duty cycle value: " + value);
+            }
+
+            DutyCycle = duty;
+        }
+        else if(key == "separation") {
+            Separation = Duration::Parse(value);
+        }
+        else if(key == "pitchoffset" || key == "pitch") {
+            auto [offset, state] = String::FromCLocaleTo<float>(value);
+            if(state == String::FromCLocaleToState::Failed) {
+                throw Error(Error::InvalidParameter, "Invalid pitch offset value: " + value);
+            }
+            if(state == String::FromCLocaleToState::ScrapAtTheEnd) {
+                throw Error(Error::InvalidParameter, "Extra characters after pitch offset value: " + value);
+            }
+
+            PitchOffset = offset;
+        }
+        else if(key == "resetphase") {
+            if(value == "true" || value == "1") {
+                ResetPhase = true;
+            }
+            else if(value == "false" || value == "0") {
+                ResetPhase = false;
+            }
+            else {
+                throw Error(Error::InvalidParameter, "Invalid value for reset phase parameter: " + value);
+            }
+        }
+        else {
+            throw Error(Error::InvalidParameter, "Unknown parameter for PWM instrument: " + key);
+        }
+    }
+}
+
+double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &state, unsigned int sample_rate) {
+    float frequency = NoteToFrequency(node.note.note, state.Octave, PitchOffset);
+
+    double phasechange = double(frequency) / sample_rate;
+
+    double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
+    double sepduration = state.Separation.Or(Separation).ToSamples(state.Tempo, sample_rate);
+
+    size_t start = size_t(std::round(state.Sample));
+    size_t end = size_t(std::round(state.Sample + duration));
+
+    size_t sep = (duration > sepduration) ? (end - size_t(std::round(sepduration))) : start;
+
+    if(ResetPhase) {
+        phase = 0.0;
+    }
+
+    float base_vol = node.type == Node::Type::Rest ? 0.0f : Volume;
+    float alpha = 1.0f;
+
+    if (Trise > 0.0f) {
+        float fs = static_cast<float>(sample_rate);
+        alpha = 1.0f - std::exp(-2.2f / (fs * Trise));
+    }
+
+    for(size_t i=start; i<end; i++) {
+        auto target = (phase < DutyCycle) ? 1.0f : -1.0f; 
+
+        if(i == sep) base_vol = 0.0f;
+
+        target *= base_vol;
+
+        current_level += alpha * (target - current_level);
+
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {            
+            wave(i, ch) +=  current_level * state.Volume[ch];
+        }
+
+        phase += phasechange;
+        if(phase >= 1.0) phase -= 1.0;
+    }
+
+    return duration;
+}
+
+void Synth::PWM::RenderTheEnd(Containers::Wave &wave, TrackState &state, unsigned int sample_rate) {
+    if(Trise <= 0.0f || current_level == 0.0f) return;
+
+    float alpha = 1.0f - std::exp(-2.2f / (sample_rate * Trise));
+
+    size_t start = size_t(std::round(state.Sample));
+    size_t end   = std::min(size_t(std::round(start + Trise * 2.5 * sample_rate)), wave.GetSize());
+
+    for(size_t i=start; i<end; i++) {
+        current_level += alpha * (0.0f - current_level);
+
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            wave(i, ch) +=  current_level * state.Volume[ch];
+        }
+    }
 }
 
 ///// SYNTH FUNCTIONS /////
@@ -1246,6 +1392,10 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                 break;
 
             case Node::Type::InstrumentChange:
+                if(state.InstrumentIndex > 0) {
+                    instruments[long(state.InstrumentIndex) - 1].RenderTheEnd(wave, state, sample_rate);
+                }
+
                 state.InstrumentIndex = node.index;
 
                 if(state.InstrumentIndex > size_t(instruments.GetSize())) {
@@ -1255,8 +1405,6 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                 break;
 
             case Node::Type::Rest:
-                state.Sample += node.note.duration.ToSamples(state.Tempo, sample_rate);
-                break;
             case Node::Type::Note: {
                 double duration;
 
@@ -1278,6 +1426,10 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
             case Node::Type::TrackChange:
                 throw Error(Error::InvalidToken, "Track change cannot exists in track data, it should have been processed during parsing: " + std::to_string(node.index));
             }
+        }
+
+        if(state.InstrumentIndex > 0) {
+            instruments[long(state.InstrumentIndex) - 1].RenderTheEnd(wave, state, sample_rate);
         }
     }
 
@@ -1413,6 +1565,11 @@ std::vector<std::string> Synth::GetInstrumentRegistry() {
 }
 
 const std::vector<Synth::FactoryEntry> Synth::baseinstrumentfactories = {
+    //BASE INSTRUMENTS
+    {"sine", []() -> Instrument& { return *new Sine(); }},
+    {"pwm", []() -> Instrument& { return *new PWM(); }},
+
+    //SINE BASED INSTRUMENTS
     {"synth", []() -> Instrument& { 
         static Sine sine;
         sine.Name = "Synth";
@@ -1502,6 +1659,55 @@ const std::vector<Synth::FactoryEntry> Synth::baseinstrumentfactories = {
         sine.PitchOffset = 12.0f; // 1 octave up
         sine.Description = "A bright and resonant bell sound with a quick attack and long decay, ideal for melodic accents and atmospheric effects.";
         return sine.Clone(); 
+    }},
+    //PWM BASED INSTRUMENTS
+    {"square lead", []() -> Instrument& { 
+        static PWM inst;
+        inst.Name = "Square Lead";
+        inst.DutyCycle = 0.5f;
+        inst.Trise = 0.0002f; // Slight 0.2ms slew for headache prevention
+        inst.Volume = 0.8f;
+        inst.Separation = Synth::Duration::FromFraction(32);
+        inst.PitchOffset = 0.0f;
+        inst.ResetPhase = false; // Smooth legato transitions
+        inst.Description = "A pure 50% duty cycle square wave. The definitive 8-bit lead synth for main melodies.";
+        return inst.Clone(); 
+    }},
+    {"thin pulse", []() -> Instrument& { 
+        static PWM inst;
+        inst.Name = "Thin Pulse";
+        inst.DutyCycle = 0.125f; // 12.5% duty cycle creates a bright, thin buzz
+        inst.Trise = 0.0001f; // Keep it sharp
+        inst.Volume = 0.6f;   // Lower volume because high frequencies pierce easily
+        inst.Separation = Synth::Duration::FromFraction(32);
+        inst.PitchOffset = 0.0f;
+        inst.ResetPhase = false;
+        inst.Description = "A sharp 12.5% duty cycle pulse wave. Buzzy and bright, perfect for rapid arpeggios and harpsichord-like textures.";
+        return inst.Clone(); 
+    }},
+    {"punchy bass", []() -> Instrument& { 
+        static PWM inst;
+        inst.Name = "Punchy Bass";
+        inst.DutyCycle = 0.25f; // 25% gives a slightly woody, hollow bass tone
+        inst.Trise = 0.0005f; // Slightly more slew to keep the low end warm
+        inst.Volume = 1.0f;
+        inst.Separation = Synth::Duration::FromFraction(16); // Wider gap for staccato punch
+        inst.PitchOffset = -12.0f; // Drop it a full octave
+        inst.ResetPhase = true; // ESSENTIAL: Guarantees a hard, identical transient on every note
+        inst.Description = "A 25% pulse wave dropped an octave with forced phase reset. Delivers tight, uniform percussive low-end.";
+        return inst.Clone(); 
+    }},
+    {"soft triangle", []() -> Instrument& { 
+        static PWM inst;
+        inst.Name = "Soft Triangle";
+        inst.DutyCycle = 0.5f;
+        inst.Trise = 0.008f; // Heavy slew limiting turns the square into a triangle
+        inst.Volume = 1.0f;
+        inst.Separation = Synth::Duration::FromFraction(64); // Minimal gap for maximum glide
+        inst.PitchOffset = 0.0f;
+        inst.ResetPhase = false;
+        inst.Description = "A 50% square wave with heavy slew limiting (8ms) to roll off harsh harmonics, creating a warm, triangle-like tone for pads and soft leads.";
+        return inst.Clone(); 
     }},
 };
 

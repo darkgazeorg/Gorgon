@@ -233,6 +233,14 @@ namespace Gorgon :: Audio {
                 TrackState &state, unsigned int sample_rate
             ) = 0;
 
+            /// Called after the last note of the track is rendered, allowing the instrument to render any additional
+            /// release tail if necessary. 
+            virtual void RenderTheEnd(Containers::Wave &wave, TrackState &state, unsigned int sample_rate) {
+                // By default, instruments have no special handling for the end of the track,
+                // but this can be overridden by specific instruments if necessary (e.g., to render
+                // release tails that extend beyond the last note).
+            }
+
             /// Loads instrument settings from a string. The format of the settings string
             /// is defined by each specific instrument type. This allows for flexible
             /// configuration of different instruments (e.g., setting the rise and fall times
@@ -247,6 +255,12 @@ namespace Gorgon :: Audio {
             /// into the next note based on the current track state and sample rate. This is used to
             /// determine unclipped length of the entire track.
             virtual double ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const = 0;
+
+            /// Resets any internal state of the instrument that should not carry over between renders.
+            virtual void Reset() {
+                // By default, instruments have no internal state that needs resetting between notes,
+                // but this can be overridden by specific instruments if necessary (e.g., for a noise generator).
+            }
 
             /// Returns the name of the instrument.
             std::string GetInstrumentName() const {
@@ -313,6 +327,63 @@ namespace Gorgon :: Audio {
             /// A fraction can be used for microtonal adjustments, +/-12 can be used for
             /// full octave shifts.
             float PitchOffset = 0.0f;
+        };
+
+        class PWM : public Instrument {
+        public:
+            PWM() {
+                Name = "PWM";
+            }
+
+            Instrument &Clone() const override {
+                return *new PWM(*this);
+            }
+
+            void LoadSettings(const std::string_view& settings) override;
+
+            double ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const override {
+                return Trise * 2.5 * sample_rate;
+            }
+
+            double Render(
+                Containers::Wave &wave, const Node &node,
+                TrackState &state, unsigned int sample_rate
+            ) override;
+
+            void RenderTheEnd(Containers::Wave &wave, TrackState &state, unsigned int sample_rate) override;
+
+            void Reset() override {
+                current_level = 0.0f;
+                phase = 0.0f;
+            }
+
+            /// Duty cycle of the pulse wave, from 0.0 (silent) to 1.0 (full square wave). 
+            /// Default is 0.5 for a standard square wave.
+            float DutyCycle = 0.5f;
+
+            /// Time it takes for the pulse wave to rise to full volume at the start of the note, in seconds.
+            /// Larger values create a softer sound.
+            float Trise = 0.0002f;
+
+            /// Scales the track volume. Can be used to avoid clipping when multiple tracks
+            /// are expected to overlap.
+            float Volume = 1.0f;
+
+            /// Default separation between notes.
+            Duration Separation = Duration::FromFraction(32);
+
+            /// Modifies the pitch of the sine wave. A full number represents a semitone.
+            /// A fraction can be used for microtonal adjustments, +/-12 can be used for
+            /// full octave shifts.
+            float PitchOffset = 0.0f;
+
+            /// If true, the phase of the waveform will reset to 0 at the start of each note. 
+            /// This can be used to create a more percussive sound, while false will create a more legato sound.
+            bool ResetPhase = false;
+
+        private:
+            float current_level = 0.0f; // for simple one-pole low-pass filter to create a softer sound
+            double phase = 0.0f; // current phase of the waveform, from 0.0 to 1.0
         };
 
         /// If GMM encounters an error, it throws this exception with
@@ -584,7 +655,6 @@ namespace Gorgon :: Audio {
             channels = {Audio::Channel::Mono};
 
             instruments.DeleteAll();
-            instruments.Add(new Sine());
         }
 
         /// Converts a note and octave into frequency (Hz).
@@ -608,9 +678,7 @@ namespace Gorgon :: Audio {
 
         /// Factory functions for creating instruments by name. This allows for dynamic
         /// registration of new instrument types without modifying the Synth class.
-        std::vector<FactoryEntry> instrumentfactories = {
-            {"sine", []() -> Instrument& { return *new Sine(); }}
-        };
+        std::vector<FactoryEntry> instrumentfactories = {};
 
         /// Base factory functions for creating instruments by name. This is used as
         /// fallback when the requested instrument factory is not found in the current
