@@ -691,6 +691,30 @@ TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
 
 }
 
+TEST_CASE("MetaData HasTags supports Or and Not combinations", "[Synth][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth::MetaData metadata;
+    metadata.Tags.push_back({Synth::TagType::Genre, "rock"});
+    metadata.Tags.push_back({Synth::TagType::Genre, "jazz"});
+    metadata.Tags.push_back({Synth::TagType::Mood, "happy"});
+    metadata.Tags.push_back({Synth::TagType::Mood, "energetic"});
+    metadata.Tags.push_back({Synth::TagType::Custom, "classic"});
+
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or("classic", "orchestral", "piano"), "happy"));
+    REQUIRE(metadata.HasTags(Synth::Genre, "rock", "jazz"));
+    REQUIRE(metadata.HasTags(Synth::Mood, "happy", "energetic"));
+    REQUIRE(metadata.HasTags("happy", Synth::Genre, Synth::MetaData::Not("blues")));
+    REQUIRE(metadata.HasTags(Synth::TagType::Genre, "rock", Synth::Genre, Synth::MetaData::Not("classic")));
+    REQUIRE_FALSE(metadata.HasTags(Synth::TagType::Genre, "rock", Synth::MetaData::Not("classic")));
+    REQUIRE_FALSE(metadata.HasTags("happy", Synth::Genre, Synth::MetaData::Not("rock")));
+
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or("happy", "joyful"), Synth::Genre, Synth::MetaData::Not("blues")));
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or(std::make_pair(Synth::Genre, "rock"), std::make_pair(Synth::Genre, "jazz"))));
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or(std::make_pair(Synth::Genre, "rock"), std::make_pair(Synth::Mood, "happy"))));
+    REQUIRE_FALSE(metadata.HasTags(Synth::MetaData::Or("sad", "melancholy"), Synth::Genre, Synth::MetaData::Not("rock")));
+    REQUIRE_FALSE(metadata.HasTags(Synth::MetaData::Or("slow", "fast"), "happy"));
+}
 
 TEST_CASE("Parse channels variable with various formats", "[Synth][Parse][Channels]") {
     using namespace Gorgon::Audio;

@@ -87,7 +87,40 @@ namespace internal {
 
 }
 
-///// Node FUNCTIONS /////
+
+///// METADATA FUNCTIONS /////
+
+bool Synth::MetaData::HasTag(TagType type, const std::string &value) const {
+    for(const auto &tag : Tags) {
+        if((type == TagType::Any || tag.Type == type) && String::CaseInsensitiveCompare(tag.Value, value) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Synth::MetaData::HasTags(const std::vector<std::string> &values) const {
+    for(const auto& value : values) {
+        if(!HasTag(TagType::Any, value)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool Synth::MetaData::HasTags(const std::vector<std::pair<TagType, std::string>> &values) const {
+    for(const auto& [type, value] : values) {
+        if(!HasTag(type, value)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+///// NODE FUNCTIONS /////
 
 Synth::Node Synth::Node::MakeNote(Note note, Duration duration, bool slide) {
     Node n;

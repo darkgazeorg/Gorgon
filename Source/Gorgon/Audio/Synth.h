@@ -1,9 +1,11 @@
 #pragma once
 
-#include "Gorgon/Containers/Collection.h"
-#include "Gorgon/Containers/Wave.h"
-#include "Gorgon/Enum.h"
-#include "Gorgon/String.h"
+#include "../Containers/Collection.h"
+#include "../Containers/Wave.h"
+#include "../Enum.h"
+#include "../String.h"
+#include "../String.h"
+#include "../TMP.h"
 
 #include <cmath>
 #include <cstddef>
@@ -145,6 +147,141 @@ namespace Gorgon :: Audio {
         };
 
     public:
+        /// Defines type of a tag. This allows for categorization and filtering
+        /// of songs based on their tags, which can be used for music selection 
+        /// in games or other applications. Tags are case insensitive and should
+        /// be used consistently for effective categorization. Prefer shorter
+        /// tags (e.g., rock instead of rock and roll) for better readability and 
+        /// easier filtering.
+        enum TagType {
+            /// Do not use this tag for categorization, it is used in search
+            /// to match any tag type.
+            Any,
+            /// Musical genre, such as rock, jazz, classical, etc. 
+            /// Subgenres can be specified along with the main genre.
+            Genre,
+            /// Mood or emotional tone of the music, such as happy, sad, energetic, calm, etc.
+            Mood,
+            /// Theme or subject matter of the music, such as love, adventure, nature, etc.
+            Theme,
+            /// Geographical or cultural origin of the music, such as African, Asian, European, etc.
+            Region,
+            /// Historical period or era of the music, such as Baroque, Classical, Romantic, etc.
+            Era,
+            /// Custom tag for user-defined categorization.
+            Custom
+        };
+
+        /// A tag is a simple string label that can be attached to a song for categorization
+        /// and filtering purposes. Each tag has a type that defines the category of the tag
+        /// (e.g., genre, mood, etc.) and a value that is the actual label (e.g., "rock", "happy", etc.).
+        struct Tag {
+            TagType Type;
+            std::string Value;
+        };
+
+        /// Metadata about the song, such as title, artist, album, etc. This is not used for
+        /// rendering but can be useful for organizing and displaying information about the 
+        /// song in a music player or game menu. Tags can be used for automatic categorization
+        /// and filtering of songs based on their attributes. You can check multiple tags at
+        /// once using the HasTags function. If tag type is not specified, it defaults to Any.
+        /// Specified tag type only affects the immediate value following it. Examples:
+        /// ```
+        ///  HasTags(Synth::Genre, "rock", "energetic"); // genre is rock, any tag could be energetic
+        ///  HasTags(Synth::Genre, "rock", Synth::Mood, "energetic"); // genre is rock and mood is energetic
+        ///  HasTags(Synth::Genre, "folk", "irish", "calm");
+        ///  HasTags(Synth::MetaData::Or("classic", "orchestral", "piano"), "happy");
+        ///  HasTags("happy", Synth::Genre, Synth::MetaData::Not("rock"));
+        ///  HasTags(Synth::MetaData::Or("happy", std::make_pair(Synth::Genre, Synth::MetaData::Not("blues"))));
+        /// ```
+        struct MetaData {
+
+            std::string Title;
+            std::string Artist;
+            std::string Arrangement;
+            std::string Album;
+            std::string Comment;
+
+            /// Tags contained in this metadata. Use HasTag and HasTags functions to check for specific tags.
+            std::vector<Tag> Tags;
+
+            bool HasTag(TagType type, const std::string &value) const;
+
+            bool HasTag(const std::string &value) const {
+                return HasTag(TagType::Any, value);
+            }
+
+            /// Allows using Or operator between tags. For example, MetaData::Or("happy", "joyful") creates
+            /// a tuple that can be used in HasTags to check if either "happy" or "joyful" tag is present.
+            /// The tag type before a tuple will apply to all values in the tuple. However, you can use
+            /// a pair to override the type for specific values within the tuple. For example, 
+            /// MetaData::Or(std::make_pair(Synth::Genre, "rock"), std::make_pair(Synth::Mood, "happy")) 
+            /// creates a tuple that checks for genre rock or mood happy, regardless of the tag type specified 
+            /// before the tuple.
+            template<typename ... R_>
+            static auto Or(R_ && ... args) {
+                return std::tuple<R_...>(std::forward<R_>(args)...);
+            }
+
+            /// This can be used to invert the logic of a check. 
+            struct Not {
+                std::string Value;
+
+                explicit Not(std::string value) : Value(std::move(value)) {}
+            };
+
+            /// Checks tags supplied in a vector. All these tags should exist for this function
+            /// to return true. This will consider all tags, regardless of their type.
+            bool HasTags(const std::vector<std::string> &values) const;
+
+            /// Checks tags supplied in a vector of pairs, where the first element of the pair
+            /// is the tag type and the second element is the tag value. All these tags should exist
+            /// for this function to return true.
+            bool HasTags(const std::vector<std::pair<TagType, std::string>> &values) const;
+        
+            /// Checks tags supplied in a variadic list of arguments. Arguments can be strings, 
+            /// pairs, tuples, or Not structures. See MetaData documentation for examples.
+            bool HasTags() const { return true; }
+
+            /// Checks tags supplied in a variadic list of arguments. Arguments can be strings, 
+            /// pairs, tuples, or Not structures. See MetaData documentation for examples.
+            template<typename First, typename... Rest>
+            bool HasTags(First&& first, Rest&&... rest) const {
+                using T = std::decay_t<First>;
+
+                if constexpr (std::is_same_v<T, TagType>) {
+                    return ApplyToNext(first, std::forward<Rest>(rest)...);
+                }
+                else {
+                    return CheckItem(TagType::Any, std::forward<First>(first)) 
+                        && HasTags(std::forward<Rest>(rest)...);
+                }
+            }
+        private:
+            template<typename T>
+            bool CheckItem(TagType type, const T& item) const {
+                if constexpr (TMP::IsTupleV<std::decay_t<T>>) {
+                    return std::apply([&](auto&&... args) {
+                        return (CheckItem(type, args) || ...);
+                    }, item);
+                } 
+                else if constexpr (TMP::IsPairV<std::decay_t<T>>) {
+                    return HasTag(item.first, item.second);
+                }
+                else if constexpr (std::is_same_v<T, Not>) {
+                    return !HasTag(type, item.Value);
+                }
+                else {
+                    return HasTag(type, item);
+                }
+            }
+
+            template<typename Next, typename... Remaining>
+            bool ApplyToNext(TagType type, Next&& next, Remaining&&... remaining) const {
+                return CheckItem(type, std::forward<Next>(next)) 
+                    && HasTags(std::forward<Remaining>(remaining)...);
+            }
+        };
 
         /// Defines ramp types for volume or pitch changes.
         enum class RampType {
@@ -655,6 +792,7 @@ namespace Gorgon :: Audio {
             channels = {Audio::Channel::Mono};
 
             instruments.DeleteAll();
+            instruments.Add(new Sine());
         }
 
         /// Converts a note and octave into frequency (Hz).
