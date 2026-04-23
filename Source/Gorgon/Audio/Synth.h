@@ -242,8 +242,11 @@ namespace Gorgon :: Audio {
             /// for this function to return true.
             bool HasTags(const std::vector<std::pair<TagType, std::string>> &values) const;
 
-            /// Serializes metadata into RIFF LIST/INFO chunks suitable for Wave::ExportWav.
-            std::vector<std::pair<std::string, std::string>> ToWaveChunks() const;
+            /// Serializes metadata into RIFF LIST/INFO chunk suitable for Wave::ExportWav.
+            std::pair<std::string, std::string> ToWaveChunk() const;
+
+            /// Export metadata to a vector of key-value pairs. 
+            std::vector<std::pair<std::string, std::string>> ToPairs() const;
         
             /// Checks tags supplied in a variadic list of arguments. Arguments can be strings, 
             /// pairs, tuples, or Not structures. See MetaData documentation for examples.
@@ -263,6 +266,7 @@ namespace Gorgon :: Audio {
                         && HasTags(std::forward<Rest>(rest)...);
                 }
             }
+            
         private:
             template<typename T>
             bool CheckItem(TagType type, const T& item) const {

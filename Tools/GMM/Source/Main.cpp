@@ -18,8 +18,10 @@
 
 #include "GMMHelpText.h"
 #include "Gorgon/Filesystem.h"
+#include "Gorgon/String.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -93,11 +95,27 @@ void ExportAudio(
     }
 
     if (ext == ".wav") {
-        auto chunks = metadata ? metadata->ToWaveChunks() : std::vector<std::pair<std::string, std::string>>{};
-        wave.ExportWav(outputfile, 16, std::move(chunks));
+        auto chunk = metadata ? metadata->ToWaveChunk() : std::pair<std::string, std::string>{};
+        wave.ExportWav(outputfile, 16, {chunk});
     } else {
         // Default to FLAC
-        Gorgon::Encoding::Flac.Encode(wave, outputfile);
+        std::vector<std::pair<std::string, std::string>> metaPairs;
+
+        if(metadata) {
+            metaPairs = metadata->ToPairs();
+
+            // Capitalize these tags as some players expect keys to be capitalized
+            for(auto& [type, value] : metaPairs) {
+                type = Gorgon::String::ToUpper(type);
+            }
+        }
+
+        if(metaPairs.empty()) {
+            Gorgon::Encoding::Flac.Encode(wave, outputfile);
+        }
+        else {
+            Gorgon::Encoding::Flac.Encode(wave, outputfile, metaPairs);
+        }
     }
 }
 
@@ -481,7 +499,6 @@ private:
 
     void updateMetaData() {
         metadatalabel.SetText(FormatMetaData(synth.GetMetaData()));
-        metadatalabel.SetAutosize(Gorgon::UI::Autosize::None, Gorgon::UI::Autosize::Automatic);
         relayoutMetaData();
     }
 
@@ -834,6 +851,14 @@ int Main(const std::vector<std::string> &args) {
     Gorgon::Initialize("gmm");
     Gorgon::UI::Window window({700, 600}, "GMM Player", true, !opts.hidden);
     Gorgon::UI::Initialize();
+
+    Gorgon::Graphics::Bitmap icon;
+    icon.Import("Icon.png");
+
+    if(icon.HasData()) {
+        Gorgon::WindowManager::Icon ico(icon.GetData());
+        window.SetIcon(ico);
+    }
 
     window.AllowResize();
 

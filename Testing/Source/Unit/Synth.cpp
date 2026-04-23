@@ -417,30 +417,29 @@ TEST_CASE("MetaData serializes to RIFF LIST/INFO chunks for wav export", "[Synth
     metadata.Tags.push_back({Synth::Mood, "Energetic"});
     metadata.Tags.push_back({Synth::Custom, "Final Phase"});
 
-    auto chunks = metadata.ToWaveChunks();
+    auto chunk = metadata.ToWaveChunk();
 
-    REQUIRE(chunks.size() == 1);
-    REQUIRE(chunks[0].first == "LIST");
-    REQUIRE(chunks[0].second.rfind("INFO", 0) == 0);
-    REQUIRE(chunks[0].second.find("INAM") != std::string::npos);
-    REQUIRE(chunks[0].second.find("IART") != std::string::npos);
-    REQUIRE(chunks[0].second.find("IENG") != std::string::npos);
-    REQUIRE(chunks[0].second.find("IPRD") != std::string::npos);
-    REQUIRE(chunks[0].second.find("ICOP") != std::string::npos);
-    REQUIRE(chunks[0].second.find("ICMT") != std::string::npos);
-    REQUIRE(chunks[0].second.find("IGNR") != std::string::npos);
-    REQUIRE(chunks[0].second.find("IKEY") != std::string::npos);
-    REQUIRE(chunks[0].second.find("Into The Ruins") != std::string::npos);
-    REQUIRE(chunks[0].second.find("Test Artist") != std::string::npos);
-    REQUIRE(chunks[0].second.find("Chiptune") != std::string::npos);
-    REQUIRE(chunks[0].second.find("Mood: Energetic") != std::string::npos);
-    REQUIRE(chunks[0].second.find("Final Phase") != std::string::npos);
+    REQUIRE(chunk.first == "LIST");
+    REQUIRE(chunk.second.rfind("INFO", 0) == 0);
+    REQUIRE(chunk.second.find("INAM") != std::string::npos);
+    REQUIRE(chunk.second.find("IART") != std::string::npos);
+    REQUIRE(chunk.second.find("IENG") != std::string::npos);
+    REQUIRE(chunk.second.find("IPRD") != std::string::npos);
+    REQUIRE(chunk.second.find("ICOP") != std::string::npos);
+    REQUIRE(chunk.second.find("ICMT") != std::string::npos);
+    REQUIRE(chunk.second.find("IGNR") != std::string::npos);
+    REQUIRE(chunk.second.find("IKEY") != std::string::npos);
+    REQUIRE(chunk.second.find("Into The Ruins") != std::string::npos);
+    REQUIRE(chunk.second.find("Test Artist") != std::string::npos);
+    REQUIRE(chunk.second.find("Chiptune") != std::string::npos);
+    REQUIRE(chunk.second.find("Mood: Energetic") != std::string::npos);
+    REQUIRE(chunk.second.find("Final Phase") != std::string::npos);
 
     Gorgon::Containers::Wave wave(1, 44100);
     wave(0, 0) = 0.0f;
 
     std::ostringstream stream(std::ios::binary);
-    REQUIRE(wave.ExportWav(stream, 16, chunks));
+    REQUIRE(wave.ExportWav(stream, 16, {chunk}));
 
     const auto bytes = stream.str();
     REQUIRE(bytes.find("RIFF") != std::string::npos);

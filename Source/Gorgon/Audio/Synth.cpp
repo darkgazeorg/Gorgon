@@ -10,6 +10,8 @@
 #include <string>
 #include <tuple>
 #include <iostream>
+#include <utility>
+#include <vector>
 
 namespace Gorgon :: Audio {
 
@@ -144,7 +146,7 @@ bool Synth::MetaData::HasTags(const std::vector<std::pair<TagType, std::string>>
     return true;
 }
 
-std::vector<std::pair<std::string, std::string>> Synth::MetaData::ToWaveChunks() const {
+std::pair<std::string, std::string> Synth::MetaData::ToWaveChunk() const {
     std::vector<std::string> genreTags;
     std::vector<std::string> keywordTags;
 
@@ -194,7 +196,41 @@ std::vector<std::pair<std::string, std::string>> Synth::MetaData::ToWaveChunks()
         listData.push_back('\0');
     }
 
-    return {{"LIST", std::move(listData)}};
+    return {"LIST", std::move(listData)};
+}
+
+std::vector<std::pair<std::string, std::string>> Synth::MetaData::ToPairs() const {
+    std::vector<std::pair<std::string, std::string>> pairs;
+
+    if(!Title.empty()) {
+        pairs.emplace_back("Title", Title);
+    }
+    if(!Artist.empty()) {
+        pairs.emplace_back("Artist", Artist);
+    }
+    if(!Arranger.empty()) {
+        pairs.emplace_back("Arranger", Arranger);
+    }
+    if(!Album.empty()) {
+        pairs.emplace_back("Album", Album);
+    }
+    if(!Copyright.empty()) {
+        pairs.emplace_back("Copyright", Copyright);
+    }
+    if(!Comment.empty()) {
+        pairs.emplace_back("Comment", Comment);
+    }
+
+    for(const auto &tag : Tags) {
+        if(tag.Type == Synth::Genre) {
+            pairs.emplace_back("Genre", tag.Value);
+        }
+        else {
+            pairs.emplace_back(String::From(tag.Type), tag.Value);
+        }
+    }
+
+    return pairs;
 }
 
 ///// NODE FUNCTIONS /////

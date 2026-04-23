@@ -14,7 +14,17 @@ add_custom_command(
     VERBATIM
 )
 
-add_executable(gmm Source/Main.cpp "${GMM_HELP_OUTPUT}")
+set(RESOURCES )
+
+if(WIN32)
+    list(APPEND RESOURCES "AppIcon.rc")
+endif()
+
+add_executable(gmm 
+    Source/Main.cpp 
+    "${GMM_HELP_OUTPUT}"
+    ${RESOURCES}
+)
 
 target_link_libraries(gmm PRIVATE Gorgon::Gorgon)
 target_include_directories(gmm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -56,3 +66,5 @@ if(WIN32)
         VERBATIM
     )
 endif()
+
+gorgon_copy_resource(gmm "Icon.png")
