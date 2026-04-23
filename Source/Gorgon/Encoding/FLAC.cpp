@@ -122,7 +122,7 @@ namespace Encoding {
             for(const auto &[key, value] : commentdata) {
                 auto comment = key + "=" + value;
                 FLAC__StreamMetadata_VorbisComment_Entry entry;
-                entry.length = comment.size();
+                entry.length = uint32_t(comment.size());
                 entry.entry = reinterpret_cast<FLAC__byte *>(const_cast<char *>(comment.c_str()));
 
                 if(!FLAC__metadata_object_vorbiscomment_append_comment(comments, entry, true))
