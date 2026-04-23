@@ -164,6 +164,8 @@ namespace Gorgon :: Audio {
             Mood,
             /// Theme or subject matter of the music, such as love, adventure, nature, etc.
             Theme,
+            /// Instrumentation or arrangement style of the music, such as orchestral, acoustic, electronic, etc.
+            Style,
             /// Geographical or cultural origin of the music, such as African, Asian, European, etc.
             Region,
             /// Historical period or era of the music, such as Baroque, Classical, Romantic, etc.
@@ -198,8 +200,9 @@ namespace Gorgon :: Audio {
 
             std::string Title;
             std::string Artist;
-            std::string Arrangement;
+            std::string Arranger;
             std::string Album;
+            std::string Copyright;
             std::string Comment;
 
             /// Tags contained in this metadata. Use HasTag and HasTags functions to check for specific tags.
@@ -238,6 +241,9 @@ namespace Gorgon :: Audio {
             /// is the tag type and the second element is the tag value. All these tags should exist
             /// for this function to return true.
             bool HasTags(const std::vector<std::pair<TagType, std::string>> &values) const;
+
+            /// Serializes metadata into RIFF LIST/INFO chunks suitable for Wave::ExportWav.
+            std::vector<std::pair<std::string, std::string>> ToWaveChunks() const;
         
             /// Checks tags supplied in a variadic list of arguments. Arguments can be strings, 
             /// pairs, tuples, or Not structures. See MetaData documentation for examples.
@@ -793,11 +799,28 @@ namespace Gorgon :: Audio {
 
             instruments.DeleteAll();
             instruments.Add(new Sine());
+
+            metadata = {};
         }
 
         /// Converts a note and octave into frequency (Hz).
         static float NoteToFrequency(Note note, int octave, float pitch_offset = 0.0f) {
             return 440.0f * std::pow(2.0f, (static_cast<int>(note) + (octave - 4) * 12 - 9 + pitch_offset) / 12.0f);
+        }
+
+        /// Returns the current metadata.
+        const MetaData& GetMetaData() const {
+            return metadata;
+        }
+
+        /// Sets metadata information for this synth object. Note parsing removes any metadata set this way
+        /// to load metadata from the GMM string. Individual members of metadata cannot be modified directly,
+        /// for multi-threaded safety. Instead, obtain a copy of the current metadata, modify it, and set it
+        /// back using this function.
+        void SetMetaData(const MetaData& meta) {
+            auto guard = std::scoped_lock(critical);
+
+            metadata = meta;
         }
 
     private:
@@ -864,6 +887,8 @@ namespace Gorgon :: Audio {
             new Sine()
         };
 
+        MetaData metadata;
+
         mutable std::recursive_mutex critical;
     };
 
@@ -881,5 +906,16 @@ namespace Gorgon :: Audio {
         {Synth::RampType::SCurve, "SCurve"},
         {Synth::RampType::SCurve, "s"}
     })
+
+    DefineEnumStringsCM(Synth, TagType, {
+        {Synth::TagType::Any, "Any"},
+        {Synth::TagType::Genre, "Genre"},
+        {Synth::TagType::Mood, "Mood"},
+        {Synth::TagType::Theme, "Theme"},
+        {Synth::TagType::Style, "Style"},
+        {Synth::TagType::Region, "Region"},
+        {Synth::TagType::Era, "Era"},
+        {Synth::TagType::Custom, "Custom"}
+    });
 
 }

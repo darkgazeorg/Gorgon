@@ -15,6 +15,30 @@ namespace Gorgon :: Audio {
 
 namespace internal {
 
+    void AppendUInt32LE(std::string &out, uint32_t value) {
+        out.push_back(static_cast<char>(value & 0xFF));
+        out.push_back(static_cast<char>((value >> 8) & 0xFF));
+        out.push_back(static_cast<char>((value >> 16) & 0xFF));
+        out.push_back(static_cast<char>((value >> 24) & 0xFF));
+    }
+
+    void AppendRiffInfoChunk(std::string &out, const std::string &id, const std::string &value) {
+        if(value.empty()) {
+            return;
+        }
+
+        out += id;
+
+        std::string payload = value;
+        payload.push_back('\0');
+        if(payload.size() % 2 != 0) {
+            payload.push_back('\0');
+        }
+
+        AppendUInt32LE(out, static_cast<uint32_t>(payload.size()));
+        out += payload;
+    }
+
     struct ADSRInfo {
         double attack,
                decay,
@@ -118,6 +142,59 @@ bool Synth::MetaData::HasTags(const std::vector<std::pair<TagType, std::string>>
     }
 
     return true;
+}
+
+std::vector<std::pair<std::string, std::string>> Synth::MetaData::ToWaveChunks() const {
+    std::vector<std::string> genreTags;
+    std::vector<std::string> keywordTags;
+
+    for(const auto &tag : Tags) {
+        if(tag.Type == Synth::Genre) {
+            genreTags.push_back(tag.Value);
+        }
+        else if(tag.Type == Synth::Custom) {
+            keywordTags.push_back(tag.Value);
+        }
+        else {
+            keywordTags.push_back(String::From(tag.Type) + ": " + tag.Value);
+        }
+    }
+
+    std::string listData = "INFO";
+    if(!Title.empty()) {
+        internal::AppendRiffInfoChunk(listData, "INAM", Title);
+    }
+    if(!Artist.empty()) {
+        internal::AppendRiffInfoChunk(listData, "IART", Artist);
+    }
+    if(!Arranger.empty()) {
+        internal::AppendRiffInfoChunk(listData, "IENG", Arranger);
+    }
+    if(!Album.empty()) {
+        internal::AppendRiffInfoChunk(listData, "IPRD", Album);
+    }
+    if(!Copyright.empty()) {
+        internal::AppendRiffInfoChunk(listData, "ICOP", Copyright);
+    }
+    if(!Comment.empty()) {
+        internal::AppendRiffInfoChunk(listData, "ICMT", Comment);
+    }
+    if(!genreTags.empty()) {
+        internal::AppendRiffInfoChunk(listData, "IGNR", String::Join(genreTags, ", "));
+    }
+    if(!keywordTags.empty()) {
+        internal::AppendRiffInfoChunk(listData, "IKEY", String::Join(keywordTags, "; "));
+    }
+
+    if(listData.size() == 4) {
+        return {};
+    }
+
+    if(listData.size() % 2 != 0) {
+        listData.push_back('\0');
+    }
+
+    return {{"LIST", std::move(listData)}};
 }
 
 ///// NODE FUNCTIONS /////
@@ -1155,6 +1232,47 @@ void Synth::Parse(std::istream &stream) {
                 }
 
                 this->channels = std::move(channels);
+            }
+            else if(var == "artist" || var == "author") {
+                metadata.Artist = line;
+            }
+            else if(var == "title") {
+                metadata.Title = line;
+            }
+            else if(var == "arranger") {
+                metadata.Arranger = line;
+            }
+            else if(var == "album") {
+                metadata.Album = line;
+            }
+            else if(var == "copyright") {
+                metadata.Copyright = line;
+            }
+            else if(var == "comment") {
+                if(!metadata.Comment.empty()) {
+                    metadata.Comment += "\n";
+                }
+                metadata.Comment += line;
+            }
+            else if(var == "genre" ||  var == "mood" || var == "theme" || var == "style" || var == "region" || var == "era" || var == "custom-tag") {
+                auto tag = String::Trim(line);
+                if(tag.empty()) {
+                    throw Error(Error::InvalidParameter, "Tag value cannot be empty");
+                }
+                TagType type;
+
+                if(var == "genre") type = TagType::Genre;
+                else if(var == "mood") type = TagType::Mood;
+                else if(var == "theme") type = TagType::Theme;
+                else if(var == "style") type = TagType::Style;
+                else if(var == "region") type = TagType::Region;
+                else if(var == "era") type = TagType::Era;
+                else if(var == "custom-tag") type = TagType::Custom;
+                else {
+                    throw Error(Error::InvalidParameter, "Unrecognized tag type: " + var);
+                }
+
+                metadata.Tags.push_back({type, tag});
             }
             else {
                 throw Error(Error::InvalidParameter, "Unrecognized variable: " + var);

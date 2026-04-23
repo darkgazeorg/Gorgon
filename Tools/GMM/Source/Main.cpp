@@ -17,6 +17,7 @@
 #include <Gorgon/Main.h>
 
 #include "GMMHelpText.h"
+#include "Gorgon/Filesystem.h"
 
 #include <string>
 #include <vector>
@@ -29,6 +30,78 @@
 namespace UI = Gorgon::UI;
 namespace Widgets = Gorgon::Widgets;
 using namespace Gorgon::UI::literals;
+
+namespace {
+
+std::string FormatMetaData(const Gorgon::Audio::Synth::MetaData &metadata) {
+    std::ostringstream out;
+
+    out << "# Meta Data\n\n";
+
+    bool hasFields = false;
+    auto appendField = [&](const std::string &label, const std::string &value) {
+        if (value.empty()) {
+            return;
+        }
+
+        hasFields = true;
+        out << "- **" << label << ":** " << value << "\n";
+    };
+
+    appendField("Title", metadata.Title);
+    appendField("Artist", metadata.Artist);
+    appendField("Arranger", metadata.Arranger);
+    appendField("Album", metadata.Album);
+    appendField("Copyright", metadata.Copyright);
+
+    if (!metadata.Comment.empty()) {
+        hasFields = true;
+        out << "- **Comment:**\n\n" << metadata.Comment << "\n";
+    }
+
+    if (!metadata.Tags.empty()) {
+        if (hasFields) {
+            out << "\n";
+        }
+
+        out << "## Tags\n\n";
+        for (const auto &tag : metadata.Tags) {
+            out << "- **" << Gorgon::String::From(tag.Type) << ":** " << tag.Value << "\n";
+        }
+        hasFields = true;
+    }
+
+    if (!hasFields) {
+        out << "No metadata found in the current GMM file.\n";
+    }
+
+    return out.str();
+}
+
+void ExportAudio(
+    Gorgon::Containers::Wave &wave,
+    const std::string &outputfile,
+    const Gorgon::Audio::Synth::MetaData *metadata = nullptr
+) {
+    auto ext = std::filesystem::path(outputfile).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if(metadata && metadata->Title.empty()) {
+        // If no title is provided, use the output file name as the title
+        std::string title = Gorgon::Filesystem::GetBasename(outputfile);
+        const_cast<Gorgon::Audio::Synth::MetaData *>(metadata)->Title = title;
+    }
+
+    if (ext == ".wav") {
+        auto chunks = metadata ? metadata->ToWaveChunks() : std::vector<std::pair<std::string, std::string>>{};
+        wave.ExportWav(outputfile, 16, std::move(chunks));
+    } else {
+        // Default to FLAC
+        Gorgon::Encoding::Flac.Encode(wave, outputfile);
+    }
+}
+
+}
 
 struct Options {
     std::string inputfile;
@@ -139,18 +212,6 @@ std::string DeriveOutputPath(const std::string &input, const std::string &ext) {
     return p.string();
 }
 
-void ExportAudio(Gorgon::Containers::Wave &wave, const std::string &outputfile) {
-    auto ext = std::filesystem::path(outputfile).extension().string();
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    if (ext == ".wav") {
-        wave.ExportWav(outputfile);
-    } else {
-        // Default to FLAC
-        Gorgon::Encoding::Flac.Encode(wave, outputfile);
-    }
-}
-
 // Headless mode: no UI, just export and optionally play
 int RunHeadless(const Options &opts) {
     if (opts.inputfile.empty()) {
@@ -181,13 +242,14 @@ int RunHeadless(const Options &opts) {
     if (outpath.empty())
         outpath = DeriveOutputPath(opts.inputfile, ".flac");
 
-    ExportAudio(wave, outpath);
+    const auto metadata = synth.GetMetaData();
+    ExportAudio(wave, outpath, &metadata);
     std::cout << "Exported: " << outpath << "\n";
 
     if (opts.play) {
         // Need window for audio even if hidden
         Gorgon::Initialize("gmm");
-        Gorgon::UI::Window window({400, 100}, "GMM Player", true, !opts.hidden);
+        Gorgon::UI::Window window({450, 100}, "GMM Player", true, !opts.hidden);
         Gorgon::UI::Initialize();
 
         Gorgon::Multimedia::Wave source;
@@ -253,12 +315,14 @@ private:
         panel.Add(textarea);
         textarea.SetWidth(100_perc);
         textarea.SetHeight(100_perc);
-        textarea.ChangedEvent.Register([this] { parsed = false; });
+        textarea.ChangedEvent.Register([this] {
+            parsed = false;
+        });
 
         // Button panel at bottom
         panel.Add(buttonpanel);
         buttonpanel.SetWidth(100_perc);
-        buttonpanel.SetHeight(2_u);
+        buttonpanel.SetHeight(3_u);
         buttonpanel.EnableScroll(false, false);
         buttonpanel.AttachOrganizer(buttonflow);
 
@@ -302,7 +366,11 @@ private:
         helpbtn.SetWidth(3_u);
         helpbtn.ClickEvent.Register([this] { showHelp(); });
 
-        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << helpbtn << quitbtn;
+        metadatabtn.Text = "Meta Data";
+        metadatabtn.SetWidth(4_u);
+        metadatabtn.ClickEvent.Register([this] { showMetaData(); });
+
+        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << std::endl << metadatabtn << helpbtn << quitbtn;
 
         // Layout
         relayout();
@@ -313,6 +381,7 @@ private:
 
         // Help panel
         buildHelp();
+        buildMetaData();
     }
 
     void relayout() {
@@ -320,7 +389,7 @@ private:
         int spacing = panel.GetSpacing();
         int unit = panel.GetUnitSize();
         int progressHeight = unit;
-        int buttonHeight = unit + spacing;
+        int buttonHeight = unit * 2 + spacing;
         int statusHeight = unit;
         int bottomHeight = progressHeight + buttonHeight + statusHeight + spacing * 4;
 
@@ -342,6 +411,7 @@ private:
 
         // Help panel layout
         relayoutHelp();
+        relayoutMetaData();
     }
 
     void buildHelp() {
@@ -377,6 +447,44 @@ private:
         helpclosebtn.Move(Gorgon::UI::Pixels(0, size.Height - btnHeight));
     }
 
+    void buildMetaData() {
+        window.Add(metadatapanel);
+        metadatapanel.SetWidth(100_perc);
+        metadatapanel.SetHeight(100_perc);
+        metadatapanel.EnableScroll(false, false);
+        metadatapanel.SetVisible(false);
+
+        metadatapanel.Add(metadatascroll);
+        metadatascroll.SetWidth(100_perc);
+
+        metadatalabel.SetAutosize(Gorgon::UI::Autosize::None, Gorgon::UI::Autosize::Automatic);
+        metadatascroll.Add(metadatalabel);
+
+        metadataclosebtn.Text = "Close";
+        metadataclosebtn.SetWidth(3_u);
+        metadataclosebtn.ClickEvent.Register([this] { hideMetaData(); });
+        metadatapanel.Add(metadataclosebtn);
+    }
+
+    void relayoutMetaData() {
+        auto size = metadatapanel.GetInteriorSize();
+        int spacing = metadatapanel.GetSpacing();
+        int unit = metadatapanel.GetUnitSize();
+        int btnHeight = unit + spacing;
+
+        metadatascroll.Move(0_px, 0_px);
+        metadatascroll.Resize(Gorgon::UI::Pixels(size.Width, size.Height - btnHeight - spacing));
+        metadatalabel.SetWidth(Gorgon::UI::Pixels(metadatascroll.GetInteriorSize().Width));
+
+        metadataclosebtn.Move(Gorgon::UI::Pixels(0, size.Height - btnHeight));
+    }
+
+    void updateMetaData() {
+        metadatalabel.SetText(FormatMetaData(synth.GetMetaData()));
+        metadatalabel.SetAutosize(Gorgon::UI::Autosize::None, Gorgon::UI::Autosize::Automatic);
+        relayoutMetaData();
+    }
+
     void startAsyncLoad(const std::string &url) {
         setStatus("Downloading: " + url);
         downloading = true;
@@ -407,6 +515,7 @@ private:
         try {
             std::string content = LoadFile(path);
             textarea.SetText(content);
+            parsed = false;
             setStatus("Loaded: " + path);
         } catch (const std::exception &e) {
             UI::ShowMessage("Error", std::string("Failed to load: ") + e.what());
@@ -497,6 +606,7 @@ private:
         try {
             synth.Parse(gmmtext);
             parsed = true;
+            updateMetaData();
             setStatus("Parsed successfully. Length: " + Gorgon::String::From(std::round(synth.CalculateDuration() * 10)/10) + " seconds");
         } catch (const Gorgon::Audio::Synth::Error &e) {
             UI::ShowMessage("Parse Error", e.what());
@@ -600,7 +710,8 @@ private:
                 fname += ".flac";
 
             try {
-                ExportAudio(wave, fname);
+                const auto metadata = synth.GetMetaData();
+                ExportAudio(wave, fname, &metadata);
                 UI::ShowMessage("Export", "Exported to: " + fname);
             } catch (const std::exception &e) {
                 UI::ShowMessage("Export Error", e.what());
@@ -619,6 +730,23 @@ private:
         panel.SetVisible(true);
     }
 
+    void showMetaData() {
+        if (!parsed) {
+            parseGMM();
+            if (!parsed) return;
+        }
+
+        panel.SetVisible(false);
+        helppanel.SetVisible(false);
+        metadatapanel.SetVisible(true);
+        relayoutMetaData();
+    }
+
+    void hideMetaData() {
+        metadatapanel.SetVisible(false);
+        panel.SetVisible(true);
+    }
+
     UI::Window &window;
     Options opts;
 
@@ -628,13 +756,19 @@ private:
     UI::Organizers::Flow buttonflow;
     Widgets::FloatProgress progress;
     Widgets::Label statuslabel;
-    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, helpbtn, quitbtn;
+    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, metadatabtn, helpbtn, quitbtn;
 
     // Help panel
     Widgets::Panel helppanel{Widgets::Registry::Panel_Fullscreen};
     Widgets::Panel helpscroll;
     Widgets::MarkdownLabel helplabel;
     Widgets::Button helpclosebtn;
+
+    // Meta data panel
+    Widgets::Panel metadatapanel{Widgets::Registry::Panel_Fullscreen};
+    Widgets::Panel metadatascroll;
+    Widgets::MarkdownLabel metadatalabel;
+    Widgets::Button metadataclosebtn;
 
     Gorgon::Audio::Synth synth;
     Gorgon::Containers::Wave wave;
@@ -698,7 +832,7 @@ int Main(const std::vector<std::string> &args) {
 
     // UI mode
     Gorgon::Initialize("gmm");
-    Gorgon::UI::Window window({800, 600}, "GMM Player", true, !opts.hidden);
+    Gorgon::UI::Window window({700, 600}, "GMM Player", true, !opts.hidden);
     Gorgon::UI::Initialize();
 
     window.AllowResize();

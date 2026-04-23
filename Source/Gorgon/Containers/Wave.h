@@ -572,17 +572,31 @@ namespace Gorgon :: Containers {
         }
 
         /// Exports a PCM based wav file. Bits can be 8 or 16
-        bool ExportWav(const std::string &filename, int bits = 16) {
+        bool ExportWav(const std::string &filename, int bits = 16, std::vector<std::pair<std::string, std::string>> additional_chunks = {}) const {
             std::ofstream file(filename, std::ios::binary);
 
             if(!file.is_open()) return false;
 
-            return ExportWav(file, bits);
+            return ExportWav(file, bits, additional_chunks);
         }
 
         /// Exports a PCM based wav file. Bits can be 8 or 16
-        bool ExportWav(std::ostream &file, int bits = 16) {
+        bool ExportWav(std::ostream &file, int bits = 16, std::vector<std::pair<std::string, std::string>> additional_chunks = {}) const {
             using namespace IO;
+
+            size_t totalchunksize = 0;
+
+            //first check additional chunks for validity
+            for(const auto& [id, data] : additional_chunks) {
+                if(id.size() != 4) {
+                    throw std::runtime_error("Chunk id must be 4 characters long: " + id);
+                }
+                if(id == "RIFF" || id == "WAVE" || id == "fmt " || id == "data") {
+                    throw std::runtime_error("Chunk id cannot be RIFF, WAVE, fmt  or data: " + id);
+                }
+
+                totalchunksize += 8 + data.size();
+            }
 
             int hs = 44;
             size_t ds;
@@ -596,12 +610,12 @@ namespace Gorgon :: Containers {
                 throw std::runtime_error("Invalid number of bits for wav file");
             }
 
-            if(ds > 0xFFFFFFFF - hs) {
+            if(ds > 0xFFFFFFFF - hs - totalchunksize) {
                 throw std::runtime_error("Wave data is too large to be written to a wav file");
             }
 
             WriteString(file, "RIFF");
-            WriteUInt32(file, static_cast<uint32_t>(hs+ds-8));
+            WriteUInt32(file, static_cast<uint32_t>(hs+ds-8 + totalchunksize));
 
             WriteString(file, "WAVEfmt ");
             WriteUInt32(file, 16);
@@ -612,6 +626,12 @@ namespace Gorgon :: Containers {
             WriteUInt32(file, static_cast<uint32_t>(GetSampleRate() * bits * GetChannelCount() / 8));
             WriteUInt16(file, bits * GetChannelCount() / 8);
             WriteUInt16(file, bits);
+
+            for(const auto& [id, data] : additional_chunks) {
+                WriteString(file, id);
+                WriteUInt32(file, static_cast<uint32_t>(data.size()));
+                file.write(data.data(), data.size());
+            }
 
             WriteString(file, "data");
             WriteUInt32(file, static_cast<uint32_t>(ds));

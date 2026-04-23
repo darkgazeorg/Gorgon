@@ -710,6 +710,17 @@ namespace internal {
                     break;
                     
                 case ConfigureNotify: {
+                    while(XEventsQueued(WindowManager::display, QueuedAfterReading)) {
+                        XEvent nextevent;
+                        XPeekEvent(WindowManager::display, &nextevent);
+
+                        if(nextevent.type != ConfigureNotify || nextevent.xconfigure.window != data->handle) {
+                            break;
+                        }
+
+                        XNextEvent(WindowManager::display, &event);
+                    }
+
                     auto xce = event.xconfigure;
                     
                     if(GetSize().Width != xce.width || GetSize().Height != xce.height) {
@@ -718,23 +729,23 @@ namespace internal {
                         activatecontext();
                         GL::Resize({(int)xce.width, (int)xce.height});
                         
-                        ResizedEvent();
                         redrawbg();
 
                         resized();
-                    }
-                    else {
-                        int x, y;
-                        ::Window r;
-                        XTranslateCoordinates(WindowManager::display, data->handle, RootWindow(WindowManager::display, XDefaultScreen(WindowManager::display)), 
-                            xce.x, xce.y, &x, &y, &r
-                        );
                         
-                        if(data->ppoint.X != x || data->ppoint.Y != y ) {
-                            data->ppoint = {x, y};
+                        ResizedEvent();
+                    }
+                    
+                    int x, y;
+                    ::Window r;
+                    XTranslateCoordinates(WindowManager::display, data->handle, RootWindow(WindowManager::display, XDefaultScreen(WindowManager::display)), 
+                        xce.x, xce.y, &x, &y, &r
+                    );
+                    
+                    if(data->ppoint.X != x || data->ppoint.Y != y ) {
+                        data->ppoint = {x, y};
 
-                            MovedEvent();
-                        }
+                        MovedEvent();
                     }
                 }
                 break;

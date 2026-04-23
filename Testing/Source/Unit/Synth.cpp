@@ -1,10 +1,12 @@
 #include <functional>
+#include <sstream>
 #define CATCH_CONFIG_MAIN
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <Gorgon/Audio/Synth.h>
+#include <Gorgon/Containers/Wave.h>
 #include <Gorgon/Encoding/FLAC.h>
 
 TEST_CASE("NoteToFrequency calculates standard note frequencies", "[Synth]") {
@@ -345,6 +347,108 @@ TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
 
     gmm = "@2 C4"; // this should throw because @2 is not defined in this context
     REQUIRE_THROWS_AS(synth.Parse(gmm), Synth::Error);
+}
+
+TEST_CASE("Parse captures metadata fields and tags", "[Synth][Parse][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    synth.Parse(R"(
+        %title = Into The Ruins
+        %artist = Test Artist
+        %arranger = Test Arranger
+        %album = Test Album
+        %copyright = 2026 Test Studio
+        %comment = First line
+        %comment = Second line
+        %genre = Chiptune
+        %mood = Energetic
+        %theme = Boss Battle
+        %style = Retro
+        %region = Anatolia
+        %era = Modern
+        %custom-tag = Final Phase
+
+        T120 C4
+    )");
+
+    const auto& metadata = synth.GetMetaData();
+
+    REQUIRE(metadata.Title == "Into The Ruins");
+    REQUIRE(metadata.Artist == "Test Artist");
+    REQUIRE(metadata.Arranger == "Test Arranger");
+    REQUIRE(metadata.Album == "Test Album");
+    REQUIRE(metadata.Copyright == "2026 Test Studio");
+    REQUIRE(metadata.Comment == "First line\nSecond line");
+
+    REQUIRE(metadata.Tags.size() == 7);
+    REQUIRE(metadata.Tags[0].Type == Synth::Genre);
+    REQUIRE(metadata.Tags[0].Value == "Chiptune");
+    REQUIRE(metadata.Tags[6].Type == Synth::Custom);
+    REQUIRE(metadata.Tags[6].Value == "Final Phase");
+
+    REQUIRE(metadata.HasTag(Synth::Genre, "chiptune"));
+    REQUIRE(metadata.HasTag(Synth::Mood, "ENERGETIC"));
+    REQUIRE(metadata.HasTag("boss battle"));
+    REQUIRE(metadata.HasTags(Synth::Genre, "chiptune", Synth::Mood, "energetic", "final phase"));
+}
+
+TEST_CASE("Parse rejects invalid metadata declarations", "[Synth][Parse][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE_THROWS_AS(synth.Parse("%genre =    \nT120 C4\n"), Synth::Error);
+    REQUIRE_THROWS_AS(synth.Parse("%unknown = value\nT120 C4\n"), Synth::Error);
+}
+
+TEST_CASE("MetaData serializes to RIFF LIST/INFO chunks for wav export", "[Synth][MetaData][Wave]") {
+    using namespace Gorgon::Audio;
+
+    Synth::MetaData metadata;
+    metadata.Title = "Into The Ruins";
+    metadata.Artist = "Test Artist";
+    metadata.Arranger = "Test Arranger";
+    metadata.Album = "Test Album";
+    metadata.Copyright = "2026 Test Studio";
+    metadata.Comment = "First line\nSecond line";
+    metadata.Tags.push_back({Synth::Genre, "Chiptune"});
+    metadata.Tags.push_back({Synth::Mood, "Energetic"});
+    metadata.Tags.push_back({Synth::Custom, "Final Phase"});
+
+    auto chunks = metadata.ToWaveChunks();
+
+    REQUIRE(chunks.size() == 1);
+    REQUIRE(chunks[0].first == "LIST");
+    REQUIRE(chunks[0].second.rfind("INFO", 0) == 0);
+    REQUIRE(chunks[0].second.find("INAM") != std::string::npos);
+    REQUIRE(chunks[0].second.find("IART") != std::string::npos);
+    REQUIRE(chunks[0].second.find("IENG") != std::string::npos);
+    REQUIRE(chunks[0].second.find("IPRD") != std::string::npos);
+    REQUIRE(chunks[0].second.find("ICOP") != std::string::npos);
+    REQUIRE(chunks[0].second.find("ICMT") != std::string::npos);
+    REQUIRE(chunks[0].second.find("IGNR") != std::string::npos);
+    REQUIRE(chunks[0].second.find("IKEY") != std::string::npos);
+    REQUIRE(chunks[0].second.find("Into The Ruins") != std::string::npos);
+    REQUIRE(chunks[0].second.find("Test Artist") != std::string::npos);
+    REQUIRE(chunks[0].second.find("Chiptune") != std::string::npos);
+    REQUIRE(chunks[0].second.find("Mood: Energetic") != std::string::npos);
+    REQUIRE(chunks[0].second.find("Final Phase") != std::string::npos);
+
+    Gorgon::Containers::Wave wave(1, 44100);
+    wave(0, 0) = 0.0f;
+
+    std::ostringstream stream(std::ios::binary);
+    REQUIRE(wave.ExportWav(stream, 16, chunks));
+
+    const auto bytes = stream.str();
+    REQUIRE(bytes.find("RIFF") != std::string::npos);
+    REQUIRE(bytes.find("WAVE") != std::string::npos);
+    REQUIRE(bytes.find("LIST") != std::string::npos);
+    REQUIRE(bytes.find("INFO") != std::string::npos);
+    REQUIRE(bytes.find("INAM") != std::string::npos);
+    REQUIRE(bytes.find("Into The Ruins") != std::string::npos);
 }
 
 TEST_CASE("Instrument factory registration and unknown instrument type handling", "[Synth][Instrument][Factory]") {
