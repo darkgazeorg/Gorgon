@@ -29,6 +29,11 @@ namespace Gorgon :: Widgets {
     void Label::SetText(const std::string &value) {
         text = value;
         stack.SetData(UI::ComponentTemplate::Text, text);
+
+        if(GetHorizontalAutosize() == UI::Autosize::Automatic || GetVerticalAutosize() == UI::Autosize::Automatic) {
+            stack.Refresh();
+            boundschanged();
+        }
     }
 
     
