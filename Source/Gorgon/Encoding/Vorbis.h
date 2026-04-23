@@ -27,10 +27,16 @@ namespace vorbis {
         /// information to continue.
         Audio::AudioDataInfo DecodeStart(std::istream &input, size_t len = -1);
 
+        /// Starts decoding the given %FLAC compressed data by obtaining metadata information and metadata tags.
+        Audio::AudioDataInfo DecodeStart(std::istream &input, std::vector<std::pair<std::string, std::string>> &metadata, size_t len = -1);
+
         /// Starts decoding the given %FLAC compressed file by obtaining metadata information.
         /// This function should require a new instance of Flac coder as it has to store some
         /// information to continue.
         Audio::AudioDataInfo DecodeStart(const std::string &filename);
+
+        /// Starts decoding the given %FLAC compressed file by obtaining metadata information and metadata tags.
+        Audio::AudioDataInfo DecodeStart(const std::string &filename, std::vector<std::pair<std::string, std::string>> &metadata);
         
     private:
         vorbis::streamread *streamer = nullptr;

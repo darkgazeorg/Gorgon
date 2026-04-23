@@ -1,7 +1,9 @@
 #include "FLAC.h"
 
+#include "FLAC/metadata.h"
 #include "FLAC/stream_encoder.h"
 
+#include "../String.h"
 #include "../Utils/Logging.h"
 #include <memory>
 
@@ -13,6 +15,8 @@ namespace Audio {
 namespace Encoding {
 
     namespace flac {
+        using metadata = std::vector<std::pair<std::string, std::string>>;
+
         struct vectorio {
             std::vector<Byte> *vector;
 
@@ -68,6 +72,8 @@ namespace Encoding {
             unsigned channels = 0;
 
             unsigned rate = 0;
+
+            metadata *commentdata = nullptr;
             
             bool autoalloc = true;
         };
@@ -102,6 +108,41 @@ namespace Encoding {
             
             size_t readpos = 0;
         };
+
+        inline std::shared_ptr<FLAC__StreamMetadata> createcomments(const metadata &commentdata) {
+            if(commentdata.empty())
+                return {};
+
+            auto comments = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+            if(!comments)
+                throw std::bad_alloc();
+
+            std::shared_ptr<FLAC__StreamMetadata> guard(comments, &FLAC__metadata_object_delete);
+
+            for(const auto &[key, value] : commentdata) {
+                auto comment = key + "=" + value;
+                FLAC__StreamMetadata_VorbisComment_Entry entry;
+                entry.length = comment.size();
+                entry.entry = reinterpret_cast<FLAC__byte *>(const_cast<char *>(comment.c_str()));
+
+                if(!FLAC__metadata_object_vorbiscomment_append_comment(comments, entry, true))
+                    throw std::runtime_error("Cannot append FLAC metadata entry");
+            }
+
+            return guard;
+        }
+
+        inline void loadcomments(const FLAC__StreamMetadata *metadata, flac::metadata &commentdata) {
+            if(metadata->type != FLAC__METADATA_TYPE_VORBIS_COMMENT)
+                return;
+
+            for(unsigned int i = 0; i < metadata->data.vorbis_comment.num_comments; i++) {
+                const auto &entry = metadata->data.vorbis_comment.comments[i];
+                std::string comment(reinterpret_cast<const char *>(entry.entry), entry.length);
+                auto key = String::Extract(comment, '=');
+                commentdata.push_back({std::move(key), std::move(comment)});
+            }
+        }
     }
 
     FLAC__StreamEncoderWriteStatus stream_encode_write(
@@ -145,7 +186,9 @@ namespace Encoding {
 
         auto &output = *(flac::vectorio*)client_data;
 
-        output.vector->resize(output.vector->size() + bytes);
+        if(output.current + bytes > output.vector->size())
+            output.vector->resize(output.current + bytes);
+
         std::memcpy(&(*output.vector)[output.current], buffer, bytes);
         output.current += bytes;
 
@@ -157,8 +200,8 @@ namespace Encoding {
 
         auto &output = *(flac::vectorio*)client_data;
 
-        if(absolute_byte_offset >= output.vector->size())
-            return FLAC__STREAM_ENCODER_SEEK_STATUS_ERROR;
+        if(absolute_byte_offset > output.vector->size())
+            output.vector->resize((size_t)absolute_byte_offset);
 
         output.current=(size_t)absolute_byte_offset;
 
@@ -249,11 +292,17 @@ namespace Encoding {
 
         auto &input = *((flac::vectorread*)client_data);
 
+        if(input.readpos >= input.input.size()) {
+            *bytes = 0;
+            return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
+        }
+
         auto bytestoread = *bytes;
         if(input.input.size()-input.readpos<bytestoread)
             bytestoread = input.input.size()-input.readpos;
-        
-        memcpy(buffer, &input.input[input.readpos], bytestoread);
+
+        if(bytestoread != 0)
+            memcpy(buffer, &input.input[input.readpos], bytestoread);
         
         input.readpos += bytestoread;
 
@@ -305,6 +354,14 @@ namespace Encoding {
         
 
         return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
+    }
+
+    void decode_metadata(const FLAC__StreamDecoder * /*decoder*/, const FLAC__StreamMetadata *metadata, void *client_data) {
+        auto *reader = (flac::streamdata *)client_data;
+
+        if(reader->commentdata) {
+            flac::loadcomments(metadata, *reader->commentdata);
+        }
     }
 
     void decode_error(const FLAC__StreamDecoder * /*decoder*/, FLAC__StreamDecoderErrorStatus status, void * /*client_data*/) {
@@ -359,7 +416,13 @@ namespace Encoding {
     }
 
     void *FLAC::prepdecode() {
-        return FLAC__stream_decoder_new();
+        auto decoder = FLAC__stream_decoder_new();
+
+        if(decoder) {
+            FLAC__stream_decoder_set_metadata_respond(decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        }
+
+        return decoder;
     }
 
     FLAC::FLAC(int buffersize) : buffersize(buffersize) {
@@ -370,11 +433,22 @@ namespace Encoding {
     }
 
     void FLAC::Encode(const Containers::Wave &input, std::ostream &output, int bps) {
+        Encode(input, output, {}, bps);
+    }
+
+    void FLAC::Encode(const Containers::Wave &input, std::ostream &output, const std::vector<std::pair<std::string, std::string>> &metadata, int bps) {
         auto enc = (FLAC__StreamEncoder *)prepencode(input, bps);
         std::shared_ptr<FLAC__StreamEncoder> enc_guard(enc, &FLAC__stream_encoder_delete);
+        auto metadata_guard = flac::createcomments(metadata);
 
         if(!enc)
             throw std::runtime_error("Cannot initialize FLAC encoding.");
+
+        if(metadata_guard) {
+            auto *block = metadata_guard.get();
+            if(!FLAC__stream_encoder_set_metadata(enc, &block, 1))
+                throw std::runtime_error("Cannot configure FLAC metadata");
+        }
 
         flac::streamwrite s{output, this->maxpos};
 
@@ -398,13 +472,24 @@ namespace Encoding {
     }
 
     void FLAC::Encode(const Containers::Wave &input, std::vector<Byte> &output, int bps) {
+        Encode(input, output, {}, bps);
+    }
+
+    void FLAC::Encode(const Containers::Wave &input, std::vector<Byte> &output, const std::vector<std::pair<std::string, std::string>> &metadata, int bps) {
         auto enc = (FLAC__StreamEncoder *)prepencode(input, bps);
         std::shared_ptr<FLAC__StreamEncoder> enc_guard(enc, &FLAC__stream_encoder_delete);
+        auto metadata_guard = flac::createcomments(metadata);
 
         flac::vectorio vect = {&output, 0};
 
         if(!enc)
             throw std::runtime_error("Cannot initialize FLAC encoding.");
+
+        if(metadata_guard) {
+            auto *block = metadata_guard.get();
+            if(!FLAC__stream_encoder_set_metadata(enc, &block, 1))
+                throw std::runtime_error("Cannot configure FLAC metadata");
+        }
 
         auto res = FLAC__stream_encoder_init_stream(
             enc,
@@ -421,6 +506,11 @@ namespace Encoding {
     }
 
     void FLAC::Decode(std::istream &input, Containers::Wave &wave, size_t len) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        Decode(input, wave, metadata, len);
+    }
+
+    void FLAC::Decode(std::istream &input, Containers::Wave &wave, std::vector<std::pair<std::string, std::string>> &metadata, size_t len) {
         auto dec = (FLAC__StreamDecoder *)prepdecode();
         std::shared_ptr<FLAC__StreamDecoder> dec_guard(dec, &FLAC__stream_decoder_delete);
 
@@ -428,6 +518,8 @@ namespace Encoding {
             throw std::runtime_error("Cannot initialize FLAC decoding.");
         
         flac::streamread stream(input, len);
+        metadata.clear();
+        stream.commentdata = &metadata;
 
         auto res = FLAC__stream_decoder_init_stream(
             dec,
@@ -435,7 +527,7 @@ namespace Encoding {
             stream_decode_seek, stream_decode_tell, 
             stream_decode_length, stream_decode_eof,
             &decode_write, 
-            nullptr, &decode_error,
+            &decode_metadata, &decode_error,
             &stream
         );
 
@@ -460,6 +552,11 @@ namespace Encoding {
     }
 
     void FLAC::Decode(const std::vector<Byte> &input, Containers::Wave &wave) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        Decode(input, wave, metadata);
+    }
+
+    void FLAC::Decode(const std::vector<Byte> &input, Containers::Wave &wave, std::vector<std::pair<std::string, std::string>> &metadata) {
         auto dec = (FLAC__StreamDecoder *)prepdecode();
         std::shared_ptr<FLAC__StreamDecoder> dec_guard(dec, &FLAC__stream_decoder_delete);
 
@@ -467,13 +564,15 @@ namespace Encoding {
             throw std::runtime_error("Cannot initialize FLAC decoding.");
 
         flac::vectorread vector(input);
+        metadata.clear();
+        vector.commentdata = &metadata;
 
         auto res = FLAC__stream_decoder_init_stream(
             dec,
             &vector_decode_read,
             nullptr, nullptr, nullptr, nullptr,
             &decode_write, 
-            nullptr, &decode_error,
+            &decode_metadata, &decode_error,
             &vector
         );
 
@@ -498,6 +597,9 @@ namespace Encoding {
     
     FLACStream::FLACStream() {
         decoder = FLAC__stream_decoder_new();
+        if(decoder) {
+            FLAC__stream_decoder_set_metadata_respond((FLAC__StreamDecoder *)decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        }
     }
     
     FLACStream::~FLACStream() {
@@ -570,6 +672,11 @@ namespace Encoding {
     }
 
     Audio::AudioDataInfo FLACStream::DecodeStart(const std::string &filename) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        return DecodeStart(filename, metadata);
+    }
+
+    Audio::AudioDataInfo FLACStream::DecodeStart(const std::string &filename, std::vector<std::pair<std::string, std::string>> &metadata) {
         delete stream;
         stream = new std::ifstream(filename, std::ios::binary);
 
@@ -579,10 +686,15 @@ namespace Encoding {
             throw std::runtime_error("Cannot open file");
         }
 
-        return DecodeStart(*stream);
+        return DecodeStart(*stream, metadata);
     }
 
     Audio::AudioDataInfo FLACStream::DecodeStart(std::istream &input, size_t len) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        return DecodeStart(input, metadata, len);
+    }
+
+    Audio::AudioDataInfo FLACStream::DecodeStart(std::istream &input, std::vector<std::pair<std::string, std::string>> &metadata, size_t len) {
         auto dec = (FLAC__StreamDecoder *)decoder;
 
         if(!dec) {
@@ -592,8 +704,15 @@ namespace Encoding {
             throw std::runtime_error("Cannot initialize FLAC decoding.");
         }
 
+        FLAC__stream_decoder_set_metadata_respond(dec, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+
+        delete streamer;
+        streamer = nullptr;
+
         streamer = new flac::streamread(input, len);
         streamer->autoalloc = false;
+        metadata.clear();
+        streamer->commentdata = &metadata;
         Audio::AudioDataInfo ret;
 
         auto res = FLAC__stream_decoder_init_stream(
@@ -602,7 +721,7 @@ namespace Encoding {
             stream_decode_seek, stream_decode_tell, 
             stream_decode_length, stream_decode_eof,
             &decode_write, 
-            nullptr, &decode_error,
+            &decode_metadata, &decode_error,
             streamer
         );
 
