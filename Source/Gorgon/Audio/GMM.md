@@ -49,6 +49,34 @@ The body contains one or more tracks, each tagged with a track identifier (`1>`,
     * `%CHANNELS = 2` sets the engine to render interleaved stereo audio.
     * `%CHANNELS = [FL, FR]` explicitly specifies channels (See Gorgon::Audio::Channel for details).
 
+### Metadata
+Metadata fields are set using `%KEY = value` in the header. They are stored with the audio and can be queried via `Synth::MetaData`.
+
+* **`%title`**: The title of the piece.
+* **`%artist`** (or **`%author`**): The composer or performer.
+* **`%arranger`**: The arranger, if different from the artist.
+* **`%album`**: The album or collection name.
+* **`%copyright`**: Copyright notice.
+* **`%comment`**: Free-form text comment. Multiple `%comment` lines are appended with a newline separator.
+* **`%genre`**: Musical genre tag (e.g., `rock`, `jazz`, `ambient`).
+* **`%mood`**: Emotional tone tag (e.g., `happy`, `tense`, `relaxed`).
+* **`%theme`**: Subject matter tag (e.g., `battle`, `nature`, `love`).
+* **`%style`**: Arrangement style tag (e.g., `orchestral`, `chiptune`, `acoustic`).
+* **`%region`**: Cultural or geographical origin tag (e.g., `celtic`, `japanese`).
+* **`%era`**: Historical period tag (e.g., `baroque`, `80s`, `medieval`).
+* **`%custom-tag`**: A user-defined tag.
+
+Multiple tag entries of the same type accumulate — each line adds a new tag. Tag values are case-insensitive.
+
+**Example:**
+```text
+%title = Main Theme
+%artist = John Doe
+%genre = ambient
+%mood = calm
+%custom-tag = looping
+```
+
 ### Track & Playback Control
 * **`N>`**: Track identifier. Maps the following sequence to a specific voice (e.g., `1>`, `2>`). Each track is mixed together. Tracks can be split across multiple lines for readability. If track identified is not specified, it defaults to `1>`. Tracks have their own tempo and volume settings, but share the same global engine configuration (e.g., channels) and instrument bank.
 * **`T<Value>[:Duration]{Curve}`**: Tempo change in beats per minute. Can be immediate (`T120`) or ramped (`T60:1{s}`). Affects only the current track.
@@ -104,15 +132,19 @@ Instruments are defined in the header and can be assigned inline using `@ID`. Ea
 ```
 
 ### Sine
-A pure sine wave generator. With a smooth release, it mimics a flute.
+A pure sine wave generator. Default is a classic synth sound. However, with modifications to the envelope and vibrato settings, it can be used for a wide range of sounds from flute, to bell, to bass.
 * **`attack`**: Controls how aggressively the note's volume increases (`none` can cause clicks). Specified as a ramp.
 * **`decay`**: Controls how quickly the sound fades after the attack phase (`none` sustains the note at full volume; other types cause it to fade before the note ends). Specified as a ramp.
 * **`sustain`**: The volume multiplier (0.0 to 1.0) held after the attack and decay phases.
 * **`release`**: Controls how quickly the sound fades after the sustain phase. Triggered by the `S` separation value (`none` abruptly ends the note). Specified as a ramp.
+* **`volume`**: Peak output volume as a percentage (0–100). Defaults to 70. You may use this to avoid clipping when using aggressive envelope settings.
+* **`separation`**: Default note separation duration for this instrument. Overrides the global `S` command default for notes played with this instrument.
+* **`pitch`** (or **`pitchoffset`**): Semitone offset applied to all frequencies. Positive values shift up, negative shift down (e.g., `-12` drops by one octave).
 
 **Example Definition:**
 ```text
 @1 = sine(Guitar), attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}
+@2 = sine(Bass), pitch=-12, volume=80, separation=16
 ```
 
 **Vibrato Settings**
@@ -124,5 +156,55 @@ Instruments can define a default vibrato profile. This allows notes to organical
 **Example Definition:**
 ```text
 @1 = sine(Violin), attack={s, 32}, vibrato={6.0, 0.25, 16}
+```
+
+---
+
+### PWM
+A pulse-width modulation oscillator. Produces a rectangular wave whose harmonic content is shaped by the duty cycle. It is well suited for chiptune leads, basses, and pseudo-triangle sounds.
+
+* **`duty`** (or **`dutycycle`**): The fraction of each cycle spent high (0.0–1.0). `0.5` is a perfect square wave; smaller values create a thinner, brighter buzz. Defaults to `0.5`.
+* **`rise`** (or **`slew`**): Rise/fall time in seconds applied to each edge transition. Reduces aliasing and harsh harmonics. Set to `0` for a hard digital edge. Defaults to `0.0002` (0.2 ms).
+* **`volume`**: Peak output volume as a percentage (0–100). Defaults to 100.
+* **`separation`**: Default note separation duration. Controls the gap between notes, similar to the `S` command.
+* **`pitch`** (or **`pitchoffset`**): Semitone offset applied to all frequencies.
+* **`resetphase`**: If `true`, forces the oscillator phase to reset to zero at the start of every note. This guarantees a consistent transient on each note, which is essential for punchy bass sounds. Defaults to `false` (smooth legato transitions). Accepts `true`/`false` or `1`/`0`.
+
+**Example Definitions:**
+```text
+@1 = pwm(Lead),   duty=0.5,   rise=0.0002
+@2 = pwm(Bass),   duty=0.25,  pitch=-12,  resetphase=true
+@3 = pwm(Buzz),   duty=0.125, rise=0.0001, volume=60
+```
+
+---
+
+### Built-in Named Instruments
+
+These instruments can be referenced by name in the header without specifying individual parameters. Settings can still be overridden after the name. All names are case-insensitive and underscores may be used in place of spaces.
+
+**Sine-based:**
+
+* **synth** — Classic lead/pad synth with a quick attack and moderate decay.
+* **flute** — Soft and airy with a gentle S-curve attack and short logarithmic release.
+* **chiptune** — Instant attack, short linear decay, zero sustain — retro game music staple.
+* **ambient pad** — Very slow attack and long release at low volume for atmospheric textures.
+* **electric piano** — S-curve attack with a warm decay and moderate sustain.
+* **deep sub bass** — Pitched 2 octaves down for powerful low-end support.
+* **xylophone** — Pitched 1 octave up with a crisp attack and long resonant decay.
+* **bell** — Pitched 1 octave up with an instant attack and very long logarithmic decay.
+
+**PWM-based:**
+
+* **square lead** — 50% duty cycle square wave, the definitive 8-bit lead.
+* **thin pulse** — 12.5% duty cycle — bright and buzzy, ideal for arpeggios and harpsichord textures.
+* **punchy bass** — 25% duty cycle dropped one octave with phase reset for a tight, consistent transient.
+* **soft triangle** — 50% duty cycle with heavy slew limiting (8 ms) that rounds the wave into a warm triangle-like tone.
+
+**Example using a named instrument:**
+```text
+@1 = flute
+@2 = punchy bass
+@3 = bell, volume=50
 ```
 */
