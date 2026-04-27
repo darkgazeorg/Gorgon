@@ -9,7 +9,7 @@
 #include "Path.h"
 #include "Polyline.h"
 
-namespace Gorgon::CGI {
+namespace Gorgon ::CGI {
 namespace detail {
 /// Evaluate a cubic Bezier at parameter t.
 /// @param p0 Start point.

@@ -7,7 +7,7 @@
 #include <cmath>
 #include <vector>
 
-namespace Gorgon::CGI {
+namespace Gorgon ::CGI {
 
 /// A single vertex in a bulge-encoded polyline.
 ///   - bulge != 0  -> the segment is a circular arc; bulge = tan(sweep/4),

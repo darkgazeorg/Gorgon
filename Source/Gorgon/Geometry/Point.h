@@ -359,22 +359,25 @@ namespace Gorgon {
 				return !Compare(point);
 			}
 
-			/// Compares two points with an epsilon tolerance. Useful for floating
+			/// Compares two points with an epsilon tolerance, including the exact epsilon boundary.
 			bool NearlyEqual(const basic_Point &point, Float eps = Float(1e-9)) const {
-				return std::abs(Float(X) - Float(point.X)) < eps &&
-				       std::abs(Float(Y) - Float(point.Y)) < eps;
+				return std::abs(Float(X - point.X)) <= eps &&
+				       std::abs(Float(Y - point.Y)) <= eps;
 			}
 
-			/// Returns true if both components are within eps of zero
+			/// Returns true if both components are within eps of zero, including the exact epsilon boundary.
 			/// @param  eps is the per-axis tolerance
 			bool NearlyZero(Float eps = Float(1e-9)) const {
-				return std::abs(Float(X)) < eps &&
-				       std::abs(Float(Y)) < eps;
+				return std::abs(Float(X)) <= eps &&
+				       std::abs(Float(Y)) <= eps;
 			}
 
-			/// Returns true if the length of this vector is within eps of 1
+			/// Returns true if the length of this vector is within eps of 1.
+			/// Zero-length vectors are never considered normalized.
 			bool IsNormalized(Float eps = Float(1e-9)) const {
-				return std::abs(Distance() - Float(1)) < eps;
+				Float length = Distance();
+				if (length <= eps) return false;
+				return std::abs(length - Float(1)) <= eps;
 			}
 
 			/// Moves this point to the given coordinates
