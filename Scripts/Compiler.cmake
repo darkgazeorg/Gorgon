@@ -5,6 +5,7 @@ target_compile_options(Gorgon PUBLIC
     $<$<CXX_COMPILER_ID:MSVC>:/MP>
     $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
     $<$<CXX_COMPILER_ID:MSVC>:/wd4068>
+    $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
 )
 
 target_compile_options(Gorgon PUBLIC
