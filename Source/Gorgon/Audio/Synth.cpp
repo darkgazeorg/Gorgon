@@ -255,11 +255,12 @@ Synth::Node Synth::Node::MakeRest(Duration duration) {
     return n;
 }
 
-Synth::Node Synth::Node::MakeTempo(float tempo) {
+Synth::Node Synth::Node::MakeTempo(float tempo, Ramp fade) {
     Node n;
 
     n.type = Type::Tempo;
-    n.tempo = tempo;
+    n.tempo.tempo = tempo;
+    n.tempo.fade = fade;
 
     return n;
 }
@@ -282,12 +283,13 @@ Synth::Node Synth::Node::MakeOctaveRelative(int delta) {
     return n;
 }
 
-Synth::Node Synth::Node::MakeVolume(float volume, int channel) {
+Synth::Node Synth::Node::MakeVolume(float volume, int channel, Ramp fade) {
     Node n;
 
     n.type = Type::Volume;
     n.volume.volume = volume;
     n.volume.channel = channel;
+    n.volume.fade = fade;
 
     return n;
 }
@@ -1001,14 +1003,50 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
         
     switch(normalized[0]) {
     case 't': {
-        auto [tempo, res] = String::FromCLocaleTo<float>(normalized.substr(1));
+
+        //find : if it exists, it is followed by a duration or a ramp, if it is ramp, it should start with a { and end with a }
+        // : must be after tempo value.
+
+        std::string tempo;
+
+        normalized = String::Trim(normalized.substr(1));
+
+        auto columnpos = normalized.find(':');
+
+        Ramp ramp{RampType::None};
+
+        if(columnpos != std::string::npos) {
+            tempo = normalized.substr(0, columnpos);
+            auto param = String::Trim(normalized.substr(columnpos + 1));
+
+            if(param.empty()) {
+                throw Error(Error::InvalidParameter, "Missing parameter after colon in volume token: " + normalized);
+            }
+
+            if(param[0] == '{') {
+                if(param.back() != '}') {
+                    throw Error(Error::InvalidToken, "Mismatched braces in volume ramp parameter: " + param);
+                }
+
+                ramp = Ramp::Parse(param.substr(1, param.size() - 2));
+            }
+            else {
+                ramp = Ramp{RampType::Linear, Duration::Parse(param)};
+            }
+        }
+        else {
+            tempo = normalized;
+        }
+
+        auto [tempoval, res] = String::FromCLocaleTo<float>(tempo);
         if(res == String::FromCLocaleToState::Failed) {
-            throw Error(Error::InvalidParameter, "Invalid tempo value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Invalid tempo value: " + tempo);
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw Error(Error::InvalidParameter, "Extra characters after tempo value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Extra characters after tempo value: " + tempo);
         }
-        return Node::MakeTempo(tempo);
+        
+        return Node::MakeTempo(tempoval, ramp);
     }
     case 'o': {
         auto [oct, res] = String::FromCLocaleTo<int>(normalized.substr(1));
@@ -1030,8 +1068,8 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
         }
 
         int channel = 0;
-        if(normalized[1] == '{') {
-            auto endBrace = normalized.find('}');
+        if(normalized[1] == '(') {
+            auto endBrace = normalized.find(')');
 
             if(endBrace == std::string::npos) {
                 throw Error(Error::InvalidParameter, "Missing closing brace for volume channel: " + normalized);
@@ -1057,20 +1095,54 @@ Synth::Node Synth::ParseNode(const std::string_view& token, int channels) {
 
             normalized.erase(1, endBrace);
         }
+
+        //find : if it exists, it is followed by a duration or a ramp, if it is ramp, it should start with a { and end with a }
+        // : must be after volume value.
+
+        normalized = String::Trim(normalized);
+
+        std::string volume;
+
+        auto columnpos = normalized.find(':');
+
+        Ramp ramp{RampType::None};
+
+        if(columnpos != std::string::npos) {
+            volume = normalized.substr(0, columnpos);
+            auto param = String::Trim(normalized.substr(columnpos + 1));
+
+            if(param.empty()) {
+                throw Error(Error::InvalidParameter, "Missing parameter after colon in volume token: " + normalized);
+            }
+
+            if(param[0] == '{') {
+                if(param.back() != '}') {
+                    throw Error(Error::InvalidToken, "Mismatched braces in volume ramp parameter: " + param);
+                }
+
+                ramp = Ramp::Parse(param.substr(1, param.size() - 2));
+            }
+            else {
+                ramp = Ramp{RampType::Linear, Duration::Parse(param)};
+            }
+        }
+        else {
+            volume = normalized;
+        }
         
-        auto [vol, res] = String::FromCLocaleTo<float>(normalized.substr(1));
+        auto [vol, res] = String::FromCLocaleTo<float>(volume.substr(1));
 
         if(res == String::FromCLocaleToState::Failed) {
-            throw Error(Error::InvalidParameter, "Invalid volume value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Invalid volume value: " + volume.substr(1));
         }
         if(res == String::FromCLocaleToState::ScrapAtTheEnd) {
-            throw Error(Error::InvalidParameter, "Extra characters after volume value: " + normalized.substr(1));
+            throw Error(Error::InvalidParameter, "Extra characters after volume value: " + volume.substr(1));
         }
         if(vol < 0 || vol > 100) {
             throw Error(Error::InvalidParameter, "Volume must be between 0 and 100: " + std::to_string(vol));
         }
 
-        return Node::MakeVolume(vol / 100.0f, channel);
+        return Node::MakeVolume(vol / 100.0f, channel, ramp);
     }
 
     case 'r':
@@ -1505,7 +1577,7 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
                 break;
             }
             case Node::Type::Tempo:
-                state.Tempo = node.tempo;
+                state.Tempo = node.tempo.tempo;
                 break;
             case Node::Type::Separation:
                 state.Separation = node.duration;
@@ -1554,7 +1626,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
         for(const auto &node: track.Nodes) {
             switch(node.type) {
             case Node::Type::Tempo:
-                state.Tempo = node.tempo;
+                state.Tempo = node.tempo.tempo;
                 break;
 
             case Node::Type::OctaveAbsolute:

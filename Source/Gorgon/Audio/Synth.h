@@ -134,17 +134,6 @@ namespace Gorgon :: Audio {
             size_t End;
         };
 
-    private: 
-        
-        /// Internal state used during rendering. This keeps track of the current sample position,
-        struct TrackState {
-            double Sample = 0;
-            float Tempo = 120.0f;
-            int Octave = 4;
-            std::vector<float> Volume;
-            Duration Separation = Duration::Empty();
-            size_t InstrumentIndex = 1;
-        };
 
     public:
         /// Defines type of a tag. This allows for categorization and filtering
@@ -197,7 +186,6 @@ namespace Gorgon :: Audio {
         ///  HasTags(Synth::MetaData::Or("happy", std::make_pair(Synth::Genre, Synth::MetaData::Not("blues"))));
         /// ```
         struct MetaData {
-
             std::string Title;
             std::string Artist;
             std::string Arranger;
@@ -312,17 +300,31 @@ namespace Gorgon :: Audio {
 
         /// Defines a ramp curve for a slide or volume change.
         struct Ramp {
-            RampType Type = RampType::Linear;
+            Ramp() = default;
+
+            Ramp(RampType type) : Type(type), ShapeFactor(0.5f) {
+                if(type == RampType::None) {
+                    Span = Duration::FromFraction(0, 1);
+                }
+                else {
+                    Span = Duration::FromFraction(16);
+                }
+            }
+
+            Ramp(RampType type, Duration span) : Type(type), Span(span), ShapeFactor(0.5f) {
+            }
+
+            RampType Type;
 
             /// Duration of the ramp in seconds.
-            Duration Span = Duration::FromFraction(16);
+            Duration Span;
 
             /// Shape factor for the ramp curve. Controls the steepness or 
             /// curvature of the ramp. None and Linear ramps ignore this
             /// value. ShapeFactor of 0 creates a linear ramp while a value
             /// close to 1 creates a more pronounced curve. The value must
             /// be in the range [0, 1), avoid getting too close to 1.
-            float ShapeFactor = 0.5f;
+            float ShapeFactor;
 
             /// Parses a ramp definition from a string. The format is defined as follows:
             /// arguments are separated by commas, and the first argument is the ramp type 
@@ -347,6 +349,26 @@ namespace Gorgon :: Audio {
             double ToSamples(float tempo, unsigned int sample_rate, float note_length) const;
         };
 
+    private: 
+        
+        /// Internal state used during rendering. This keeps track of the current sample position,
+        struct TrackState {
+            struct Volume {
+                float Current = 1.0f;
+                Ramp ChangeRamp{RampType::None};
+                double RampPosition = 0; // in samples
+                float RampStart;
+            };
+
+            double Sample = 0;
+            float Tempo = 120.0f;
+            int Octave = 4;
+            std::vector<float> Volume;
+            Duration Separation = Duration::Empty();
+            size_t InstrumentIndex = 1;
+        };
+
+    public:
         
         struct Node;
 
@@ -428,9 +450,9 @@ namespace Gorgon :: Audio {
         public:
             Sine() {
                 Name = "Sine";
-                Attack.Span = Duration::FromFraction(128);
-                Release.Span = Duration::FromFraction(16);
-                Decay.Span = Duration::FromFraction(16);
+                Attack = Ramp{RampType::SCurve, Duration::FromFraction(128)};
+                Release = Ramp{RampType::SCurve, Duration::FromFraction(16)};
+                Decay = Ramp{RampType::SCurve, Duration::FromFraction(16)};
             }
 
             Instrument &Clone() const override {
@@ -591,7 +613,10 @@ namespace Gorgon :: Audio {
                     Duration duration;
                     bool slide; 
                 } note;
-                float tempo;
+                struct {
+                    float tempo;
+                    Ramp fade;
+                } tempo;
                 int octave;
                 size_t index;
                 Duration duration;
@@ -599,6 +624,7 @@ namespace Gorgon :: Audio {
                     /// 0 -> all channels
                     int channel;
                     float volume;
+                    Ramp fade;
                 } volume;
             };
 
@@ -606,13 +632,13 @@ namespace Gorgon :: Audio {
 
             static Node MakeRest(Duration duration);
 
-            static Node MakeTempo(float tempo);
+            static Node MakeTempo(float tempo, Ramp fade = Ramp(RampType::None));
 
             static Node MakeOctaveAbsolute(int octave);
 
             static Node MakeOctaveRelative(int delta);
 
-            static Node MakeVolume(float volume, int channel = 0);
+            static Node MakeVolume(float volume, int channel = 0, Ramp fade = Ramp(RampType::None));
 
             static Node MakeSeparation(Duration duration);
 

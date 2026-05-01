@@ -23,19 +23,110 @@ TEST_CASE("ParseNode correctly parses tempo and volume nodes", "[Synth][Parse][G
 
     auto tempoNode = Synth::ParseNode("T120", 6);
     REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
-    REQUIRE(tempoNode.tempo == Catch::Approx(120.0f));
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(120.0f));
 
     auto volumeNode = Synth::ParseNode("V80", 6);
     REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
     REQUIRE(volumeNode.volume.volume == Catch::Approx(0.8f));
     REQUIRE(volumeNode.volume.channel == 0);
 
-    volumeNode = Synth::ParseNode("V{2}50", 2);
+    volumeNode = Synth::ParseNode("V(2)50", 2);
     REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
     REQUIRE(volumeNode.volume.volume == Catch::Approx(0.5f));
     REQUIRE(volumeNode.volume.channel == 2);
 
-    REQUIRE_THROWS_AS(Synth::ParseNode("V{3}50", 2), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V(3)50", 2), Synth::Error);
+}
+
+TEST_CASE("ParseNode correctly parses volume ramps", "[Synth][Parse][GMM][Volume][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto volumeNode = Synth::ParseNode("V0:2/1", 1);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.0f));
+    REQUIRE(volumeNode.volume.channel == 0);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 2);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 1);
+
+    volumeNode = Synth::ParseNode("V0:{s,(2.1)}", 1);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.0f));
+    REQUIRE(volumeNode.volume.channel == 0);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.5f));
+}
+
+TEST_CASE("ParseNode correctly parses tempo ramps", "[Synth][Parse][GMM][Tempo][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto tempoNode = Synth::ParseNode("T120:2/1", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(120.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(tempoNode.tempo.fade.Span.Fraction.Numerator == 2);
+    REQUIRE(tempoNode.tempo.fade.Span.Fraction.Denominator == 1);
+
+    tempoNode = Synth::ParseNode("T90:0.5", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(90.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(tempoNode.tempo.fade.Span.Units == Catch::Approx(0.5f));
+
+    tempoNode = Synth::ParseNode("T100:(1.25)", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(100.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(tempoNode.tempo.fade.Span.Seconds == Catch::Approx(1.25f));
+
+    tempoNode = Synth::ParseNode("T140:{s,(2.1)}", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(140.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(tempoNode.tempo.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(tempoNode.tempo.fade.ShapeFactor == Catch::Approx(0.5f));
+}
+
+TEST_CASE("ParseNode handles multiple volume ramp timing methods and channels", "[Synth][Parse][GMM][Volume][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto volumeNode = Synth::ParseNode("V(1)0:16", 2);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.channel == 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 1);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 16);
+
+    volumeNode = Synth::ParseNode("V0:0.5", 2);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(volumeNode.volume.fade.Span.Units == Catch::Approx(0.5f));
+
+    volumeNode = Synth::ParseNode("V0:(1.25)", 2);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(1.25f));
+
+    volumeNode = Synth::ParseNode("V0:{exp,1/4,0.25}", 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Exponential);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 1);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 4);
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.25f));
+
+    volumeNode = Synth::ParseNode("V0:{s,(2.1),0.1}", 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.1f));
 }
 
 TEST_CASE("ParseNode correctly parses octave shifts", "[Synth][Parse][GMM]") {
@@ -238,6 +329,18 @@ TEST_CASE("Ramp::Parse handles various ramp definitions", "[Synth][Ramp]") {
     REQUIRE(ramp.Span.Fraction.Denominator == 2);
     REQUIRE(ramp.ShapeFactor == Catch::Approx(0.25f));
 
+    ramp = Synth::Ramp::Parse("s, (2.1), 0.1");
+    REQUIRE(ramp.Type == Synth::RampType::SCurve);
+    REQUIRE(ramp.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(ramp.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(ramp.ShapeFactor == Catch::Approx(0.1f));
+
+    ramp = Synth::Ramp::Parse("log, 0.25, 0");
+    REQUIRE(ramp.Type == Synth::RampType::Logarithmic);
+    REQUIRE(ramp.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(ramp.Span.Units == Catch::Approx(0.25f));
+    REQUIRE(ramp.ShapeFactor == Catch::Approx(0.0f));
+
     REQUIRE_THROWS_AS(Synth::Ramp::Parse("none,1"), Synth::Error);
     REQUIRE_THROWS_AS(Synth::Ramp::Parse("linear, 8, 0.5"), Synth::Error);
     REQUIRE_THROWS_AS(Synth::Ramp::Parse("foo, 2"), Synth::Error);
@@ -320,7 +423,7 @@ TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
 
     REQUIRE(synth.GetNodeCount() == 6);
     REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
-    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(120.0f));
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(120.0f));
     REQUIRE(synth.GetNode(2).type == Synth::Node::Type::InstrumentChange);
     REQUIRE(synth.GetNode(2).index == 1);
     REQUIRE(synth.GetNode(3).type == Synth::Node::Type::Note);
@@ -485,6 +588,7 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
     using namespace Gorgon::Audio;
 
     std::string gmm = R"(
+        @1 = Sine attack=16, release=16, separation=32
         # This is a simple melody in GMM format. 
         T160 V100 O5 E4 < B8 > C8 D4 C8 < B8 A4 A8 > 
         C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4~B4 B4 #another comment
@@ -495,7 +599,7 @@ TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
 
     REQUIRE(synth.GetNodeCount() == 32);
     REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
-    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(160.0f));
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(160.0f));
     REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Volume);
     REQUIRE(synth.GetNode(1).volume.volume == Catch::Approx(1.0f));
     REQUIRE(synth.GetNode(1).volume.channel == 0);
@@ -1018,7 +1122,7 @@ TEST_CASE("Node management API", "[Synth][Nodes]") {
 
     REQUIRE(synth.GetNodeCount() == 3);
     REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
-    REQUIRE(synth.GetNode(0).tempo == Catch::Approx(140.0f));
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(140.0f));
     REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
     REQUIRE(synth.GetNode(1).note.note == Synth::Note::C);
     REQUIRE(synth.GetNode(2).type == Synth::Node::Type::Rest);
