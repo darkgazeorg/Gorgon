@@ -48,6 +48,9 @@ struct Segment {
   Float bulge = 0.0;
   bool collapsedArc = false;
   bool isCurve = false;
+
+  int id = -1;
+  int polyId = -1;
 };
 
 /// Recover full arc geometry from a bulge-encoded segment.
