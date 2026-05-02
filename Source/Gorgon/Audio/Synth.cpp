@@ -798,6 +798,39 @@ double Synth::Sine::ReleaseOverflow(TrackState &state, unsigned int sample_rate,
     );
 }
 
+namespace {
+    template<class T_>
+    void SineRenderLoop(
+        Containers::Wave &wave, float &t, float tchange, 
+        size_t start, size_t end, float volume,
+        double &phase, double phasechange, 
+        float &env, Synth::TrackState &state,
+        T_ getEnv
+    ) {
+        for(size_t i=start; i<end; i++) {
+            env = getEnv(t);
+
+            for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+                float vol;
+                if(state.Volume[ch].ChangeRamp.Type != Synth::RampType::None) {
+                    state.Volume[ch].CurrentChange += state.Volume[ch].ChangePerSample;
+                    vol = state.Volume[ch].ChangeRamp.GetMultiplier(state.Volume[ch].CurrentChange) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue;
+                }
+                else {
+                    vol = state.Volume[ch].Current;
+                }
+
+                float sample = std::sin(float(2.0 * Gorgon::PI * phase));
+                wave(i, ch) +=  env * sample * volume * vol;
+            }
+
+            phase += phasechange;
+            if(phase >= 1.0) phase -= 1.0;
+            t += tchange;
+        }
+    }
+}
+
 double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState &state, unsigned int sample_rate) {
     float frequency = NoteToFrequency(node.note.note, state.Octave, PitchOffset);
 
@@ -820,54 +853,27 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     float t = 0;
     float env = 0.0f;
 
-    //TODO: use volume ramp
-
-    for(size_t i=start; i<end; i++) {
-        env = Attack.GetMultiplier(t);
-
-        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
-        }
-
-        phase += phasechange;
-        if(phase >= 1.0) phase -= 1.0;
-        t += tchange;
-    }
+    SineRenderLoop(wave, t, tchange, start, end, Volume, phase, phasechange, env, state, [&](float t) {
+        return Attack.GetMultiplier(t);
+    });
 
     start = end;
     end = size_t(std::round(state.Sample + atk + dec));
     tchange = 1.0f / (end - start);
     t = 0;
 
-    for(size_t i=start; i<end; i++) {
-        env = 1.0f - Decay.GetMultiplier(t) * (1.0f - Sustain);
-
-        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
-        }
-
-        phase += phasechange;
-        if(phase >= 1.0) phase -= 1.0;
-        t += tchange;
-    }
+    SineRenderLoop(wave, t, tchange, start, end, Volume, phase, phasechange, env, state, [&](float t) {
+        return 1.0f - Decay.GetMultiplier(t) * (1.0f - Sustain);
+    });
 
     start = end;
     end = size_t(std::round(state.Sample + atk + dec + sus));
     tchange = 1.0f / (end - start);
     t = 0;
 
-    for(size_t i=start; i<end; i++) {
-        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
-        }
-
-        phase += phasechange;
-        if(phase >= 1.0) phase -= 1.0;
-        t += tchange;
-    }
+    SineRenderLoop(wave, t, tchange, start, end, Volume, phase, phasechange, env, state, [&](float) {
+        return Sustain;
+    });
 
     start = end;
     end = size_t(std::round(state.Sample + atk + dec + sus + rel));
@@ -875,18 +881,9 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     t = 0;
     auto sustain = env; // sustain level at the start of release phase
 
-    for(size_t i=start; i<end; i++) {
-        env = sustain - Release.GetMultiplier(t) * sustain;
-
-        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            float sample = std::sin(float(2.0 * Gorgon::PI * phase))    ;
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
-        }
-
-        phase += phasechange;
-        if(phase >= 1.0) phase -= 1.0;
-        t += tchange;
-    }
+    SineRenderLoop(wave, t, tchange, start, end, Volume, phase, phasechange, env, state, [&](float t) {
+        return sustain - Release.GetMultiplier(t) * sustain;
+    });
     
     return node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
 }
@@ -997,8 +994,6 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
         alpha = 1.0f - std::exp(-2.2f / (fs * Trise));
     }
 
-    //TODO: use volume ramp
-
     for(size_t i=start; i<end; i++) {
         auto target = (phase < DutyCycle) ? 1.0f : -1.0f; 
 
@@ -1009,7 +1004,16 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
         current_level += alpha * (target - current_level);
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            wave(i, ch) +=  current_level * state.Volume[ch].Current;
+            float vol;
+            if(state.Volume[ch].ChangeRamp.Type != RampType::None) {
+                state.Volume[ch].CurrentChange += state.Volume[ch].ChangePerSample;
+                vol = state.Volume[ch].ChangeRamp.GetMultiplier(state.Volume[ch].CurrentChange) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue;
+            }
+            else {
+                vol = state.Volume[ch].Current;
+            }
+
+            wave(i, ch) +=  current_level * vol;
         }
 
         phase += phasechange;
@@ -1642,15 +1646,12 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
                     state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                 }
 
-                duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
-
                 if(state.InstrumentIndex != 0) {
                     auto &instr = instruments[long(state.InstrumentIndex) - 1];
 
                     duration = instr.CalculateSamples(node, state, sample_rate);
                     overflow = instr.ReleaseOverflow(state, sample_rate, node);
                 }
-
 
                 //now we need to calculate actual change in tempo for the duration of the note and apply it to the state.
                 if(state.Tempo.ChangeRamp.Type != RampType::None) {
@@ -1870,25 +1871,35 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                 }
 
                 //calculate duration again after tempo update
-                duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+                if(state.InstrumentIndex != 0) {
+                    duration = instruments[long(state.InstrumentIndex) - 1].CalculateSamples(node, state, sample_rate);
+                }
+                else {
+                    duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+                }
 
                 // volume change is applied by the instrument during the note rendering. We just need to calculate per sample
                 // sample change here. However, if instrument wants to change the duration of the note, it needs to readjust
                 // this value.
-                for(auto &vol : state.Volume) {
+                std::vector<double> finalvols(state.Volume.size());
+                for(size_t i=0; i<state.Volume.size(); i++) {
+                    auto &vol = state.Volume[i];
                     if(vol.ChangeRamp.Type != RampType::None) {
                         if(vol.ChangeRamp.Span.IsRelative()) {
-                            vol.ChangePerSample = vol.ChangePerTime / (240 / state.Tempo.Current) * duration;
+                            vol.ChangePerSample = vol.ChangePerTime / ((240 / state.Tempo.Current) * sample_rate);
                         }
                         else {
                             vol.ChangePerSample = vol.ChangePerTime / sample_rate;
                         }
+                        
+                        finalvols[i] = vol.CurrentChange + vol.ChangePerSample * duration;
+                        if(finalvols[i] > 1.0) finalvols[i] = 1.0;
                     }
                 }
 
                 // Instrument index 0 is silent, we just advance the sample position without rendering anything
                 if(state.InstrumentIndex != 0) {
-                    duration = instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
+                    instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
                 }
 
                 //now we need to calculate actual change in tempo for the duration of the note and apply it to the state.
@@ -1916,20 +1927,12 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                 }
 
                 //apply volume changes for the duration of the note
-                for(auto &vol : state.Volume) {
+                for(size_t i=0; i<state.Volume.size(); i++) {
+                    auto &vol = state.Volume[i];
+
                     if(vol.ChangeRamp.Type != RampType::None) {
-                        //we cannot rely on the note duration as instrument might modify it.
-                        if(vol.ChangeRamp.Span.IsRelative()) {
-                            auto relative_duration = (duration / sample_rate) / (240 / state.Tempo.Current);
-
-                            vol.CurrentChange += vol.ChangePerTime * relative_duration;
-                        }
-                        else {
-                            auto absolue_duration = (duration / sample_rate);
-
-                            vol.CurrentChange += vol.ChangePerTime * absolue_duration;
-                        }
-
+                        vol.CurrentChange = finalvols[i];
+                        
                         if(vol.CurrentChange >= 0.9999999) {
                             vol.CurrentChange = 1.0;
                             vol.Current = vol.TargetValue;

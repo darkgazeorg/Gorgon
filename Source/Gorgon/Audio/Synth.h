@@ -367,8 +367,6 @@ namespace Gorgon :: Audio {
             double ToSamples(float tempo, unsigned int sample_rate, float note_length) const;
         };
 
-    private: 
-        
         /// Internal state used during rendering. This keeps track of the current sample position,
         struct TrackState {
             /// Used to track tempo and volume changes over time. Tempo is completely handled by Synth.
@@ -399,8 +397,6 @@ namespace Gorgon :: Audio {
             Duration Separation = Duration::Empty();
             size_t InstrumentIndex = 1;
         };
-
-    public:
 
         /** Instrument is an abstract base class for different types of
          *  synthesizer voices. Each instrument defines how to render a note
