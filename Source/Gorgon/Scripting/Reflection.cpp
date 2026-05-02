@@ -294,6 +294,7 @@ namespace Gorgon :: Scripting {
 	}
 	
 	void Function::Overload::dochecks(bool ismethod) {
+		[[maybe_unused]]
 		int i=0;
 
 		[[maybe_unused]]
