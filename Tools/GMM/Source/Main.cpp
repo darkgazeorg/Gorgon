@@ -254,7 +254,7 @@ int RunHeadless(const Options &opts) {
     }
 
     auto wave = synth.Render(44100);
-    wave.Normalize();
+    wave.NormalizeMaximum();
 
     std::string outpath = opts.outputfile;
     if (outpath.empty())
@@ -640,7 +640,7 @@ private:
         stopPlayback();
 
         wave = synth.Render(44100);
-        wave.Normalize();
+        wave.NormalizeMaximum();
 
         source.Assign(wave);
         controller.SetData(source);
@@ -708,7 +708,7 @@ private:
         // Render if not already done
         if (wave.GetSize() == 0) {
             wave = synth.Render(44100);
-            wave.Normalize();
+            wave.NormalizeMaximum();
         }
 
         std::string defaultname = "output.flac";
@@ -836,7 +836,7 @@ int Main(const std::vector<std::string> &args) {
             }
 
             auto wave = synth.Render(44100);
-            wave.Normalize();
+            wave.NormalizeMaximum();
 
             std::string outpath = DeriveOutputPath(opts.inputfile, ".flac");
             ExportAudio(wave, outpath);

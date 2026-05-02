@@ -2,7 +2,7 @@
 #include "Gorgon/Audio/Basic.h"
 #include "Gorgon/String.h"
 #include "Gorgon/Types.h"
-#include "Gorgon/Utils/Assert.h"
+// #include "Gorgon/Utils/Assert.h"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -333,7 +333,7 @@ Synth::Duration Synth::Duration::FromFraction(int numerator, int denominator) {
 
 Synth::Duration Synth::Duration::FromUnits(float units) {
     Duration d;
-    d.type = TempoUnits;
+    d.type = FullNote;
     d.Units = units;
     return d;
 }
@@ -486,7 +486,7 @@ float Synth::Duration::ToSeconds(float tempo) const {
     switch(type) {
     case TempoFraction:
         return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
-    case TempoUnits:
+    case FullNote:
         return 240.0f / tempo * Units;
     case ClockSeconds:
         return Seconds;
@@ -499,7 +499,7 @@ double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate) const {
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
-    case TempoUnits:
+    case FullNote:
         return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
         return Seconds * sample_rate;
@@ -512,7 +512,7 @@ float Synth::Duration::ToSeconds(float tempo, float notelength) const {
     switch(type) {
     case TempoFraction:
         return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
-    case TempoUnits:
+    case FullNote:
         return 240.0f / tempo * Units;
     case ClockSeconds:
         return Seconds;
@@ -527,7 +527,7 @@ double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate, float n
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
-    case TempoUnits:
+    case FullNote:
         return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
         return double(Seconds) * sample_rate;
@@ -536,6 +536,43 @@ double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate, float n
     default:
         throw Error(Error::InvalidDuration, "Unsupported duration type");
     }
+}
+
+float Synth::Duration::ToNotes(float tempo) const {
+    switch(type) {
+    case TempoFraction:
+        return float(Fraction.Numerator) / float(Fraction.Denominator);
+    case FullNote:
+        return Units;
+    case ClockSeconds:
+        return Seconds / (240.0f / tempo);
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+float Synth::Duration::ToNotes(float tempo, float notelength) const {
+    switch(type) {
+    case TempoFraction:
+        return float(Fraction.Numerator) / float(Fraction.Denominator);
+    case FullNote:
+        return Units;
+    case ClockSeconds:
+        return Seconds / (240.0f / tempo);
+    case NoteFraction:
+        return Units * notelength / (240.0f / tempo);
+    default:
+        throw Error(Error::InvalidDuration, "Unsupported duration type");
+    }
+}
+
+bool Synth::Duration::IsRelative(const Node &note) const {
+    if(type == None)
+        throw Error(Error::InvalidDuration, "Cannot determine if duration is relative: " + std::to_string(type));
+
+    if(type == NoteFraction) return note.note.duration.IsRelative();
+
+    return type == TempoFraction || type == FullNote;
 }
 
 ///// RAMP FUNCTIONS /////
@@ -752,9 +789,12 @@ void Synth::Sine::LoadSettings(const std::string_view &settings) {
 }
 
 double Synth::Sine::ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const {
+    if(note.type != Node::Type::Note) {
+        return 0;
+    }
     return internal::CalculateOverflow(
         Attack, Decay, Release, state.Separation.Or(Separation), 
-        state.Tempo, sample_rate, note
+        state.Tempo.Current, sample_rate, note
     );
 }
 
@@ -764,13 +804,13 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     double phase = 0.0;
     double phasechange = double(frequency) / sample_rate;
 
-    if(node.type == Node::Type::Rest) return node.note.duration.ToSamples(state.Tempo, sample_rate);
+    if(node.type == Node::Type::Rest) return node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
     
     auto [atk, dec, sus, rel] = internal::CalculateADSR(
         Attack, Decay, Release, 
-        state.Separation.Or(Separation), state.Tempo,
+        state.Separation.Or(Separation), state.Tempo.Current,
         sample_rate, 
-        node.note.duration.ToSeconds(state.Tempo)
+        node.note.duration.ToSeconds(state.Tempo.Current)
     );
 
     size_t start = size_t(std::round(state.Sample));
@@ -780,12 +820,14 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     float t = 0;
     float env = 0.0f;
 
+    //TODO: use volume ramp
+
     for(size_t i=start; i<end; i++) {
         env = Attack.GetMultiplier(t);
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
         }
 
         phase += phasechange;
@@ -803,7 +845,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
         }
 
         phase += phasechange;
@@ -819,7 +861,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
     for(size_t i=start; i<end; i++) {
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase));
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
         }
 
         phase += phasechange;
@@ -838,7 +880,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
             float sample = std::sin(float(2.0 * Gorgon::PI * phase))    ;
-            wave(i, ch) +=  env * sample * Volume * state.Volume[ch];
+            wave(i, ch) +=  env * sample * Volume * state.Volume[ch].Current;
         }
 
         phase += phasechange;
@@ -846,7 +888,7 @@ double Synth::Sine::Render(Containers::Wave &wave, const Node &node, TrackState 
         t += tchange;
     }
     
-    return node.note.duration.ToSamples(state.Tempo, sample_rate);
+    return node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
 }
 
 ///// PWM FUNCTIONS /////
@@ -935,8 +977,8 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
 
     double phasechange = double(frequency) / sample_rate;
 
-    double duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-    double sepduration = state.Separation.Or(Separation).ToSamples(state.Tempo, sample_rate);
+    double duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+    double sepduration = state.Separation.Or(Separation).ToSamples(state.Tempo.Current, sample_rate);
 
     size_t start = size_t(std::round(state.Sample));
     size_t end = size_t(std::round(state.Sample + duration));
@@ -955,6 +997,8 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
         alpha = 1.0f - std::exp(-2.2f / (fs * Trise));
     }
 
+    //TODO: use volume ramp
+
     for(size_t i=start; i<end; i++) {
         auto target = (phase < DutyCycle) ? 1.0f : -1.0f; 
 
@@ -964,8 +1008,8 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
 
         current_level += alpha * (target - current_level);
 
-        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {            
-            wave(i, ch) +=  current_level * state.Volume[ch];
+        for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
+            wave(i, ch) +=  current_level * state.Volume[ch].Current;
         }
 
         phase += phasechange;
@@ -987,7 +1031,7 @@ void Synth::PWM::RenderTheEnd(Containers::Wave &wave, TrackState &state, unsigne
         current_level += alpha * (0.0f - current_level);
 
         for(unsigned ch = 0; ch < wave.GetChannelCount(); ch++) {
-            wave(i, ch) +=  current_level * state.Volume[ch];
+            wave(i, ch) +=  current_level * state.Volume[ch].Current;
         }
     }
 }
@@ -1563,22 +1607,102 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
 
         for(const auto& node : track.Nodes) {
             switch(node.type) {
+            case Node::Type::Rest:
             case Node::Type::Note: {
-                auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-                auto overflow = state.InstrumentIndex == 0 ? 0 : instruments[long(state.InstrumentIndex) - 1].ReleaseOverflow(state, sample_rate, node);
+                double duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+                double overflow = 0;
+
+                // If tempo has a ramp, we need to calculate the duration of the note from the center of the note as it might 
+                // effect the duration of the note
+                if(state.Tempo.ChangeRamp.Type != RampType::None) {
+                    double tempodur;
+
+                    auto fn = [&](auto &dur, auto tempo) { return state.Tempo.ChangeRamp.Span.IsRelative() ? dur.ToNotes(tempo) : dur.ToSeconds(tempo); };
+                    
+                    //if relativity of note and tempo is same. Duration is not used in the calculation, therefore, it results
+                    //in a perfect value.
+                    if(node.note.duration.IsRelative() == state.Tempo.ChangeRamp.Span.IsRelative()) {
+                        tempodur = fn(node.note.duration, state.Tempo.Current);
+                    }
+                    else {
+                        //otherwise, we need to estimate the calculation
+                        double start_duration = fn(node.note.duration, state.Tempo.Current);
+                        auto change = state.Tempo.ChangePerTime * start_duration;
+                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        double end_duration = fn(node.note.duration, tempo);
+
+                        tempodur = (start_duration + end_duration) / 2;
+                    }
+
+                    auto change = state.Tempo.CurrentChange + state.Tempo.ChangePerTime * tempodur / 2;
+                    if(change >= 0.9999999) {
+                        change = 1;
+                    }
+
+                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                }
+
+                duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+
+                if(state.InstrumentIndex != 0) {
+                    auto &instr = instruments[long(state.InstrumentIndex) - 1];
+
+                    duration = instr.CalculateSamples(node, state, sample_rate);
+                    overflow = instr.ReleaseOverflow(state, sample_rate, node);
+                }
+
+
+                //now we need to calculate actual change in tempo for the duration of the note and apply it to the state.
+                if(state.Tempo.ChangeRamp.Type != RampType::None) {
+                    //we cannot rely on the note duration as instrument might modify it.
+                    if(state.Tempo.ChangeRamp.Span.IsRelative()) {
+                        auto relative_duration = (duration / sample_rate) / (240 / state.Tempo.Current);
+
+                        state.Tempo.CurrentChange += state.Tempo.ChangePerTime * relative_duration;
+                    }
+                    else {
+                        auto absolue_duration = (duration / sample_rate);
+
+                        state.Tempo.CurrentChange += state.Tempo.ChangePerTime * absolue_duration;
+                    }
+
+                    if(state.Tempo.CurrentChange >= 0.9999999) {
+                        state.Tempo.CurrentChange = 1.0;
+                        state.Tempo.Current = state.Tempo.TargetValue;
+                        state.Tempo.ChangeRamp = {RampType::None};
+                    }
+                    else {
+                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(state.Tempo.CurrentChange) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                    }
+                }
+
                 state.Sample += duration;
                 total = std::max(total, state.Sample + overflow);
                 break;
             }
-            case Node::Type::Rest: {
-                auto duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-                state.Sample += duration;
-                total = std::max(total, state.Sample);
+            case Node::Type::Tempo:{
+                auto tempo = node.tempo;
+                state.Tempo.StartValue = state.Tempo.Current;
+                state.Tempo.TargetValue = tempo.tempo;
+                state.Tempo.CurrentChange = 0;
+
+                if(tempo.fade.Type != RampType::None) {
+                    state.Tempo.ChangeRamp = tempo.fade;
+                    
+                    if(tempo.fade.Span.IsRelative()) {
+                        state.Tempo.ChangePerTime = 1.0 / tempo.fade.Span.ToNotes(state.Tempo.Current);
+                    }
+                    else {
+                        state.Tempo.ChangePerTime = 1.0 / tempo.fade.Span.ToSeconds(state.Tempo.Current);
+                    }
+                }
+                else {
+                    state.Tempo.Current = tempo.tempo;
+                    state.Tempo.ChangeRamp = Ramp{RampType::None};
+                }
+
                 break;
             }
-            case Node::Type::Tempo:
-                state.Tempo = node.tempo.tempo;
-                break;
             case Node::Type::Separation:
                 state.Separation = node.duration;
                 break;
@@ -1612,23 +1736,38 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
     Containers::Wave wave(size_t(std::ceil(calculatesamples(sample_rate).first)), unsigned(sample_rate), channels);
     wave.Clear();
 
-    if(channels != std::vector<Audio::Channel>{Audio::Channel::Mono}) {
-        Utils::NotImplemented("Only mono output is supported currently");
-    }
-
     // track 0 is reserved for global settings and is not rendered, we start from track 1
     for(size_t i=1; i<tracks.size(); i++) {
         const auto &track = tracks[i];
 
         TrackState state;
-        state.Volume = std::vector<float>(channels.size(), 1.0f);
+        state.Volume = std::vector(channels.size(), TrackState::TrackedValue{1.0f});
 
         for(const auto &node: track.Nodes) {
             switch(node.type) {
-            case Node::Type::Tempo:
-                state.Tempo = node.tempo.tempo;
-                break;
+            case Node::Type::Tempo: {
+                auto tempo = node.tempo;
+                state.Tempo.StartValue = state.Tempo.Current;
+                state.Tempo.TargetValue = tempo.tempo;
+                state.Tempo.CurrentChange = 0;
 
+                if(tempo.fade.Type != RampType::None) {
+                    state.Tempo.ChangeRamp = tempo.fade;
+                    
+                    if(tempo.fade.Span.IsRelative()) {
+                        state.Tempo.ChangePerTime = 1.0 / tempo.fade.Span.ToNotes(state.Tempo.Current);
+                    }
+                    else {
+                        state.Tempo.ChangePerTime = 1.0 / tempo.fade.Span.ToSeconds(state.Tempo.Current);
+                    }
+                }
+                else {
+                    state.Tempo.Current = tempo.tempo;
+                    state.Tempo.ChangeRamp = Ramp{RampType::None};
+                }
+
+                break;
+            }
             case Node::Type::OctaveAbsolute:
                 state.Octave = node.octave;
                 break;
@@ -1637,15 +1776,48 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                 state.Octave += node.octave;
                 break;
 
-            case Node::Type::Volume:
-                if(node.volume.channel == 0) {
-                    std::fill(state.Volume.begin(), state.Volume.end(), node.volume.volume);
+            case Node::Type::Volume: {
+                if(node.volume.fade.Type == RampType::None) {
+                    if(node.volume.channel == 0) {
+                        std::fill(state.Volume.begin(), state.Volume.end(), TrackState::TrackedValue{node.volume.volume});
+                    }
+                    else {
+                        state.Volume[node.volume.channel - 1] = {node.volume.volume};
+                    }
                 }
                 else {
-                    state.Volume[node.volume.channel - 1] = node.volume.volume;
+                    auto set_channel = [&](TrackState::TrackedValue &v) {
+                        auto vol = node.volume;
+
+                        v.StartValue = v.Current;
+                        v.TargetValue = vol.volume;
+                        v.CurrentChange = 0;
+
+                        if(vol.fade.Type != RampType::None) {
+                            v.ChangeRamp = vol.fade;
+                            
+                            if(vol.fade.Span.IsRelative()) {
+                                v.ChangePerTime = 1.0 / vol.fade.Span.ToNotes(state.Tempo.Current);
+                            }
+                            else {
+                                v.ChangePerTime = 1.0 / vol.fade.Span.ToSeconds(state.Tempo.Current);
+                            }
+                        }
+                        else {
+                            v.Current = vol.volume;
+                        }
+                    };
+
+                    if(node.volume.channel == 0) {
+                        std::for_each(state.Volume.begin(), state.Volume.end(), set_channel);
+                    }
+                    else {
+                        set_channel(state.Volume[node.volume.channel - 1]);
+                    }
                 }
+
                 break;
-            
+            }
             case Node::Type::Separation:
                 state.Separation = node.duration;
                 break;
@@ -1665,14 +1837,108 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
 
             case Node::Type::Rest:
             case Node::Type::Note: {
-                double duration;
+                double duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+
+                // If tempo has a ramp, we need to calculate the duration of the note from the center of the note as it might 
+                // effect the duration of the note
+                if(state.Tempo.ChangeRamp.Type != RampType::None) {
+                    double tempodur;
+
+                    auto fn = [&](auto &dur, auto tempo) { return state.Tempo.ChangeRamp.Span.IsRelative() ? dur.ToNotes(tempo) : dur.ToSeconds(tempo); };
+                    
+                    //if relativity of note and tempo is same. Duration is not used in the calculation, therefore, it results
+                    //in a perfect value.
+                    if(node.note.duration.IsRelative() == state.Tempo.ChangeRamp.Span.IsRelative()) {
+                        tempodur = fn(node.note.duration, state.Tempo.Current);
+                    }
+                    else {
+                        //otherwise, we need to estimate the calculation
+                        double start_duration = fn(node.note.duration, state.Tempo.Current);
+                        auto change = state.Tempo.ChangePerTime * start_duration;
+                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        double end_duration = fn(node.note.duration, tempo);
+
+                        tempodur = (start_duration + end_duration) / 2;
+                    }
+
+                    auto change = state.Tempo.CurrentChange + state.Tempo.ChangePerTime * tempodur / 2;
+                    if(change >= 0.9999999) {
+                        change = 1;
+                    }
+
+                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                }
+
+                //calculate duration again after tempo update
+                duration = node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+
+                // volume change is applied by the instrument during the note rendering. We just need to calculate per sample
+                // sample change here. However, if instrument wants to change the duration of the note, it needs to readjust
+                // this value.
+                for(auto &vol : state.Volume) {
+                    if(vol.ChangeRamp.Type != RampType::None) {
+                        if(vol.ChangeRamp.Span.IsRelative()) {
+                            vol.ChangePerSample = vol.ChangePerTime / (240 / state.Tempo.Current) * duration;
+                        }
+                        else {
+                            vol.ChangePerSample = vol.ChangePerTime / sample_rate;
+                        }
+                    }
+                }
 
                 // Instrument index 0 is silent, we just advance the sample position without rendering anything
-                if(state.InstrumentIndex == 0) {
-                    duration = node.note.duration.ToSamples(state.Tempo, sample_rate);
-                }
-                else {
+                if(state.InstrumentIndex != 0) {
                     duration = instruments[long(state.InstrumentIndex) - 1].Render(wave, node, state, sample_rate);
+                }
+
+                //now we need to calculate actual change in tempo for the duration of the note and apply it to the state.
+                if(state.Tempo.ChangeRamp.Type != RampType::None) {
+                    //we cannot rely on the note duration as instrument might modify it.
+                    if(state.Tempo.ChangeRamp.Span.IsRelative()) {
+                        auto relative_duration = (duration / sample_rate) / (240 / state.Tempo.Current);
+
+                        state.Tempo.CurrentChange += state.Tempo.ChangePerTime * relative_duration;
+                    }
+                    else {
+                        auto absolue_duration = (duration / sample_rate);
+
+                        state.Tempo.CurrentChange += state.Tempo.ChangePerTime * absolue_duration;
+                    }
+
+                    if(state.Tempo.CurrentChange >= 0.9999999) {
+                        state.Tempo.CurrentChange = 1.0;
+                        state.Tempo.Current = state.Tempo.TargetValue;
+                        state.Tempo.ChangeRamp = {RampType::None};
+                    }
+                    else {
+                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(state.Tempo.CurrentChange) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                    }
+                }
+
+                //apply volume changes for the duration of the note
+                for(auto &vol : state.Volume) {
+                    if(vol.ChangeRamp.Type != RampType::None) {
+                        //we cannot rely on the note duration as instrument might modify it.
+                        if(vol.ChangeRamp.Span.IsRelative()) {
+                            auto relative_duration = (duration / sample_rate) / (240 / state.Tempo.Current);
+
+                            vol.CurrentChange += vol.ChangePerTime * relative_duration;
+                        }
+                        else {
+                            auto absolue_duration = (duration / sample_rate);
+
+                            vol.CurrentChange += vol.ChangePerTime * absolue_duration;
+                        }
+
+                        if(vol.CurrentChange >= 0.9999999) {
+                            vol.CurrentChange = 1.0;
+                            vol.Current = vol.TargetValue;
+                            vol.ChangeRamp = {RampType::None};
+                        }
+                        else {
+                            vol.Current = vol.ChangeRamp.GetMultiplier(vol.CurrentChange) * (vol.TargetValue - vol.StartValue) + vol.StartValue;
+                        }
+                    }
                 }
 
                 state.Sample += duration;

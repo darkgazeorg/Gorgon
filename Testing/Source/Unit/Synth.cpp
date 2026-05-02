@@ -75,7 +75,7 @@ TEST_CASE("ParseNode correctly parses tempo ramps", "[Synth][Parse][GMM][Tempo][
     REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
     REQUIRE(tempoNode.tempo.tempo == Catch::Approx(90.0f));
     REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
-    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::FullNote);
     REQUIRE(tempoNode.tempo.fade.Span.Units == Catch::Approx(0.5f));
 
     tempoNode = Synth::ParseNode("T100:(1.25)", 1);
@@ -107,7 +107,7 @@ TEST_CASE("ParseNode handles multiple volume ramp timing methods and channels", 
 
     volumeNode = Synth::ParseNode("V0:0.5", 2);
     REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
-    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::FullNote);
     REQUIRE(volumeNode.volume.fade.Span.Units == Catch::Approx(0.5f));
 
     volumeNode = Synth::ParseNode("V0:(1.25)", 2);
@@ -217,7 +217,7 @@ TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM
     noteNode = Synth::ParseNode("G0.22", 6);
     REQUIRE(noteNode.type == Synth::Node::Type::Note);
     REQUIRE(noteNode.note.note == Synth::Note::G);
-    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoUnits);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::FullNote);
     REQUIRE(noteNode.note.duration.Units == Catch::Approx(0.22f));
     REQUIRE(noteNode.note.slide == false);
 }
@@ -244,7 +244,7 @@ TEST_CASE("ParseNote parses rest correctly", "[Synth][Parse][GMM]") {
 
     restNode = Synth::ParseNode("R0.5", 6);
     REQUIRE(restNode.type == Synth::Node::Type::Rest);
-    REQUIRE(restNode.note.duration.type == Synth::Duration::TempoUnits);
+    REQUIRE(restNode.note.duration.type == Synth::Duration::FullNote);
     REQUIRE(restNode.note.duration.Units == Catch::Approx(0.5f));
 }
 
@@ -298,7 +298,7 @@ TEST_CASE("Duration::Parse accepts zero durations and rejects invalid ones", "[S
     REQUIRE(duration.Fraction.Denominator == 4);
 
     duration = Synth::Duration::Parse("0.0");
-    REQUIRE(duration.type == Synth::Duration::TempoUnits);
+    REQUIRE(duration.type == Synth::Duration::FullNote);
     REQUIRE(duration.Units == Catch::Approx(0.0f));
 
     duration = Synth::Duration::Parse("(0)");
@@ -337,7 +337,7 @@ TEST_CASE("Ramp::Parse handles various ramp definitions", "[Synth][Ramp]") {
 
     ramp = Synth::Ramp::Parse("log, 0.25, 0");
     REQUIRE(ramp.Type == Synth::RampType::Logarithmic);
-    REQUIRE(ramp.Span.type == Synth::Duration::TempoUnits);
+    REQUIRE(ramp.Span.type == Synth::Duration::FullNote);
     REQUIRE(ramp.Span.Units == Catch::Approx(0.25f));
     REQUIRE(ramp.ShapeFactor == Catch::Approx(0.0f));
 
@@ -1134,4 +1134,29 @@ TEST_CASE("Node management API", "[Synth][Nodes]") {
 
     synth.Clear();
     REQUIRE(synth.GetNodeCount() == 0);
+}
+
+TEST_CASE("Tempo ramp", "[Synth][Tempo][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+    synth.Parse(R"(
+        @1 = Sine release=none
+        T120 C C T180:1 C C C C C T30 C C
+    )");
+
+    {
+        auto [total, end] = synth.CalculateSamples(44100);
+        REQUIRE(end == 306661); // 6.954 seconds
+    }
+
+    synth.Parse(R"(
+        @1 = Sine release=none
+        T120 C C T180:1 C C C C C T120 C T60:1 C C C C C T90:1 C C C C T60:1 C2 C2 T30 C
+    )");
+
+    {
+        auto [total, end] = synth.CalculateSamples(44100);
+        REQUIRE(end == 692009); // 15.7 seconds
+    }
 }

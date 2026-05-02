@@ -47,6 +47,8 @@ namespace Gorgon :: Audio {
      */
     class Synth {
     public:
+        struct Node;
+
         /// A parsed note duration
         struct Duration {
             /// The type of duration (fraction, units, or seconds).
@@ -54,7 +56,7 @@ namespace Gorgon :: Audio {
                 // Only used in state to indicate default should be used
                 None,
                 TempoFraction,
-                TempoUnits,
+                FullNote,
                 ClockSeconds,
                 NoteFraction
             } type;
@@ -80,7 +82,23 @@ namespace Gorgon :: Audio {
             float ToSeconds(float tempo, float notelength) const;
 
             /// Converts this duration to number of samples based on the given tempo, sample rate, and note length.
+            /// notelength is in seconds.
             double ToSamples(float tempo, unsigned int sample_rate, float notelength) const;
+
+            /// Converts this duration to number of notes based on the given tempo. 
+            float ToNotes(float tempo) const;
+
+            /// Converts this duration to number of notes based on the given tempo. notelength is in seconds.
+            float ToNotes(float tempo, float notelength) const;
+
+            /// Returns true if the duration is relative (i.e., depends on the tempo).
+            bool IsRelative() const {
+                if(type == None || type == NoteFraction) throw Error(Error::InvalidDuration, "Cannot determine if duration is relative: " + std::to_string(type));
+                return type == TempoFraction || type == FullNote;
+            }
+
+            /// Returns true if the duration is relative to the note length (i.e., NoteFraction).
+            bool IsRelative(const Node &note) const;
 
             /// Returns the first non-empty duration between this and another duration. If both are empty, returns an empty duration.
             Duration Or(const Duration& other) const {
@@ -353,24 +371,36 @@ namespace Gorgon :: Audio {
         
         /// Internal state used during rendering. This keeps track of the current sample position,
         struct TrackState {
-            struct Volume {
+            /// Used to track tempo and volume changes over time. Tempo is completely handled by Synth.
+            /// For volume, the instrument must interpolate the volume change using ChangePerSample.
+            struct TrackedValue {
                 float Current = 1.0f;
+
+                float TargetValue = 0.0f;
+                float StartValue = 0.0f;
+
                 Ramp ChangeRamp{RampType::None};
-                double RampPosition = 0; // in samples
-                float RampStart;
+
+                /// Stores the change in value from 0 (start) to 1 (end).
+                double CurrentChange = 0;
+                
+                /// For relative timed ramps, this is per full note, for absolute timed ramps, this is per second.
+                double ChangePerTime = 0;
+
+                /// This is only used for volume and only during a note render. It is calculated by Synth render
+                /// function
+                double ChangePerSample = 0;
             };
 
             double Sample = 0;
-            float Tempo = 120.0f;
+            TrackedValue Tempo{120.0f};
+            std::vector<TrackedValue> Volume;
             int Octave = 4;
-            std::vector<float> Volume;
             Duration Separation = Duration::Empty();
             size_t InstrumentIndex = 1;
         };
 
     public:
-        
-        struct Node;
 
         /** Instrument is an abstract base class for different types of
          *  synthesizer voices. Each instrument defines how to render a note
@@ -401,6 +431,20 @@ namespace Gorgon :: Audio {
                 Containers::Wave &wave, const Node &node, 
                 TrackState &state, unsigned int sample_rate
             ) = 0;
+
+            /// Returns the duration of the note or rest. This is used to calculate length of the
+            /// track. Default implementation simply returns the length of the note.
+            virtual double CalculateSamples(const Node &node, 
+                TrackState &state, unsigned int sample_rate) const 
+            {
+                switch(node.type) {
+                case Node::Type::Note:
+                case Node::Type::Rest:
+                    return node.note.duration.ToSamples(state.Tempo.Current, sample_rate);
+                default:
+                    return 0;
+                }
+            }
 
             /// Called after the last note of the track is rendered, allowing the instrument to render any additional
             /// release tail if necessary. 
@@ -511,6 +555,9 @@ namespace Gorgon :: Audio {
             void LoadSettings(const std::string_view& settings) override;
 
             double ReleaseOverflow(TrackState &state, unsigned int sample_rate, const Node &note) const override {
+                if(note.type != Node::Type::Note) {
+                    return 0;
+                }
                 return Trise * 2.5 * sample_rate;
             }
 
