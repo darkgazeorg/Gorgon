@@ -814,7 +814,7 @@ namespace {
                 float vol;
                 if(state.Volume[ch].ChangeRamp.Type != Synth::RampType::None) {
                     state.Volume[ch].CurrentChange += state.Volume[ch].ChangePerSample;
-                    vol = state.Volume[ch].ChangeRamp.GetMultiplier(state.Volume[ch].CurrentChange) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue;
+                    vol = state.Volume[ch].ChangeRamp.GetMultiplier(float(state.Volume[ch].CurrentChange)) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue;
                 }
                 else {
                     vol = state.Volume[ch].Current;
@@ -1007,7 +1007,7 @@ double Synth::PWM::Render(Containers::Wave &wave, const Node &node, TrackState &
             float vol;
             if(state.Volume[ch].ChangeRamp.Type != RampType::None) {
                 state.Volume[ch].CurrentChange += state.Volume[ch].ChangePerSample;
-                vol = state.Volume[ch].ChangeRamp.GetMultiplier(state.Volume[ch].CurrentChange) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue;
+                vol = float(state.Volume[ch].ChangeRamp.GetMultiplier(float(state.Volume[ch].CurrentChange)) * (state.Volume[ch].TargetValue - state.Volume[ch].StartValue) + state.Volume[ch].StartValue);
             }
             else {
                 vol = state.Volume[ch].Current;
@@ -1632,7 +1632,7 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
                         //otherwise, we need to estimate the calculation
                         double start_duration = fn(node.note.duration, state.Tempo.Current);
                         auto change = state.Tempo.ChangePerTime * start_duration;
-                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(float(change)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                         double end_duration = fn(node.note.duration, tempo);
 
                         tempodur = (start_duration + end_duration) / 2;
@@ -1643,7 +1643,7 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
                         change = 1;
                     }
 
-                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(float(change)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                 }
 
                 if(state.InstrumentIndex != 0) {
@@ -1673,7 +1673,7 @@ std::pair<double, double> Synth::calculatesamples(unsigned int sample_rate) cons
                         state.Tempo.ChangeRamp = {RampType::None};
                     }
                     else {
-                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(state.Tempo.CurrentChange) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(float(state.Tempo.CurrentChange)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                     }
                 }
 
@@ -1856,7 +1856,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                         //otherwise, we need to estimate the calculation
                         double start_duration = fn(node.note.duration, state.Tempo.Current);
                         auto change = state.Tempo.ChangePerTime * start_duration;
-                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        auto tempo = state.Tempo.ChangeRamp.GetMultiplier(float(change)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                         double end_duration = fn(node.note.duration, tempo);
 
                         tempodur = (start_duration + end_duration) / 2;
@@ -1867,7 +1867,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                         change = 1;
                     }
 
-                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(change) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                    state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(float(change)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                 }
 
                 //calculate duration again after tempo update
@@ -1922,7 +1922,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                         state.Tempo.ChangeRamp = {RampType::None};
                     }
                     else {
-                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(state.Tempo.CurrentChange) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
+                        state.Tempo.Current = state.Tempo.ChangeRamp.GetMultiplier(float(state.Tempo.CurrentChange)) * (state.Tempo.TargetValue - state.Tempo.StartValue) + state.Tempo.StartValue;
                     }
                 }
 
@@ -1939,7 +1939,7 @@ Containers::Wave Synth::Render(unsigned int sample_rate) const {
                             vol.ChangeRamp = {RampType::None};
                         }
                         else {
-                            vol.Current = vol.ChangeRamp.GetMultiplier(vol.CurrentChange) * (vol.TargetValue - vol.StartValue) + vol.StartValue;
+                            vol.Current = vol.ChangeRamp.GetMultiplier(float(vol.CurrentChange)) * (vol.TargetValue - vol.StartValue) + vol.StartValue;
                         }
                     }
                 }
