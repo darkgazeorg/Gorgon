@@ -119,6 +119,167 @@ void ExportAudio(
     }
 }
 
+std::string FormatDuration(const Gorgon::Audio::Synth::Duration &d) {
+    using D = Gorgon::Audio::Synth::Duration;
+    switch (d.type) {
+    case D::None:
+        return "none";
+    case D::TempoFraction: {
+        int num = d.Fraction.Numerator;
+        int den = d.Fraction.Denominator;
+        if (num == 1) {
+            switch (den) {
+            case 1:   return "whole note";
+            case 2:   return "half note";
+            case 4:   return "quarter note";
+            case 8:   return "8th note";
+            case 16:  return "16th note";
+            case 32:  return "32nd note";
+            case 64:  return "64th note";
+            case 128: return "128th note";
+            default:  break;
+            }
+        }
+        return std::to_string(num) + "/" + std::to_string(den) + " note";
+    }
+    case D::WholeNotes: {
+        std::ostringstream ss;
+        ss << d.Units << " whole notes";
+        return ss.str();
+    }
+    case D::ClockSeconds: {
+        float secs = d.Seconds;
+        std::ostringstream ss;
+        if (secs < 0.1f)
+            ss << (secs * 1000.0f) << "ms";
+        else
+            ss << secs << "s";
+        return ss.str();
+    }
+    case D::NoteFraction: {
+        std::ostringstream ss;
+        ss << d.Units << "\xc3\x97 note";
+        return ss.str();
+    }
+    default:
+        return "unknown";
+    }
+}
+
+bool DurationsEqual(const Gorgon::Audio::Synth::Duration &a, const Gorgon::Audio::Synth::Duration &b) {
+    if (a.type != b.type) return false;
+    using D = Gorgon::Audio::Synth::Duration;
+    switch (a.type) {
+    case D::None:         return true;
+    case D::TempoFraction:
+        return a.Fraction.Numerator == b.Fraction.Numerator &&
+               a.Fraction.Denominator == b.Fraction.Denominator;
+    case D::WholeNotes:
+    case D::NoteFraction: return a.Units == b.Units;
+    case D::ClockSeconds: return a.Seconds == b.Seconds;
+    default:              return false;
+    }
+}
+
+bool RampsEqual(const Gorgon::Audio::Synth::Ramp &a, const Gorgon::Audio::Synth::Ramp &b) {
+    if (a.Type != b.Type) return false;
+    if (a.Type == Gorgon::Audio::Synth::RampType::None) return true;
+    return DurationsEqual(a.Span, b.Span);
+}
+
+std::string FormatRamp(const Gorgon::Audio::Synth::Ramp &r) {
+    if (r.Type == Gorgon::Audio::Synth::RampType::None) return "none";
+    return Gorgon::String::From(r.Type) + ", " + FormatDuration(r.Span);
+}
+
+std::string FormatInstruments() {
+    using Synth   = Gorgon::Audio::Synth;
+
+    const Synth::Sine defaultSine;
+    const Synth::PWM  defaultPWM;
+
+    auto names = Synth::GetInstrumentRegistry();
+
+    std::ostringstream out;
+    out << "# Instruments\n\n";
+    out << "Use `@index = name` in a GMM file to set instrument to an index, switch indexes with `@index`.\n\n";
+
+    for (const auto &name : names) {
+        auto inst = Synth::CreateRegistryInstrument(name);
+        if (!inst) continue;
+
+        out << "## " << inst->Name << "\n\n";
+        out << "`@1 = " << name << "`\n\n";
+
+        if (!inst->Description.empty())
+            out << inst->Description << "\n\n";
+
+        auto *sine = dynamic_cast<Synth::Sine *>(inst.get());
+        auto *pwm  = dynamic_cast<Synth::PWM  *>(inst.get());
+
+        std::ostringstream props;
+        bool hasProps = false;
+
+        auto addProp = [&](const char *label, const std::string &val) {
+            props << "- **" << label << ":** " << val << "\n";
+            hasProps = true;
+        };
+
+        if (sine) {
+            out << "**Type:** Sine\n\n";
+            if (!RampsEqual(sine->Attack,    defaultSine.Attack))
+                addProp("Attack",    FormatRamp(sine->Attack));
+            if (!RampsEqual(sine->Decay,     defaultSine.Decay))
+                addProp("Decay",     FormatRamp(sine->Decay));
+            if (std::abs(sine->Sustain - defaultSine.Sustain) > 1e-5f) {
+                std::ostringstream ss; ss << sine->Sustain;
+                addProp("Sustain", ss.str());
+            }
+            if (!RampsEqual(sine->Release,   defaultSine.Release))
+                addProp("Release",   FormatRamp(sine->Release));
+            if (!DurationsEqual(sine->Separation, defaultSine.Separation))
+                addProp("Separation", FormatDuration(sine->Separation));
+            if (std::abs(sine->Volume - defaultSine.Volume) > 1e-5f) {
+                std::ostringstream ss; ss << sine->Volume;
+                addProp("Volume", ss.str());
+            }
+            if (std::abs(sine->PitchOffset) > 1e-5f) {
+                std::ostringstream ss; ss << sine->PitchOffset << " semitones";
+                addProp("Pitch Offset", ss.str());
+            }
+        } else if (pwm) {
+            out << "**Type:** PWM\n\n";
+            if (std::abs(pwm->DutyCycle - defaultPWM.DutyCycle) > 1e-5f) {
+                std::ostringstream ss; ss << (pwm->DutyCycle * 100.0f) << "%";
+                addProp("Duty Cycle", ss.str());
+            }
+            if (std::abs(pwm->Trise - defaultPWM.Trise) > 1e-7f) {
+                std::ostringstream ss; ss << (pwm->Trise * 1000.0f) << "ms";
+                addProp("Rise Time", ss.str());
+            }
+            if (std::abs(pwm->Volume - defaultPWM.Volume) > 1e-5f) {
+                std::ostringstream ss; ss << pwm->Volume;
+                addProp("Volume", ss.str());
+            }
+            if (!DurationsEqual(pwm->Separation, defaultPWM.Separation))
+                addProp("Separation", FormatDuration(pwm->Separation));
+            if (std::abs(pwm->PitchOffset) > 1e-5f) {
+                std::ostringstream ss; ss << pwm->PitchOffset << " semitones";
+                addProp("Pitch Offset", ss.str());
+            }
+            if (pwm->ResetPhase != defaultPWM.ResetPhase)
+                addProp("Reset Phase", "Yes");
+        }
+
+        if (hasProps)
+            out << props.str();
+
+        out << "\n---\n\n";
+    }
+
+    return out.str();
+}
+
 }
 
 struct Options {
@@ -129,8 +290,9 @@ struct Options {
     bool quit        = false;
     bool interactive = false;
     bool help        = false;
-    bool load        = false; // load only, no parse
-    bool parse       = false; // parse only, no play
+    bool load            = false; // load only, no parse
+    bool parse         = false; // parse only, no play
+    bool listinstruments = false;
 };
 
 void PrintHelp() {
@@ -159,7 +321,8 @@ void PrintHelp() {
         "  gmm --play in.gmm --hidden    Hidden window, quit after play\n"
         "  gmm --help                    Show this help\n"
         "  gmm --interactive             Open UI with no data\n"
-        "  gmm in.gmm                    Export to in.flac\n";
+        "  gmm in.gmm                    Export to in.flac\n"
+        "  gmm --list-instruments        List all available instruments\n";
 }
 
 Options ParseArgs(const std::vector<std::string> &args) {
@@ -189,6 +352,9 @@ Options ParseArgs(const std::vector<std::string> &args) {
         } 
         else if (arg == "--parse") {
             opts.parse = true;
+        } 
+        else if (arg == "--list-instruments") {
+            opts.listinstruments = true;
         } 
         else if (arg.rfind("--", 0) == 0) {
             std::cerr << "Unknown option: " << arg << "\n";
@@ -388,7 +554,11 @@ private:
         metadatabtn.SetWidth(4_u);
         metadatabtn.ClickEvent.Register([this] { showMetaData(); });
 
-        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << std::endl << metadatabtn << helpbtn << quitbtn;
+        instrumentsbtn.Text = "Instruments";
+        instrumentsbtn.SetWidth(5_u);
+        instrumentsbtn.ClickEvent.Register([this] { showInstruments(); });
+
+        buttonflow << parsebtn << playbtn << pausebtn << exportbtn << savebtn << saveasbtn << std::endl << metadatabtn << instrumentsbtn << helpbtn << quitbtn;
 
         // Layout
         relayout();
@@ -400,6 +570,7 @@ private:
         // Help panel
         buildHelp();
         buildMetaData();
+        buildInstruments();
     }
 
     void relayout() {
@@ -430,6 +601,7 @@ private:
         // Help panel layout
         relayoutHelp();
         relayoutMetaData();
+        relayoutInstruments();
     }
 
     void buildHelp() {
@@ -736,8 +908,56 @@ private:
         }, defaultname, {}, UI::CloseOption::Cancel);
     }
 
+    void buildInstruments() {
+        window.Add(instrumentspanel);
+        instrumentspanel.SetWidth(100_perc);
+        instrumentspanel.SetHeight(100_perc);
+        instrumentspanel.EnableScroll(false, false);
+        instrumentspanel.SetVisible(false);
+
+        instrumentspanel.Add(instrumentsscroll);
+        instrumentsscroll.SetWidth(100_perc);
+
+        instrumentslabel.SetText(instrumentstext);
+        instrumentslabel.SetAutosize(Gorgon::UI::Autosize::None, Gorgon::UI::Autosize::Automatic);
+        instrumentsscroll.Add(instrumentslabel);
+
+        instrumentsclosebtn.Text = "Close";
+        instrumentsclosebtn.SetWidth(3_u);
+        instrumentsclosebtn.ClickEvent.Register([this] { hideInstruments(); });
+        instrumentspanel.Add(instrumentsclosebtn);
+    }
+
+    void relayoutInstruments() {
+        auto size    = instrumentspanel.GetInteriorSize();
+        int spacing  = instrumentspanel.GetSpacing();
+        int unit     = instrumentspanel.GetUnitSize();
+        int btnHeight = unit + spacing;
+
+        instrumentsscroll.Move(0_px, 0_px);
+        instrumentsscroll.Resize(Gorgon::UI::Pixels(size.Width, size.Height - btnHeight - spacing));
+        instrumentslabel.SetWidth(Gorgon::UI::Pixels(instrumentsscroll.GetInteriorSize().Width));
+
+        instrumentsclosebtn.Move(Gorgon::UI::Pixels(0, size.Height - btnHeight));
+    }
+
+    void showInstruments() {
+        panel.SetVisible(false);
+        helppanel.SetVisible(false);
+        metadatapanel.SetVisible(false);
+        instrumentspanel.SetVisible(true);
+        relayoutInstruments();
+    }
+
+    void hideInstruments() {
+        instrumentspanel.SetVisible(false);
+        panel.SetVisible(true);
+    }
+
     void showHelp() {
         panel.SetVisible(false);
+        metadatapanel.SetVisible(false);
+        instrumentspanel.SetVisible(false);
         helppanel.SetVisible(true);
         relayoutHelp();
     }
@@ -755,6 +975,7 @@ private:
 
         panel.SetVisible(false);
         helppanel.SetVisible(false);
+        instrumentspanel.SetVisible(false);
         metadatapanel.SetVisible(true);
         relayoutMetaData();
     }
@@ -773,7 +994,7 @@ private:
     UI::Organizers::Flow buttonflow;
     Widgets::FloatProgress progress;
     Widgets::Label statuslabel;
-    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, metadatabtn, helpbtn, quitbtn;
+    Widgets::Button parsebtn, playbtn, pausebtn, exportbtn, savebtn, saveasbtn, metadatabtn, instrumentsbtn, helpbtn, quitbtn;
 
     // Help panel
     Widgets::Panel helppanel{Widgets::Registry::Panel_Fullscreen};
@@ -786,6 +1007,13 @@ private:
     Widgets::Panel metadatascroll;
     Widgets::MarkdownLabel metadatalabel;
     Widgets::Button metadataclosebtn;
+
+    // Instruments panel
+    Widgets::Panel instrumentspanel{Widgets::Registry::Panel_Fullscreen};
+    Widgets::Panel instrumentsscroll;
+    Widgets::MarkdownLabel instrumentslabel;
+    Widgets::Button instrumentsclosebtn;
+    std::string instrumentstext = FormatInstruments();
 
     Gorgon::Audio::Synth synth;
     Gorgon::Containers::Wave wave;
@@ -807,6 +1035,11 @@ int Main(const std::vector<std::string> &args) {
 
     if (opts.help) {
         PrintHelp();
+        return 0;
+    }
+
+    if (opts.listinstruments) {
+        std::cout << FormatInstruments();
         return 0;
     }
 
@@ -853,7 +1086,7 @@ int Main(const std::vector<std::string> &args) {
     Gorgon::UI::Initialize();
 
     Gorgon::Graphics::Bitmap icon;
-    icon.Import("Icon.png");
+    icon.Import("gmm-icon.png");
 
     if(icon.HasData()) {
         Gorgon::WindowManager::Icon ico(icon.GetData());

@@ -47,6 +47,9 @@ if(UNIX AND NOT APPLE)
     install(FILES gmm-mime.xml
         DESTINATION share/mime/packages
     )
+    install(FILES gmm-icon.png
+        DESTINATION share/icons/hicolor/128x128/apps
+    )
 
     add_custom_target(gmm-register-file-association
         COMMAND xdg-mime install --novendor "${CMAKE_CURRENT_SOURCE_DIR}/gmm-mime.xml"
@@ -67,4 +70,4 @@ if(WIN32)
     )
 endif()
 
-gorgon_copy_resource(gmm "Icon.png")
+gorgon_copy_resource(gmm "gmm-icon.png")

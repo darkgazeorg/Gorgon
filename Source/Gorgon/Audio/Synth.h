@@ -56,8 +56,10 @@ namespace Gorgon :: Audio {
                 // Only used in state to indicate default should be used
                 None,
                 TempoFraction,
-                FullNote,
+                WholeNotes,
                 ClockSeconds,
+                // Fraction of the duration of the current note. Only valid for separation 
+                // durations and ramp spans, not for note durations.
                 NoteFraction
             } type;
 
@@ -94,7 +96,7 @@ namespace Gorgon :: Audio {
             /// Returns true if the duration is relative (i.e., depends on the tempo).
             bool IsRelative() const {
                 if(type == None || type == NoteFraction) throw Error(Error::InvalidDuration, "Cannot determine if duration is relative: " + std::to_string(type));
-                return type == TempoFraction || type == FullNote;
+                return type == TempoFraction || type == WholeNotes;
             }
 
             /// Returns true if the duration is relative to the note length (i.e., NoteFraction).

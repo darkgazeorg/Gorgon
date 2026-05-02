@@ -333,7 +333,7 @@ Synth::Duration Synth::Duration::FromFraction(int numerator, int denominator) {
 
 Synth::Duration Synth::Duration::FromUnits(float units) {
     Duration d;
-    d.type = FullNote;
+    d.type = WholeNotes;
     d.Units = units;
     return d;
 }
@@ -486,7 +486,7 @@ float Synth::Duration::ToSeconds(float tempo) const {
     switch(type) {
     case TempoFraction:
         return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
-    case FullNote:
+    case WholeNotes:
         return 240.0f / tempo * Units;
     case ClockSeconds:
         return Seconds;
@@ -499,7 +499,7 @@ double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate) const {
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
-    case FullNote:
+    case WholeNotes:
         return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
         return Seconds * sample_rate;
@@ -512,7 +512,7 @@ float Synth::Duration::ToSeconds(float tempo, float notelength) const {
     switch(type) {
     case TempoFraction:
         return 240.0f / tempo * Fraction.Numerator / Fraction.Denominator;
-    case FullNote:
+    case WholeNotes:
         return 240.0f / tempo * Units;
     case ClockSeconds:
         return Seconds;
@@ -527,7 +527,7 @@ double Synth::Duration::ToSamples(float tempo, unsigned int sample_rate, float n
     switch(type) {
     case TempoFraction:
         return 240.0 / tempo * Fraction.Numerator / Fraction.Denominator * sample_rate;
-    case FullNote:
+    case WholeNotes:
         return 240.0 / tempo * Units * sample_rate;
     case ClockSeconds:
         return double(Seconds) * sample_rate;
@@ -542,7 +542,7 @@ float Synth::Duration::ToNotes(float tempo) const {
     switch(type) {
     case TempoFraction:
         return float(Fraction.Numerator) / float(Fraction.Denominator);
-    case FullNote:
+    case WholeNotes:
         return Units;
     case ClockSeconds:
         return Seconds / (240.0f / tempo);
@@ -555,7 +555,7 @@ float Synth::Duration::ToNotes(float tempo, float notelength) const {
     switch(type) {
     case TempoFraction:
         return float(Fraction.Numerator) / float(Fraction.Denominator);
-    case FullNote:
+    case WholeNotes:
         return Units;
     case ClockSeconds:
         return Seconds / (240.0f / tempo);
@@ -572,7 +572,7 @@ bool Synth::Duration::IsRelative(const Node &note) const {
 
     if(type == NoteFraction) return note.note.duration.IsRelative();
 
-    return type == TempoFraction || type == FullNote;
+    return type == TempoFraction || type == WholeNotes;
 }
 
 ///// RAMP FUNCTIONS /////
