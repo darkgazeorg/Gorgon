@@ -8,8 +8,6 @@ GMM supports comments through the `#` symbol. Anything following `#` on a line i
 
 **Note: The following features are currently incomplete:**
 - Slide
-- Tempo and volume ramps
-- Tracks
 - Vibrato
 
 ---
@@ -20,7 +18,9 @@ GMM supports comments through the `#` symbol. Anything following `#` on a line i
 The header consists of global engine configurations (starting with `%`) and instrument declarations (starting with `@`). Instrument declarations assign a numeric ID to a waveform type and its envelope.
 
 ### Body (Track Data)
-The body contains one or more tracks, each tagged with a track identifier (`1>`, `2>`, …). The tracks are processed simultaneously, allowing polyphony.
+The body contains one or more tracks, each tagged with a track identifier (`1>`, `2>`, …). The tracks are processed simultaneously, allowing polyphony. Instrument indexes are not automatically assigned to tracks, so you have to explicitly assign them using the `@ID` command. However, this allows changing instrument mid-track.
+
+You can set tempo, volume, separation and instrument changes before starting tracks to apply them to all the tracks. If no track identifier is specified, first note starts track 1. Any instruction preceeding the first note is applied to tracks. You can switch back and forth between tracks by using the track identifier (e.g., `1>`, `2>`). This allows you to easily split a track across multiple lines for readability.
 
 **Example File:**
 ```text
@@ -82,6 +82,7 @@ Metadata fields are set using `%KEY = value` in the header. They are stored with
 * **`T<Value>[:Duration|:{Ramp}]`**: Tempo change in beats per minute. Can be immediate (`T120`) or ramped (`T60:1{s}`). Affects only the current track. If duration is supplied, it is considered a linear ramp.
 * **`V[(channel)]<Percent>[:Duration|:{Ramp}]`**: Global track volume (0–100%). Modifies all channels for the current track. If duration is supplied, it is considered a linear ramp. Channel is 1 based, 0 is used for all channels. **Examples:**
 ```gmm
+V100 #sets the volume of all channels to 100% immediately.
 V(1)50 #sets the volume of the first channel to 50% while leaving the rest unchanged.
 V50:1 #sets the volume of all channels to 50% over a 2 second linear ramp.
 V(2)0:{exp, 2.5} #fades out the second channel over an exponential ramp with a span of 2.5 full notes.
@@ -185,7 +186,7 @@ A pulse-width modulation oscillator. Produces a rectangular wave whose harmonic 
 
 ### Built-in Named Instruments
 
-These instruments can be referenced by name in the header without specifying individual parameters. Settings can still be overridden after the name. All names are case-insensitive and underscores may be used in place of spaces.
+These instruments can be referenced by name in the header without specifying individual parameters. Settings can still be overridden after the name. All names are case-insensitive and underscores may be used in place of spaces. If you want to keep the spaces, you need to use quotes around the name. You could start with a predefined instrument and then modify it with additional parameters. For example, `@1 = flute, decay=none` would give you a flute sound that sustains indefinitely until the note ends or separation triggers the release.
 
 **Sine-based:**
 

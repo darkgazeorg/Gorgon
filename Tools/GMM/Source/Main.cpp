@@ -209,7 +209,13 @@ std::string FormatInstruments() {
         if (!inst) continue;
 
         out << "## " << inst->Name << "\n\n";
-        out << "`@1 = " << name << "`\n\n";
+        if(name.find(' ') != std::string::npos) {
+            out << "`@1 = \"" << name << "\"`\n\n";
+            out << "`@1 = " << Gorgon::String::Replace(name, " ", "") << "`\n\n";
+        }
+        else {
+            out << "`@1 = " << name << "`\n\n";
+        }
 
         if (!inst->Description.empty())
             out << inst->Description << "\n\n";
