@@ -361,8 +361,8 @@ namespace Gorgon {
 
 			/// Compares two points with an epsilon tolerance, including the exact epsilon boundary.
 			bool NearlyEqual(const basic_Point &point, Float eps = Float(1e-9)) const {
-				return std::abs(Float(X - point.X)) <= eps &&
-				       std::abs(Float(Y - point.Y)) <= eps;
+				return std::abs(Float(X) - Float(point.X)) <= eps &&
+				       std::abs(Float(Y) - Float(point.Y)) <= eps;
 			}
 
 			/// Returns true if both components are within eps of zero, including the exact epsilon boundary.
@@ -623,19 +623,20 @@ namespace Gorgon {
 		}
 		/// Returns true if scalar value v is within eps of zero
 		inline bool NearlyZero(Float v, Float eps = Float(1e-9)) {
-			return std::abs(v) < eps;
+			return std::abs(v) <= eps;
 		}
 
 		/// Returns true if two scalar values are within eps of each other
 		inline bool NearlyEqual(Float a, Float b, Float eps = Float(1e-9)) {
-			return std::abs(a - b) < eps;
+			return std::abs(a - b) <= eps;
 		}
 
 		/// Returns true if two points are within eps of each other on each axis
 		template<class T_>
+		template<class T_>
 		bool NearlyEqual(const basic_Point<T_> &a, const basic_Point<T_> &b, Float eps = Float(1e-9)) {
-			return std::abs(Float(a.X) - Float(b.X)) < eps &&
-			       std::abs(Float(a.Y) - Float(b.Y)) < eps;
+			return std::abs(Float(a.X) - Float(b.X)) <= eps &&
+			       std::abs(Float(a.Y) - Float(b.Y)) <= eps;
 		}
 
 		/// Returns true if a point is within eps of the origin on each axis

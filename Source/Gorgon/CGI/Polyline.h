@@ -179,16 +179,18 @@ inline bool AngleInArcSweep(Float a, Float start, Float sweep) {
   Float rel = a - start;
   if (sweep > 0.0) {
     while (rel <= 0.0)
-      rel += static_cast<Float>(2.0 * M_PI);
-    while (rel > static_cast<Float>(2.0 * M_PI))
-      rel -= static_cast<Float>(2.0 * M_PI);
+      rel += static_cast<Float>(2.0 * Gorgon::PI);
+    while (rel > static_cast<Float>(2.0 * Gorgon::PI))
+      rel -= static_cast<Float>(2.0 * Gorgon::PI);
     return rel < sweep;
   } else {
+  } else {
     while (rel >= 0.0)
-      rel -= static_cast<Float>(2.0 * M_PI);
-    while (rel < static_cast<Float>(-2.0 * M_PI))
-      rel += static_cast<Float>(2.0 * M_PI);
+      rel -= static_cast<Float>(2.0 * Gorgon::PI);
+    while (rel < static_cast<Float>(-2.0 * Gorgon::PI))
+      rel += static_cast<Float>(2.0 * Gorgon::PI);
     return rel > sweep;
+  }
   }
 }
 
@@ -225,9 +227,10 @@ inline Geometry::Boundsf PolylineBounds(const Polyline &poly) {
   for (const auto &v : poly.vertexes)
     expand(v.x, v.y);
 
-  static const Float cardinals[4] = {0.0, static_cast<Float>(M_PI / 2.0),
-                                     static_cast<Float>(M_PI),
-                                     static_cast<Float>(3.0 * M_PI / 2.0)};
+  static const Float cardinals[4] = {static_cast<Float>(0.0),
+                                     static_cast<Float>(Gorgon::PI / 2.0),
+                                     static_cast<Float>(Gorgon::PI),
+                                     static_cast<Float>(3.0 * Gorgon::PI / 2.0)};
   for (int i = 0; i < segments; ++i) {
     const auto &v0 = poly.vertexes[i];
     if (v0.bulge == 0.0)

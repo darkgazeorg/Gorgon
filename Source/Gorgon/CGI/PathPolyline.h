@@ -494,7 +494,7 @@ inline std::vector<Polyline> PathToPolylines(const basic_Path<Point> &path,
     Point current(0, 0), start(0, 0);
 
     auto pushVertex = [&](const Point &p, bool isCurve) {
-      poly.vertexes.push_back({double(p.X), double(p.Y), 0.0, isCurve});
+      poly.vertexes.push_back({Float(p.X), Float(p.Y), Float(0), isCurve});
     };
 
     auto flushFlat = [&](const Geometry::PointList<Point> &pts) {
@@ -559,8 +559,7 @@ inline std::vector<Polyline> PathToPolylines(const basic_Path<Point> &path,
         if (detail::TryArcToBulge<Point>(current, cmd.Arc, bulge)) {
           poly.vertexes.back().bulge = bulge;
           poly.vertexes.push_back(
-              {double(cmd.Arc.To.X), double(cmd.Arc.To.Y), 0.0, false});
-        } else {
+              {Float(cmd.Arc.To.X), Float(cmd.Arc.To.Y), Float(0), false});
           basic_Path<Point> tmp;
           tmp.AddMoveTo(current);
           tmp.AddArcTo(cmd.Arc.Rx, cmd.Arc.Ry, cmd.Arc.XAxisRotation,
@@ -706,8 +705,7 @@ inline Polyline PointListToPolyline(const Geometry::PointList<Point> &points,
   poly.vertexes.reserve(points.GetSize());
 
   for (const auto &p : points)
-    poly.vertexes.push_back({double(p.X), double(p.Y), 0.0, false});
-
+    poly.vertexes.push_back({Float(p.X), Float(p.Y), Float(0), false});
   if (poly.isClosed && poly.vertexes.size() >= 2) {
     const auto &f = poly.vertexes.front();
     const auto &b = poly.vertexes.back();
