@@ -184,7 +184,6 @@ inline bool AngleInArcSweep(Float a, Float start, Float sweep) {
       rel -= static_cast<Float>(2.0 * Gorgon::PI);
     return rel < sweep;
   } else {
-  } else {
     while (rel >= 0.0)
       rel -= static_cast<Float>(2.0 * Gorgon::PI);
     while (rel < static_cast<Float>(-2.0 * Gorgon::PI))
