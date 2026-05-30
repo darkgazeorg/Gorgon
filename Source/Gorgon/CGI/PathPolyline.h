@@ -560,6 +560,7 @@ inline std::vector<Polyline> PathToPolylines(const basic_Path<Point> &path,
           poly.vertexes.back().bulge = bulge;
           poly.vertexes.push_back(
               {Float(cmd.Arc.To.X), Float(cmd.Arc.To.Y), Float(0), false});
+        } else {
           basic_Path<Point> tmp;
           tmp.AddMoveTo(current);
           tmp.AddArcTo(cmd.Arc.Rx, cmd.Arc.Ry, cmd.Arc.XAxisRotation,

@@ -190,7 +190,6 @@ inline bool AngleInArcSweep(Float a, Float start, Float sweep) {
       rel += static_cast<Float>(2.0 * Gorgon::PI);
     return rel > sweep;
   }
-  }
 }
 
 } // namespace detail
