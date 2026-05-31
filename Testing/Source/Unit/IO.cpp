@@ -5,6 +5,7 @@
 
 #include <sstream>
 #include <Gorgon/IO/Stream.h>
+#include <Gorgon/IO/StreamSlice.h>
 #include <Gorgon/Graphics/Color.h>
 #include <Gorgon/Geometry/Point.h>
 #include <Gorgon/Geometry/Size.h>
@@ -177,4 +178,68 @@ TEST_CASE("ReadSize", "[IO]") {
     WriteSize(stream, size);
     stream.seekg(0);
     REQUIRE(ReadSize(stream) == size);
+}
+
+TEST_CASE("StreamSlice reads requested range", "[IO]") {
+    std::stringstream source(std::ios::in | std::ios::out | std::ios::binary);
+
+    WriteInt32(source, 111);
+    WriteInt32(source, 222);
+    WriteInt32(source, 333);
+    source.seekg(0);
+
+    StreamSlice slice(source, sizeof(int32_t), sizeof(int32_t) * 2);
+
+    REQUIRE(ReadInt32(slice) == 222);
+    REQUIRE(ReadInt32(slice) == 333);
+    REQUIRE(slice.peek() == std::char_traits<char>::eof());
+}
+
+TEST_CASE("StreamSlice supports seek within slice", "[IO]") {
+    std::stringstream source(std::ios::in | std::ios::out | std::ios::binary);
+    source.write("0123456789", 10);
+    source.seekg(0);
+
+    StreamSlice slice(source, 2, 5);
+
+    REQUIRE(slice.tellg() == 0);
+    REQUIRE(slice.get() == '2');
+
+    slice.seekg(2, std::ios::beg);
+    REQUIRE(slice.tellg() == 2);
+    REQUIRE(slice.get() == '4');
+
+    slice.seekg(-1, std::ios::end);
+    REQUIRE(slice.tellg() == 4);
+    REQUIRE(slice.get() == '6');
+
+    slice.seekg(100, std::ios::beg);
+    REQUIRE(slice.tellg() == 5);
+    REQUIRE(slice.peek() == std::char_traits<char>::eof());
+}
+
+TEST_CASE("StreamSlice preserves binary bytes", "[IO]") {
+    const std::string payload("A\0B\nC\0D", 7);
+    std::stringstream source(std::ios::in | std::ios::out | std::ios::binary);
+    source.write(payload.data(), payload.size());
+    source.seekg(0);
+
+    StreamSlice slice(source, 1, 5);
+    std::string read(5, '\0');
+    slice.read(&read[0], read.size());
+
+    REQUIRE(read == std::string("\0B\nC\0", 5));
+}
+
+TEST_CASE("StreamSlice owns temporary streams", "[IO]") {
+    StreamSlice slice(
+        std::stringstream(std::string("A\0BC", 4), std::ios::in | std::ios::out | std::ios::binary),
+        1,
+        3
+    );
+
+    std::string read(3, '\0');
+    slice.read(&read[0], read.size());
+
+    REQUIRE(read == std::string("\0BC", 3));
 }

@@ -1,11 +1,11 @@
 #pragma once
 
+#include <optional>
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
-#include <map>
-#include <memory>
 
+#include "Base.h"
 #include "../Utils/Assert.h"
 #include "../Filesystem.h"
 #include "../IO/Stream.h"
@@ -195,6 +195,12 @@ namespace Gorgon :: Resource {
 		}
 
 		bool ReadCommonChunk(Base &self, GID::Type gid, unsigned long size);
+
+		/// Returns the filename associated with this reader, if any. This is used for late 
+		/// loading and streaming systems. If there is no file associated, returns std::nullopt.
+		virtual std::optional<std::string> GetFilename() const {
+			return std::nullopt;
+		}
 
 		/// @name Platform independent data readers
 		/// @{
@@ -431,6 +437,10 @@ namespace Gorgon :: Resource {
 				this->filename=Filesystem::Canonical(filename);
 			}
 			catch(...) {}
+		}
+
+		virtual std::optional<std::string> GetFilename() const override {
+			return filename;
 		}
 
 
