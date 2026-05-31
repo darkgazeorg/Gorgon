@@ -10,7 +10,11 @@ namespace Gorgon :: Resource {
 		class File;
 		class Reader;
 
-		/// This is sound resource. Supports 
+		/// This is sound resource. Supports FLAC and wave files. Also supports LZMA compression.
+		/// Via late loading, it can be used for streaming purposes. It is recommended to use FLAC
+		/// compression for streaming purposes since it is more efficient to decode and has better
+		/// compression ratio. Wave files are supported both PCM and non-PCM (32bit float) formats.
+		/// Vorbis compression is not supported natively but can be used via Blob resource.
 		class Sound : public Base {
 		public:
 

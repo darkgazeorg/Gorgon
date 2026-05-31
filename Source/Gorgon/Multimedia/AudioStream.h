@@ -15,6 +15,7 @@
 namespace Gorgon { 
     
 namespace Resource {
+    class Blob;
     class Sound;
 }
 namespace Audio :: internal {
@@ -108,7 +109,11 @@ namespace Multimedia {
         /// controller. Multiple controllers will cause stream to switch back and forth causing 
         /// issues.
         bool Stream(Resource::Sound &source);
-        
+
+        /// Starts streaming the given blob resource. If the blob is stored uncompressed on disk,
+        /// the blob payload is streamed directly. Otherwise the blob is loaded into memory first.
+        bool Stream(Resource::Blob &source);
+
         /// Starts streaming the given wav file. Only a portion of the file will be loaded 
         /// immediately and it will be loaded automatically as necessary. Returns false if the file
         /// cannot be read.
