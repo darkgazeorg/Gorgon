@@ -237,7 +237,6 @@ namespace Gorgon :: Resource {
 			if(auto fname = writer.GetFilename(); fname) {
 				filename = *fname;
 				dataentry = (size_t)writer.GetStream().tellp() + 8;
-				datasize = (size_t)(data.GetSize() * data.GetChannelCount() * bits/8);
 			}
 			else {
 				filename = "";
@@ -247,6 +246,8 @@ namespace Gorgon :: Resource {
 
 			auto datastart = writer.WriteChunkStart(GID::Sound_Cmp_Wave);
 			Encoding::Flac.Encode(data, writer.GetStream());
+			if(!filename.empty())
+				datasize = (size_t)writer.Tell() - dataentry;
 			writer.WriteEnd(datastart);
 		}
 #endif
