@@ -52,6 +52,15 @@ namespace Gorgon :: Resource {
 	bool Blob::load(std::shared_ptr<Reader> reader, unsigned long totalsize, bool forceload) {
 		bool load=false;
 
+		if(auto fname = reader->GetFilename(); fname) {
+			filename = *fname;
+		}
+		else {
+			filename = "";
+			dataentry = 0;
+			datasize = 0;
+		}
+
 		auto target = reader->Target(totalsize);
 
 		entrypoint = reader->Tell();
@@ -73,8 +82,13 @@ namespace Gorgon :: Resource {
 				}
 			}
 			else if(gid==GID::Blob_Data) {
+				dataentry = (size_t)reader->Tell();
+				datasize = (size_t)size;
+
 				if(load) {
-					reader->ReadArray(&data[0], size);
+					data.resize(size);
+					if(size > 0)
+						reader->ReadArray(data.data(), size);
 
 					isloaded=true;
 				}
@@ -82,6 +96,11 @@ namespace Gorgon :: Resource {
 					reader->EatChunk(size);
 				}
 			} else if(gid==GID::Blob_Cmp_Data) {
+				if(filename != "") {
+					dataentry = (size_t)reader->Tell();
+					datasize = (size_t)size;
+				}
+
 				if(load) {
 					if(size>0) {
 						Encoding::Lzma.Decode(reader->GetStream(), data, size);
@@ -115,12 +134,35 @@ namespace Gorgon :: Resource {
 		writer.WriteEnd(propstart);
 		
 		if(compression==GID::None) {
+			if(auto fname = writer.GetFilename(); fname) {
+				filename = *fname;
+				dataentry = (size_t)writer.Tell() + 8;
+				datasize = data.size();
+			}
+			else {
+				filename = "";
+				dataentry = 0;
+				datasize = 0;
+			}
+
 			writer.WriteChunkHeader(GID::Blob_Data, (unsigned long)data.size());
 			writer.WriteVector(data);
 		}
 		else if(compression==GID::LZMA) {
+			if(auto fname = writer.GetFilename(); fname) {
+				filename = *fname;
+				dataentry = (size_t)writer.Tell() + 8;
+			}
+			else {
+				filename = "";
+				dataentry = 0;
+				datasize = 0;
+			}
+
 			auto datastart = writer.WriteChunkStart(GID::Blob_Cmp_Data);
 			Encoding::Lzma.Encode(data, writer.GetStream());
+			if(!filename.empty())
+				datasize = (size_t)writer.Tell() - dataentry;
 			writer.WriteEnd(datastart);
 		}
 		else {
@@ -131,9 +173,10 @@ namespace Gorgon :: Resource {
 	}
 
 
-	bool Blob::ImportFile(const std::string &filename, Type type) {
+	bool Blob::ImportFile(const std::string &filename, Type type, bool lateloading) {
 		data.clear();
-		this->type=type;
+		this->type = type;
+		this->lateloading = lateloading;
 
 		std::ifstream file(filename, std::ios::binary);
 
@@ -159,7 +202,9 @@ namespace Gorgon :: Resource {
 		return true;
 	}
 
-	bool Blob::AppendFile(const std::string &filename) {
+	bool Blob::AppendFile(const std::string &filename, bool lateloading) {
+		this->lateloading = lateloading;
+
 		std::ifstream file(filename, std::ios::binary);
 
 		if(!file.is_open())

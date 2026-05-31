@@ -1,17 +1,11 @@
 #pragma once
 
-#include <stdexcept>
-#include <iostream>
-#include <fstream>
 #include <functional>
 #include <map>
 #include <memory>
 
-#include "../Utils/Assert.h"
 #include "Base.h"
 #include "Folder.h"
-#include "../Filesystem.h"
-#include "../IO/Stream.h"
 
 #include "Reader.h"
 #include "Writer.h"

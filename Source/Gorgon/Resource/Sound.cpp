@@ -37,6 +37,15 @@ namespace Gorgon :: Resource {
 	bool Sound::load(std::shared_ptr<Reader> reader, unsigned long totalsize, bool forceload) {
 		bool load=false;
 
+		if(auto fname = reader->GetFilename(); fname) {
+			filename = *fname;
+		}
+		else {
+			filename = "";
+			dataentry = 0;
+			datasize = 0;
+		}
+
 		auto target = reader->Target(totalsize);
 
 		entrypoint = reader->Tell();
@@ -90,10 +99,15 @@ namespace Gorgon :: Resource {
 					channels.push_back(reader->ReadEnum32<Audio::Channel>());
 			}
 			else if(gid==GID::Sound_Wave) {
+				if(filename != "") {
+					dataentry = (size_t)reader->Tell();
+					datasize = (size_t)size;
+				}
+
 				if(load) {
                     if(!pcm) {
                         data.Resize(uncompressed, channels);
-                        reader->ReadArray(data.RawData(), data.GetSize() * data.GetChannelCount());
+                        reader->ReadArray(data.RawData(), (unsigned long)(data.GetSize() * data.GetChannelCount()));
                     }
                     else {
                         data.Resize(uncompressed, channels);
@@ -118,6 +132,11 @@ namespace Gorgon :: Resource {
 				}
 			}
 			else if(gid==GID::Sound_Cmp_Wave) {
+				if(filename != "") {
+					dataentry = (size_t)reader->Tell();
+					datasize = (size_t)size;
+				}
+				
 				if(load) {
                     auto target = reader->Tell() + size;
 					if(size>0) {
@@ -160,8 +179,8 @@ namespace Gorgon :: Resource {
 
 		auto propstart = writer.WriteChunkStart(GID::Sound_Fmt);
 		writer.WriteGID(compression);
-		writer.WriteUInt32(data.GetSampleRate());
-		writer.WriteUInt32(data.GetSize());
+		writer.WriteUInt32((uint32_t)data.GetSampleRate());
+		writer.WriteUInt32((uint32_t)data.GetSize());
 		writer.WriteBool(pcm);
 		writer.WriteUInt8(bits);
 		writer.WriteBool(lateloading);
@@ -175,10 +194,21 @@ namespace Gorgon :: Resource {
 		writer.WriteEnd(propstart);
 
 		if(compression==GID::None) {
+			if(auto fname = writer.GetFilename(); fname) {
+				filename = *fname;
+				dataentry = (size_t)writer.GetStream().tellp() + 8;
+				datasize = (size_t)(data.GetSize() * data.GetChannelCount() * bits/8);
+			}
+			else {
+				filename = "";
+				dataentry = 0;
+				datasize = 0;
+			}
+			
 			if(pcm) {
 				writer.WriteChunkHeader(
 					GID::Sound_Wave,
-					data.GetSize() * data.GetChannelCount() * bits/8
+					(unsigned long)(data.GetSize() * data.GetChannelCount() * bits/8)
 				);
 
 				if(bits == 8) {
@@ -198,16 +228,28 @@ namespace Gorgon :: Resource {
 			else {
 				writer.WriteChunkHeader(
 					GID::Sound_Wave, 
-					data.GetBytes()
+					(unsigned long)data.GetBytes()
 				);
 
-				writer.WriteArray(data.RawData(), data.GetBytes());
+				writer.WriteArray(data.RawData(), (unsigned long)data.GetBytes());
 			}
 		}
 #ifdef GORGON_FLAC_SUPPORT
 		else if(compression==GID::FLAC) {
+			if(auto fname = writer.GetFilename(); fname) {
+				filename = *fname;
+				dataentry = (size_t)writer.GetStream().tellp() + 8;
+			}
+			else {
+				filename = "";
+				dataentry = 0;
+				datasize = 0;
+			}
+
 			auto datastart = writer.WriteChunkStart(GID::Sound_Cmp_Wave);
 			Encoding::Flac.Encode(data, writer.GetStream());
+			if(!filename.empty())
+				datasize = (size_t)writer.Tell() - dataentry;
 			writer.WriteEnd(datastart);
 		}
 #endif

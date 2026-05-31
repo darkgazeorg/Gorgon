@@ -10,6 +10,11 @@
 #include "../Encoding/Vorbis.h"
 #endif
 
+#include "Gorgon/IO/MemoryStream.h"
+#include "Gorgon/IO/StreamSlice.h"
+#include "Gorgon/Resource/Blob.h"
+#include "Gorgon/Resource/Sound.h"
+
 namespace Gorgon { 
     
 namespace Audio :: internal {
@@ -157,29 +162,48 @@ namespace internal {
         }
 #ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
-            return StreamFLAC(file);
+            return StreamFLAC(file, ownstream);
         }
 #endif
 #ifdef GORGON_VORBIS_SUPPORT
         else if(sig == oggsig) {
-            return StreamVorbis(file);
+            return StreamVorbis(file, ownstream);
         }
 #endif
 
         throw std::runtime_error("Unsupported file format");
     }
-    
-    bool AudioStream::StreamWav(const std::string &filename) {
-        auto &file = *new std::ifstream(filename, std::ios::binary);
-        
-        if(file.is_open())
-            return StreamWav(file, true);
-        else {
-            delete &file;
-            return false;
-        }
+
+    bool AudioStream::Stream(Resource::Sound &source) {
+      return Stream(*new IO::StreamSlice(source.GetDataStream()), true);
     }
-    
+
+    bool AudioStream::Stream(Resource::Blob &source) {
+        if(source.GetCompression() == Resource::GID::None) {
+            return Stream(*new IO::StreamSlice(source.GetDataStream()), true);
+        }
+
+        if(!source.Load())
+            return false;
+
+        auto &data = source.GetData();
+        return Stream(*new IO::MemoryInputStream(
+            reinterpret_cast<const char *>(data.data()),
+            reinterpret_cast<const char *>(data.data() + data.size())
+        ), true);
+    }
+
+    bool AudioStream::StreamWav(const std::string &filename) {
+      auto &file = *new std::ifstream(filename, std::ios::binary);
+
+      if (file.is_open())
+        return StreamWav(file, true);
+      else {
+        delete &file;
+        return false;
+      }
+    }
+
     bool AudioStream::StreamWav(std::istream &file, bool ownstream) {
         std::lock_guard<std::mutex> g(guard);
 

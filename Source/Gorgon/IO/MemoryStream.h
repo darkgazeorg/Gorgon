@@ -1,6 +1,7 @@
 #pragma once
 
 #include <streambuf>
+#include <iostream>
 
 namespace Gorgon :: IO {
 

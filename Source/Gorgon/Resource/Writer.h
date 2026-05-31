@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <stdexcept>
 #include <iostream>
 #include <fstream>
@@ -123,6 +124,12 @@ namespace Gorgon :: Resource {
 			ASSERT(IsGood(), "Writer is failed.");
 
 			stream->seekp((std::streampos)pos, std::ios::beg);
+		}
+
+		/// Returns the filename associated with this reader, if any. This is used for late 
+		/// loading and streaming systems. If there is no file associated, returns std::nullopt.
+		virtual std::optional<std::string> GetFilename() const {
+			return std::nullopt;
 		}
 
 
@@ -416,6 +423,10 @@ namespace Gorgon :: Resource {
 				this->filename=Filesystem::Join(Filesystem::Canonical(path), file);
 			}
 			catch(...) {}
+		}
+
+		virtual std::optional<std::string> GetFilename() const override {
+			return filename;
 		}
 	
 	protected:

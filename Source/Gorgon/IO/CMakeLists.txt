@@ -4,5 +4,6 @@ target_sources(Gorgon
     BASE_DIRS "${PROJECT_SOURCE_DIR}/Source"
     FILES
       MemoryStream.h
+  StreamSlice.h
       Stream.h
 )

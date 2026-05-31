@@ -1,4 +1,6 @@
-#include <typeinfo>
+#include "Gorgon/Filesystem.h"
+#include "Gorgon/Resource/Blob.h"
+#include "Gorgon/Resource/File.h"
 
 #include <Gorgon/Window.h>
 #include <Gorgon/Main.h>
@@ -11,8 +13,6 @@
 #include <Gorgon/Geometry/Transform3D.h>
 #include <Gorgon/Audio/Environment.h>
 #include <Gorgon/Resource/Sound.h>
-
-#include <chrono>
 
 using namespace std::chrono_literals;
 
@@ -78,19 +78,34 @@ auto TestExportImport() {
     
     auto wave = MakeSine();
     
-    Encoding::Flac.Encode(wave, "test.sound", 16);
+    //Encoding::Flac.Encode(wave, "test.sound", 16);
     //wave.ExportWav("test.sound", 16);
+
+    Resource::File file, file2;
+    auto sound = new Resource::Sound;
+    auto blob = new Resource::Blob;
+    file.Root().Add(sound);
+    file.Root().Add(blob);
+    sound->Assign(wave);
+    sound->LateLoad();
+    bool res = blob->ImportFile("sample.ogg");
+    file.Save("test.gor");
+
+    file2.LoadFile("test.gor");
+
     
     Multimedia::AudioStream wave2;
     //std::cout<<"Load file: " << wave2.ImportWav("test.wav")<<std::endl;
     //wave2.Stream("out.wav");
-    wave2.Stream("test.ogg");
+    if(res) wave2.Stream(file2.Root().Get<Resource::Blob>(1));
+    else    wave2.Stream(file2.Root().Get<Resource::Sound>(0));
     //wave2.ExportWav("out.wav");
     
     return wave2;
 }
 
 int main() {
+    std::cout << Filesystem::CurrentDirectory() << std::endl;
     Audio::Log.InitializeConsole();
     Initialize("Audio");
     

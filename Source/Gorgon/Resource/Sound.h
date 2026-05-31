@@ -1,17 +1,20 @@
 #pragma once
 
-#include <vector>
 #include <memory>
 
-#include "../Types.h"
 #include "Base.h"
 #include "../Containers/Wave.h"
+#include "Gorgon/IO/StreamSlice.h"
 
 namespace Gorgon :: Resource {
 		class File;
 		class Reader;
 
-		/// This is sound resource. Supports 
+		/// This is sound resource. Supports FLAC and wave files. Also supports LZMA compression.
+		/// Via late loading, it can be used for streaming purposes. It is recommended to use FLAC
+		/// compression for streaming purposes since it is more efficient to decode and has better
+		/// compression ratio. Wave files are supported both PCM and non-PCM (32bit float) formats.
+		/// Vorbis compression is not supported natively but can be used via Blob resource.
 		class Sound : public Base {
 		public:
 
@@ -103,6 +106,35 @@ namespace Gorgon :: Resource {
 				checkfmt();
 			}
 
+			/// Returns whether this sound is set to be loaded during initial loading or not. If this function 
+			/// returns false, this sound will only be loaded when it is requested for the first time.
+			bool GetLateLoading() const {
+				return lateloading;
+			}
+
+			/// This sound will not be loaded with the main file load command. Suitable for streaming systems.
+			void LateLoad() {
+				lateloading = true;
+			}
+
+			/// Cancel late loading flag.
+			void NoLateLoad() {
+				lateloading = false;
+			}
+
+			/// Set late loading flag to the given value.
+			void SetLateLoading(bool lateloading) {
+				this->lateloading = lateloading;
+			}
+
+			/// Returns a stream slice that can be used to read the sound data. This function will throw if the sound is not loaded or saved to the disk.
+			IO::StreamSlice GetDataStream() const {
+				if(filename.empty() || datasize == 0)
+					throw std::runtime_error("Sound file is not loaded or saved to the disk.");
+
+				return IO::StreamSlice(std::ifstream(filename, std::ios::binary), dataentry, datasize);
+			}
+
 
 		protected:
 
@@ -117,6 +149,15 @@ namespace Gorgon :: Resource {
 			/// Entry point of this resource within the physical file. This value is stored for 
 			/// late loading purposes
 			unsigned long entrypoint = -1;
+
+			/// Entry point of the sound data within the physical file. This value is stored for streaming purposes.
+			mutable size_t dataentry = 0; //mutable as saving also modifies this value
+
+			/// Size of the sound data in bytes. This is used for streaming purposes.
+			mutable size_t datasize = 0; //mutable as saving also modifies this value
+
+			/// Filename of the sound file. This is stored for streaming purposes.
+			mutable std::string filename; //mutable as saving also modifies this value
 
 			/// Used to handle late loading
 			std::shared_ptr<Reader> reader;
