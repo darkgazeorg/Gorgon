@@ -154,8 +154,34 @@ namespace Gorgon :: Audio {
             size_t End;
         };
 
+        /// Defines which how slide will be performed. Slide settings are part of a instrument.
+        enum SlideMode {
+            /// Continuous slide from the previous note to the current note. Examples: synthesizer, violin, trombone.
+            Portamento, 
 
-    public:
+            /// Discrete slide that steps through each semitone between the previous note and the current note.
+            /// Example: guitar
+            ChromaticGlissando,
+
+            /// Continuous slide that follows the natural notes between the previous note and the current note.
+            /// If start or the end is not a natural note, it will slide to the nearest natural note and continue
+            /// from there, jumping to the target note at the end. For example, a slide from C to F# with Natural
+            /// mode will slide from C to F following the natural notes (D, E, F), then jump to F# at the end,
+            /// while a slide from C# to F with Natural mode will slide from C# to E following the natural notes
+            /// (D, E, F).
+            /// Example: Flute
+            NaturalGlissando,
+
+            /// Discrete slide that steps through the notes of the current scale between the previous note and the current note.
+            /// Some instruments may support customizing keys that are included in the scale, but by default, there are two 
+            /// supported scales C major (C, D, E, F, G, A, B, white keys) and G#5 natural (G#, A#, C#, D#, F#, black keys). 
+            /// If the slide is between two notes that are not a part of the same scale, it will step to the first valid note 
+            /// towards the target note and continue from there. For example, a slide from C to F with Diatonic mode will step
+            /// through C, D, E, F, while a slide from C# to F with Diatonic mode will step through C#, D, E, F.
+            /// Example: Piano
+            DiatonicGlissando,
+        };
+
         /// Defines type of a tag. This allows for categorization and filtering
         /// of songs based on their tags, which can be used for music selection 
         /// in games or other applications. Tags are case insensitive and should
@@ -397,6 +423,7 @@ namespace Gorgon :: Audio {
             std::vector<TrackedValue> Volume;
             int Octave = 4;
             Duration Separation = Duration::Empty();
+            Duration SlideTime = Duration::Empty(); // This is per note
             size_t InstrumentIndex = 1;
         };
 
@@ -487,6 +514,7 @@ namespace Gorgon :: Audio {
 
         /** A simple sine wave instrument with configurable attack and release ramps.
          *  This is the default instrument for all notes unless changed by an @ command.
+         *  Default settings make a synthesizer sound with a quick attack and medium release.
          */
         class Sine : public Instrument {
         public:
@@ -533,6 +561,12 @@ namespace Gorgon :: Audio {
 
             /// Default separation between notes.
             Duration Separation = Duration::FromFraction(32);
+
+            /// Slide mode for the instrument.
+            SlideMode Slide = SlideMode::Portamento;
+
+            /// How long it takes to slide one note up or down. 
+            Duration SlideTime = Duration::FromFraction(64);
 
             /// Modifies the pitch of the sine wave. A full number represents a semitone.
             /// A fraction can be used for microtonal adjustments, +/-12 can be used for

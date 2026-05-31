@@ -30,16 +30,15 @@ You can set tempo, volume, separation and instrument changes before starting tra
 %Artist = Jane Doe
 
 # --- Instrument Bank ---
-@1 = sine(Flute), attack={s, 64}, decay={linear, 2/1}, sustain=0, release={exp, 4}
-@2 = pulse(Lead), duty=50
-@3 = noise(Snare), bitdepth=8
+@1 = sine(Flute) attack={s, 64}, decay={linear, 2/1}, sustain=0, release={exp, 4}
+@2 = pulse(Lead) duty=50
 
 # --- Sequence Data ---
 1> T120 @1 C4 D4 E3/4 R4 G2.
 2> @2 C2 C2 C2 C2
 
 # Multi-channel panning, volume fades, and non-linear slides
-1> V(0)100 V(1)0 C4 V(0)0:4{exp} V(1)100:4{exp} C4^F4{sqrt} V0 R4
+1> V(0)100 V(1)0 C4 V(0)0:{exp, 4} V(1)100:{exp, 4} C4^F4{sqrt} V0 R4
 ```
 
 ---
