@@ -196,12 +196,6 @@ namespace Encoding {
 
         auto &input = ((flac::streamread*)client_data)->stream;
         
-        if(!input.eof()) {
-            auto p = input.tellg();
-            if(((flac::streamwrite*)client_data)->maxpos < p)
-                ((flac::streamwrite*)client_data)->maxpos = p;
-        }
-        
         input.clear();
         input.seekg((std::streamoff)absolute_byte_offset, std::ios::beg);
 

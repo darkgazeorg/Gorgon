@@ -9,6 +9,8 @@
 #include <thread>
 #include <mutex>
 #include <array>
+#include <type_traits>
+#include <utility>
 
 namespace Gorgon { 
     
@@ -88,6 +90,15 @@ namespace Multimedia {
         /// controller. Multiple controllers will cause stream to switch back and forth causing 
         /// issues.
         bool Stream(std::istream &stream, bool ownstream = false);
+
+        template<class S_, typename std::enable_if<
+            std::is_base_of<std::istream, typename std::decay<S_>::type>::value &&
+            !std::is_lvalue_reference<S_>::value, int>::type = 0>
+        bool Stream(S_ &&stream) {
+            auto &owned = *new typename std::decay<S_>::type(std::move(stream));
+            return Stream(owned, true);
+        }
+
         
         /// Starts streaming the given resource. Only a portion of the resource will be loaded 
         /// immediately and it will be loaded automatically as necessary. Returns false if the 
@@ -115,6 +126,9 @@ namespace Multimedia {
         /// controller. Multiple controllers will cause stream to switch back and forth causing 
         /// issues.
         bool StreamWav(std::istream &stream, bool ownstream = false);
+
+
+
         
 #ifdef GORGON_FLAC_SUPPORT
         /// Starts streaming the given FLAC file. Only a portion of the file will be loaded 
@@ -134,6 +148,7 @@ namespace Multimedia {
         /// controller. Multiple controllers will cause stream to switch back and forth causing 
         /// issues.
         bool StreamFLAC(std::istream &stream, bool ownstream = false);
+
 #endif
         
 #ifdef GORGON_VORBIS_SUPPORT
@@ -154,6 +169,7 @@ namespace Multimedia {
         /// controller. Multiple controllers will cause stream to switch back and forth causing 
         /// issues.
         bool StreamVorbis(std::istream &stream, bool ownstream = false);
+        
 #endif
         
         /// This function will fill the buffer of the stream. This function should only be called

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "Base.h"
-#include "Reader.h"
 #include "../Geometry/Point.h"
 #include "../Geometry/Size.h"
 #include "../Geometry/Rectangle.h"
 #include "../Geometry/Bounds.h"
 #include "../Geometry/Margin.h"
+#include "Gorgon/Resource/Reader.h"
 
 #include <functional>
+#include <memory>
 
 namespace Gorgon :: Resource {
 

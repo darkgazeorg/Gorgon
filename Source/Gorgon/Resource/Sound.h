@@ -123,6 +123,7 @@ namespace Gorgon :: Resource {
 				this->lateloading = lateloading;
 			}
 
+			/// Returns a stream slice that can be used to read the sound data. This function will throw if the sound is not loaded or saved to the disk.
 			IO::StreamSlice GetDataStream() const {
 				if(filename.empty() || datasize == 0)
 					throw std::runtime_error("Sound file is not loaded or saved to the disk.");

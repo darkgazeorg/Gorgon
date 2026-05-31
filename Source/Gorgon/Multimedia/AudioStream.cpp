@@ -157,12 +157,12 @@ namespace internal {
         }
 #ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
-            return StreamFLAC(file);
+            return StreamFLAC(file, ownstream);
         }
 #endif
 #ifdef GORGON_VORBIS_SUPPORT
         else if(sig == oggsig) {
-            return StreamVorbis(file);
+            return StreamVorbis(file, ownstream);
         }
 #endif
 

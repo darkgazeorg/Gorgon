@@ -135,8 +135,9 @@ namespace Gorgon :: IO {
 	class StreamSlice : public std::istream {
 	public:
 		StreamSlice(std::istream &stream, std::streamoff offset, std::streamsize size) :
-			std::istream(nullptr) {
-			init(new StreamSliceBuffer(stream, offset, size));
+			std::istream(nullptr),
+			buffer(new StreamSliceBuffer(stream, offset, size)) {
+			init(buffer.get());
 		}
 
 		template<class S_, typename std::enable_if<
@@ -144,16 +145,30 @@ namespace Gorgon :: IO {
 			!std::is_lvalue_reference<S_>::value, int>::type = 0>
 		StreamSlice(S_ &&stream, std::streamoff offset, std::streamsize size) :
 			std::istream(nullptr),
-			owner(new typename std::decay<S_>::type(std::move(stream))) {
-			init(new StreamSliceBuffer(*owner, offset, size));
+			owner(new typename std::decay<S_>::type(std::move(stream))),
+			buffer(new StreamSliceBuffer(*owner, offset, size)) {
+			init(buffer.get());
 		}
 
-		virtual ~StreamSlice() {
-			delete rdbuf();
+		StreamSlice(StreamSlice &&other) noexcept :
+			std::istream(std::move(other)),
+			owner(std::move(other.owner)),
+			buffer(std::move(other.buffer)) {
+			this->set_rdbuf(buffer.get());
+			other.set_rdbuf(nullptr);
 		}
+
+		StreamSlice(const StreamSlice &) = delete;
+
+		StreamSlice &operator=(const StreamSlice &) = delete;
+
+		StreamSlice &operator=(StreamSlice &&) = delete;
+
+		virtual ~StreamSlice() = default;
 
 	private:
 		std::unique_ptr<std::istream> owner;
+		std::unique_ptr<StreamSliceBuffer> buffer;
 	};
 
 }

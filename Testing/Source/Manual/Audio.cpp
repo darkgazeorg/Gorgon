@@ -1,3 +1,6 @@
+#include "Gorgon/Filesystem.h"
+#include "Gorgon/IO/StreamSlice.h"
+#include "Gorgon/Resource/File.h"
 #include <typeinfo>
 
 #include <Gorgon/Window.h>
@@ -78,19 +81,29 @@ auto TestExportImport() {
     
     auto wave = MakeSine();
     
-    Encoding::Flac.Encode(wave, "test.sound", 16);
+    //Encoding::Flac.Encode(wave, "test.sound", 16);
     //wave.ExportWav("test.sound", 16);
+
+    Resource::File file;
+    auto sound = new Resource::Sound;
+    file.Root().Add(sound);
+    sound->Assign(wave);
+    file.Save("test.gor");
+
+
+
     
     Multimedia::AudioStream wave2;
     //std::cout<<"Load file: " << wave2.ImportWav("test.wav")<<std::endl;
     //wave2.Stream("out.wav");
-    wave2.Stream("test.ogg");
+    wave2.Stream(*new IO::StreamSlice(sound->GetDataStream()), true);
     //wave2.ExportWav("out.wav");
     
     return wave2;
 }
 
 int main() {
+    std::cout << Filesystem::CurrentDirectory() << std::endl;
     Audio::Log.InitializeConsole();
     Initialize("Audio");
     

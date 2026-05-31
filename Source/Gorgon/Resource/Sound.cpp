@@ -194,7 +194,7 @@ namespace Gorgon :: Resource {
 		if(compression==GID::None) {
 			if(auto fname = writer.GetFilename(); fname) {
 				filename = *fname;
-				dataentry = (size_t)writer.GetStream().tellp();
+				dataentry = (size_t)writer.GetStream().tellp() + 8;
 				datasize = (size_t)(data.GetSize() * data.GetChannelCount() * bits/8);
 			}
 			else {
@@ -234,6 +234,17 @@ namespace Gorgon :: Resource {
 		}
 #ifdef GORGON_FLAC_SUPPORT
 		else if(compression==GID::FLAC) {
+			if(auto fname = writer.GetFilename(); fname) {
+				filename = *fname;
+				dataentry = (size_t)writer.GetStream().tellp() + 8;
+				datasize = (size_t)(data.GetSize() * data.GetChannelCount() * bits/8);
+			}
+			else {
+				filename = "";
+				dataentry = 0;
+				datasize = 0;
+			}
+
 			auto datastart = writer.WriteChunkStart(GID::Sound_Cmp_Wave);
 			Encoding::Flac.Encode(data, writer.GetStream());
 			writer.WriteEnd(datastart);
