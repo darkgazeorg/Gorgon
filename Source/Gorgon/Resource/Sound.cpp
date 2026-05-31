@@ -99,8 +99,10 @@ namespace Gorgon :: Resource {
 					channels.push_back(reader->ReadEnum32<Audio::Channel>());
 			}
 			else if(gid==GID::Sound_Wave) {
-				dataentry = (size_t)reader->Tell();
-				datasize = (size_t)size;
+				if(filename != "") {
+					dataentry = (size_t)reader->Tell();
+					datasize = (size_t)size;
+				}
 
 				if(load) {
                     if(!pcm) {
