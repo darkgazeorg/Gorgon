@@ -1,0 +1,148 @@
+# =========================================================
+# Morning Mood (Peer Gynt Suite No. 1 - Orchestral)
+# =========================================================
+%CHANNELS = 2
+%title = Morning Mood
+%artist = Edvard Grieg
+%arranger = Antigravity
+%genre = classical
+%style = orchestral
+%comment = A peaceful, slow 6/8 arrangement of Edvard Grieg's pastoral masterpiece.
+%comment = Employs flutes, oboes, and deep bass to create a warm morning soundscape.
+
+# --- Instrument Bank ---
+@1 = flute volume=95
+@2 = synth(Oboe) attack={s, 32}, decay={linear, 2}, sustain=0.7, release={exp, 4}, volume=70
+@3 = "deep sub bass" volume=80
+
+T70
+
+# ---------------------------------------------------------
+# CYCLE 1: Theme (Flute Lead, Oboe Backing)
+# ---------------------------------------------------------
+# Track 1: Melody (Flute)
+1> @1 O5
+1> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+1> D8. E16 D8 F+8. G16 F+8 D8 F+8 G8 A8 F+8 D8
+1> E8 G8 A8 B8 G8 E8 G8 A8 B8 O6 C8 O5 B8 A8
+1> B8 G8 E8 D8 E8 F+8 E4. R4.
+1> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+1> F+8. G16 F+8 A8. B16 A8 F+8 A8 B8 O6 C+8 O5 A8 F+8
+1> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+1> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+1> A8. B16 A8 O6 C#8. D16 C#8 O5 A8 O6 C#8 D8 E8 C#8 O5 A8
+1> O6 F#8. G16 F#8 A8. B16 A8 F#8 A8 B8 O7 C#8 O6 A8 F#8
+1> B4. G#4. B8 G#8 E8 B8 G#8 E8
+1> B2. B2.
+
+# Track 2: Harmony (Oboe)
+2> @2 O4
+2> G4. B4. G4. B4.
+2> F+4. A4. F+4. A4.
+2> G4. B4. B4. O5 D4.
+2> B4. O5 D4. G2.
+2> B4. O5 D4. B4. O5 D4.
+2> A+4. O5 C+4. A+4. O5 C+4.
+2> B4. O5 D4. B4. O5 D4.
+2> G4. B4. G4. B4.
+2> C+4. E4. C+4. E4.
+2> A+4. O5 C+4. A+4. O5 C+4.
+2> G+4. B4. G+4. B4.
+2> G+2. G+2.
+
+# Track 3: Bass (Sub Bass)
+3> @3 O2
+3> E2. E2. D2. D2. E2. G2. G2. E2.
+3> G2. G2. F+2. F+2. G2. G2. E2. E2.
+3> A2. A2. F+2. F+2. E2. E2. E2. E2.
+
+
+# ---------------------------------------------------------
+# CYCLE 2: Theme (Oboe Lead, Flute High Pad)
+# ---------------------------------------------------------
+# Track 1: Pad / Counter-melody (Flute)
+1> @1 O6
+1> E2. G2. F+2. A2. B2. O7 C2. O6 B2. E2.
+1> G2. B2. F+2. A2. G2. B2. E2. E2.
+1> A2. O7 C#2. O6 F#2. A2. B2. G#2. B2. B2.
+
+# Track 2: Melody (Oboe)
+2> @2 O5
+2> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+2> D8. E16 D8 F+8. G16 F+8 D8 F+8 G8 A8 F+8 D8
+2> E8 G8 A8 B8 G8 E8 G8 A8 B8 O6 C8 O5 B8 A8
+2> B8 G8 E8 D8 E8 F+8 E4. R4.
+2> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+2> F+8. G16 F+8 A8. B16 A8 F+8 A8 B8 O6 C+8 O5 A8 F+8
+2> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+2> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+2> A8. B16 A8 O6 C#8. D16 C#8 O5 A8 O6 C#8 D8 E8 C#8 O5 A8
+2> O6 F#8. G16 F#8 A8. B16 A8 F#8 A8 B8 O7 C#8 O6 A8 F#8
+2> B4. G#4. B8 G#8 E8 B8 G#8 E8
+2> B2. B2.
+
+# Track 3: Bass
+3> O2
+3> E2. E2. D2. D2. E2. G2. G2. E2.
+3> G2. G2. F+2. F+2. G2. G2. E2. E2.
+3> A2. A2. F+2. F+2. E2. E2. E2. E2.
+
+
+# ---------------------------------------------------------
+# CYCLE 3: Theme (Flute & Oboe Octaves)
+# ---------------------------------------------------------
+# Track 1: Melody High (Flute)
+1> @1 O5
+1> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+1> D8. E16 D8 F+8. G16 F+8 D8 F+8 G8 A8 F+8 D8
+1> E8 G8 A8 B8 G8 E8 G8 A8 B8 O6 C8 O5 B8 A8
+1> B8 G8 E8 D8 E8 F+8 E4. R4.
+1> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+1> F+8. G16 F+8 A8. B16 A8 F+8 A8 B8 O6 C+8 O5 A8 F+8
+1> G8. A16 G8 B8. O6 C16 O5 B8 G8 B8 O6 C8 D8 O5 B8 G8
+1> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+1> A8. B16 A8 O6 C#8. D16 C#8 O5 A8 O6 C#8 D8 E8 C#8 O5 A8
+1> O6 F#8. G16 F#8 A8. B16 A8 F#8 A8 B8 O7 C#8 O6 A8 F#8
+1> B4. G#4. B8 G#8 E8 B8 G#8 E8
+1> B2. B2.
+
+# Track 2: Melody Low (Oboe)
+2> @2 O4
+2> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+2> D8. E16 D8 F+8. G16 F+8 D8 F+8 G8 A8 F+8 D8
+2> E8 G8 A8 B8 G8 E8 G8 A8 B8 O5 C8 O4 B8 A8
+2> B8 G8 E8 D8 E8 F+8 E4. R4.
+2> G8. A16 G8 B8. O5 C16 O4 B8 G8 B8 O5 C8 D8 O4 B8 G8
+2> F+8. G16 F+8 A8. B16 A8 F+8 A8 B8 O5 C+8 O4 A8 F+8
+2> G8. A16 G8 B8. O5 C16 O4 B8 G8 B8 O5 C8 D8 O4 B8 G8
+2> E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+2> A8. B16 A8 O5 C#8. D16 C#8 O4 A8 O5 C#8 D8 E8 C#8 O4 A8
+2> O5 F#8. G16 F#8 A8. B16 A8 F#8 A8 B8 O6 C#8 O5 A8 F#8
+2> B4. G#4. B8 G#8 E8 B8 G#8 E8
+2> B2. B2.
+
+# Track 3: Bass
+3> O2
+3> E2. E2. D2. D2. E2. G2. G2. E2.
+3> G2. G2. F+2. F+2. G2. G2. E2. E2.
+3> A2. A2. F+2. F+2. E2. E2. E2. E2.
+
+
+# ---------------------------------------------------------
+# OUTRO (8 Measures - Fade Out)
+# ---------------------------------------------------------
+# Track 1: Melody
+1> V60:8
+1> O5 E8. F+16 E8 G8. A16 G8 E8 G8 A8 B8 G8 E8
+1> D8. E16 D8 F+8. G16 F+8 D8 F+8 G8 A8 F+8 D8
+1> E2. E1.
+
+# Track 2: Harmony
+2> V40:8
+2> O4 G4. B4. G4. B4.
+2> F+4. A4. F+4. A4.
+2> E2. E1.
+
+# Track 3: Bass
+3> V50:8
+3> O2 E2. E2. D2. D2. E2. E1.

@@ -99,6 +99,7 @@ V(2)0:{exp, 2.5} #fades out the second channel over an exponential ramp with a s
     * **Example:** `C4^G4:2` slides from C4 to G4 over a half note.
     * **Example:** `C4^C5:4{s}` slides an entire octave over a quarter note using an S-Curve for a smooth takeoff and landing.
 * **`S<Duration>`**: Sets note separation (articulation). Controls how long before the end of the note the release phase is triggered. Example: `S8` triggers the release an eighth note before the note ends. This allows for more staccato or legato phrasing by controlling how much of the release ramp is audible. `S` without a duration returns to the default separation defined in the instrument.
+* **Bar Lines (`|`)**: Bar lines are **not** supported by the parser. Including `|` or other unrecognized punctuation will cause a parse error. Use only spaces or newlines to separate notes and commands.
 
 ---
 
@@ -147,8 +148,8 @@ A pure sine wave generator. Default is a classic synth sound. However, with modi
 
 **Example Definition:**
 ```text
-@1 = sine(Guitar), attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}
-@2 = sine(Bass), pitch=-12, volume=80, separation=16
+@1 = sine(Guitar) attack=64, decay={linear, 2/1}, sustain=0, release={exp, 4}
+@2 = sine(Bass) pitch=-12, volume=80, separation=16
 ```
 
 **Vibrato Settings**
@@ -159,7 +160,7 @@ Instruments can define a default vibrato profile. This allows notes to organical
 
 **Example Definition:**
 ```text
-@1 = sine(Violin), attack={s, 32}, vibrato={6.0, 0.25, 16}
+@1 = sine(Violin) attack={s, 32}, vibrato={6.0, 0.25, 16}
 ```
 
 ---

@@ -1,0 +1,190 @@
+# =========================================================
+# Greensleeves (Lullaby Arrangement)
+# =========================================================
+%CHANNELS = 2
+%title = Greensleeves (Lullaby Arrangement)
+%artist = Traditional Folk
+%arranger = Antigravity
+%genre = folk
+%style = acoustic
+%comment = A gentle, multi-minute acoustic arrangement of Greensleeves.
+%comment = Utilizes flute, electric piano, and sub-bass for a warm and relaxing texture.
+
+# --- Instrument Bank ---
+@1 = flute volume=90
+@2 = "electric piano" volume=65
+@3 = "deep sub bass" volume=85
+@4 = synth volume=65, attack={s, 64}, decay={linear, 2}, sustain=0.6, release={exp, 4}
+
+T75
+
+# ---------------------------------------------------------
+# INTRO (4 Measures)
+# ---------------------------------------------------------
+1> R2. R2. R2. R2.
+2> @2 R2.
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+3> @3 R2.
+3> O2 A2.
+3> G2.
+3> A2.
+3> E2.
+4> R2. R2. R2. R2.
+
+# ---------------------------------------------------------
+# CYCLE 1: Verse & Chorus (Flute Lead)
+# ---------------------------------------------------------
+# Track 1: Melody (Flute)
+1> @1 O4 A4
+1> O5 C2 D4 E4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C2 O4 A4 A4. G+8 A4 B2 G4 E2 O4 A4
+1> O5 C2 D4 E4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C4. O4 B8 A4 G+4. F+8 G+4 A2. A2 O5 G4
+# Chorus
+1> G2. G4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C2 O4 A4 A4. G+8 A4 B2 G4 E2 O5 G4
+1> G2. G4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C4. O4 B8 A4 G+4. F+8 G+4 A2. A2 R4
+
+# Track 2: Accompaniment (Electric Piano Arpeggios)
+2> R4
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+# A-Section 2
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+# Chorus
+2> R4
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+# Chorus 2
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+
+# Track 3: Bass (Deep Sub Bass)
+3> O2 A4
+3> A2. G2. A2. E2. C2. E2. E2. E2.
+3> A2. G2. A2. E2. C2. E2. A2. A2 O2 G4
+# Chorus
+3> C2. G2. A2. E2. C2. E2. E2. E2.
+3> C2. G2. A2. E2. C2. E2. A2. A2 R4
+
+# Track 4: Rest during Cycle 1
+4> R2. R2. R2. R2. R2. R2. R2. R2.
+4> R2. R2. R2. R2. R2. R2. R2. R2.
+4> R2. R2. R2. R2. R2. R2. R2. R2.
+4> R2. R2. R2. R2. R2. R2. R2. R2.
+
+# ---------------------------------------------------------
+# CYCLE 2: Verse & Chorus (Synth Lead + Flute Pad/Harmony)
+# ---------------------------------------------------------
+# Track 1: Melody (Synth)
+1> @4 O4 A4
+1> O5 C2 D4 E4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C2 O4 A4 A4. G+8 A4 B2 G4 E2 O4 A4
+1> O5 C2 D4 E4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C4. O4 B8 A4 G+4. F+8 G+4 A2. A2 O5 G4
+# Chorus
+1> G2. G4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C2 O4 A4 A4. G+8 A4 B2 G4 E2 O5 G4
+1> G2. G4. F8 E4 D2 O4 B4 G4. A8 B4
+1> O5 C4. O4 B8 A4 G+4. F+8 G+4 A2. A2 R4
+
+# Track 2: Accompaniment (Electric Piano Arpeggios)
+2> R4
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+# A-Section 2
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+# Chorus
+2> R4
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+# Chorus 2
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 G8 O4 C8 O3 G8 E8
+2> R8 O3 E8 G+8 B8 G+8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+
+# Track 3: Bass (Deep Sub Bass)
+3> O2 A4
+3> A2. G2. A2. E2. C2. E2. E2. E2.
+3> A2. G2. A2. E2. C2. E2. A2. A2 O2 G4
+# Chorus
+3> C2. G2. A2. E2. C2. E2. E2. E2.
+3> C2. G2. A2. E2. C2. E2. A2. A2 R4
+
+# Track 4: Pad / Harmony (Flute)
+4> @1 V50 O4 R4
+4> E2. D2. C2. B2. A2. B2. B2. B2.
+4> E2. D2. C2. B2. A2. B2. A2. A2 B4
+# Chorus
+4> G2. G2. E2. E2. E2. E2. E2. E2.
+4> G2. G2. E2. E2. E2. E2. E2. E2 R4
+
+# ---------------------------------------------------------
+# OUTRO (8 Measures - Fade Out)
+# ---------------------------------------------------------
+1> V40:8
+1> O5 C2 D4 E4. F8 E4 D2 O4 B4 G4. A8 B4 A2. A1.
+2> V25:8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 D8 G8 B8 G8 D8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 G8 B8 G8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+2> R8 O3 E8 A8 O4 C8 O3 A8 E8
+3> V30:8
+3> O2 A2. G2. A2. E2. A2. A1.
+4> V0:8
+4> R2. R2. R2. R2. R2. R2.
