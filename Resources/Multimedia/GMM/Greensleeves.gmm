@@ -16,7 +16,7 @@
 @3 = "deep sub bass" volume=85
 @4 = synth volume=65, attack={s, 64}, decay={linear, 2}, sustain=0.6, release={exp, 4}
 
-T75
+T120
 
 # ---------------------------------------------------------
 # INTRO (4 Measures)

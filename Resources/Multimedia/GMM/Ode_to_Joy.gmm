@@ -16,7 +16,7 @@
 @3 = "deep sub bass" volume=85
 @4 = xylophone volume=60
 
-T120
+T120 V50
 
 # ---------------------------------------------------------
 # CYCLE 1: Simple Theme (Synth Brass Lead)
