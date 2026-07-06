@@ -41,8 +41,8 @@
  * @endcode
  */
 
-#ifdef __GNUC__
-//For GDB pretty printing
+#if defined(__GNUC__) && defined(__ELF__)
+//For GDB pretty printing (ELF targets only)
 #define DEFINE_GDB_SCRIPT(name) \
 asm("\
     .pushsection \".debug_gdb_scripts\", \"MS\",@progbits,1\n\
