@@ -13,11 +13,28 @@
 #include <Gorgon/Filesystem/Iterator.h>
 #include <Gorgon/String.h>
 #include <exception>
+#include <regex>
 
 using namespace Gorgon::UI::literals;
 
-// Utility for recursive copy with filtering
-void CopyTemplate(const std::string& sourceDir, const std::string& targetDir, const std::string& newProjectName, const std::string& oldProjectName) {
+struct ProjectTemplate {
+    std::string Name;
+    std::string Path;
+    
+    ProjectTemplate() = default;
+    ProjectTemplate(std::string name, std::string path) : Name(std::move(name)), Path(std::move(path)) {}
+
+    operator std::string() const {
+        return Name;
+    }
+    
+    bool operator ==(const ProjectTemplate& other) const {
+        return Path == other.Path;
+    }
+};
+
+// Utility for recursive copy with filtering and regex replacement
+void CopyTemplate(const std::string& sourceDir, const std::string& targetDir, const std::string& newProjectName) {
     if(!Gorgon::Filesystem::IsExists(targetDir)) {
         Gorgon::Filesystem::CreateDirectory(targetDir);
     }
@@ -36,18 +53,48 @@ void CopyTemplate(const std::string& sourceDir, const std::string& targetDir, co
                 continue; // Skip these directories
             }
             // Recurse
-            CopyTemplate(sourceItem, targetItem, newProjectName, oldProjectName);
+            CopyTemplate(sourceItem, targetItem, newProjectName);
         } else {
             // It's a file
             try {
                 std::string content = Gorgon::Filesystem::Load(sourceItem);
-                std::string replacedContent = Gorgon::String::Replace(content, oldProjectName, newProjectName);
-                Gorgon::Filesystem::Save(targetItem, replacedContent);
+                
+                // CMake: project(AnyName LANGUAGES CXX) -> project(NewProjectName LANGUAGES CXX)
+                content = std::regex_replace(content, std::regex(R"(project\([^ \)]+)"), "project(" + newProjectName);
+                
+                // C++: Gorgon::Initialize("AnyName") -> Gorgon::Initialize("NewProjectName")
+                content = std::regex_replace(content, std::regex(R"(Gorgon::Initialize\("[^"]+"\))"), "Gorgon::Initialize(\"" + newProjectName + "\")");
+                
+                // C++: Window declaration titles (e.g. Gorgon::UI::Window window({640, 480}, "Old Title");)
+                content = std::regex_replace(content, std::regex(R"((Window[^\(]*\(\s*\{[^\}]+\}\s*,\s*")[^"]+("))"), "$1" + newProjectName + "$2");
+                
+                Gorgon::Filesystem::Save(targetItem, content);
             } catch(std::exception& e) {
-                // Ignore files that cannot be read/loaded as strings (like binary files).
-                // Or fallback to binary copy if needed. For now, Gorgon::Filesystem::Save can handle binary.
-                // Wait, String::Replace on binary might be unsafe if it's large, but templates are mostly source code.
+                // Ignore binary files or read errors
             }
+        }
+    }
+}
+
+// Recursive discovery for templates
+void DiscoverTemplates(const std::string& currentDir, const std::string& relativePath, std::vector<ProjectTemplate>& templates) {
+    for (auto it = Gorgon::Filesystem::Iterator(currentDir); it.IsValid(); it.Next()) {
+        std::string name = *it;
+        if (name == "." || name == "..") continue;
+        
+        std::string fullPath = Gorgon::Filesystem::Join(currentDir, name);
+        if (Gorgon::Filesystem::IsDirectory(fullPath)) {
+            std::string lowerName = Gorgon::String::ToLower(name);
+            if (lowerName == "build" || lowerName == "bin" || name.front() == '.') continue;
+            
+            // Check if this directory contains a CMakeLists.txt (heuristic for a template)
+            if (Gorgon::Filesystem::IsExists(Gorgon::Filesystem::Join(fullPath, "CMakeLists.txt"))) {
+                std::string rel = relativePath.empty() ? name : Gorgon::Filesystem::Join(relativePath, name);
+                templates.emplace_back(rel, fullPath);
+            }
+            
+            // Recurse deeper
+            DiscoverTemplates(fullPath, relativePath.empty() ? name : Gorgon::Filesystem::Join(relativePath, name), templates);
         }
     }
 }
@@ -61,7 +108,7 @@ int Main(const std::vector<std::string> &args) {
     Gorgon::Widgets::Panel mainPanel(Gorgon::Widgets::Registry::Panel_Fullscreen);
     Gorgon::UI::Organizers::Flow organizer;
 
-    Gorgon::Widgets::DropdownList<std::string> templateDropdown;
+    Gorgon::Widgets::DropdownList<ProjectTemplate> templateDropdown;
     Gorgon::Widgets::Textbox projectName;
     Gorgon::Widgets::Textbox targetPath;
     Gorgon::Widgets::Button btnGenerate, btnExit;
@@ -81,18 +128,14 @@ int Main(const std::vector<std::string> &args) {
 
     // Populate templates. Look for Examples folder
     std::string baseExamplesDir = Gorgon::Filesystem::Canonical(Gorgon::Filesystem::Join(Gorgon::Filesystem::ExeDirectory(), "../../../../"));
-    std::vector<std::string> availableTemplates;
+    std::vector<ProjectTemplate> availableTemplates;
     
-    // Check subdirectories in Examples/UI/Application
-    std::string appExamplesDir = Gorgon::Filesystem::Join(baseExamplesDir, "UI/Application");
-    if(Gorgon::Filesystem::IsExists(appExamplesDir)) {
-        for(auto it = Gorgon::Filesystem::Iterator(appExamplesDir); it.IsValid(); it.Next()) {
-            std::string name = *it;
-            if(name != "." && name != ".." && Gorgon::Filesystem::IsDirectory(Gorgon::Filesystem::Join(appExamplesDir, name))) {
-                templateDropdown.List.Add(name);
-                availableTemplates.push_back(name);
-            }
-        }
+    if(Gorgon::Filesystem::IsExists(baseExamplesDir)) {
+        DiscoverTemplates(baseExamplesDir, "", availableTemplates);
+    }
+
+    for (const auto& tmpl : availableTemplates) {
+        templateDropdown.List.Add(tmpl);
     }
 
     if(!availableTemplates.empty()) {
@@ -107,19 +150,12 @@ int Main(const std::vector<std::string> &args) {
             return;
         }
 
-        std::string selectedTemplate = templateDropdown.Get();
-        std::string sourceTemplateDir = Gorgon::Filesystem::Join(appExamplesDir, selectedTemplate);
+        ProjectTemplate selectedTemplate = templateDropdown.Get();
+        std::string sourceTemplateDir = selectedTemplate.Path;
         std::string targetProjectDir = Gorgon::Filesystem::Join(path, name);
         
-        // Infer the old project name from the template folder name (e.g. "1-ProjectCreator" -> "ProjectCreator")
-        std::string oldProjectName = selectedTemplate;
-        auto dashPos = oldProjectName.find('-');
-        if(dashPos != std::string::npos) {
-            oldProjectName = oldProjectName.substr(dashPos + 1);
-        }
-
         try {
-            CopyTemplate(sourceTemplateDir, targetProjectDir, name, oldProjectName);
+            CopyTemplate(sourceTemplateDir, targetProjectDir, name);
             Gorgon::UI::ShowMessage("Success", "Project bootstrapped successfully at " + targetProjectDir);
         } catch(std::exception& e) {
             Gorgon::UI::ShowMessage("Error", std::string("Failed to copy: ") + e.what());

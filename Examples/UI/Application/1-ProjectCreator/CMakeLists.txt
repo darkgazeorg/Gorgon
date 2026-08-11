@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Gorgon_Examples_UI_Application_ProjectCreator LANGUAGES CXX)
+project(ProjectCreator LANGUAGES CXX)
 
 set(CMAKE_CONFIGURATION_TYPES Debug Release)
 
