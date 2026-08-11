@@ -39,6 +39,7 @@ namespace Gorgon :: Widgets {
             Inputbox_Regular,
             
             Panel_Regular,
+            Panel_Fullscreen,
             Panel_Blank,
             Panel_Top,
             Panel_Left,

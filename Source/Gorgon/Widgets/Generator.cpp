@@ -1964,6 +1964,12 @@ namespace Gorgon :: Widgets {
         return tmp;
     }
     
+    UI::Template SimpleGenerator::FullscreenPanel() {
+        auto tmp = makepanel(AssetID::None, true, true, false);
+        
+        return tmp;
+    }
+    
     UI::Template SimpleGenerator::Panel() {
         auto tmp = makepanel(AssetID::All, true);
         
