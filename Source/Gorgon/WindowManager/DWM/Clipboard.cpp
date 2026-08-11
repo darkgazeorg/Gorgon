@@ -15,15 +15,15 @@
 namespace Gorgon :: WindowManager {
 
 
-	std::vector<int> getclipboardformats() {
-		std::vector<int> ret;
+	std::vector<UINT> getclipboardformats() {
+		std::vector<UINT> ret;
 
 		Utils::ScopeGuard g(&CloseClipboard);
 
 		if(!OpenClipboard(NULL))
 			return ret;
 
-		int format = 0;
+		UINT format = 0;
 
 		while(true) {
 			format = EnumClipboardFormats(format);
@@ -38,8 +38,6 @@ namespace Gorgon :: WindowManager {
 	}
 
 	std::vector<Resource::GID::Type> GetClipboardFormats() {
-		int format = 0;
-
 		std::vector<Resource::GID::Type> ret;
 
 		auto formats = getclipboardformats();
@@ -429,7 +427,6 @@ namespace Gorgon :: WindowManager {
 		auto clip = GetClipboardData(cf_g_bmp);
 
 		if(clip) {
-			auto sz = GlobalSize(clip);
 			Byte *data = (Byte *)GlobalLock(clip);
 			int w = ((uint32_t *)data)[0], h = ((uint32_t *)data)[1];
 			Graphics::ColorMode mode = (Graphics::ColorMode)((uint32_t *)data)[2];
@@ -499,9 +496,6 @@ namespace Gorgon :: WindowManager {
 			EmptyClipboard();
 			clipboard_entries.clear();
 		}
-
-		auto mode = img.GetMode();
-
 
 		auto data = make_clipboarddata(std::move(img));
 
