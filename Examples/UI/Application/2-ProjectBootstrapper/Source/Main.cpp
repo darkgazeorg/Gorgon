@@ -12,7 +12,9 @@
 #include <Gorgon/Filesystem.h>
 #include <Gorgon/Filesystem/Iterator.h>
 #include <Gorgon/String.h>
+#include <Gorgon/OS.h>
 #include <exception>
+
 #include <regex>
 
 using namespace Gorgon::UI::literals;
@@ -114,10 +116,20 @@ int Main(const std::vector<std::string> &args) {
     Gorgon::Widgets::Textbox targetPath;
     Gorgon::Widgets::Button btnGenerate, btnExit;
 
+    std::string configPath = Gorgon::Filesystem::Join(Gorgon::OS::User::GetDataPath(), "ProjectBootstrapperPath.txt");
+
     if (args.size() > 1) {
         targetPath = args[1];
     } else {
-        targetPath = Gorgon::Filesystem::CurrentDirectory();
+        if(Gorgon::Filesystem::IsExists(configPath)) {
+            try {
+                targetPath = Gorgon::Filesystem::Load(configPath);
+            } catch(...) {
+                targetPath = Gorgon::Filesystem::CurrentDirectory();
+            }
+        } else {
+            targetPath = Gorgon::Filesystem::CurrentDirectory();
+        }
     }
     projectTitle = "My New Project";
 
@@ -159,6 +171,9 @@ int Main(const std::vector<std::string> &args) {
         
         try {
             CopyTemplate(sourceTemplateDir, targetProjectDir, title, name);
+            try {
+                Gorgon::Filesystem::Save(configPath, path);
+            } catch(...) {}
             Gorgon::UI::ShowMessage("Success", "Project bootstrapped successfully at " + targetProjectDir);
         } catch(std::exception& e) {
             Gorgon::UI::ShowMessage("Error", std::string("Failed to copy: ") + e.what());
@@ -179,7 +194,7 @@ int Main(const std::vector<std::string> &args) {
 
     window.Add(mainPanel);
     mainPanel.EnableScroll(false, false);
-    mainPanel.ResizeInterior({19, 7});
+    mainPanel.ResizeInterior({19, 5});
     window.Resize(mainPanel.GetCurrentSize());
 
     window.ClosingEvent.Register([&](bool &allow) {
