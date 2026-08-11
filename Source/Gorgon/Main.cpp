@@ -111,11 +111,15 @@ namespace Gorgon {
 
 		Animation::Animate();
         
-        for(auto &fn : once) {
-            fn();
+        std::vector<std::function<void()>> current_once;
+        {
+            std::lock_guard<std::mutex> grd(once_mtx);
+            current_once = std::move(once);
         }
         
-        once.clear();
+        for(auto &fn : current_once) {
+            fn();
+        }
         
         for(auto &p : timeouts) {
             if(p.second.first <= Time::internal::deltatime) {
