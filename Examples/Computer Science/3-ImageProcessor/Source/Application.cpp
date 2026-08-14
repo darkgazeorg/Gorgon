@@ -295,6 +295,9 @@ void Application::LoadSelectedImage() {
     int idx = imageList.GetSelectedIndex();
     if (idx >= 0 && idx < foundImages.size()) {
         if (originalBmp.Import(foundImages[idx])) {
+            if (GRAYSCALE_ONLY) {
+                originalBmp.Grayscale();
+            }
             dragOffsetX = 0;
             dragOffsetY = 0;
             ProcessImage();
@@ -412,6 +415,9 @@ void Application::StartBatchProcess() {
                     Gorgon::Graphics::Bitmap bmp;
                     
                     if(bmp.Import(path)) {
+                        if (GRAYSCALE_ONLY) {
+                            bmp.Grayscale();
+                        }
                         // Process the loaded bitmap with isolated algorithm
                         RunAlgorithm(bmp, settings);
                         

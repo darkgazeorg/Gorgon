@@ -20,6 +20,7 @@
 
 class Application {
 public:
+    static constexpr bool GRAYSCALE_ONLY = false;
     Application(Gorgon::UI::Window& window, const std::vector<std::string>& args);
     ~Application();
     
