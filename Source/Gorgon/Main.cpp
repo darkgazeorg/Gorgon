@@ -41,7 +41,7 @@
  * @endcode
  */
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && defined(__ELF__)
 //For GDB pretty printing
 #define DEFINE_GDB_SCRIPT(name) \
 asm("\

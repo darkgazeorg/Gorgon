@@ -168,7 +168,7 @@ namespace Gorgon :: Utils {
             return;
         }
 
-        int c;
+        int c = consoleattributes::get(iserr).defaultfore;
         switch (color) {
         case Console::Default:
             c = consoleattributes::get(iserr).defaultfore;
@@ -211,7 +211,7 @@ namespace Gorgon :: Utils {
             return;
         }
 
-        int c;
+        int c = consoleattributes::get(iserr).defaultback;
         switch (color) {
         case Console::Default:
             c = consoleattributes::get(iserr).defaultback;

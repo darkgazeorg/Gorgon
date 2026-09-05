@@ -33,8 +33,7 @@ namespace WindowManager {
 		wchar_t strupper[64];
 		int l = GetKeyNameTextW(key<<16, str, 32);
 
-		auto h = GetKeyboardLayout(NULL);
-		LCID ll = (LCID)((intptr_t)GetKeyboardLayout(NULL)>>16);
+		LCID ll = (LCID)((intptr_t)GetKeyboardLayout(0)>>16);
 		if((ll == 0x41f || ll == 0x42c) && str[0] == L'i' && str[1] == 0) { //tr, az keyboards should have i => İ
 			strupper[0] = L'İ';
 			strupper[1] = 0;
@@ -500,6 +499,7 @@ namespace WindowManager {
 			gi.cbSize = sizeof(GESTUREINFO);
 
 			BOOL bResult = GetGestureInfo((HGESTUREINFO)lParam, &gi);
+			(void)bResult;
 
 			if(gi.dwID == GID_ZOOM) {
 				//todo test
