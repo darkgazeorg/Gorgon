@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include "../Containers/Wave.h"
 #include "../Utils/Assert.h"
 #include "../Audio/Source.h"
@@ -102,20 +103,20 @@ namespace Multimedia {
         
         
         /// Allows access to individual members
-        float Get(unsigned long p, unsigned ch) const {
+        float Get(size_t p, unsigned ch) const {
             ASSERT(data, "Data is not set");
             
             return data->Get(p, ch);
         }
         
-        virtual unsigned long GetSize() const override final {
+        virtual size_t GetSize() const override final {
             ASSERT(data, "Data is not set");
             
             return data->GetSize();
         }
         
         /// Returns the size of the wave in bytes
-        unsigned long GetBytes() const {
+        size_t GetBytes() const {
             ASSERT(data, "Data is not set");
             
             return data->GetBytes();
@@ -171,7 +172,7 @@ namespace Multimedia {
 
         /// Uses the supplied data for this object. Ownership of the wave data is not transferred.
         void Assign(float *data, unsigned long size);
-        
+
         /// Uses the supplied data for this object. Ownership of the wave data is not transferred.
         void Assign(float *data, unsigned long size, std::vector<Audio::Channel> channels);
         
@@ -244,7 +245,7 @@ namespace Multimedia {
             return data->end();
         }
         
-        virtual SeekResult StartSeeking(unsigned long) const override final {
+        virtual SeekResult StartSeeking(size_t) const override final {
             return Done;
         }
     
@@ -256,7 +257,7 @@ namespace Multimedia {
             return true;
         }
         
-        virtual unsigned long SeekTarget() const override final {
+        virtual size_t SeekTarget() const override final {
             return 0;
         }
         

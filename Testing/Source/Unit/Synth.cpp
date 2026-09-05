@@ -1,0 +1,1162 @@
+#include <functional>
+#include <sstream>
+#define CATCH_CONFIG_MAIN
+
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <Gorgon/Audio/Synth.h>
+#include <Gorgon/Containers/Wave.h>
+#include <Gorgon/Encoding/FLAC.h>
+
+TEST_CASE("NoteToFrequency calculates standard note frequencies", "[Synth]") {
+    using namespace Gorgon::Audio;
+
+    REQUIRE(Synth::NoteToFrequency(Synth::Note::A, 4) == Catch::Approx(440.0f).epsilon(0.001f));
+    REQUIRE(Synth::NoteToFrequency(Synth::Note::C, 4) == Catch::Approx(261.6256f).epsilon(0.001f));
+    REQUIRE(Synth::NoteToFrequency(Synth::Note::C, 5) == Catch::Approx(523.2511f).epsilon(0.001f));
+    REQUIRE(Synth::NoteToFrequency(Synth::Note::D, 5) == Catch::Approx(587.3295f).epsilon(0.001f));
+}
+
+TEST_CASE("ParseNode correctly parses tempo and volume nodes", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto tempoNode = Synth::ParseNode("T120", 6);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(120.0f));
+
+    auto volumeNode = Synth::ParseNode("V80", 6);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.8f));
+    REQUIRE(volumeNode.volume.channel == 0);
+
+    volumeNode = Synth::ParseNode("V(2)50", 2);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.5f));
+    REQUIRE(volumeNode.volume.channel == 2);
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("V(3)50", 2), Synth::Error);
+}
+
+TEST_CASE("ParseNode correctly parses volume ramps", "[Synth][Parse][GMM][Volume][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto volumeNode = Synth::ParseNode("V0:2/1", 1);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.0f));
+    REQUIRE(volumeNode.volume.channel == 0);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 2);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 1);
+
+    volumeNode = Synth::ParseNode("V0:{s,(2.1)}", 1);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.volume == Catch::Approx(0.0f));
+    REQUIRE(volumeNode.volume.channel == 0);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.5f));
+}
+
+TEST_CASE("ParseNode correctly parses tempo ramps", "[Synth][Parse][GMM][Tempo][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto tempoNode = Synth::ParseNode("T120:2/1", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(120.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(tempoNode.tempo.fade.Span.Fraction.Numerator == 2);
+    REQUIRE(tempoNode.tempo.fade.Span.Fraction.Denominator == 1);
+
+    tempoNode = Synth::ParseNode("T90:0.5", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(90.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::WholeNotes);
+    REQUIRE(tempoNode.tempo.fade.Span.Units == Catch::Approx(0.5f));
+
+    tempoNode = Synth::ParseNode("T100:(1.25)", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(100.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::Linear);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(tempoNode.tempo.fade.Span.Seconds == Catch::Approx(1.25f));
+
+    tempoNode = Synth::ParseNode("T140:{s,(2.1)}", 1);
+    REQUIRE(tempoNode.type == Synth::Node::Type::Tempo);
+    REQUIRE(tempoNode.tempo.tempo == Catch::Approx(140.0f));
+    REQUIRE(tempoNode.tempo.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(tempoNode.tempo.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(tempoNode.tempo.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(tempoNode.tempo.fade.ShapeFactor == Catch::Approx(0.5f));
+}
+
+TEST_CASE("ParseNode handles multiple volume ramp timing methods and channels", "[Synth][Parse][GMM][Volume][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto volumeNode = Synth::ParseNode("V(1)0:16", 2);
+    REQUIRE(volumeNode.type == Synth::Node::Type::Volume);
+    REQUIRE(volumeNode.volume.channel == 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 1);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 16);
+
+    volumeNode = Synth::ParseNode("V0:0.5", 2);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::WholeNotes);
+    REQUIRE(volumeNode.volume.fade.Span.Units == Catch::Approx(0.5f));
+
+    volumeNode = Synth::ParseNode("V0:(1.25)", 2);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Linear);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(1.25f));
+
+    volumeNode = Synth::ParseNode("V0:{exp,1/4,0.25}", 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::Exponential);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Numerator == 1);
+    REQUIRE(volumeNode.volume.fade.Span.Fraction.Denominator == 4);
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.25f));
+
+    volumeNode = Synth::ParseNode("V0:{s,(2.1),0.1}", 1);
+    REQUIRE(volumeNode.volume.fade.Type == Synth::RampType::SCurve);
+    REQUIRE(volumeNode.volume.fade.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(volumeNode.volume.fade.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(volumeNode.volume.fade.ShapeFactor == Catch::Approx(0.1f));
+}
+
+TEST_CASE("ParseNode correctly parses octave shifts", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto octaveNode = Synth::ParseNode("O5", 6);
+    REQUIRE(octaveNode.type == Synth::Node::Type::OctaveAbsolute);
+    REQUIRE(octaveNode.octave == 5);
+
+    octaveNode = Synth::ParseNode(">", 6); // relative increase
+    REQUIRE(octaveNode.type == Synth::Node::Type::OctaveRelative);
+    REQUIRE(octaveNode.octave == 1);
+
+    octaveNode = Synth::ParseNode("<", 6); // relative decrease
+    REQUIRE(octaveNode.type == Synth::Node::Type::OctaveRelative);
+    REQUIRE(octaveNode.octave == -1);
+}
+
+TEST_CASE("ParseNode correctly parses simple notes", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto noteNode = Synth::ParseNode("C4", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::C);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(noteNode.note.duration.Fraction.Numerator == 1);
+    REQUIRE(noteNode.note.duration.Fraction.Denominator == 4);
+    REQUIRE(noteNode.note.slide == false);
+
+    noteNode = Synth::ParseNode("A+2", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::AS);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(noteNode.note.duration.Fraction.Numerator == 1);
+    REQUIRE(noteNode.note.duration.Fraction.Denominator == 2);
+    REQUIRE(noteNode.note.slide == false);
+
+    noteNode = Synth::ParseNode("D-", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::CS);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(noteNode.note.duration.Fraction.Numerator == 1);
+    REQUIRE(noteNode.note.duration.Fraction.Denominator == 4);
+    REQUIRE(noteNode.note.slide == false);
+}
+
+TEST_CASE("ParseNode correctly parses instrument switch", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto instNode = Synth::ParseNode("@1", 6);
+    REQUIRE(instNode.type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(instNode.index == 1);
+    
+    instNode = Synth::ParseNode("@2", 6);
+    REQUIRE(instNode.type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(instNode.index == 2);
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("@abc", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("@1extra", 6), Synth::Error);
+}
+
+TEST_CASE("ParseNode correctly parses other timing methods", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto noteNode = Synth::ParseNode("E(0.5)", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::E);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::ClockSeconds);
+    REQUIRE(noteNode.note.duration.Seconds == Catch::Approx(0.5f));
+    REQUIRE(noteNode.note.slide == false);
+
+    noteNode = Synth::ParseNode("F3/4", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::F);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(noteNode.note.duration.Fraction.Numerator == 3);
+    REQUIRE(noteNode.note.duration.Fraction.Denominator == 4);
+    REQUIRE(noteNode.note.slide == false);
+
+    noteNode = Synth::ParseNode("G2.", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::G);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(noteNode.note.duration.Fraction.Numerator == 3);
+    REQUIRE(noteNode.note.duration.Fraction.Denominator == 4);
+    REQUIRE(noteNode.note.slide == false);
+
+    noteNode = Synth::ParseNode("G0.22", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Note);
+    REQUIRE(noteNode.note.note == Synth::Note::G);
+    REQUIRE(noteNode.note.duration.type == Synth::Duration::WholeNotes);
+    REQUIRE(noteNode.note.duration.Units == Catch::Approx(0.22f));
+    REQUIRE(noteNode.note.slide == false);
+}
+
+TEST_CASE("ParseNote parses rest correctly", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto restNode = Synth::ParseNode("R4", 6);
+    REQUIRE(restNode.type == Synth::Node::Type::Rest);
+    REQUIRE(restNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(restNode.note.duration.Fraction.Numerator == 1);
+    REQUIRE(restNode.note.duration.Fraction.Denominator == 4);
+
+    restNode = Synth::ParseNode("R2.", 6);
+    REQUIRE(restNode.type == Synth::Node::Type::Rest);
+    REQUIRE(restNode.note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(restNode.note.duration.Fraction.Numerator == 3);
+    REQUIRE(restNode.note.duration.Fraction.Denominator == 4);
+
+    restNode = Synth::ParseNode("R(4)", 6);
+    REQUIRE(restNode.type == Synth::Node::Type::Rest);
+    REQUIRE(restNode.note.duration.type == Synth::Duration::ClockSeconds);
+    REQUIRE(restNode.note.duration.Seconds == Catch::Approx(4.0f));
+
+    restNode = Synth::ParseNode("R0.5", 6);
+    REQUIRE(restNode.type == Synth::Node::Type::Rest);
+    REQUIRE(restNode.note.duration.type == Synth::Duration::WholeNotes);
+    REQUIRE(restNode.note.duration.Units == Catch::Approx(0.5f));
+}
+
+TEST_CASE("ParseNode throws on invalid input", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("X100", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("Oabc", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("O", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("T", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V{2}", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("V150", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C#4", 6), Synth::Error); // should be C+4
+    REQUIRE_THROWS_AS(Synth::ParseNode("Db4", 6), Synth::Error); // should be D-4
+    REQUIRE_THROWS_AS(Synth::ParseNode("E(0.5", 6), Synth::Error); // missing closing parenthesis
+    REQUIRE_THROWS_AS(Synth::ParseNode("F3/", 6), Synth::Error); // missing Denominator
+    REQUIRE_THROWS_AS(Synth::ParseNode("G/4", 6), Synth::Error); // missing numerator
+}
+
+TEST_CASE("Duration::Parse handles note-length and tempo durations", "[Synth][Duration]") {
+    using namespace Gorgon::Audio;
+
+    auto duration = Synth::Duration::Parse("[0.5]");
+    REQUIRE(duration.type == Synth::Duration::NoteFraction);
+    REQUIRE(duration.Units == Catch::Approx(0.5f));
+    REQUIRE(duration.ToSeconds(120.0f, 0.25f) == Catch::Approx(0.125f));
+
+    duration = Synth::Duration::Parse("3/4");
+    REQUIRE(duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(duration.Fraction.Numerator == 3);
+    REQUIRE(duration.Fraction.Denominator == 4);
+    REQUIRE(duration.ToSeconds(120.0f) == Catch::Approx(1.5f));
+}
+
+TEST_CASE("ParseNode rejects zero and negative duration values", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    REQUIRE_THROWS_AS(Synth::ParseNode("C0", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C1/0", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C(-0.5)", 6), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::ParseNode("C[-0.5]", 6), Synth::Error);
+}
+
+TEST_CASE("Duration::Parse accepts zero durations and rejects invalid ones", "[Synth][Duration]") {
+    using namespace Gorgon::Audio;
+
+    auto duration = Synth::Duration::Parse("0/4");
+    REQUIRE(duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(duration.Fraction.Numerator == 0);
+    REQUIRE(duration.Fraction.Denominator == 4);
+
+    duration = Synth::Duration::Parse("0.0");
+    REQUIRE(duration.type == Synth::Duration::WholeNotes);
+    REQUIRE(duration.Units == Catch::Approx(0.0f));
+
+    duration = Synth::Duration::Parse("(0)");
+    REQUIRE(duration.type == Synth::Duration::ClockSeconds);
+    REQUIRE(duration.Seconds == Catch::Approx(0.0f));
+
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("1/0"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("-1/4"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("(-0.5)"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Duration::Parse("[-0.5]"), Synth::Error);
+}
+
+TEST_CASE("Ramp::Parse handles various ramp definitions", "[Synth][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    auto ramp = Synth::Ramp::Parse("none");
+    REQUIRE(ramp.Type == Synth::RampType::None);
+
+    ramp = Synth::Ramp::Parse("linear, 8");
+    REQUIRE(ramp.Type == Synth::RampType::Linear);
+    REQUIRE(ramp.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(ramp.Span.Fraction.Denominator == 8);
+
+    ramp = Synth::Ramp::Parse("exp , 3/2 , 0.25");
+    REQUIRE(ramp.Type == Synth::RampType::Exponential);
+    REQUIRE(ramp.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(ramp.Span.Fraction.Numerator == 3);
+    REQUIRE(ramp.Span.Fraction.Denominator == 2);
+    REQUIRE(ramp.ShapeFactor == Catch::Approx(0.25f));
+
+    ramp = Synth::Ramp::Parse("s, (2.1), 0.1");
+    REQUIRE(ramp.Type == Synth::RampType::SCurve);
+    REQUIRE(ramp.Span.type == Synth::Duration::ClockSeconds);
+    REQUIRE(ramp.Span.Seconds == Catch::Approx(2.1f));
+    REQUIRE(ramp.ShapeFactor == Catch::Approx(0.1f));
+
+    ramp = Synth::Ramp::Parse("log, 0.25, 0");
+    REQUIRE(ramp.Type == Synth::RampType::Logarithmic);
+    REQUIRE(ramp.Span.type == Synth::Duration::WholeNotes);
+    REQUIRE(ramp.Span.Units == Catch::Approx(0.25f));
+    REQUIRE(ramp.ShapeFactor == Catch::Approx(0.0f));
+
+    REQUIRE_THROWS_AS(Synth::Ramp::Parse("none,1"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Ramp::Parse("linear, 8, 0.5"), Synth::Error);
+    REQUIRE_THROWS_AS(Synth::Ramp::Parse("foo, 2"), Synth::Error);
+}
+
+TEST_CASE("Sine::LoadSettings applies valid parameters", "[Synth][Instrument][Sine]") {
+    using namespace Gorgon::Audio;
+
+    Synth::Sine sine;
+
+    sine.LoadSettings("attack={sqrt,8, 0.25}, decay=none, release=3/2, sustain=0.78");
+
+    REQUIRE(sine.Attack.Type == Synth::RampType::SquareRoot);
+    REQUIRE(sine.Attack.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(sine.Attack.Span.Fraction.Numerator == 1);
+    REQUIRE(sine.Attack.Span.Fraction.Denominator == 8);
+    REQUIRE(sine.Attack.ShapeFactor == Catch::Approx(0.25f));
+
+    REQUIRE(sine.Decay.Type == Synth::RampType::None);
+
+    REQUIRE(sine.Release.Type == Synth::RampType::SCurve);
+    REQUIRE(sine.Release.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(sine.Release.Span.Fraction.Numerator == 3);
+    REQUIRE(sine.Release.Span.Fraction.Denominator == 2);
+    REQUIRE(sine.Release.ShapeFactor == Catch::Approx(0.5f));
+
+    REQUIRE(sine.Sustain == Catch::Approx(0.78f));
+}
+
+TEST_CASE("Sine::LoadSettings rejects invalid sustain and unknown keys", "[Synth][Instrument][Sine]") {
+    using namespace Gorgon::Audio;
+
+    Synth::Sine sine;
+
+    REQUIRE_THROWS_AS(sine.LoadSettings("sustain=foo"), Synth::Error);
+    REQUIRE_THROWS_AS(sine.LoadSettings("sustain=0.5x"), Synth::Error);
+    REQUIRE_THROWS_AS(sine.LoadSettings("unknown=1"), Synth::Error);
+}
+
+TEST_CASE("ParseNode correctly parses separation and note-length duration", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    auto separationNode = Synth::ParseNode("S2", 6);
+    REQUIRE(separationNode.type == Synth::Node::Type::Separation);
+    REQUIRE(separationNode.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(separationNode.duration.Fraction.Numerator == 1);
+    REQUIRE(separationNode.duration.Fraction.Denominator == 2);
+
+    auto noteNode = Synth::ParseNode("S[0.5]", 6);
+    REQUIRE(noteNode.type == Synth::Node::Type::Separation);
+    REQUIRE(noteNode.duration.type == Synth::Duration::NoteFraction);
+    REQUIRE(noteNode.duration.Units == Catch::Approx(0.5f));
+    REQUIRE(noteNode.duration.ToSeconds(120.0f, 0.75f) == Catch::Approx(0.375f));
+}
+
+TEST_CASE("Parsing can parse instrument definitions", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    std::string gmm = R"(
+        # Define a custom sine instrument with specific attack and sustain settings
+        @1 = Sine attack={sqrt,16,0.5}, sustain=0.8
+        @2 = Sine (Piano) attack=16, release=4, sustain=0.6, decay={exp,1,0.3}
+
+        # Use the custom instrument for a note
+        T120 O4 @1 C4 @2 A2
+    )";
+
+    Synth synth;
+    synth.Parse(gmm);
+
+    REQUIRE(synth.GetInstrumentCount() == 2); // default instrument + custom instruments
+
+    const auto& sine = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(1));
+    REQUIRE(sine.Attack.Type == Synth::RampType::SquareRoot);
+    REQUIRE(sine.Attack.Span.type == Synth::Duration::TempoFraction);
+    REQUIRE(sine.Attack.Span.Fraction.Numerator == 1);
+    REQUIRE(sine.Attack.Span.Fraction.Denominator == 16);
+    REQUIRE(sine.Attack.ShapeFactor == Catch::Approx(0.5f));
+    REQUIRE(sine.Sustain == Catch::Approx(0.8f));
+
+    REQUIRE(synth.GetNodeCount() == 6);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(120.0f));
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(2).index == 1);
+    REQUIRE(synth.GetNode(3).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(3).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(3).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(3).note.slide == false);
+    REQUIRE(synth.GetNode(4).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(4).index == 2);
+
+    gmm = "@1 C4"; //this is instrument change, not note definition
+    synth.Parse(gmm);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(0).index == 1);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(1).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(1).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(1).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(1).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(1).note.slide == false);
+
+    gmm = "@2 C4"; // this should throw because @2 is not defined in this context
+    REQUIRE_THROWS_AS(synth.Parse(gmm), Synth::Error);
+}
+
+TEST_CASE("Parse captures metadata fields and tags", "[Synth][Parse][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    synth.Parse(R"(
+        %title = Into The Ruins
+        %artist = Test Artist
+        %arranger = Test Arranger
+        %album = Test Album
+        %copyright = 2026 Test Studio
+        %comment = First line
+        %comment = Second line
+        %genre = Chiptune
+        %mood = Energetic
+        %theme = Boss Battle
+        %style = Retro
+        %region = Anatolia
+        %era = Modern
+        %custom-tag = Final Phase
+
+        T120 C4
+    )");
+
+    const auto& metadata = synth.GetMetaData();
+
+    REQUIRE(metadata.Title == "Into The Ruins");
+    REQUIRE(metadata.Artist == "Test Artist");
+    REQUIRE(metadata.Arranger == "Test Arranger");
+    REQUIRE(metadata.Album == "Test Album");
+    REQUIRE(metadata.Copyright == "2026 Test Studio");
+    REQUIRE(metadata.Comment == "First line\nSecond line");
+
+    REQUIRE(metadata.Tags.size() == 7);
+    REQUIRE(metadata.Tags[0].Type == Synth::Genre);
+    REQUIRE(metadata.Tags[0].Value == "Chiptune");
+    REQUIRE(metadata.Tags[6].Type == Synth::Custom);
+    REQUIRE(metadata.Tags[6].Value == "Final Phase");
+
+    REQUIRE(metadata.HasTag(Synth::Genre, "chiptune"));
+    REQUIRE(metadata.HasTag(Synth::Mood, "ENERGETIC"));
+    REQUIRE(metadata.HasTag("boss battle"));
+    REQUIRE(metadata.HasTags(Synth::Genre, "chiptune", Synth::Mood, "energetic", "final phase"));
+}
+
+TEST_CASE("Parse rejects invalid metadata declarations", "[Synth][Parse][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE_THROWS_AS(synth.Parse("%genre =    \nT120 C4\n"), Synth::Error);
+    REQUIRE_THROWS_AS(synth.Parse("%unknown = value\nT120 C4\n"), Synth::Error);
+}
+
+TEST_CASE("MetaData serializes to RIFF LIST/INFO chunks for wav export", "[Synth][MetaData][Wave]") {
+    using namespace Gorgon::Audio;
+
+    Synth::MetaData metadata;
+    metadata.Title = "Into The Ruins";
+    metadata.Artist = "Test Artist";
+    metadata.Arranger = "Test Arranger";
+    metadata.Album = "Test Album";
+    metadata.Copyright = "2026 Test Studio";
+    metadata.Comment = "First line\nSecond line";
+    metadata.Tags.push_back({Synth::Genre, "Chiptune"});
+    metadata.Tags.push_back({Synth::Mood, "Energetic"});
+    metadata.Tags.push_back({Synth::Custom, "Final Phase"});
+
+    auto chunk = metadata.ToWaveChunk();
+
+    REQUIRE(chunk.first == "LIST");
+    REQUIRE(chunk.second.rfind("INFO", 0) == 0);
+    REQUIRE(chunk.second.find("INAM") != std::string::npos);
+    REQUIRE(chunk.second.find("IART") != std::string::npos);
+    REQUIRE(chunk.second.find("IENG") != std::string::npos);
+    REQUIRE(chunk.second.find("IPRD") != std::string::npos);
+    REQUIRE(chunk.second.find("ICOP") != std::string::npos);
+    REQUIRE(chunk.second.find("ICMT") != std::string::npos);
+    REQUIRE(chunk.second.find("IGNR") != std::string::npos);
+    REQUIRE(chunk.second.find("IKEY") != std::string::npos);
+    REQUIRE(chunk.second.find("Into The Ruins") != std::string::npos);
+    REQUIRE(chunk.second.find("Test Artist") != std::string::npos);
+    REQUIRE(chunk.second.find("Chiptune") != std::string::npos);
+    REQUIRE(chunk.second.find("Mood: Energetic") != std::string::npos);
+    REQUIRE(chunk.second.find("Final Phase") != std::string::npos);
+
+    Gorgon::Containers::Wave wave(1, 44100);
+    wave(0, 0) = 0.0f;
+
+    std::ostringstream stream(std::ios::binary);
+    REQUIRE(wave.ExportWav(stream, 16, {chunk}));
+
+    const auto bytes = stream.str();
+    REQUIRE(bytes.find("RIFF") != std::string::npos);
+    REQUIRE(bytes.find("WAVE") != std::string::npos);
+    REQUIRE(bytes.find("LIST") != std::string::npos);
+    REQUIRE(bytes.find("INFO") != std::string::npos);
+    REQUIRE(bytes.find("INAM") != std::string::npos);
+    REQUIRE(bytes.find("Into The Ruins") != std::string::npos);
+}
+
+TEST_CASE("Instrument factory registration and unknown instrument type handling", "[Synth][Instrument][Factory]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.HasInstrumentFactory("Sine"));
+    REQUIRE(synth.HasInstrumentFactory("sine"));
+    REQUIRE_FALSE(synth.HasInstrumentFactory("pulse"));
+
+    REQUIRE_THROWS_AS(synth.AddInstrumentFactory(std::function<Synth::Instrument&()>{}, "Pulse"), Synth::Error);
+    REQUIRE_THROWS_AS(synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, ""), Synth::Error);
+
+    synth.AddInstrumentFactory([]() -> Synth::Instrument& { return *new Synth::Sine(); }, "Pulse");
+    REQUIRE(synth.HasInstrumentFactory("pulse"));
+    REQUIRE(synth.HasInstrumentFactory("PULSE"));
+
+    std::string gmm = R"(
+        @1 = Pulse
+        @1 C4
+    )";
+
+    synth.Parse(gmm);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::InstrumentChange);
+    REQUIRE(synth.GetNode(0).index == 1);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
+
+    REQUIRE_THROWS_AS(synth.Parse("@1 = UnknownType"), Synth::Error);
+}
+
+TEST_CASE("Parsing a simple melody", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    std::string gmm = R"(
+        @1 = Sine attack=16, release=16, separation=32
+        # This is a simple melody in GMM format. 
+        T160 V100 O5 E4 < B8 > C8 D4 C8 < B8 A4 A8 > 
+        C8 E4 D8 C8 < B4. B8 > C8 D4 E4 C4 < A4 A4~B4 B4 #another comment
+    )";
+
+    Synth synth;
+    synth.Parse(gmm);
+
+    REQUIRE(synth.GetNodeCount() == 32);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(160.0f));
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Volume);
+    REQUIRE(synth.GetNode(1).volume.volume == Catch::Approx(1.0f));
+    REQUIRE(synth.GetNode(1).volume.channel == 0);
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::OctaveAbsolute);
+    REQUIRE(synth.GetNode(2).octave == 5);
+    REQUIRE(synth.GetNode(3).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(3).note.note == Synth::Note::E);
+    REQUIRE(synth.GetNode(3).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(3).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(3).note.slide == false);
+    REQUIRE(synth.GetNode(4).type == Synth::Node::Type::OctaveRelative);
+    REQUIRE(synth.GetNode(4).octave == -1);
+    REQUIRE(synth.GetNode(5).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(5).note.note == Synth::Note::B);
+    REQUIRE(synth.GetNode(5).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(5).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(5).note.duration.Fraction.Denominator == 8);
+    REQUIRE(synth.GetNode(5).note.slide == false);
+
+    REQUIRE(synth.GetNode(15).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(15).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(15).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(15).note.duration.Fraction.Denominator == 8);
+    REQUIRE(synth.GetNode(15).note.slide == false);
+
+    REQUIRE(synth.GetNode(29).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(29).note.note == Synth::Note::A);
+    REQUIRE(synth.GetNode(29).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(29).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(29).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(29).note.slide == true);
+
+    REQUIRE(synth.GetNode(30).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(30).note.note == Synth::Note::B);
+    REQUIRE(synth.GetNode(30).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(30).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(30).note.duration.Fraction.Denominator == 4);
+    REQUIRE(synth.GetNode(30).note.slide == false);
+
+    REQUIRE(synth.GetNode(31).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(31).note.note == Synth::Note::B);
+    REQUIRE(synth.GetNode(31).note.duration.type == Synth::Duration::TempoFraction);
+    REQUIRE(synth.GetNode(31).note.duration.Fraction.Numerator == 1);
+    REQUIRE(synth.GetNode(31).note.duration.Fraction.Denominator == 4);
+
+    auto [total, end] = synth.CalculateSamples(640);
+    //4200 from notes + 60 from release but there is also 30 samples of 
+    //separation at the end, so 4200 + 60 - 30 = 4230
+    REQUIRE(end == 4200); 
+    REQUIRE(total == 4230); 
+    REQUIRE(synth.CalculateDuration() == Catch::Approx(6.609375f));
+
+    {
+        // Test release trail
+        auto gmm = R"(
+            @1 = Sine release=1
+            T240 S8 B4 R4
+        )";
+
+        synth.Parse(gmm);
+
+        auto [total, end] = synth.CalculateSamples(4000);
+        REQUIRE(end == 2000); 
+        REQUIRE(total == 4500);
+    }
+
+    {
+        // Test release trail
+        auto gmm = R"(
+            @1 = Sine release=64
+            T240 B4 R4
+        )";
+
+        synth.Parse(gmm);
+
+        auto [total, end] = synth.CalculateSamples(4000);
+        REQUIRE(end == 2000); 
+        REQUIRE(total == 2000);
+    }
+
+}
+
+TEST_CASE("Render and save test", "[Synth][Parse][Render][GMM]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    synth.Parse(R"(
+# --- Engine Config ---
+%CHANNELS = 1
+
+# --- Instrument Bank ---
+@1 = flute
+@2 = xylophone
+@3 = "deep sub_bass" #quoted names with spaces are supported, _ is treated as space. Spaces can be ommitted too.
+
+# ==========================================
+# VARIATION 1: The Quiet Introduction
+# Tests baseline parsing, dotted notes, and standard timing
+# ==========================================
+T100 O5
+@1 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
+E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
+D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O3 G2
+O4 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
+
+# ==========================================
+# VARIATION 2: The March 
+# Tests inline tempo shifts and octave jumps
+# ==========================================
+@2 T120 V60 O5
+E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
+E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
+D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
+O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
+
+# ==========================================
+# VARIATION 3: The Grand Finale 
+# Tests volume peaks, the updated slide (~), and absolute time rests
+# ==========================================
+@3 T110 V70 O5
+E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4. D8 D2
+E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4. C8 C2
+D4 D4 E4 C4 D4 E8 F8 E4 C4 D4 E8 F8 E4 D4 C4 D4 O4 G2
+O5 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4.~C8 C2 R(2.0)
+    )");
+
+    auto wave = synth.Render(44100);
+    wave.ExportWav("test_output.wav");
+    wave.Normalize();
+    Gorgon::Encoding::Flac.Encode(wave, "test_output.flac");
+    {
+        synth.Parse(R"(
+            #@1 = Sine attack=128, release=3, decay=8, sustain=0.5
+            @1 = Sine attack=256, release=256, decay=0/1, sustain=1
+            V60 O5 T160 S32
+            D E F G F G G G4. R8 F G G G4. R8 F2 E2
+            D E F G F G G G2 F G G G2 F2 E2
+            D E F G E F D E C C F E D2 D2
+            D E F G E F D E C C F E D2 D2
+        )");
+
+        auto wave = synth.Render(44100);
+        Gorgon::Encoding::Flac.Encode(wave, "sut.flac");
+    }
+}
+
+TEST_CASE("Multi-track render and save test", "[Synth][Parse][Render][GMM]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    synth.Parse(R"(
+# ==========================================
+# HEADER PHASE
+# ==========================================
+@1 = flute
+@2 = "electric piano"
+@3 = "deep sub bass"
+
+T100
+
+# ==========================================
+# TRACK 1: Melody
+# ==========================================
+1> 
+@1 O5 V90 S20
+
+# M0 (Pickup)
+R4 E16 D+16
+# M1 - M3
+E16 D+16 E16 O4 B16 O5 D16 C16
+O4 A8 R16 C16 E16 A16
+B8 R16 E16 G+16 B16
+# M4 - M7
+O5 C8 R16 O4 E16 O5 E16 D+16
+E16 D+16 E16 O4 B16 O5 D16 C16
+O4 A8 R16 C16 E16 A16
+B8 R16 E16 O5 C16 O4 B16
+
+# M8 (Transition into B-Section)
+A8 R16 B16 O5 C16 D16
+# M9 (C Major)
+E8 R16 O4 G16 O5 F16 E16
+# M10 (G Major)
+D8 R16 O4 F16 O5 E16 D16
+# M11 (A Minor)
+C8 R16 O4 E16 O5 D16 C16
+# M12 (E Major - The rapid octave jumps)
+O4 B8 R16 E16 O5 E16 O4 E16
+
+# ==========================================
+# TRACK 2: Arpeggios
+# ==========================================
+2> 
+@2 V70
+
+# M0 to M1
+R4.
+R4.
+# M2 to M7
+O2 A16 O3 E16 A16 R8 R16
+O2 E16 O3 E16 G+16 R8 R16
+O2 A16 O3 E16 A16 R8 R16
+R4.
+O2 A16 O3 E16 A16 R8 R16
+O2 E16 O3 E16 G+16 R8 R16
+
+# M8 (Transition)
+O2 A16 O3 E16 A16 R8 R16
+# M9 (C Major Arp)
+O2 C16 O3 G16 O4 C16 R8 R16
+# M10 (G Major Arp)
+O2 G16 O3 G16 O4 B16 R8 R16
+# M11 (A Minor Arp)
+O2 A16 O3 E16 A16 R8 R16
+# M12 (E Major Arp)
+O2 E16 O3 E16 G+16 R8 R16
+
+# ==========================================
+# TRACK 3: Sub Bass Root
+# ==========================================
+3> 
+@3 V100
+
+# M0 to M1
+R4.
+R4.
+# M2 to M7
+A4.
+E4.
+A4.
+R4.
+A4.
+E4.
+
+# M8 (Transition)
+A4.
+# M9 (C Major Root)
+C4.
+# M10 (G Major Root)
+O2 G4.
+# M11 (A Minor Root)
+O3 A4.
+# M12 (E Major Root)
+E4.
+    )");
+
+    auto wave = synth.Render(44100);
+    wave.Normalize();
+    Gorgon::Encoding::Flac.Encode(wave, "fur-elise.flac");
+}
+
+TEST_CASE("Parse channels variable", "[Synth][Parse][GMM]") {
+    using namespace Gorgon::Audio;
+
+    std::string gmm = R"(
+        # Define a 4 channel track
+        %channels=[FL,FR, BL,BR]
+    )";
+
+    Synth synth;
+
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.GetChannels().size() == 4);
+    REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+    REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+    REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
+
+    gmm = R"(
+        %CHANNELS = 1
+    )";
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+
+
+    gmm = R"(
+        %CHANNELS=2
+    )";
+
+    synth.Parse(gmm);
+
+    REQUIRE(synth.GetChannels().size() == 2);
+    REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+
+
+}
+
+TEST_CASE("MetaData HasTags supports Or and Not combinations", "[Synth][MetaData]") {
+    using namespace Gorgon::Audio;
+
+    Synth::MetaData metadata;
+    metadata.Tags.push_back({Synth::TagType::Genre, "rock"});
+    metadata.Tags.push_back({Synth::TagType::Genre, "jazz"});
+    metadata.Tags.push_back({Synth::TagType::Mood, "happy"});
+    metadata.Tags.push_back({Synth::TagType::Mood, "energetic"});
+    metadata.Tags.push_back({Synth::TagType::Custom, "classic"});
+
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or("classic", "orchestral", "piano"), "happy"));
+    REQUIRE(metadata.HasTags(Synth::Genre, "rock", "jazz"));
+    REQUIRE(metadata.HasTags(Synth::Mood, "happy", "energetic"));
+    REQUIRE(metadata.HasTags("happy", Synth::Genre, Synth::MetaData::Not("blues")));
+    REQUIRE(metadata.HasTags(Synth::TagType::Genre, "rock", Synth::Genre, Synth::MetaData::Not("classic")));
+    REQUIRE_FALSE(metadata.HasTags(Synth::TagType::Genre, "rock", Synth::MetaData::Not("classic")));
+    REQUIRE_FALSE(metadata.HasTags("happy", Synth::Genre, Synth::MetaData::Not("rock")));
+
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or("happy", "joyful"), Synth::Genre, Synth::MetaData::Not("blues")));
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or(std::make_pair(Synth::Genre, "rock"), std::make_pair(Synth::Genre, "jazz"))));
+    REQUIRE(metadata.HasTags(Synth::MetaData::Or(std::make_pair(Synth::Genre, "rock"), std::make_pair(Synth::Mood, "happy"))));
+    REQUIRE_FALSE(metadata.HasTags(Synth::MetaData::Or("sad", "melancholy"), Synth::Genre, Synth::MetaData::Not("rock")));
+    REQUIRE_FALSE(metadata.HasTags(Synth::MetaData::Or("slow", "fast"), "happy"));
+}
+
+TEST_CASE("Parse channels variable with various formats", "[Synth][Parse][Channels]") {
+    using namespace Gorgon::Audio;
+
+    SECTION("Named channels - FL, FR, BL, BR") {
+        Synth synth;
+        synth.Parse("%channels=[FL,FR,BL,BR]");
+        
+        REQUIRE(synth.GetChannels().size() == 4);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
+    }
+
+    SECTION("Named channels - uppercase with spaces") {
+        Synth synth;
+        synth.Parse("%CHANNELS = [ FL , FR , BL , BR ]");
+        
+        REQUIRE(synth.GetChannels().size() == 4);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
+    }
+
+    SECTION("Named channels - no spaces after %") {
+        Synth synth;
+        synth.Parse("%channels=[FL,FR,BL,BR]");
+        
+        REQUIRE(synth.GetChannels().size() == 4);
+    }
+
+    SECTION("Numeric channels - mono (1)") {
+        Synth synth;
+        synth.Parse("%channels=1");
+        
+        REQUIRE(synth.GetChannels().size() == 1);
+        REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    }
+
+    SECTION("Numeric channels - stereo (2)") {
+        Synth synth;
+        synth.Parse("%channels=2");
+        
+        REQUIRE(synth.GetChannels().size() == 2);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+    }
+
+    SECTION("Numeric channels - 6 channel") {
+        Synth synth;
+        synth.Parse("% channels=6");
+        
+        REQUIRE(synth.GetChannels().size() == 6);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+        REQUIRE(synth.GetChannels()[3] == Channel::BackRight);
+        REQUIRE(synth.GetChannels()[4] == Channel::Center);
+        REQUIRE(synth.GetChannels()[5] == Channel::LowFreq);
+    }
+
+    SECTION("Numeric channels - uppercase with spacing") {
+        Synth synth;
+        synth.Parse("%CHANNELS = 3");
+        
+        REQUIRE(synth.GetChannels().size() == 3);
+        REQUIRE(synth.GetChannels()[0] == Channel::FrontLeft);
+        REQUIRE(synth.GetChannels()[1] == Channel::FrontRight);
+        REQUIRE(synth.GetChannels()[2] == Channel::LowFreq);
+    }
+
+    SECTION("Numeric channels - no space after %") {
+        Synth synth;
+        synth.Parse("%channels=1");
+        
+        REQUIRE(synth.GetChannels().size() == 1);
+        REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    }
+}
+
+TEST_CASE("Channel management API", "[Synth][Channels]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.GetChannels().size() == 1);
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    REQUIRE(synth.HasChannel(Channel::Mono));
+    REQUIRE_FALSE(synth.HasChannel(Channel::FrontLeft));
+
+    // Adding existing channel is silently ignored
+    synth.AddChannel(Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 1);
+
+    // Add new channels and verify normalized order (by enum value)
+    synth.AddChannel(Channel::BackLeft);
+    synth.AddChannel(Channel::FrontLeft);
+    REQUIRE(synth.GetChannels().size() == 3);
+    REQUIRE(synth.HasChannel(Channel::FrontLeft));
+    REQUIRE(synth.HasChannel(Channel::BackLeft));
+    // Normalized order: Mono(1) < FrontLeft(2) < BackLeft(6)
+    REQUIRE(synth.GetChannels()[0] == Channel::Mono);
+    REQUIRE(synth.GetChannels()[1] == Channel::FrontLeft);
+    REQUIRE(synth.GetChannels()[2] == Channel::BackLeft);
+
+    // Remove existing channel
+    synth.RemoveChannel(Channel::Mono);
+    REQUIRE(synth.GetChannels().size() == 2);
+    REQUIRE_FALSE(synth.HasChannel(Channel::Mono));
+
+    // Removing non-existent channel is silently ignored
+    synth.RemoveChannel(Channel::Center);
+    REQUIRE(synth.GetChannels().size() == 2);
+}
+
+TEST_CASE("Instrument management API", "[Synth][Instrument]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    // Default synth starts with one sine instrument
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    const auto& def = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(1));
+    REQUIRE(def.Name == "Sine");
+
+    // Out-of-range access throws
+    REQUIRE_THROWS_AS(synth.GetInstrument(0), Synth::Error);
+    REQUIRE_THROWS_AS(synth.GetInstrument(2), Synth::Error);
+
+    // AddInstrument takes ownership and returns 1-based index
+    auto* custom = new Synth::Sine();
+    custom->Sustain = 0.5f;
+    size_t idx = synth.AddInstrument(*custom);
+    REQUIRE(idx == 2);
+    REQUIRE(synth.GetInstrumentCount() == 2);
+    const auto& got = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(2));
+    REQUIRE(got.Sustain == Catch::Approx(0.5f));
+
+    // SetInstrument replaces and deletes old
+    auto* replacement = new Synth::Sine();
+    replacement->Sustain = 0.9f;
+    synth.SetInstrument(2, *replacement);
+    REQUIRE(synth.GetInstrumentCount() == 2);
+    const auto& replaced = dynamic_cast<const Synth::Sine&>(synth.GetInstrument(2));
+    REQUIRE(replaced.Sustain == Catch::Approx(0.9f));
+
+    // SetInstrument out of range throws
+    auto* extra = new Synth::Sine();
+    REQUIRE_THROWS_AS(synth.SetInstrument(0, *extra), Synth::Error);
+    REQUIRE_THROWS_AS(synth.SetInstrument(5, *extra), Synth::Error);
+    delete extra;
+
+    // RemoveInstrument
+    synth.RemoveInstrument(2);
+    REQUIRE(synth.GetInstrumentCount() == 1);
+    REQUIRE_THROWS_AS(synth.RemoveInstrument(0), Synth::Error);
+    REQUIRE_THROWS_AS(synth.RemoveInstrument(2), Synth::Error);
+}
+
+TEST_CASE("Instrument 0 remains silent and cannot be modified", "[Synth][Instrument][Silent]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+    synth.Parse("T120 @0 C4");
+
+    const auto expected_samples = Synth::Duration::FromFraction(4).ToSamples(120.0f, 44100u);
+    const auto audio_duration = synth.CalculateSamples(44100);
+
+    REQUIRE(audio_duration.Total == size_t(std::ceil(expected_samples)));
+    REQUIRE(audio_duration.End == size_t(std::ceil(expected_samples)));
+    REQUIRE(audio_duration.Total == audio_duration.End);
+
+    const auto wave = synth.Render(44100);
+    REQUIRE(wave.GetSize() == size_t(std::ceil(expected_samples)));
+    REQUIRE(wave.GetChannelCount() == 1);
+    REQUIRE(wave.GetSampleRate() == 44100u);
+
+    for(size_t i = 0; i < wave.GetSize(); ++i) {
+        REQUIRE(wave.Get(i, 0) == Catch::Approx(0.0f));
+    }
+
+    REQUIRE_THROWS(synth.Parse("@0 = Sine"));
+}
+
+TEST_CASE("Node management API", "[Synth][Nodes]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+
+    REQUIRE(synth.GetTrackCount() == 0);
+    REQUIRE(synth.GetNodeCount(0) == 0);
+
+    synth.AddNode(Synth::Node::MakeTempo(140.0f));
+    synth.AddNode(Synth::Node::MakeNote(Synth::Note::C, Synth::Duration::FromFraction(4), false));
+    synth.AddNode(Synth::Node::MakeRest(Synth::Duration::FromFraction(8)));
+
+    REQUIRE(synth.GetNodeCount() == 3);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(0).tempo.tempo == Catch::Approx(140.0f));
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Note);
+    REQUIRE(synth.GetNode(1).note.note == Synth::Note::C);
+    REQUIRE(synth.GetNode(2).type == Synth::Node::Type::Rest);
+
+    synth.RemoveNode(1); // remove the note
+    REQUIRE(synth.GetNodeCount() == 2);
+    REQUIRE(synth.GetNode(0).type == Synth::Node::Type::Tempo);
+    REQUIRE(synth.GetNode(1).type == Synth::Node::Type::Rest);
+
+    synth.Clear();
+    REQUIRE(synth.GetNodeCount() == 0);
+}
+
+TEST_CASE("Tempo ramp", "[Synth][Tempo][Ramp]") {
+    using namespace Gorgon::Audio;
+
+    Synth synth;
+    synth.Parse(R"(
+        @1 = Sine release=none
+        T120 C C T180:1 C C C C C T30 C C
+    )");
+
+    {
+        auto [total, end] = synth.CalculateSamples(44100);
+        REQUIRE(end == 306661); // 6.954 seconds
+    }
+
+    synth.Parse(R"(
+        @1 = Sine release=none
+        T120 C C T180:1 C C C C C T120 C T60:1 C C C C C T90:1 C C C C T60:1 C2 C2 T30 C
+    )");
+
+    {
+        auto [total, end] = synth.CalculateSamples(44100);
+        REQUIRE(end == 692009); // 15.7 seconds
+    }
+}

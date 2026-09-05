@@ -96,6 +96,23 @@ namespace WindowManager {
         
         windaccess windp(wind);
         
+        // Ensure drag is started (handles XWayland edge case where
+        // position handler may not have completed)
+        if(!Input::IsDragging()) {
+            if(data->xdnd.filelist) {
+                auto &drag = Input::PrepareDrag();
+                drag.AssumeData(*new FileData);
+                Input::StartDrag();
+                Input::GetDragOperation().MarkAsOS();
+            }
+            else if(data->xdnd.utf8 || data->xdnd.string) {
+                auto &drag = Input::PrepareDrag();
+                drag.AddTextData("");
+                Input::StartDrag();
+                Input::GetDragOperation().MarkAsOS();
+            }
+        }
+        
         data->xdnd.drop = 0;
         
         if(data->xdnd.filelist) {
@@ -157,35 +174,31 @@ namespace WindowManager {
 
         if(!Input::IsDragging()) {
             if(data->xdnd.filelist) {
-                if(data->xdnd.requested || OS::GetEnvVar("XDG_CURRENT_DESKTOP") == "KDE") {
-                    auto &drag = Input::PrepareDrag();
-                    drag.AssumeData(*new FileData);
-                    Input::StartDrag();
-                    Input::GetDragOperation().MarkAsOS();
-                }
-                else {
-                    XConvertSelection(WindowManager::display, WindowManager::XdndSelection, 
-                                    WindowManager::XA_Filelist, WindowManager::XA_PRIMARY, 
-                                    data->handle, event.xclient.data.l[2]);
-                }
+                auto &drag = Input::PrepareDrag();
+                drag.AssumeData(*new FileData);
+                Input::StartDrag();
+                Input::GetDragOperation().MarkAsOS();
             }
             
             if(data->xdnd.utf8 || data->xdnd.string) {
-                if(data->xdnd.requested || OS::GetEnvVar("XDG_CURRENT_DESKTOP") == "KDE") {
+                if(!Input::IsDragging()) {
                     auto &drag = Input::PrepareDrag();
                     drag.AddTextData("");
                     Input::StartDrag();
                     Input::GetDragOperation().MarkAsOS();
                 }
                 else {
-                    XConvertSelection(WindowManager::display, WindowManager::XdndSelection, 
-                                    WindowManager::XA_STRING, WindowManager::XA_PRIMARY, 
-                                    data->handle, event.xclient.data.l[2]);
+                    Input::GetDragOperation().AddTextData("");
                 }
             }
             
             data->xdnd.requested = true;
 
+            // Dispatch mouse_location immediately so the DropTarget receives
+            // Over/HitCheck and sets itself as the drag target. On XWayland,
+            // XdndDrop may arrive in the same event batch as XdndPosition,
+            // leaving no frame boundary for the normal mouse_location() call.
+            wind.mouse_location();
         } 
     }
     
@@ -195,7 +208,7 @@ namespace WindowManager {
         windaccess windp(wind);
         
         if (event.xselection.property != (unsigned)None) {
-            if(data->xdnd.filelist) {
+            if(event.xselection.target == WindowManager::XA_Filelist) {
                 unsigned long len, bytes, dummy;
                 unsigned char *dat=NULL;
                 Atom type;
@@ -262,7 +275,8 @@ namespace WindowManager {
                     }
                 }
             }
-            else if(data->xdnd.utf8 || data->xdnd.string) {
+            else if(event.xselection.target == WindowManager::XA_STRING || 
+                    event.xselection.target == WindowManager::XA_UTF8_STRING) {
                 Atom type;
                 unsigned long len, bytes, dummy;
                 unsigned char *dat;

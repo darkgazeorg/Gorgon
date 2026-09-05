@@ -83,6 +83,13 @@ namespace Gorgon :: Widgets {
             return *this;
         }
         
+        /// To set the text using direct assignment
+        Label &operator =(const char *text) {
+            SetText(text);
+            
+            return *this;
+        }
+        
         /// Allows direct conversion to string
         operator std::string() const {
             return text;

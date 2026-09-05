@@ -28,7 +28,7 @@ sudo apt-get update && sudo apt-get install build-essential cmake ninja-build pk
 libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
 libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
 doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
-libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+flac libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
 libgl1-mesa-dev libglew-dev
 ```
 
@@ -38,8 +38,10 @@ sudo dnf install gcc g++ cmake ninja-build pkgconf-pkg-config \
 libX11-devel libXinerama-devel libXrandr-devel libXext-devel \
 libpng-devel libjpeg-turbo-devel zlib-devel xz-devel \
 doxygen freetype-devel pulseaudio-libs-devel fontconfig-devel \
-flac-devel libogg-devel libvorbis-devel libcurl-devel glew-devel
+flac flac-devel libogg-devel libvorbis-devel libcurl-devel glew-devel
 ```
+
+Install the `flac` package in addition to the development package on Linux. Gorgon's installed CMake package uses `find_dependency(FLAC)`, and on Fedora and Debian-family systems the FLAC command-line tools may be split out of `flac-devel` or `libflac-dev`.
 
 ---
 
@@ -81,11 +83,12 @@ On Linux, installation doesn't require an IDE. You can configure, build, and ins
    ```bash
    cmake --preset Default
    ```
-2. Build and Install Gorgon system-wide (this automatically builds and installs both Release and Debug variants):
+2. In VS Code, use the regular build presets such as `Default-Debug` or `Default-Release` for day-to-day builds. Do not use the `Linux-Install-SDK` build preset from the VS Code Build command, because its elevated install step may not surface a password prompt reliably inside VS Code.
+3. Build and install Gorgon system-wide from a standalone terminal instead (this automatically builds and installs both Release and Debug variants):
    ```bash
    cmake --build build/Default --target install_sdk
    ```
-   *(Note: This target automatically handles privilege elevation. A visual GUI prompt or terminal window will appear asking for your sudo password to copy files to `/usr/local`).*
+   *(Note: This target automatically handles privilege elevation. Run it from a normal terminal so the password prompt can be displayed correctly while files are copied to `/usr/local`.)*
 
 ### Documentation
 Generating documentation requires Doxygen. Upon installation, a shortcut is automatically generated:
@@ -124,3 +127,19 @@ int Main(const std::vector<std::string>& args) {
 ```
 
 Check the `Examples` folder for sample programs. Copy them to your development directories and load them up using VS Code, compile them in the terminal, or use `cmake-gui` to create project files.
+
+---
+
+## File Association (GMM Tool)
+
+The `gmm` tool supports `.gmm` file associations so that double-clicking a `.gmm` file opens it in the GMM player. To register the file association after building:
+
+### Linux
+```bash
+cmake --build build/Default --target gmm-register-file-association:Debug
+```
+
+### Windows
+```cmd
+cmake --build build/WindowsDefault --target gmm-register-file-association:Debug
+```

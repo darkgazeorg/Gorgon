@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <charconv>
+#include <cstdlib>
+#include <cctype>
+#include <system_error>
 #include <string>
 #include <cstring>
 #include <string>
@@ -75,6 +79,7 @@ namespace Gorgon {
         T_ To(const std::string &value) {
             return T_();
         }
+
 #endif		
         
         /// @cond
@@ -282,6 +287,54 @@ namespace Gorgon {
         template <>
         inline bool To<bool>(const char *value) {
             return To<bool>(std::string(value));
+        }
+
+        /// Enumeration for the result of FromCLocaleTo.
+        enum class FromCLocaleToState {
+            Success,
+            Failed,
+            ScrapAtTheEnd
+        };
+
+        /// Converts a string to another type. This variant uses C locale and is
+        /// only available for integral and floating point types. If conversion fails, 
+        /// the returned pair will have the second value set to Failed. If conversion 
+        /// succeeds but there are extra characters at the end of the string, the second
+        /// value will be set to ScrapAtTheEnd. Otherwise, the second value will be Success.
+        template <class T_>
+        std::pair<T_, FromCLocaleToState> FromCLocaleTo(const std::string &value) {
+            static_assert(std::is_integral<T_>::value || std::is_floating_point<T_>::value,
+                "FromCLocaleTo is only available for integral and floating point types");
+            const char* begin = value.c_str();
+            const char* end = begin + value.size();
+
+            while(begin < end && std::isspace(static_cast<unsigned char>(*begin))) {
+                begin++;
+            }
+
+            T_ result{};
+            std::from_chars_result parseResult;
+
+            if constexpr(std::is_integral<T_>::value) {
+                parseResult = std::from_chars(begin, end, result, 10);
+            } else {
+                parseResult = std::from_chars(begin, end, result);
+            }
+
+            if(parseResult.ec == std::errc::invalid_argument || parseResult.ec == std::errc::result_out_of_range)
+                return {T_(), FromCLocaleToState::Failed};
+
+            if(parseResult.ptr == begin)
+                return {T_(), FromCLocaleToState::Failed};
+
+            while(parseResult.ptr < end && std::isspace(static_cast<unsigned char>(*parseResult.ptr))) {
+                parseResult.ptr++;
+            }
+
+            if(parseResult.ptr != end)
+                return {result, FromCLocaleToState::ScrapAtTheEnd};
+
+            return {result, FromCLocaleToState::Success};
         }
 
         /// Converts a hexadecimal number stored in the string to a given
@@ -794,8 +847,9 @@ namespace Gorgon {
             }
         }
 
-        /// Splits a string to a map using one character for assignment and another (or a list of characters)
-        /// for data endings. If a key occurs more than once, later one will be used.
+        /// Splits a string to a map using one character for assignment and another 
+        /// (or a list of characters) for data endings. If a key occurs more than 
+        /// once, later one will be used.
         template<class K_ = std::string, class V_ = std::string, class D_ = char>
         std::map<K_, V_> Map(const std::string &str, char assignment = '=', const D_ &delimeter = '\n', bool trimkey = true, bool lefttrimvalue = true, bool righttrimvalue = false, bool allowemptykey = false) {
             if(str.empty())
@@ -856,6 +910,136 @@ namespace Gorgon {
 
                 if(start != std::string::npos)
                     start++;
+            }
+
+            return ret;
+        }
+
+        /// Quote types for Extract_UseQuotes
+        enum class QuoteType {
+            None,
+            Single,
+            Double,
+            Both
+        };
+
+        /// Splits a string to a map using one character for assignment and another
+        /// (or a list of characters) for data endings. If a key occurs more than
+        /// once, later one will be used. This variant will allow quotes and parentheses
+        /// in the value. Quotes and parentheses will not be removed from the key or 
+        /// the value.
+        template<class K_ = std::string, class V_ = std::string>
+        std::map<K_, V_> Map_UseQuotesAndParentheses(
+            const std::string &str,
+            char assignment = '=', 
+            const std::string &delimeter = "\n", 
+            QuoteType quotetype = QuoteType::Both,
+            const std::string &open = "({",
+            const std::string &close = ")}",
+            bool trimkey = true, bool lefttrimvalue = true, bool righttrimvalue = false) 
+        {
+            if(str.empty())
+                return {};
+
+            std::map<K_, V_> ret;
+            std::vector<char> closestack;
+            std::string acc;
+
+            bool key = true;
+            K_ currentkey;
+
+            int inquotes = 0;
+            for(const auto &c : str) {
+                if(inquotes) {
+                    if(inquotes == 1 && c == '\'') {
+                        inquotes = 0;
+                    }
+                    else if(inquotes == 2 && c == '"') {
+                        inquotes = 0;
+                    }
+
+                    acc.push_back(c);
+                }
+                else {
+                    if(c == '\'' && (quotetype == QuoteType::Single || quotetype == QuoteType::Both)) {
+                        inquotes = 1;
+                        acc.push_back(c);
+                    }
+                    else if(c == '"' && (quotetype == QuoteType::Double || quotetype == QuoteType::Both)) {
+                        inquotes = 2;
+                        acc.push_back(c);
+                    }
+                    else if(!closestack.empty() && closestack.back() == c) {
+                            closestack.pop_back();
+
+                            acc.push_back(c);
+                    }
+                    else if(size_t ind = open.find_first_of(c); ind != std::string::npos) {
+                        closestack.push_back(close.at(ind));
+                        acc.push_back(c);
+                    }
+                    else if(closestack.empty() && (c == assignment || delimeter.find_first_of(c) != std::string::npos) && key) {
+                        if(trimkey)
+                            acc = Trim(acc);
+
+                        currentkey = To<K_>(acc);
+
+                        ret[currentkey] = V_{};
+
+                        if(c == assignment) 
+                            key = false;
+
+                        acc.clear();
+                    }
+                    else if(closestack.empty() && delimeter.find_first_of(c) != std::string::npos && !key) {
+                        std::string value = acc;
+
+                        if(lefttrimvalue && righttrimvalue) {
+                            value = Trim(value);
+                        }
+                        else if(lefttrimvalue) {
+                            value = TrimStart(value);
+                        }
+                        else if(righttrimvalue) {
+                            value = TrimEnd(value);
+                        }
+
+                        ret[currentkey] = To<V_>(value);
+
+                        key = true;
+
+                        acc.clear();
+                    }
+                    else {
+                        acc.push_back(c);
+                    }
+                }
+            }
+
+            if(!acc.empty()) {
+                if(key) {
+                    if(trimkey)
+                        acc = Trim(acc);
+
+                    currentkey = To<K_>(acc);
+
+                    ret[currentkey] = V_{};
+                }
+                else {
+                    std::string value = acc;
+
+                    if(lefttrimvalue && righttrimvalue) {
+                        value = Trim(value);
+                    }
+                    else if(lefttrimvalue) {
+                        value = TrimStart(value);
+                    }
+                    else if(righttrimvalue) {
+                        value = TrimEnd(value);
+                    }
+
+                    ret[currentkey] = To<V_>(value);
+                }
             }
 
             return ret;
@@ -924,13 +1108,6 @@ namespace Gorgon {
             return ret;
         }
         
-        enum class QuoteType {
-            None,
-            Single,
-            Double,
-            Both
-        };
-        
         /// Extracts the part of the string up to the given marker. This function will
         /// skipped quoted sections of the string. Both single and double quotes can be
         /// considered, however, double quotes should match with double quotes and single
@@ -946,43 +1123,25 @@ namespace Gorgon {
         ///         a marker.
         /// @param  quotetype controls which type of quotes will be considered.
         /// @return Extracted string. Does not contain the marker. Quotes will not be removed
-        inline std::string Extract_UseQuotes(std::string &original, char marker, QuoteType quotetype=QuoteType::Both) {
-            int inquotes=0;
-            std::size_t pos=0;
-            
-            for(auto &c : original) {
-                if(inquotes==1) {
-                    if(c=='\'') {
-                        inquotes=0;
-                    }
-                }
-                else if(inquotes==2) {
-                    if(c=='"') {
-                        inquotes=0;
-                    }
-                }
-                else if(c==marker) {
-                    std::string temp=original.substr(0, pos);
-                    original=original.substr(pos+1);
-                    
-                    return temp;
-                }
-                else if(c=='\'' && (quotetype==QuoteType::Single || quotetype==QuoteType::Both)) {
-                    inquotes=1;
-                }
-                else if(c=='"' && (quotetype==QuoteType::Double || quotetype==QuoteType::Both)) {
-                    inquotes=2;
-                }
-                
-                pos++;
-            }
-            
-            std::string temp;
-            std::swap(temp, original);
-            
-            return temp;
-        }
+        std::string Extract_UseQuotes(std::string &original, char marker, QuoteType quotetype=QuoteType::Both);
 
+        /// This function will extract the part of the string until a given marker. Specified 
+        /// marker will be removed from the original string. If the marker is not found, entire
+        /// string will be extracted. This function will skip parentheses and quoted sections of 
+        /// the string. Multiple types of parentheses can be specified. Close and open should be
+        /// matched. Unbalanced parentheses will be silently ignored. Quotes will not be removed.
+        std::string Extract_UseParentheses(std::string &original, char marker, std::string open = "(", std::string close = ")", QuoteType quotetype = QuoteType::Both);
+
+        /// This function will extract the part of the string until a given marker. Specified 
+        /// marker will be removed from the original string. If the marker is not found, entire
+        /// string will be extracted. This function will skip parentheses and quoted sections of 
+        /// the string. Multiple types of parentheses can be specified. Close and open should be
+        /// matched. Unbalanced parentheses will be silently ignored. Quotes will not be removed.
+        template <std::size_t N, std::size_t M>
+        std::string Extract_UseParentheses(std::string &original, char marker, const char (&open)[N], const char (&close)[M], QuoteType quotetype = QuoteType::Both) {
+            static_assert(N == M, "Extract_UseParentheses: open and close delimiters must have equal length");
+            return Extract_UseParentheses(original, marker, std::string(open, N - 1), std::string(close, M - 1), quotetype);
+        }
     }
 }
 

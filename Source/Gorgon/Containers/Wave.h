@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <fstream>
 #include <string>
@@ -67,7 +70,7 @@ namespace Gorgon :: Containers {
             friend class Wave;
         public:
             
-            typedef unsigned long difference_type;
+            typedef std::ptrdiff_t difference_type;
             typedef Sample value_type;
             typedef Sample& reference;
             typedef Sample* pointer;
@@ -132,36 +135,36 @@ namespace Gorgon :: Containers {
                 return current!=r.current;
             }
             
-            Sample operator[](unsigned long pos) const {
+            Sample operator[](size_t pos) const {
                 return {current, channels};
             }
             
-            Iterator& operator+=(unsigned long diff) {
+            Iterator& operator+=(size_t diff) {
                 current+=diff*channels;
                 return *this;
             }
             
-            Iterator  operator+(unsigned long diff) const {
+            Iterator  operator+(size_t diff) const {
                 auto temp=*this;
                 temp.current+=diff*channels;
                 
                 return temp;
             }
             
-            Iterator& operator-=(unsigned long diff) {
+            Iterator& operator-=(size_t diff) {
                 current-=diff*channels;
                 return *this;
             }
             
-            Iterator  operator-(unsigned long diff) const {
+            Iterator  operator-(size_t diff) const {
                 auto temp=*this;
                 temp.current-=diff*channels;
                 
                 return temp;
             }
 
-            unsigned long operator-(const Iterator &r) const {
-                return (unsigned long)((current-r.current)/channels);
+            difference_type operator-(const Iterator &r) const {
+                return (difference_type)((current-r.current)/channels);
             }
             
         private:
@@ -178,7 +181,7 @@ namespace Gorgon :: Containers {
 
         /// Constructs a new wave data with the given number of samples and channels. This constructor 
         /// does not initialize data inside the wave
-        explicit Wave(unsigned long size, unsigned samplerate, std::vector<Audio::Channel> channels = {Audio::Channel::Mono}): size(size), channels(channels), samplerate(samplerate) {
+        explicit Wave(size_t size, unsigned samplerate, std::vector<Audio::Channel> channels = {Audio::Channel::Mono}): size(size), channels(channels), samplerate(samplerate) {
             data = (float*)malloc(size * channels.size() * sizeof(float));
         }
 
@@ -218,7 +221,7 @@ namespace Gorgon :: Containers {
 
         /// Resizes the wave to the given size and channels. This function discards the contents
         /// of the wave and does not perform any initialization.
-        void Resize(unsigned long size, std::vector<Audio::Channel> channels) {
+        void Resize(size_t size, std::vector<Audio::Channel> channels) {
             
             this->channels = std::move(channels);
 
@@ -233,7 +236,7 @@ namespace Gorgon :: Containers {
         /// Resizes the wave to the given size. This function discards the contents
         /// of the wave and does not perform any initialization. Previously set number
         /// of channels is used
-        void Resize(unsigned long size) {
+        void Resize(size_t size) {
 
             // Check if resize is really necessary
             if(this->size == size)
@@ -250,7 +253,7 @@ namespace Gorgon :: Containers {
         /// Copies the given data assigns the new data to this object, size is the number of samples. 
         /// Assumes number of channels stays the same. newdata should have size*channels number of
         /// entries
-        void Assign(float *newdata, unsigned long size) {
+        void Assign(float *newdata, size_t size) {
             this->size = size;
 
             if(data) {
@@ -267,7 +270,7 @@ namespace Gorgon :: Containers {
         
         /// Copies the given data assigns the new data to this object, size is the number of samples. 
         /// newdata should have size*channels number of entries
-        void Assign(float *newdata, unsigned long size, std::vector<Audio::Channel> channels) {
+        void Assign(float *newdata, size_t size, std::vector<Audio::Channel> channels) {
             this->size = size;
             
             this->channels = std::move(channels);
@@ -292,7 +295,7 @@ namespace Gorgon :: Containers {
         }
 
         /// Assumes the ownership of the data.
-        void Assume(float *newdata, unsigned long size) {
+        void Assume(float *newdata, size_t size) {
             this->size = size;
 
             if(data && newdata!=data) {
@@ -305,7 +308,7 @@ namespace Gorgon :: Containers {
         /// The given data should have the size of size*channels. This function does not perform any checks 
         /// for the data size while assuming it. newdata could be nullptr however, in this case size should 
         /// be 0.
-        void Assume(float *newdata, unsigned long size, std::vector<Audio::Channel> channels) {
+        void Assume(float *newdata, size_t size, std::vector<Audio::Channel> channels) {
             this->size = size;
             this->channels = std::move(channels);
 
@@ -369,34 +372,70 @@ namespace Gorgon :: Containers {
         }
 
         /// Allows access to individual members
-        float &operator()(unsigned long p, unsigned ch) {
+        float &operator()(size_t p, unsigned ch) {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size()+ch];
         }
 
         /// Allows access to individual members
-        float operator()(unsigned long p, unsigned ch) const {
+        float operator()(size_t p, unsigned ch) const {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size()+ch];
         }
 
         /// Allows access to individual members
-        float Get(unsigned long p, unsigned ch) const {
+        float Get(size_t p, unsigned ch) const {
             ASSERT(p < size && ch < channels.size(), "Index out of bounds");
             
             return data[p*channels.size() + ch];
         }
 
+        /// Normalizes the wave data to the range of -1.0f to 1.0f.
+        void Normalize() {
+            float maxval = 0.0f;
+
+            for(size_t i=0; i<size*channels.size(); i++) {
+                auto val = std::abs(data[i]);
+                if(val > maxval) maxval = val;
+            }
+
+            if(maxval > 0.0f) {
+                float invmax = 1.0f / maxval;
+
+                for(size_t i=0; i<size*channels.size(); i++) {
+                    data[i] *= invmax;
+                }
+            }
+        }
+
+        /// Normalizes the wave data to the range of -1.0f to 1.0f.
+        void NormalizeMaximum() {
+            float maxval = 0.0f;
+
+            for(size_t i=0; i<size*channels.size(); i++) {
+                auto val = std::abs(data[i]);
+                if(val > maxval) maxval = val;
+            }
+
+            if(maxval > 1.0f) {
+                float invmax = 1.0f / maxval;
+
+                for(size_t i=0; i<size*channels.size(); i++) {
+                    data[i] *= invmax;
+                }
+            }
+        }
+
         /// Returns the size of the wave in number of samples
-        unsigned long GetSize() const {
+        size_t GetSize() const {
             return size;
         }
 
         /// Returns the size of the wave in bytes
-        unsigned long GetBytes() const {
-            return (unsigned int)(size * channels.size() * sizeof(float));
+        size_t GetBytes() const {
+            return (size_t)(size * channels.size() * sizeof(float));
         }
 
         /// Returns the length of the wave data in seconds
@@ -455,7 +494,7 @@ namespace Gorgon :: Containers {
         }
         
         /// Imports a PCM based wav file. Leave channels empty to determine them automatically.
-        bool ImportWav(const std::string &filename, bool loaddata, unsigned long &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
+        bool ImportWav(const std::string &filename, bool loaddata, size_t &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
             std::ifstream file(filename, std::ios::binary);
             
             if(!file.is_open()) return false;
@@ -464,13 +503,13 @@ namespace Gorgon :: Containers {
         }
         
         bool ImportWav(std::istream &file, std::vector<Audio::Channel> channels = {}) {
-            unsigned long size;
+            size_t size;
             int samplesize, blocksize;
             
             return ImportWav(file, true, size, samplesize, blocksize, std::move(channels));
         }
 
-        bool ImportWav(std::istream &file, bool loaddata, unsigned long &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
+        bool ImportWav(std::istream &file, bool loaddata, size_t &size, int &samplesize, int &blocksize, std::vector<Audio::Channel> channels = {}) {
             
             if(IO::ReadString(file, 4) != "RIFF") return false;
             
@@ -551,19 +590,34 @@ namespace Gorgon :: Containers {
         }
 
         /// Exports a PCM based wav file. Bits can be 8 or 16
-        bool ExportWav(const std::string &filename, int bits = 16) {
+        bool ExportWav(const std::string &filename, int bits = 16, std::vector<std::pair<std::string, std::string>> additional_chunks = {}) const {
             std::ofstream file(filename, std::ios::binary);
 
             if(!file.is_open()) return false;
 
-            return ExportWav(file, bits);
+            return ExportWav(file, bits, additional_chunks);
         }
 
         /// Exports a PCM based wav file. Bits can be 8 or 16
-        bool ExportWav(std::ostream &file, int bits = 16) {
+        bool ExportWav(std::ostream &file, int bits = 16, std::vector<std::pair<std::string, std::string>> additional_chunks = {}) const {
             using namespace IO;
 
-            int hs = 44, ds;
+            size_t totalchunksize = 0;
+
+            //first check additional chunks for validity
+            for(const auto& [id, data] : additional_chunks) {
+                if(id.size() != 4) {
+                    throw std::runtime_error("Chunk id must be 4 characters long: " + id);
+                }
+                if(id == "RIFF" || id == "WAVE" || id == "fmt " || id == "data") {
+                    throw std::runtime_error("Chunk id cannot be RIFF, WAVE, fmt  or data: " + id);
+                }
+
+                totalchunksize += 8 + data.size();
+            }
+
+            int hs = 44;
+            size_t ds;
             if(bits == 8) {
                 ds = GetSize() * GetChannelCount();
             }
@@ -574,27 +628,37 @@ namespace Gorgon :: Containers {
                 throw std::runtime_error("Invalid number of bits for wav file");
             }
 
+            if(ds > 0xFFFFFFFF - hs - totalchunksize) {
+                throw std::runtime_error("Wave data is too large to be written to a wav file");
+            }
+
             WriteString(file, "RIFF");
-            WriteInt32(file, hs+ds-8);
+            WriteUInt32(file, static_cast<uint32_t>(hs+ds-8 + totalchunksize));
 
             WriteString(file, "WAVEfmt ");
-            WriteInt32(file, 16);
-            WriteInt16(file, 1);
+            WriteUInt32(file, 16);
+            WriteUInt16(file, 1);
 
-            WriteInt16(file, GetChannelCount());
-            WriteInt32(file, GetSampleRate());
-            WriteInt32(file, GetSampleRate() * bits * GetChannelCount() / 8);
-            WriteInt16(file, bits * GetChannelCount() / 8);
-            WriteInt16(file, bits);
+            WriteUInt16(file, GetChannelCount());
+            WriteUInt32(file, GetSampleRate());
+            WriteUInt32(file, static_cast<uint32_t>(GetSampleRate() * bits * GetChannelCount() / 8));
+            WriteUInt16(file, bits * GetChannelCount() / 8);
+            WriteUInt16(file, bits);
+
+            for(const auto& [id, data] : additional_chunks) {
+                WriteString(file, id);
+                WriteUInt32(file, static_cast<uint32_t>(data.size()));
+                file.write(data.data(), data.size());
+            }
 
             WriteString(file, "data");
-            WriteInt32(file, ds);
+            WriteUInt32(file, static_cast<uint32_t>(ds));
 
             float *ptr = data;
             float *end = data + GetChannelCount() * GetSize();
             if(bits == 8) {
                 while(ptr<end) {
-                    WriteUInt8(file, (Byte)std::round((((*ptr) + 1) / 2) * 255) );
+                    WriteUInt8(file, (Byte)std::clamp(std::round((((*ptr) + 1) / 2) * 255), 0.0f, 255.0f));
 
                     ++ptr;
                 }
@@ -602,7 +666,7 @@ namespace Gorgon :: Containers {
             else {
                 int16_t multiplier = (1<<(bits-1))-1;
                 while(ptr<end) {
-                    WriteInt16(file, (int)std::round((*ptr) * multiplier));
+                    WriteInt16(file, (int)std::clamp(std::round((*ptr) * multiplier), static_cast<float>(-multiplier), static_cast<float>(multiplier)));
 
                     ++ptr;
                 }
@@ -624,7 +688,7 @@ namespace Gorgon :: Containers {
         float *data = nullptr;
 
         /// Number of samples in the wave
-        unsigned long size = 0;
+        size_t size = 0;
 
         /// Number of channels
         std::vector<Audio::Channel> channels;

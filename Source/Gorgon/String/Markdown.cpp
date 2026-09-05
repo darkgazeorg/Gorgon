@@ -47,6 +47,7 @@ namespace Gorgon :: String {
         bool newpar  = false;
         bool pre = false; //preformatted
         bool preinline = false; //inline version will only have a small hspace
+        bool fenced = false; //fenced code block (triple backtick)
         int  spacecount = 0;
         bool spaceadded = false;
         int outchars = 0; //number of visible glyphs in output
@@ -335,17 +336,18 @@ namespace Gorgon :: String {
                         }
                     }
                     
-                    if(!pre && g == '#') {
-                        header++;
-                        continue;
-                    }
-                    else if(pre && spacecount < 4) {
+                    if(pre && !fenced && spacecount < 4) {
                         builder.SetFont(useinfofont ? NamedFont::Info : NamedFont::Regular);
                         builder.SetIndent(0, 0);
                         builder.VerticalSpace(0, 50);
                         builder.UseDefaultColor();
                         
                         pre = false;
+                    }
+                    
+                    if(!pre && g == '#') {
+                        header++;
+                        continue;
                     }
                     else if(!newpar && linecount > 0 && outchars != 0 && spaceadded == 0 && !pre) {
                         result.push_back(spc);
@@ -535,9 +537,58 @@ namespace Gorgon :: String {
             spacecount = 0;
             linecount = 0;
             newpar = false;
+            bool atnewline = newline;
             newline = false;
             
             if(g == '`') {
+                // Check for fenced code block (triple backtick)
+                auto nit = it;
+                int btcount = 1;
+                while(nit != end) {
+                    auto bkit = nit;
+                    ++bkit;
+                    if(bkit != end && *bkit == '`') {
+                        btcount++;
+                        nit = bkit;
+                    }
+                    else break;
+                }
+                
+                if(btcount >= 3 && (atnewline || fenced)) {
+                    if(!fenced) {
+                        // Start fenced code block
+                        fenced = true;
+                        pre = true;
+                        preinline = false;
+                        builder.SetFont(NamedFont::FixedWidth);
+                        builder.SetIndent(0, 50);
+                        builder.VerticalSpace(0, 50);
+                        builder.SetColor(Color::Code);
+                        // Skip remaining backticks and rest of line (language spec)
+                        it = nit;
+                        while(it != end) {
+                            auto nextit = it;
+                            ++nextit;
+                            if(nextit == end || *nextit == '\n')
+                                break;
+                            it = nextit;
+                        }
+                        continue;
+                    }
+                    else {
+                        // End fenced code block
+                        fenced = false;
+                        pre = false;
+                        builder.SetFont(useinfofont ? NamedFont::Info : NamedFont::Regular);
+                        builder.SetIndent(0, 0);
+                        builder.VerticalSpace(0, 50);
+                        builder.UseDefaultColor();
+                        // Skip remaining backticks
+                        it = nit;
+                        continue;
+                    }
+                }
+
                 if(!pre) {
                     pre = true;
                     preinline = true;

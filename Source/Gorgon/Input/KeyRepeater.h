@@ -169,7 +169,7 @@ namespace Gorgon :: Input {
         
         /// Returns the initial delay before the first (or second if instant repeat is on) key is
         /// repeated in milliseconds.
-        bool GetInitialDelay() const {
+        int GetInitialDelay() const {
             return initialdelay;
         }
 
