@@ -11,6 +11,7 @@
 #include <set>
 #include <map>
 #include <vector>
+#include <memory>
 
 #define WINDOWS_LEAN_AND_MEAN
 #include <windows.h>
