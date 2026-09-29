@@ -29,6 +29,7 @@ target_sources(Gorgon
         Main.cpp
         SGuid.cpp
         Scene.cpp
+        String.cpp
         Window.cpp
 )
 

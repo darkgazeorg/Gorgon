@@ -8,6 +8,7 @@ target_sources(Gorgon
 		Controllers.h
 		Environment.h
         Source.h
+        Synth.h
 )
 
 target_sources(Gorgon
@@ -15,6 +16,7 @@ target_sources(Gorgon
 		Audio.cpp
 		Controllers.cpp
 		Environment.cpp
+        Synth.cpp
 )
 
 if(AUDIOLIB STREQUAL "PULSE")

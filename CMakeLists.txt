@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 include(Scripts/Windows.cmake)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(Gorgon 
     VERSION 4.1.0
@@ -46,8 +47,11 @@ target_include_directories(Gorgon PUBLIC
 
 include(Dependencies)
 
+include(Scripts/Public.cmake)
+
+add_subdirectory(Tools/GMM)
+
 if(BUILD_EXAMPLES)
-    include(Scripts/Public.cmake)
     add_subdirectory(Examples)
 endif()
 

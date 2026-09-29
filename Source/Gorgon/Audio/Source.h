@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include "Basic.h"
 
 namespace Gorgon :: Audio {
@@ -22,7 +23,7 @@ namespace Gorgon :: Audio {
         };
 
         /// Returns the size of the wave in number of samples
-        virtual unsigned long GetSize() const = 0;
+        virtual size_t GetSize() const = 0;
         
         /// Returns the length of the wave data in seconds
         virtual float GetLength() const = 0;
@@ -46,7 +47,7 @@ namespace Gorgon :: Audio {
         /// If return value is pending, IsSeeking and IsSeekComplete will be used to complete seek
         /// operation. Seeking to a new location while seeking could be allowed depending on the 
         /// source. If not supported, Failed should be returned.
-        virtual SeekResult StartSeeking(unsigned long target) const = 0;
+        virtual SeekResult StartSeeking(size_t target) const = 0;
         
         /// Returns if source is currently seeking. Even if the seek operation is completed, this
         /// function should return true from StartSeeking to SeekingDone. However, if seek operation
@@ -61,7 +62,7 @@ namespace Gorgon :: Audio {
         
         /// Should return current target that the stream is seeking towards. Should return 0 if not
         /// seeking or seeking is immediate.
-        virtual unsigned long SeekTarget() const = 0;
+        virtual size_t SeekTarget() const = 0;
         
         /// Marks seeking operation as finished. After this call, IsSeeking should be false.
         virtual void SeekingDone() const = 0;

@@ -37,8 +37,8 @@ namespace internal {
                 delete &stream;
         }
         
-        unsigned long Init(Containers::Wave &target) override {
-            unsigned long size = 0;
+        size_t Init(Containers::Wave &target) override {
+            size_t size = 0;
             
             target.ImportWav(stream, false, size, samplesize, blocksize);
             startoffset = stream.tellg();
@@ -47,7 +47,7 @@ namespace internal {
             return size;
         }
         
-        virtual unsigned long LoadData(unsigned long samplestart, Containers::Wave &target) override {
+        virtual size_t LoadData(size_t samplestart, Containers::Wave &target) override {
             stream.clear();
             stream.seekg(startoffset + samplestart * blocksize, std::ios::beg);
             
@@ -91,7 +91,7 @@ namespace internal {
                 delete &stream;
         }
         
-        unsigned long Init(Containers::Wave &target) override {
+        size_t Init(Containers::Wave &target) override {
             auto info = decoder.DecodeStart(stream);
             target.SetSampleRate(info.SampleRate);
             target.SetChannels(info.Channels);
@@ -99,7 +99,7 @@ namespace internal {
             return info.Samples;
         }
         
-        virtual unsigned long LoadData(unsigned long samplestart, Containers::Wave &target) override {
+        virtual size_t LoadData(size_t samplestart, Containers::Wave &target) override {
             return decoder.DecodeSome(target, samplestart);
         }
         
@@ -382,7 +382,7 @@ namespace internal {
         
         int sampleind = -1;
         int loadbuffer= -1;
-        unsigned long startoff = lastsample;
+        size_t startoff = lastsample;
         
         //find the last sample in the buffers
         for(std::size_t i=0; i<buffers.size(); i++) {
@@ -430,7 +430,7 @@ namespace internal {
         Audio::Log << "Stream buffer " << loadbuffer << " loaded from " << loading.beg << " to " << loading.end;
     }
     
-    void AudioStream::loadbuffer(bufferdata &buffer, unsigned long startoff) {
+    void AudioStream::loadbuffer(bufferdata &buffer, size_t startoff) {
         auto loaded = streamer->LoadData(startoff, buffer.buffer);
         
         std::lock_guard<std::mutex> g(Audio::internal::ControllerMtx);
@@ -446,7 +446,7 @@ namespace internal {
         }
     }
 
-    AudioStream::SeekResult AudioStream::StartSeeking(long unsigned int target) const {
+    AudioStream::SeekResult AudioStream::StartSeeking(size_t target) const {
         std::lock_guard<std::mutex> g(guard);
         
         Audio::Log << "Seek to " << target;

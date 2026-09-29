@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=GMM Player
+Comment=Gorgon Music Macro Player
+Exec=gmm --play --interactive %f
+Icon=gmm-icon
+Terminal=false
+Categories=Audio;Music;
+MimeType=text/x-gmm;

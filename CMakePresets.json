@@ -207,15 +207,29 @@
           "type": "STRING",
           "value": "flac;ogg;vorbis;freetype;curl" 
         },
-        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON"
+        "VCPKG_MANIFEST_NO_DEFAULT_FEATURES": "ON",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     }
   ],
 "buildPresets": [
     {
+      "name": "Default-Debug",
+      "configurePreset": "Default",
+      "displayName": "Build Debug (Default Linux)",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Default-Release",
+      "configurePreset": "Default",
+      "displayName": "Build Release (Default Linux)",
+      "configuration": "Release"
+    },
+    {
       "name": "Linux-Install-SDK",
       "configurePreset": "Default",
-      "displayName": "Install Gorgon SDK (Multi-Config)",
+      "displayName": "Install Gorgon SDK (Run From Terminal)",
+      "description": "Builds Debug and Release, then runs an elevated install step. Prefer running this preset from a standalone terminal.",
       "targets": [
         "install_sdk"
       ]

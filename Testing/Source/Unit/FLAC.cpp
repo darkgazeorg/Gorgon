@@ -5,7 +5,74 @@
 #include <Gorgon/Encoding/FLAC.h>
 #include <Gorgon/Filesystem.h>
 
+#include <sstream>
+
 using namespace Gorgon;
+
+namespace {
+
+Containers::Wave MakeWave() {
+    Containers::Wave wave(32, 12000, {Audio::Channel::FrontLeft, Audio::Channel::FrontRight});
+
+    for(unsigned long i = 0; i < wave.GetSize(); i++) {
+        wave(i, 0) = float((int(i % 9) - 4) / 4.0f);
+        wave(i, 1) = float((int((i * 2) % 11) - 5) / 5.0f);
+    }
+
+    return wave;
+}
+
+std::vector<std::pair<std::string, std::string>> MakeMetadata() {
+    return {
+        {"TITLE", "Into The Ruins"},
+        {"ARTIST", "Test Artist"},
+        {"COMMENT", "First line\nSecond line"},
+        {"CUSTOM", "Boss Battle"}
+    };
+}
+
+}
+
+TEST_CASE("FLAC metadata round-trips through vector decode", "[FLAC][MetaData]") {
+    auto wave = MakeWave();
+    auto metadata = MakeMetadata();
+
+    std::vector<Byte> encoded;
+    Encoding::Flac.Encode(wave, encoded, metadata, 16);
+
+    Containers::Wave decoded;
+    std::vector<std::pair<std::string, std::string>> loaded;
+    Encoding::Flac.Decode(encoded, decoded, loaded);
+
+    REQUIRE(decoded.GetSize() == wave.GetSize());
+    REQUIRE(decoded.GetSampleRate() == wave.GetSampleRate());
+    REQUIRE(decoded.GetChannelCount() == wave.GetChannelCount());
+    REQUIRE(loaded == metadata);
+}
+
+TEST_CASE("FLAC stream start loads metadata", "[FLAC][MetaData][Stream]") {
+    auto wave = MakeWave();
+    auto metadata = MakeMetadata();
+
+    std::vector<Byte> encoded;
+    Encoding::Flac.Encode(wave, encoded, metadata, 16);
+
+    std::stringstream stream(std::ios::in | std::ios::out | std::ios::binary);
+    stream.write(reinterpret_cast<const char *>(encoded.data()), std::streamsize(encoded.size()));
+    stream.seekg(0, std::ios::beg);
+
+    Encoding::FLACStream decoder;
+    std::vector<std::pair<std::string, std::string>> loaded;
+    auto info = decoder.DecodeStart(stream, loaded, encoded.size());
+
+    REQUIRE(info.Samples == wave.GetSize());
+    REQUIRE(info.SampleRate == int(wave.GetSampleRate()));
+    REQUIRE(info.Channels.size() == wave.GetChannelCount());
+    for(unsigned int i = 0; i < wave.GetChannelCount(); i++) {
+        REQUIRE(info.Channels[i] == wave.GetChannelType(i));
+    }
+    REQUIRE(loaded == metadata);
+}
 
 /*
 TEST_CASE("FLAC") {

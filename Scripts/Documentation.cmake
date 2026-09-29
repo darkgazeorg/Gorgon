@@ -42,6 +42,7 @@ if(DOCUMENTATION)
 
         doxygen_add_docs(docs
             ${GORGON_HEADERS}
+            "${PROJECT_SOURCE_DIR}/Source/Gorgon/Audio/GMM.md"
             ALL
             WORKING_DIRECTORY "${PROJECT_BINARY_DIR}"
             COMMENT "Generating API documentation with Doxygen"

@@ -1,6 +1,7 @@
 #include "Vorbis.h"
 
 #include "../Audio.h"
+#include "../String.h"
 
 #include <vorbis/vorbisfile.h>
 
@@ -9,6 +10,7 @@ namespace Gorgon :: Encoding {
     
 ///@cond internal
 namespace vorbis {
+    using metadata = std::vector<std::pair<std::string, std::string>>;
     
     inline std::vector<Audio::Channel> vorbischannels(int channelcount) {
         std::vector<Audio::Channel> channels;
@@ -86,6 +88,20 @@ namespace vorbis {
             return 0;
     }
 
+    inline void loadcomments(vorbis_comment *comments, metadata &commentdata) {
+        if(!comments)
+            return;
+
+        for(int i = 0; i < comments->comments; i++) {
+            if(!comments->user_comments[i])
+                continue;
+
+            std::string comment(comments->user_comments[i], comments->comment_lengths[i]);
+            auto key = String::Extract(comment, '=');
+            commentdata.push_back({std::move(key), std::move(comment)});
+        }
+    }
+
 }
 ///@endcond
 
@@ -104,7 +120,7 @@ namespace vorbis {
         delete ogg;
     }
     
-    unsigned long VorbisStream::DecodeSome(Containers::Wave &wave, unsigned long start) {
+    size_t VorbisStream::DecodeSome(Containers::Wave &wave, size_t start) {
         ASSERT(streamer, "Stream decoding is not initialized");
         
         if(!streamer)
@@ -117,7 +133,7 @@ namespace vorbis {
         
         auto ogg = (OggVorbis_File *)decoder;
         
-        unsigned long target = wave.GetSize();
+        size_t target = wave.GetSize();
 
         if(start + target > total)
             target = total - start;
@@ -156,7 +172,7 @@ namespace vorbis {
             int current_section;
             
             float **data;
-            auto sz = ov_read_float(ogg, &data, target - processed, &current_section);
+            auto sz = ov_read_float(ogg, &data, int(target - processed), &current_section);
             
             if(sz < 0) {
                 err = sz;
@@ -187,6 +203,11 @@ namespace vorbis {
     }
 
     Audio::AudioDataInfo VorbisStream::DecodeStart(const std::string &filename) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        return DecodeStart(filename, metadata);
+    }
+
+    Audio::AudioDataInfo VorbisStream::DecodeStart(const std::string &filename, std::vector<std::pair<std::string, std::string>> &metadata) {
         delete stream;
         stream = new std::ifstream(filename, std::ios::binary);
 
@@ -196,10 +217,15 @@ namespace vorbis {
             throw std::runtime_error("Cannot open file");
         }
 
-        return DecodeStart(*stream);
+        return DecodeStart(*stream, metadata);
     }
 
     Audio::AudioDataInfo VorbisStream::DecodeStart(std::istream &input, size_t len) {
+        std::vector<std::pair<std::string, std::string>> metadata;
+        return DecodeStart(input, metadata, len);
+    }
+
+    Audio::AudioDataInfo VorbisStream::DecodeStart(std::istream &input, std::vector<std::pair<std::string, std::string>> &metadata, size_t len) {
         auto ogg = (OggVorbis_File *)decoder;
         
         if(!ogg) {
@@ -211,7 +237,11 @@ namespace vorbis {
         ov_clear(ogg);
         std::memset(ogg, 0, sizeof(OggVorbis_File));
 
+        delete streamer;
+        streamer = nullptr;
+
         streamer = new vorbis::streamread(input, len);
+        metadata.clear();
         Audio::AudioDataInfo ret;
         
         auto bail = [&]{
@@ -240,6 +270,9 @@ namespace vorbis {
         auto info = ov_info(ogg, -1);
         if(info == nullptr)
             bail();
+
+        auto comments = ov_comment(ogg, -1);
+        vorbis::loadcomments(comments, metadata);
     
         auto samples = ov_pcm_total(ogg, -1);
         

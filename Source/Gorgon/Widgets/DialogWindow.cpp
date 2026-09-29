@@ -72,7 +72,7 @@ namespace Gorgon :: Widgets {
             btn = new Button(*temp, text, fn);
         
         if(buttonsarea.IsReady()) {
-            btnorg << 2 << *btn;
+            btnorg << 3 << *btn;
         }
         
         Own(*btn);

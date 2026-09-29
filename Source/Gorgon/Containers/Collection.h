@@ -513,6 +513,43 @@ namespace Gorgon :: Containers {
                 list.erase(list.begin() + tmp.offset);
             }
 
+            /// Replaces the item at the given index with the new item. If deleteold is
+            /// true, old item will be deleted. Otherwise, it will simply be removed from
+            /// the list
+            void Replace(long index, T_ *item, bool deleteold = false) {
+                if(index<0 || index>=(long)list.size())
+                    throw std::out_of_range("Invalid location");
+
+                if(deleteold) {
+                    delete list[index];
+                }
+
+                list[index]=item;
+            }
+
+            void Replace(T_ * olditem, T_ *newitem, bool deleteold = false) {
+                auto l=FindLocation(olditem);
+                if(l==-1)
+                    throw std::out_of_range("Item not found");
+
+                Replace(l, newitem, deleteold);
+            }
+
+            void Replace(T_ &olditem, T_ &newitem, bool deleteold = false) {
+                Replace(&olditem, &newitem, deleteold);
+            }
+
+            void Replace(ConstIterator &it, T_ *newitem, bool deleteold = false) {
+                if(!it.isvalid())
+                    throw std::out_of_range("Invalid iterator");
+
+                if(deleteold) {
+                    delete it.CurrentPtr();
+                }
+
+                list[it.offset]=newitem;
+            }
+
             /// Searches the position of a given item, if not found end iterator returned
             Iterator Find(const T_ *item) {
                 return Iterator(*this, FindLocation(item));

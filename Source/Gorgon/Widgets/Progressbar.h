@@ -82,4 +82,30 @@ namespace Gorgon :: Widgets {
      */
     using Progressbar = Progressor<int>;
     
+    /**
+     * This widget is a progress bar that uses float values between 0 and 1. It can be used as a float variable through
+     * NumericProperty<float> with operators like =, +=, ++, --. Also this widget can be
+     * implicitly casted to float. If you need a type other than float, you may use
+     * Progressor<T_> for any type, even non-numeric.
+    */
+    class FloatProgress : public Progressor<float> {
+    public:
+        
+        FloatProgress(const FloatProgress &) = delete;
+        
+        explicit FloatProgress(float cur, float max, Registry::TemplateType type = Registry::Progress_Regular) : 
+            FloatProgress(Registry::Active()[type], cur, max) 
+        {
+        }
+        
+        explicit FloatProgress(float cur = 0.0f, Registry::TemplateType type = Registry::Progress_Regular) : 
+            FloatProgress(Registry::Active()[type], cur) 
+        {
+        }
+
+        explicit FloatProgress(const UI::Template &temp, float cur = 0.0f) : FloatProgress(temp, cur, 1.0f) { }
+
+        FloatProgress(const UI::Template &temp, float cur, float max) : Progressor<float>(temp, cur, max)
+        { }
+    };
 }

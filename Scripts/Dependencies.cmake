@@ -67,6 +67,23 @@ if(FreeType)
     find_package(Freetype REQUIRED)
     target_link_libraries(Gorgon PUBLIC Freetype::Freetype)
     message(STATUS "FreeType: system provided library")
+
+    # The static FreeType on Windows (vcpkg or installed SDK) includes WOFF2
+    # (Brotli) and BZip2 decompressors. CMake's FindFreetype module doesn't
+    # know about these transitive deps, so we add them explicitly.
+    if(WIN32)
+        find_package(BZip2 REQUIRED)
+        find_package(unofficial-brotli CONFIG REQUIRED)
+
+        if(TARGET Freetype::Freetype)
+            set_property(TARGET Freetype::Freetype APPEND PROPERTY INTERFACE_LINK_LIBRARIES
+                BZip2::BZip2
+                unofficial::brotli::brotlidec
+                unofficial::brotli::brotlicommon
+            )
+        endif()
+        message(STATUS "FreeType: linked BZip2 + Brotli transitive deps")
+    endif()
 endif()
 
 # Font enumation

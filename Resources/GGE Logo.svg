@@ -2,20 +2,20 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    width="405.43198"
    height="405.43198"
    id="svg2"
    version="1.1"
-   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)"
-   sodipodi:docname="GGE Logo.svg">
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   sodipodi:docname="GGE Logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <sodipodi:namedview
      id="base"
      pagecolor="#ffffff"
@@ -24,22 +24,25 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.60470572"
-     inkscape:cx="388.25127"
-     inkscape:cy="793.42673"
+     inkscape:cx="-15.710121"
+     inkscape:cy="-81.857999"
      inkscape:document-units="px"
-     inkscape:current-layer="g4675"
+     inkscape:current-layer="g30089"
      showgrid="false"
      showguides="true"
      inkscape:guide-bbox="true"
      inkscape:window-width="1920"
-     inkscape:window-height="1057"
-     inkscape:window-x="1272"
-     inkscape:window-y="-8"
+     inkscape:window-height="1020"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
      fit-margin-right="0"
-     fit-margin-bottom="0" />
+     fit-margin-bottom="0"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1" />
   <defs
      id="defs4">
     <pattern
@@ -115,10 +118,10 @@
        inkscape:collect="always"
        style="color-interpolation-filters:sRGB"
        id="filter4325"
-       x="-0.015517887"
-       width="1.0310358"
-       y="-0.049076766"
-       height="1.0981535">
+       x="-0.016324276"
+       width="1.0326486"
+       y="-0.04536481"
+       height="1.0907296">
       <feGaussianBlur
          inkscape:collect="always"
          stdDeviation="1.9659594"
@@ -138,10 +141,10 @@
        inkscape:collect="always"
        style="color-interpolation-filters:sRGB"
        id="filter5683"
-       x="-0.024"
-       width="1.048"
-       y="-0.024"
-       height="1.048">
+       x="-0.028184426"
+       width="1.0563689"
+       y="-0.028184426"
+       height="1.0563689">
       <feGaussianBlur
          inkscape:collect="always"
          stdDeviation="3.6543198"
@@ -151,9 +154,9 @@
        inkscape:collect="always"
        style="color-interpolation-filters:sRGB"
        id="filter5687"
-       x="-0.015209867"
-       width="1.0304197"
-       y="-0.056861676"
+       x="-0.015253919"
+       width="1.0305078"
+       y="-0.056861716"
        height="1.1137234">
       <feGaussianBlur
          inkscape:collect="always"
@@ -167,7 +170,7 @@
        x="-0.015960302"
        width="1.0319206"
        y="-0.048360858"
-       height="1.0967216">
+       height="1.0967217">
       <feGaussianBlur
          inkscape:collect="always"
          stdDeviation="2.0007039"
@@ -177,9 +180,9 @@
        inkscape:collect="always"
        style="color-interpolation-filters:sRGB"
        id="filter5769"
-       x="-0.035999998"
+       x="-0.036000002"
        width="1.072"
-       y="-0.035999998"
+       y="-0.035999999"
        height="1.072">
       <feGaussianBlur
          inkscape:collect="always"
@@ -190,7 +193,7 @@
        inkscape:collect="always"
        style="color-interpolation-filters:sRGB"
        id="filter5791"
-       x="-0.0024000001"
+       x="-0.0024000002"
        width="1.0048"
        y="-0.0024000001"
        height="1.0048">
@@ -323,7 +326,7 @@
            x="386.698"
            id="tspan4674"
            sodipodi:role="line"
-           style="font-size:19.14836502px;line-height:1.25">Gorgon Game Engine</tspan></text>
+           style="font-size:19.1484px;line-height:1.25">Gorgon Game Engine</tspan></text>
       <path
          sodipodi:nodetypes="cccc"
          inkscape:connector-curvature="0"
@@ -518,21 +521,7 @@
            id="tspan4943"
            x="185.09602"
            y="411.86526"
-           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:82.77794647px;line-height:1.25;font-family:'Nimbus Roman No9 L';-inkscape-font-specification:'Nimbus Roman No9 L Bold';fill:#bbbbbb;fill-opacity:0.4">Library</tspan></text>
-      <text
-         transform="matrix(0.96574587,0,0,1.0354691,30.881997,-41.987133)"
-         id="text4945"
-         y="368.34167"
-         x="149.16338"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:serif;-inkscape-font-specification:Serif;letter-spacing:0px;word-spacing:0px;fill:#bbbbbb;fill-opacity:0.40096621;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;filter:url(#filter4325)"
-         xml:space="preserve"
-         inkscape:export-xdpi="270.8696"
-         inkscape:export-ydpi="270.8696"><tspan
-           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:condensed;font-size:104.62132263px;line-height:1.25;font-family:Impact;-inkscape-font-specification:'Impact Condensed';fill:#bbbbbb;fill-opacity:0.40096621"
-           y="368.34167"
-           x="149.16338"
-           id="tspan4947"
-           sodipodi:role="line">Gorgon</tspan></text>
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:82.7779px;line-height:1.25;font-family:'Nimbus Roman No9 L';-inkscape-font-specification:'Nimbus Roman No9 L Bold';fill:#bbbbbb;fill-opacity:0.4">Library</tspan></text>
       <path
          sodipodi:nodetypes="cccsccssscczcc"
          style="color:#000000;display:inline;overflow:visible;visibility:visible;opacity:1;fill:#bbbbbb;fill-opacity:0.4;fill-rule:nonzero;stroke:none;stroke-width:2.23731327px;marker:none;filter:url(#filter5695);enable-background:accumulate"
@@ -549,20 +538,38 @@
          sodipodi:nodetypes="cccsccssscczcc"
          inkscape:export-xdpi="270.8696"
          inkscape:export-ydpi="270.8696" />
-      <text
-         xml:space="preserve"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:serif;-inkscape-font-specification:Serif;letter-spacing:0px;word-spacing:0px;opacity:0.45;fill:#c4b2b2;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
-         x="181.14072"
-         y="327.79279"
-         id="text4953"
-         transform="scale(0.96574587,1.0354691)"
-         inkscape:export-xdpi="270.8696"
-         inkscape:export-ydpi="270.8696"><tspan
-           sodipodi:role="line"
-           id="tspan4955"
-           x="181.14072"
-           y="327.79279"
-           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:condensed;font-size:104.62132263px;line-height:1.25;font-family:Impact;-inkscape-font-specification:'Impact Condensed';fill:#c4b2b2;fill-opacity:1">Gorgon</tspan></text>
+      <g
+         id="g1"
+         transform="translate(-2.1776918)">
+        <text
+           transform="matrix(1.0319945,0,0,1.0354691,21.03443,-41.987133)"
+           id="text4945"
+           y="368.34167"
+           x="149.16338"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0%;font-family:serif;-inkscape-font-specification:Serif;letter-spacing:0px;word-spacing:0px;fill:#bbbbbb;fill-opacity:0.400966;stroke:none;stroke-width:0.96737px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;filter:url(#filter4325)"
+           xml:space="preserve"
+           inkscape:export-xdpi="270.8696"
+           inkscape:export-ydpi="270.8696"><tspan
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:104.621px;line-height:1.25;font-family:anton;-inkscape-font-specification:anton;fill:#bbbbbb;fill-opacity:0.400966;stroke-width:0.96737px"
+             y="368.34167"
+             x="149.16338"
+             id="tspan4947"
+             sodipodi:role="line">Gorgon</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:12.4048px;line-height:0%;font-family:serif;-inkscape-font-specification:Serif;letter-spacing:0px;word-spacing:0px;opacity:0.45;fill:#c4b2b2;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           x="175.26451"
+           y="338.84933"
+           id="text4953"
+           transform="scale(0.9983208,1.001682)"
+           inkscape:export-xdpi="270.8696"
+           inkscape:export-ydpi="270.8696"><tspan
+             sodipodi:role="line"
+             id="tspan4955"
+             x="175.26451"
+             y="338.84933"
+             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:108.15px;line-height:1.25;font-family:anton;-inkscape-font-specification:anton;fill:#c4b2b2;fill-opacity:1;stroke-width:1px">Gorgon</tspan></text>
+      </g>
       <text
          id="text4957"
          y="411.86526"
@@ -571,7 +578,7 @@
          xml:space="preserve"
          inkscape:export-xdpi="270.8696"
          inkscape:export-ydpi="270.8696"><tspan
-           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:82.77794647px;line-height:1.25;font-family:'Nimbus Roman No9 L';-inkscape-font-specification:'Nimbus Roman No9 L Bold';fill:#c4b2b2;fill-opacity:1"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:82.7779px;line-height:1.25;font-family:'Nimbus Roman No9 L';-inkscape-font-specification:'Nimbus Roman No9 L Bold';fill:#c4b2b2;fill-opacity:1"
            y="411.86526"
            x="185.09602"
            id="tspan4959"

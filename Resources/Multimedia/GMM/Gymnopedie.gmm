@@ -1,0 +1,111 @@
+# =========================================================
+# Gymnopédie No. 1
+# =========================================================
+%CHANNELS = 2
+%title = Gymnopédie No. 1
+%artist = Erik Satie
+%arranger = Antigravity
+%genre = classical
+%style = ambient
+%comment = A slow, atmospheric, and highly relaxing arrangement of Gymnopédie No. 1.
+%comment = Recreates the iconic alternating bass-chord structure and floating melody.
+
+# --- Instrument Bank ---
+@1 = "electric piano" volume=85
+@2 = "ambient pad" volume=55
+@3 = "deep sub bass" volume=85
+
+T40
+
+# ---------------------------------------------------------
+# INTRO (4 Measures)
+# ---------------------------------------------------------
+# Track 1: Melody (rests during intro)
+1> R2. R2. R2. R2.
+
+# Track 2: Accompaniment (Lush chords)
+2> @2
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+
+# Track 3: Bass
+3> @3
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+
+# ---------------------------------------------------------
+# CYCLE 1: Theme A (16 Measures)
+# ---------------------------------------------------------
+# Track 1: Melody
+1> @1
+1> R2 O4 F+4 A2 G4 F+2 E4 C+2 D4
+1> E2 O3 B4 O4 C+2 D4 E2. D2.
+1> R2 O4 F+4 A2 G4 F+2 E4 C+2 D4
+1> E2 O3 B4 O4 C+2 D4 E2. D2.
+
+# Track 2: Accompaniment
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+
+# Track 3: Bass
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+
+# ---------------------------------------------------------
+# CYCLE 2: Theme B (16 Measures)
+# ---------------------------------------------------------
+# Track 1: Melody
+1> O4 A2. B2. O5 C+2. D2 O4 A4
+1> B2. O5 C+2. D2. D2.
+1> O4 A2. B2. O5 C+2. D2 O4 A4
+1> B2. O5 C+2. D2. D2.
+
+# Track 2: Accompaniment
+2> R4 O3 E4 B4 R4 O3 D4 F+4 R4 O3 E4 B4 R4 O3 D4 F+4
+2> R4 O3 E4 B4 R4 O3 D4 F+4 R4 O3 E4 B4 R4 O3 D4 F+4
+2> R4 O3 E4 B4 R4 O3 D4 F+4 R4 O3 E4 B4 R4 O3 D4 F+4
+2> R4 O3 E4 B4 R4 O3 D4 F+4 R4 O3 E4 B4 R4 O3 D4 F+4
+
+# Track 3: Bass
+3> O2 C2. O2 G2. O2 C2. O2 G2.
+3> O2 C2. O2 G2. O2 C2. O2 G2.
+3> O2 C2. O2 G2. O2 C2. O2 G2.
+3> O2 C2. O2 G2. O2 C2. O2 G2.
+
+# ---------------------------------------------------------
+# CYCLE 3: Theme A Variation & Resolution (16 Measures)
+# ---------------------------------------------------------
+# Track 1: Melody
+1> R2 O5 F+4 A2 G4 F+2 E4 C+2 D4
+1> E2 O4 B4 O5 C+2 D4 E2. D2.
+1> R2 O5 F+4 A2 G4 F+2 E4 C+2 D4
+1> E2 O4 B4 O5 C+2 D4 E2. D2.
+
+# Track 2: Accompaniment
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4
+
+# Track 3: Bass
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+3> O2 G2. O2 D2. O2 G2. O2 D2.
+
+# ---------------------------------------------------------
+# OUTRO (8 Measures - Fade Out)
+# ---------------------------------------------------------
+# Track 1: Melody
+1> V70:8
+1> R2 O4 F+4 A2. G2. F+2. E2. D2. D1.
+
+# Track 2: Accompaniment
+2> V30:8
+2> R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4 R4 O3 F+4 B4 R4 O3 F+4 A4 R2. R1.
+
+# Track 3: Bass
+3> V40:8
+3> O2 G2. O2 D2. O2 G2. O2 D2. O2 G2. O2 D2. O2 G2. O2 D1.
