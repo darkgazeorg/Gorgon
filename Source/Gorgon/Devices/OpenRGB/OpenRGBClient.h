@@ -25,13 +25,30 @@ namespace Gorgon :: Devices :: OpenRGB :: LowLevel {
     inline constexpr uint32_t OPENRGB_SDK_PROTOCOL_VERSION = 5;
     inline constexpr uint16_t OPENRGB_DEFAULT_PORT = 6742;
 
+    // Client Capability Flags (Protocol v0-v6)
+    namespace ClientFlags {
+        inline constexpr uint32_t SupportsRGBController   = (1 << 0);
+        inline constexpr uint32_t SupportsLogManager       = (1 << 1);
+        inline constexpr uint32_t SupportsProfileManager   = (1 << 2);
+        inline constexpr uint32_t SupportsPluginManager    = (1 << 3);
+        inline constexpr uint32_t SupportsSettingsManager  = (1 << 4);
+        inline constexpr uint32_t RequestLocalClient       = (1 << 16);
+    }
+
     // Packet IDs
     inline constexpr uint32_t NET_PACKET_ID_REQUEST_CONTROLLER_COUNT       = 0;
     inline constexpr uint32_t NET_PACKET_ID_REQUEST_CONTROLLER_DATA        = 1;
     inline constexpr uint32_t NET_PACKET_ID_REQUEST_PROTOCOL_VERSION       = 40;
     inline constexpr uint32_t NET_PACKET_ID_SET_CLIENT_NAME                = 50;
+    inline constexpr uint32_t NET_PACKET_ID_SET_CLIENT_FLAGS               = 52;
+    inline constexpr uint32_t NET_PACKET_ID_SET_SERVER_FLAGS               = 53;
     inline constexpr uint32_t NET_PACKET_ID_DEVICE_LIST_UPDATED            = 100;
     inline constexpr uint32_t NET_PACKET_ID_REQUEST_RESCAN_DEVICES         = 140;
+    inline constexpr uint32_t NET_PACKET_ID_PROFILEMANAGER_GET_PROFILE_LIST   = 150;
+    inline constexpr uint32_t NET_PACKET_ID_PROFILEMANAGER_SAVE_PROFILE       = 151;
+    inline constexpr uint32_t NET_PACKET_ID_PROFILEMANAGER_LOAD_PROFILE       = 152;
+    inline constexpr uint32_t NET_PACKET_ID_PROFILEMANAGER_DELETE_PROFILE     = 153;
+    inline constexpr uint32_t NET_PACKET_ID_PROFILEMANAGER_PROFILE_LIST_UPDATED = 160;
     inline constexpr uint32_t NET_PACKET_ID_RGBCONTROLLER_UPDATELEDS       = 1050;
     inline constexpr uint32_t NET_PACKET_ID_RGBCONTROLLER_UPDATEZONELEDS   = 1051;
     inline constexpr uint32_t NET_PACKET_ID_RGBCONTROLLER_UPDATESINGLELED  = 1052;
@@ -356,6 +373,41 @@ namespace Gorgon :: Devices :: OpenRGB :: LowLevel {
          * @brief Persists mode parameters to hardware NVRAM if supported.
          */
         bool SaveMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode);
+
+        /**
+         * @brief Sends client capability flags to the server (e.g. requesting local client privileges).
+         * @param flags Bitwise combination of ClientFlags constants.
+         * @return true on success, false on failure.
+         */
+        bool SetClientFlags(uint32_t flags);
+
+        /**
+         * @brief Queries available profile names from the server.
+         * @param out_profiles Populated with profile names on success.
+         * @return true on success, false on failure.
+         */
+        bool GetProfileList(std::vector<std::string> &out_profiles);
+
+        /**
+         * @brief Saves current hardware configurations and states to a named profile on the server.
+         * @param name Name of the profile to create/save.
+         * @return true on success, false on failure.
+         */
+        bool SaveProfile(const std::string &name);
+
+        /**
+         * @brief Loads and applies a named profile to all hardware controllers on the server.
+         * @param name Name of the profile to load.
+         * @return true on success, false on failure.
+         */
+        bool LoadProfile(const std::string &name);
+
+        /**
+         * @brief Deletes a named profile from the server.
+         * @param name Name of the profile to delete.
+         * @return true on success, false on failure.
+         */
+        bool DeleteProfile(const std::string &name);
 
     private:
         struct Impl;

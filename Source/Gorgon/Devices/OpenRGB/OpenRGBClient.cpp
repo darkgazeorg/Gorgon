@@ -863,6 +863,66 @@ bool Client::SaveMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode) {
     return impl->SendPacket(dev_id, NET_PACKET_ID_RGBCONTROLLER_SAVEMODE, payload.data(), static_cast<uint32_t>(payload.size()));
 }
 
+bool Client::SetClientFlags(uint32_t flags) {
+    if (!IsConnected()) return false;
+
+    uint8_t payload[4];
+    payload[0] = flags & 0xFF;
+    payload[1] = (flags >> 8) & 0xFF;
+    payload[2] = (flags >> 16) & 0xFF;
+    payload[3] = (flags >> 24) & 0xFF;
+
+    return impl->SendPacket(0, NET_PACKET_ID_SET_CLIENT_FLAGS, payload, sizeof(payload));
+}
+
+bool Client::GetProfileList(std::vector<std::string> &out_profiles) {
+    out_profiles.clear();
+    if (!IsConnected()) return false;
+
+    if (!impl->SendPacket(0, NET_PACKET_ID_PROFILEMANAGER_GET_PROFILE_LIST, nullptr, 0)) {
+        return false;
+    }
+
+    uint32_t dev_id = 0, pkt_id = 0;
+    std::vector<uint8_t> payload;
+    if (!impl->ReadPacket(dev_id, pkt_id, payload, 3000)) {
+        return false;
+    }
+
+    if (pkt_id != NET_PACKET_ID_PROFILEMANAGER_GET_PROFILE_LIST &&
+        pkt_id != NET_PACKET_ID_PROFILEMANAGER_PROFILE_LIST_UPDATED) {
+        impl->last_error = "Unexpected packet ID received for profile list: " + std::to_string(pkt_id);
+        return false;
+    }
+
+    BinaryReader r(payload.data(), payload.size());
+    r.ReadU32(); // total data_size
+    uint16_t num_profiles = r.ReadU16();
+    for (uint16_t i = 0; i < num_profiles && r.IsOk(); ++i) {
+        out_profiles.push_back(r.ReadString());
+    }
+
+    return r.IsOk();
+}
+
+bool Client::SaveProfile(const std::string &name) {
+    if (!IsConnected()) return false;
+    // Protocol payload: null-terminated string (length = name.size() + 1)
+    return impl->SendPacket(0, NET_PACKET_ID_PROFILEMANAGER_SAVE_PROFILE, name.c_str(), static_cast<uint32_t>(name.size() + 1));
+}
+
+bool Client::LoadProfile(const std::string &name) {
+    if (!IsConnected()) return false;
+    // Protocol payload: null-terminated string (length = name.size() + 1)
+    return impl->SendPacket(0, NET_PACKET_ID_PROFILEMANAGER_LOAD_PROFILE, name.c_str(), static_cast<uint32_t>(name.size() + 1));
+}
+
+bool Client::DeleteProfile(const std::string &name) {
+    if (!IsConnected()) return false;
+    // Protocol payload: null-terminated string (length = name.size() + 1)
+    return impl->SendPacket(0, NET_PACKET_ID_PROFILEMANAGER_DELETE_PROFILE, name.c_str(), static_cast<uint32_t>(name.size() + 1));
+}
+
 #ifdef OPENRGB_CLIENT_STANDALONE
 } // namespace openrgb
 #else
