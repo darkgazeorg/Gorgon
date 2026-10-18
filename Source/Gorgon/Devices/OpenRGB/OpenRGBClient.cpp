@@ -159,7 +159,7 @@ namespace {
         WriteLE32(buf, mode.color_mode);
         WriteLE16(buf, static_cast<uint16_t>(mode.colors.size()));
         for (const auto &c : mode.colors) {
-            WriteLE32(buf, c.value);
+            WriteLE32(buf, c.ToWireRGB());
         }
     }
 
@@ -201,8 +201,8 @@ namespace {
         zone.leds_max = r.ReadU32();
         zone.leds_count = r.ReadU32();
 
-        if (zone.type == ZoneType::Matrix) {
-            r.ReadU32(); // matrix_len
+        uint16_t zone_matrix_len = r.ReadU16();
+        if (zone_matrix_len > 0) {
             zone.matrix_map.height = r.ReadU32();
             zone.matrix_map.width = r.ReadU32();
             uint32_t matrix_size = zone.matrix_map.height * zone.matrix_map.width;
@@ -222,6 +222,11 @@ namespace {
                 zone.segments[s].leds_count = r.ReadU32();
             }
         }
+
+        if (protocol_version >= 5) {
+            r.ReadU32(); // zone_flags
+        }
+
         return r.IsOk();
     }
 
@@ -229,7 +234,11 @@ namespace {
         r.ReadU32(); // data_size
         ctrl.type = static_cast<DeviceType>(r.ReadI32());
         ctrl.name = r.ReadString();
-        ctrl.vendor = r.ReadString();
+        if (protocol_version >= 1) {
+            ctrl.vendor = r.ReadString();
+        } else {
+            ctrl.vendor.clear();
+        }
         ctrl.description = r.ReadString();
         ctrl.version = r.ReadString();
         ctrl.serial = r.ReadString();
@@ -259,6 +268,14 @@ namespace {
         ctrl.colors.resize(num_colors);
         for (uint16_t c = 0; c < num_colors; ++c) {
             ctrl.colors[c] = Color(r.ReadU32());
+        }
+
+        if (protocol_version >= 5) {
+            uint16_t num_led_display_names = r.ReadU16();
+            for (uint16_t d = 0; d < num_led_display_names; ++d) {
+                r.ReadString(); // led_display_name
+            }
+            r.ReadU32(); // flags
         }
 
         return r.IsOk();
@@ -690,8 +707,10 @@ int32_t Client::PollEvent(uint32_t timeout_ms) {
 bool Client::UpdateLEDs(uint32_t dev_id, const Color *colors, uint16_t count) {
     if (!IsConnected() || colors == nullptr) return false;
 
-    uint32_t data_size = 2 + static_cast<uint32_t>(count) * 4;
-    uint32_t pkt_size = 4 + data_size;
+    // OpenRGB server validates: if (header.pkt_size != data_size)
+    // data_size includes sizeof(data_size) + sizeof(num_colors) + colors_bytes
+    uint32_t data_size = 4 + 2 + static_cast<uint32_t>(count) * 4;
+    uint32_t pkt_size = data_size;
 
     uint8_t combined_hdr[22];
     // 16-byte Packet Header
@@ -731,8 +750,10 @@ bool Client::UpdateLEDs(uint32_t dev_id, const std::vector<Color> &colors) {
 bool Client::UpdateZoneLEDs(uint32_t dev_id, uint32_t zone_id, const Color *colors, uint16_t count) {
     if (!IsConnected() || colors == nullptr) return false;
 
-    uint32_t data_size = 4 + 2 + static_cast<uint32_t>(count) * 4;
-    uint32_t pkt_size = 4 + data_size;
+    // OpenRGB server validates: if (header.pkt_size != data_size)
+    // data_size includes sizeof(data_size) + sizeof(zone_idx) + sizeof(num_colors) + colors_bytes
+    uint32_t data_size = 4 + 4 + 2 + static_cast<uint32_t>(count) * 4;
+    uint32_t pkt_size = data_size;
 
     uint8_t combined_hdr[26];
     // 16-byte Packet Header
@@ -794,8 +815,9 @@ bool Client::UpdateSingleLED(uint32_t dev_id, int32_t led_id, Color color) {
     packet[16] = led_u & 0xFF; packet[17] = (led_u >> 8) & 0xFF;
     packet[18] = (led_u >> 16) & 0xFF; packet[19] = (led_u >> 24) & 0xFF;
 
-    packet[20] = color.value & 0xFF; packet[21] = (color.value >> 8) & 0xFF;
-    packet[22] = (color.value >> 16) & 0xFF; packet[23] = (color.value >> 24) & 0xFF;
+    uint32_t wire_color = color.ToWireRGB();
+    packet[20] = wire_color & 0xFF; packet[21] = (wire_color >> 8) & 0xFF;
+    packet[22] = (wire_color >> 16) & 0xFF; packet[23] = (wire_color >> 24) & 0xFF;
 
     return impl->Send(packet, sizeof(packet));
 }
@@ -811,9 +833,11 @@ bool Client::UpdateMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode) {
     std::vector<uint8_t> mode_bytes;
     WriteModeData(mode_bytes, mode, impl->protocol_version);
 
-    uint32_t data_size = 4 + static_cast<uint32_t>(mode_bytes.size());
+    // OpenRGB server validates: if (header.pkt_size != data_size)
+    // where data_size includes sizeof(data_size) + sizeof(mode_idx) + mode_bytes
+    uint32_t data_size = 4 + 4 + static_cast<uint32_t>(mode_bytes.size());
     std::vector<uint8_t> payload;
-    payload.reserve(4 + data_size);
+    payload.reserve(data_size);
 
     WriteLE32(payload, data_size);
     WriteLE32(payload, mode_idx);
@@ -828,9 +852,9 @@ bool Client::SaveMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode) {
     std::vector<uint8_t> mode_bytes;
     WriteModeData(mode_bytes, mode, impl->protocol_version);
 
-    uint32_t data_size = 4 + static_cast<uint32_t>(mode_bytes.size());
+    uint32_t data_size = 4 + 4 + static_cast<uint32_t>(mode_bytes.size());
     std::vector<uint8_t> payload;
-    payload.reserve(4 + data_size);
+    payload.reserve(data_size);
 
     WriteLE32(payload, data_size);
     WriteLE32(payload, mode_idx);

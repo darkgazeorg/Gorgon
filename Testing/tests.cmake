@@ -47,3 +47,9 @@ if(${SCRIPTING})
 		Scripting
 	)
 endif()
+
+if(OPENRGB)
+	list(APPEND ManualTests
+		openrgb_raw
+	)
+endif()

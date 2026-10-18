@@ -50,13 +50,13 @@ namespace Gorgon :: Devices :: OpenRGB :: LowLevel {
 
         constexpr Color() = default;
         constexpr Color(uint32_t val) : value(val) {}
-        constexpr Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255)
+        constexpr Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 0)
             : value(static_cast<uint32_t>(r) |
                    (static_cast<uint32_t>(g) << 8) |
                    (static_cast<uint32_t>(b) << 16) |
                    (static_cast<uint32_t>(a) << 24)) {}
 
-        static constexpr Color FromRGB(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
+        static constexpr Color FromRGB(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 0) {
             return Color(r, g, b, a);
         }
 
@@ -65,9 +65,11 @@ namespace Gorgon :: Devices :: OpenRGB :: LowLevel {
         constexpr uint8_t B() const { return static_cast<uint8_t>((value >> 16) & 0xFF); }
         constexpr uint8_t A() const { return static_cast<uint8_t>((value >> 24) & 0xFF); }
 
+        constexpr uint32_t ToWireRGB() const { return value & 0x00FFFFFF; }
+
         constexpr operator uint32_t() const { return value; }
-        constexpr bool operator==(const Color &other) const { return value == other.value; }
-        constexpr bool operator!=(const Color &other) const { return value != other.value; }
+        constexpr bool operator==(const Color &other) const { return (value & 0x00FFFFFF) == (other.value & 0x00FFFFFF); }
+        constexpr bool operator!=(const Color &other) const { return !(*this == other); }
     };
 
     /**
@@ -206,6 +208,12 @@ namespace Gorgon :: Devices :: OpenRGB :: LowLevel {
 
     /**
      * @brief Complete description and state of an OpenRGB controller.
+     *
+     * @todo Mode-based settings restoration:
+     * When switching to an effect mode or modifying effect parameters (speed,
+     * brightness, direction, mode-specific colors like Reactive flash color),
+     * the subsystem should back up the mode parameters and revert them along
+     * with the mode upon shutdown/reset.
      */
     struct Controller {
         std::string        name;
