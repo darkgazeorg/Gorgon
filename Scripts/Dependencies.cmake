@@ -148,3 +148,10 @@ if(HTTP)
     target_link_libraries(Gorgon PUBLIC CURL::libcurl)
     message(STATUS "CURL: SYSTEM")
 endif()
+
+# OpenRGB
+if(OPENRGB)
+    if(WIN32)
+        target_link_libraries(Gorgon PUBLIC ws2_32)
+    endif()
+endif()

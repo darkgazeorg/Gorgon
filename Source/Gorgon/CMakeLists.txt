@@ -39,6 +39,7 @@ endif()
 
 add_subdirectory(Animation)
 add_subdirectory(Containers)
+add_subdirectory(Devices)
 add_subdirectory(Encoding)
 add_subdirectory(Filesystem)
 add_subdirectory(Geometry)
