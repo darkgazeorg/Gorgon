@@ -12,6 +12,7 @@
  */
 
 #include <Gorgon/Devices/OpenRGB/OpenRGBClient.h>
+#include <Gorgon/Devices/OpenRGB.h>
 
 #include <iostream>
 #include <iomanip>

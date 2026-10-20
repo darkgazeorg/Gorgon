@@ -12,6 +12,7 @@ target_sources(Gorgon
         Event.h
         Layer.h
         Main.h
+        Progress.h
         Property.h
         Scene.h
         SGuid.h

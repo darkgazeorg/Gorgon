@@ -434,6 +434,12 @@ struct Client::Impl {
         out_pkt_id = ReadLE32(header + 8);
         uint32_t pkt_size = ReadLE32(header + 12);
 
+        if(pkt_size > 1024 * 1024) {
+            last_error = "Packet size too large: " + std::to_string(pkt_size);
+            Close();
+            return false;
+        }
+
         out_payload.resize(pkt_size);
         if (pkt_size > 0) {
             if (!Recv(out_payload.data(), pkt_size)) {
