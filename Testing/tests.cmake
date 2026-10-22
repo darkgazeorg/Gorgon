@@ -50,6 +50,7 @@ endif()
 
 if(OPENRGB)
 	list(APPEND ManualTests
+		openrgb-cli
 		openrgb_raw
 	)
 endif()

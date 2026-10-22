@@ -9,5 +9,6 @@ target_sources(Gorgon
 
 target_sources(Gorgon
     PRIVATE
+        OpenRGB.cpp
         OpenRGBClient.cpp
 )

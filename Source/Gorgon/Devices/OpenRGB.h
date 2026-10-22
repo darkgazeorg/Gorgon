@@ -23,6 +23,7 @@
 #include "../Containers/Image.h"
 #include "../Event.h"
 #include "../Input.h"
+#include "../Input/Keyboard.h"
 #include "../Progress.h"
 #include "../Utils/Logging.h"
 
@@ -96,12 +97,15 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     class Device;
 
+    /// Internal helper granting the implementation file access to private state.
+    struct Access;
+
     /**
      * @brief Represents an addressable lighting zone on a device (e.g. "Keyboard", "Underglow", "Matrix").
      */
     class Zone {
     public:
-        Zone() = default;
+        Zone();
         Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, Device &parent);
 
         /// Returns the zero-based zone index within the parent device
@@ -188,6 +192,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         std::shared_ptr<Impl> impl;
         friend class Device;
         friend class KeyboardDevice;
+        friend struct Access;
     };
 
     /**
@@ -295,6 +300,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         struct Impl;
         std::shared_ptr<Impl> impl;
         explicit Device(std::shared_ptr<Impl> impl);
+
+        friend struct Access;
+        friend class Zone;
     };
 
     /**
@@ -373,6 +381,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     private:
         explicit KeyboardDevice(std::shared_ptr<Impl> impl);
+        friend struct Access;
     };
 
     /**
@@ -391,7 +400,8 @@ namespace Gorgon :: Devices :: OpenRGB {
             Graphics::RGBA color;
         };
 
-        Progressbar() = default;
+        /// Creates an unbound progress bar that does nothing until configured
+        Progressbar();
 
         /// Creates a progress bar across the given key group on all connected keyboards
         explicit Progressbar(const KeyGroup &keys, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
@@ -424,7 +434,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         void SetColor(Graphics::RGBA color);
         Graphics::RGBA GetColor() const;
 
-        /// Sets the background/unfilled color
+        /// Sets the background/unfilled color. If its alpha is 0 (default), unfilled LEDs keep
+        /// the color they had before the progress bar touched them. Otherwise, the background
+        /// is blended over that color using the alpha value.
         void SetBackgroundColor(Graphics::RGBA bg);
         Graphics::RGBA GetBackgroundColor() const;
 
@@ -463,12 +475,14 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Returns the current progress ratio in [0.0, 1.0]
         Float GetProgressRatio() const override;
 
-        /// Clears the progress bar LEDs (sets them to black / background)
+        /// Stops displaying progress and restores the LEDs to the colors they had
+        /// before the progress bar first modified them.
         void Clear();
 
     private:
         struct Impl;
         std::shared_ptr<Impl> impl;
+        friend struct Access;
     };
 
     // -------------------------------------------------------------
