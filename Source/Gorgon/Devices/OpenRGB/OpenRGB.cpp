@@ -352,6 +352,57 @@ namespace Gorgon :: Devices :: OpenRGB {
             return (m.flags & LL::ModeFlags::HasPerLedColor) != 0;
         }
 
+        void seedDefaultModeColors(std::vector<LL::Mode> &modes, const LL::Mode &orig_mode_data) {
+            static const LL::Color palette[] = {
+                LL::Color::FromRGB(255, 0, 0),
+                LL::Color::FromRGB(255, 128, 0),
+                LL::Color::FromRGB(255, 230, 0),
+                LL::Color::FromRGB(0, 230, 60),
+                LL::Color::FromRGB(0, 210, 255),
+                LL::Color::FromRGB(40, 80, 255),
+                LL::Color::FromRGB(180, 0, 255),
+                LL::Color::FromRGB(255, 0, 140)
+            };
+            constexpr size_t palette_sz = sizeof(palette) / sizeof(palette[0]);
+
+            LL::Color primary_fallback = LL::Color::FromRGB(0, 200, 255);
+            for(const auto &c : orig_mode_data.colors) {
+                if(c.ToWireRGB() != 0) {
+                    primary_fallback = c;
+                    break;
+                }
+            }
+
+            for(auto &m : modes) {
+                if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+                    continue;
+
+                if(m.colors.empty() && m.colors_min > 0)
+                    m.colors.resize(m.colors_min, LL::Color(0, 0, 0, 0));
+
+                if(m.colors.empty() && m.colors_max > 0)
+                    m.colors.resize(1, LL::Color(0, 0, 0, 0));
+
+                bool any_non_black = false;
+                for(const auto &c : m.colors) {
+                    if(c.ToWireRGB() != 0) {
+                        any_non_black = true;
+                        break;
+                    }
+                }
+
+                if(!any_non_black && !m.colors.empty()) {
+                    if(m.colors.size() == 1) {
+                        m.colors[0] = primary_fallback;
+                    }
+                    else {
+                        for(size_t i = 0; i < m.colors.size(); i++)
+                            m.colors[i] = palette[i % palette_sz];
+                    }
+                }
+            }
+        }
+
         std::vector<std::shared_ptr<DImpl>> deviceList() {
             std::vector<std::shared_ptr<DImpl>> list;
             for(auto &d : S().devices)
@@ -386,6 +437,8 @@ namespace Gorgon :: Devices :: OpenRGB {
                 d->orig_direct = isDirectMode(d->orig_mode_data) || d->orig_mode_data.name == "Direct";
             }
             d->orig_colors = c.colors;
+
+            seedDefaultModeColors(d->modes, d->orig_mode_data);
 
             for(int i = 0; i < (int)c.modes.size(); i++) {
                 if(c.modes[i].name == "Direct") {
@@ -1347,6 +1400,24 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     int Device::GetModeCount() const { return (int)impl->modes.size(); }
 
+    std::string Device::GetModeName(Mode mode_index) const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(mode_index < 0 || mode_index >= (int)impl->modes.size())
+            return "";
+
+        return impl->modes[mode_index].name;
+    }
+
+    std::vector<std::string> Device::GetModeNames() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        std::vector<std::string> names;
+        names.reserve(impl->modes.size());
+        for(auto &m : impl->modes)
+            names.push_back(m.name);
+
+        return names;
+    }
+
     Device::Mode Device::GetActiveMode() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         return impl->active_mode;
@@ -1358,6 +1429,14 @@ namespace Gorgon :: Devices :: OpenRGB {
             return "";
 
         return impl->modes[impl->active_mode].name;
+    }
+
+    bool Device::IsDirectMode() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return false;
+
+        return impl->active_mode == impl->direct_mode || isDirectMode(impl->modes[impl->active_mode]);
     }
 
     void Device::SetMode(Mode mode_index) {
@@ -1372,6 +1451,167 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
             }
         }
+    }
+
+    int Device::GetModeColorCount() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return 0;
+
+        const auto &m = impl->modes[impl->active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+            return 0;
+
+        return (int)m.colors.size();
+    }
+
+    int Device::GetModeMinColors() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return 0;
+
+        const auto &m = impl->modes[impl->active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+            return 0;
+
+        return (int)m.colors_min;
+    }
+
+    int Device::GetModeMaxColors() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return 0;
+
+        const auto &m = impl->modes[impl->active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+            return 0;
+
+        return (int)m.colors_max;
+    }
+
+    std::vector<Graphics::RGBA> Device::GetModeColors() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        std::vector<Graphics::RGBA> out;
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return out;
+
+        const auto &m = impl->modes[impl->active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+            return out;
+
+        out.reserve(m.colors.size());
+        for(const auto &c : m.colors)
+            out.emplace_back(c.R(), c.G(), c.B(), Byte(255));
+
+        return out;
+    }
+
+    Graphics::RGBA Device::GetModeColor(int color_index) const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return transparent;
+
+        const auto &m = impl->modes[impl->active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 ||
+           color_index < 0 || color_index >= (int)m.colors.size())
+            return transparent;
+
+        const auto &c = m.colors[color_index];
+        return Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+    }
+
+    void Device::SetModeColor(Graphics::RGBA color, int color_index) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+                return;
+
+            auto &m = impl->modes[impl->active_mode];
+            if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 || color_index < 0)
+                return;
+
+            int max_cols = m.colors_max > 0 ? (int)m.colors_max : std::max(1, (int)m.colors.size());
+            if(color_index >= max_cols)
+                return;
+
+            if(color_index >= (int)m.colors.size())
+                m.colors.resize(color_index + 1, LL::Color(0, 0, 0, 0));
+
+            m.colors[color_index] = wire(color);
+            m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+            active = impl->active_mode;
+        }
+
+        if(active >= 0)
+            applyMode(impl, active);
+    }
+
+    void Device::SetModeColors(const std::vector<Graphics::RGBA> &colors) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+                return;
+
+            auto &m = impl->modes[impl->active_mode];
+            if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+                return;
+
+            size_t count = colors.size();
+            if(m.colors_min > 0 && count < m.colors_min)
+                count = m.colors_min;
+            if(m.colors_max > 0 && count > m.colors_max)
+                count = m.colors_max;
+
+            m.colors.resize(count, LL::Color(0, 0, 0, 0));
+            for(size_t i = 0; i < count && i < colors.size(); i++)
+                m.colors[i] = wire(colors[i]);
+
+            m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+            active = impl->active_mode;
+        }
+
+        if(active >= 0)
+            applyMode(impl, active);
+    }
+
+    bool Device::SupportsRandomColor() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return false;
+
+        return (impl->modes[impl->active_mode].flags & LL::ModeFlags::HasRandomColor) != 0;
+    }
+
+    bool Device::IsRandomColor() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            return false;
+
+        return impl->modes[impl->active_mode].color_mode == static_cast<uint32_t>(LL::ModeColorMode::Random);
+    }
+
+    void Device::SetRandomColor(bool random) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+                return;
+
+            auto &m = impl->modes[impl->active_mode];
+            if(random && (m.flags & LL::ModeFlags::HasRandomColor) != 0) {
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::Random);
+                active = impl->active_mode;
+            }
+            else if(!random && (m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                active = impl->active_mode;
+            }
+        }
+
+        if(active >= 0)
+            applyMode(impl, active);
     }
 
     bool Device::SetDirectMode() {
@@ -1797,18 +2037,22 @@ namespace Gorgon :: Devices :: OpenRGB {
         return ensure() && S().connected;
     }
 
-    void Shutdown() {
+    void Shutdown(bool restore) {
         auto &s = S();
         std::lock_guard<std::mutex> ig(s.init_mtx);
 
         if(!s.initialized)
             return;
 
+        if(!restore)
+            tick();
+
         stopWorker();
 
         {
             std::lock_guard<std::mutex> cg(s.client_mtx);
-            restoreLocked();
+            if(restore)
+                restoreLocked();
             s.client.Disconnect();
             s.connected = false;
         }
@@ -1819,7 +2063,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         }
 
         s.initialized = false;
-        Logger << "OpenRGB shut down";
+        Logger << "OpenRGB shut down" << (restore ? " (restored)" : " (kept state)");
     }
 
     void RestoreAll() {

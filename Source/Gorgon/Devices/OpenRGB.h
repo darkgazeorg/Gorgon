@@ -295,10 +295,43 @@ namespace Gorgon :: Devices :: OpenRGB {
         // ---------------------------------------------------------
 
         int GetModeCount() const;
+        std::string GetModeName(Mode mode_index) const;
+        std::vector<std::string> GetModeNames() const;
         Mode GetActiveMode() const;
         std::string GetActiveModeName() const;
+        bool IsDirectMode() const;
         void SetMode(Mode mode_index);
         void SetMode(const std::string &mode_name);
+
+        /// Returns the number of mode-specific colors currently configured on the active mode
+        int GetModeColorCount() const;
+
+        /// Returns the minimum number of mode-specific colors supported by the active mode (0 if none)
+        int GetModeMinColors() const;
+
+        /// Returns the maximum number of mode-specific colors supported by the active mode (0 if none)
+        int GetModeMaxColors() const;
+
+        /// Returns the mode-specific colors of the active mode
+        std::vector<Graphics::RGBA> GetModeColors() const;
+
+        /// Returns a specific mode color of the active mode by index
+        Graphics::RGBA GetModeColor(int color_index = 0) const;
+
+        /// Sets a specific mode color on the active mode and applies it to the hardware
+        void SetModeColor(Graphics::RGBA color, int color_index = 0);
+
+        /// Sets all mode-specific colors on the active mode and applies them to the hardware
+        void SetModeColors(const std::vector<Graphics::RGBA> &colors);
+
+        /// Returns true if the active mode supports random color mode
+        bool SupportsRandomColor() const;
+
+        /// Returns true if the active mode is currently using random colors
+        bool IsRandomColor() const;
+
+        /// Enables or disables random color mode on the active mode (if supported)
+        void SetRandomColor(bool random);
 
         /// Switches device to Direct / per-LED mode for custom software illumination
         bool SetDirectMode();
@@ -502,9 +535,9 @@ namespace Gorgon :: Devices :: OpenRGB {
     /// Returns true if connected to the OpenRGB server and initialized
     bool IsAvailable();
 
-    /// Reverts all hardware to its initial state, disconnects, and terminates background worker.
+    /// Reverts all hardware to its initial state (if restore is true), disconnects, and terminates background worker.
     /// Registered to run automatically upon engine shutdown.
-    void Shutdown();
+    void Shutdown(bool restore = true);
 
     /// Reverts all connected hardware to their original captured state without disconnecting
     void RestoreAll();
