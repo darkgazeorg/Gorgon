@@ -16,6 +16,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <optional>
 
 #include "../Graphics/Color.h"
 #include "../Geometry/Point.h"
@@ -106,7 +107,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     class Zone {
     public:
         Zone();
-        Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, Device &parent);
+        Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, const Device &parent);
 
         /// Returns the zero-based zone index within the parent device
         int GetIndex() const;
@@ -123,8 +124,11 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Returns the starting index of this zone in the parent device's global LED list
         int GetLEDOffset() const;
 
-        /// Returns the parent device this zone belongs to
-        Device &GetDevice() const;
+        /// Returns true if the parent device is currently connected
+        bool IsConnected() const;
+
+        /// Returns the parent device this zone belongs to, or nullopt if detached
+        std::optional<Device> GetDevice() const;
 
         // ---------------------------------------------------------
         // Color Controls
@@ -229,6 +233,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Device category
         DeviceType GetType() const;
 
+        /// Returns true if this device is currently physically connected to the server
+        bool IsConnected() const;
+
         // ---------------------------------------------------------
         // LEDs & Direct Colors (Across All Zones)
         // ---------------------------------------------------------
@@ -277,8 +284,8 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Returns true if this device has a zone with the given name (case-insensitive)
         bool HasZone(const std::string &name) const;
 
-        /// Finds a zone by name, or nullptr
-        Zone *FindZone(const std::string &name);
+        /// Finds a zone by name, or nullopt
+        std::optional<Zone> FindZone(const std::string &name) const;
 
         /// Returns all zones belonging to this device
         std::vector<Zone> GetZones() const;
@@ -342,9 +349,8 @@ namespace Gorgon :: Devices :: OpenRGB {
         // 2D LED Matrix & Bitmap Operations (Forwarded to Keyboard Zone)
         // ---------------------------------------------------------
 
-        /// Returns the keyboard's 2D matrix zone, or nullptr if the keyboard has no matrix layout
-        Zone *GetMatrixZone();
-        const Zone *GetMatrixZone() const;
+        /// Returns the keyboard's 2D matrix zone, or nullopt if the keyboard has no matrix layout
+        std::optional<Zone> GetMatrixZone() const;
 
         /// Returns the 2D dimensions (width, height) of the keyboard matrix layout, or {0, 0}
         Geometry::Size GetMatrixSize() const;
@@ -407,13 +413,13 @@ namespace Gorgon :: Devices :: OpenRGB {
         explicit Progressbar(const KeyGroup &keys, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
         /// Creates a progress bar across the given key group on a specific keyboard
-        Progressbar(const KeyGroup &keys, KeyboardDevice &keyboard, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
+        Progressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
         /// Creates a progress bar across the given key group within a specific zone
-        Progressbar(const KeyGroup &keys, Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
+        Progressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
         /// Creates a progress bar across all LEDs of a specific zone (e.g., LED strip)
-        explicit Progressbar(Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
+        explicit Progressbar(const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
         // ---------------------------------------------------------
         // Target Configuration
@@ -424,7 +430,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         const KeyGroup &GetKeys() const;
 
         /// Sets the target zone for the progress bar
-        void SetZone(Zone &zone);
+        void SetZone(const Zone &zone);
 
         // ---------------------------------------------------------
         // Color & Level Configuration
@@ -516,17 +522,20 @@ namespace Gorgon :: Devices :: OpenRGB {
     // Device Enumeration
     // -------------------------------------------------------------
 
-    /// Returns all connected OpenRGB devices
-    std::vector<Device> GetDevices();
+    /// Refreshes device list from the server, rescanning hardware buses
+    void Refresh();
 
-    /// Returns only keyboard devices
-    std::vector<KeyboardDevice> GetKeyboards();
+    /// Returns all connected OpenRGB devices (set only_connected to false to include detached devices)
+    std::vector<Device> GetDevices(bool only_connected = true);
 
-    /// Finds a device by name (case-insensitive match), or nullptr
-    Device *FindDevice(const std::string &name);
+    /// Returns only keyboard devices (set only_connected to false to include detached keyboards)
+    std::vector<KeyboardDevice> GetKeyboards(bool only_connected = true);
 
-    /// Returns the primary keyboard (first available), or nullptr
-    KeyboardDevice *GetPrimaryKeyboard();
+    /// Finds a device by name (case-insensitive match), or nullopt
+    std::optional<Device> FindDevice(const std::string &name);
+
+    /// Returns the primary keyboard (first available), or nullopt
+    std::optional<KeyboardDevice> GetPrimaryKeyboard();
 
     // -------------------------------------------------------------
     // Global Convenience Functions (Zero Boilerplate)

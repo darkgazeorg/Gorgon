@@ -24,6 +24,7 @@
 
 #include "../../Graphics/Bitmap.h"
 #include "../../Input/Keyboard.h"
+#include "../../Main.h"
 
 #include <algorithm>
 #include <atomic>
@@ -51,12 +52,29 @@ namespace Gorgon :: Devices :: OpenRGB {
     Event<void> DeviceConnectedEvent;
     Event<void, const std::string &> ErrorEvent;
 
+    namespace {
+        void fireDeviceConnected() {
+            Gorgon::RegisterOnce([]() {
+                DeviceConnectedEvent();
+            });
+        }
+
+        void fireError(const std::string &msg) {
+            if(!msg.empty()) {
+                Gorgon::RegisterOnce([msg]() {
+                    ErrorEvent(msg);
+                });
+            }
+        }
+    }
+
     // -------------------------------------------------------------
     // Implementation structures
     // -------------------------------------------------------------
 
     struct Device::Impl {
         int id = -1;
+        bool connected = false;
         std::string name, vendor, description, version, serial, location;
         DeviceType type = DeviceType::Unknown;
 
@@ -350,6 +368,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             auto d = std::make_shared<DImpl>();
 
             d->id          = id;
+            d->connected   = true;
             d->name        = c.name;
             d->vendor      = c.vendor;
             d->description = c.description;
@@ -463,6 +482,158 @@ namespace Gorgon :: Devices :: OpenRGB {
             S().devices.push_back(std::move(dev));
         }
 
+        /// Re-enumerates controllers from the OpenRGB server and reconciles them with
+        /// existing device objects. Missing devices are detached (never deleted);
+        /// reconnected devices have their state restored. client_mtx must be held.
+        void enumerateControllersLocked() {
+            auto &s = S();
+            if(!s.client.IsConnected())
+                return;
+
+            int count = s.client.RequestControllerCount();
+            if(count < 0)
+                return;
+
+            std::vector<LL::Controller> ctrls;
+            ctrls.reserve(count);
+            for(int i = 0; i < count; i++) {
+                LL::Controller c;
+                if(s.client.RequestControllerData((uint32_t)i, c))
+                    ctrls.push_back(std::move(c));
+                else
+                    Logger << "Cannot read OpenRGB device " << i << ": " << s.client.GetLastError();
+            }
+
+            bool any_newly_connected = false;
+
+            {
+                std::lock_guard<std::mutex> sg(s.state_mtx);
+
+                std::vector<bool> dev_matched(s.devices.size(), false);
+                std::vector<bool> ctrl_matched(ctrls.size(), false);
+
+                // Multi-pass matching heuristic:
+                auto match_pass = [&](auto predicate) {
+                    for(size_t i = 0; i < ctrls.size(); i++) {
+                        if(ctrl_matched[i])
+                            continue;
+
+                        for(size_t j = 0; j < s.devices.size(); j++) {
+                            if(dev_matched[j])
+                                continue;
+
+                            auto d = Access::impl(*s.devices[j]);
+                            if(predicate(ctrls[i], d)) {
+                                ctrl_matched[i] = true;
+                                dev_matched[j] = true;
+
+                                bool was_connected = d->connected;
+                                d->connected   = true;
+                                d->id          = (int)i;
+                                d->location    = ctrls[i].location;
+                                d->modes       = ctrls[i].modes;
+                                d->active_mode = ctrls[i].active_mode;
+
+                                // Recompute direct mode index
+                                d->direct_mode = -1;
+                                for(int m = 0; m < (int)ctrls[i].modes.size(); m++) {
+                                    if(ctrls[i].modes[m].name == "Direct") {
+                                        d->direct_mode = m;
+                                        break;
+                                    }
+                                }
+                                if(d->direct_mode == -1) {
+                                    for(int m = 0; m < (int)ctrls[i].modes.size(); m++) {
+                                        if(isDirectMode(ctrls[i].modes[m])) {
+                                            d->direct_mode = m;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // Snapshot current hardware baseline for restoration
+                                d->orig_mode = ctrls[i].active_mode;
+                                if(ctrls[i].active_mode >= 0 && ctrls[i].active_mode < (int)ctrls[i].modes.size()) {
+                                    d->orig_mode_data = ctrls[i].modes[ctrls[i].active_mode];
+                                    d->orig_direct = isDirectMode(d->orig_mode_data) || d->orig_mode_data.name == "Direct";
+                                }
+                                d->orig_colors = ctrls[i].colors;
+
+                                if(d->touched) {
+                                    // Hardware reconnection state restoration:
+                                    // Software had set colors before disconnect. Re-engage and push state.
+                                    d->dirty = true;
+                                    d->engaged = false;
+                                    d->last_sent.clear();
+                                    d->revision++;
+                                    Logger << "Restoring lighting state for reconnected device: " << d->name << " (id " << d->id << ")";
+                                }
+                                else if(d->orig_direct) {
+                                    for(size_t k = 0; k < d->leds.size() && k < ctrls[i].colors.size(); k++) {
+                                        auto col = ctrls[i].colors[k];
+                                        d->leds[k].color = Graphics::RGBA(col.R(), col.G(), col.B(), Byte(255));
+                                    }
+                                }
+
+                                if(!was_connected)
+                                    any_newly_connected = true;
+
+                                break;
+                            }
+                        }
+                    }
+                };
+
+                // Pass 1: Match by non-empty serial and name
+                match_pass([](const LL::Controller &c, const std::shared_ptr<DImpl> &d) {
+                    return !c.serial.empty() && c.serial == d->serial && c.name == d->name;
+                });
+
+                // Pass 2: Match by non-empty location and name
+                match_pass([](const LL::Controller &c, const std::shared_ptr<DImpl> &d) {
+                    return !c.location.empty() && c.location == d->location && c.name == d->name;
+                });
+
+                // Pass 3: Match by name, vendor, device type, LED count and zone count
+                match_pass([](const LL::Controller &c, const std::shared_ptr<DImpl> &d) {
+                    return c.name == d->name && c.vendor == d->vendor &&
+                           static_cast<int32_t>(c.type) == static_cast<int32_t>(d->type) &&
+                           c.leds.size() == d->leds.size() &&
+                           c.zones.size() == d->zones.size();
+                });
+
+                // Pass 4: Match by name and LED count
+                match_pass([](const LL::Controller &c, const std::shared_ptr<DImpl> &d) {
+                    return c.name == d->name && c.leds.size() == d->leds.size();
+                });
+
+                // Mark any unmatched existing devices as detached (never deleted)
+                for(size_t j = 0; j < s.devices.size(); j++) {
+                    if(!dev_matched[j]) {
+                        auto d = Access::impl(*s.devices[j]);
+                        if(d->connected) {
+                            Logger << "Device detached: " << d->name << " (was id " << d->id << ")";
+                            d->connected = false;
+                            d->id = -1;
+                            d->engaged = false;
+                            d->last_sent.clear();
+                        }
+                    }
+                }
+
+                // Add any unmatched active controllers as brand new devices
+                for(size_t i = 0; i < ctrls.size(); i++) {
+                    if(!ctrl_matched[i]) {
+                        buildDevice((int)i, ctrls[i]);
+                        any_newly_connected = true;
+                    }
+                }
+            }
+
+            if(any_newly_connected)
+                fireDeviceConnected();
+        }
+
         // ---------------------------------------------------------
         // Network operations. client_mtx must be held.
         // ---------------------------------------------------------
@@ -486,7 +657,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
                 for(auto &d : deviceList()) {
-                    if(d->touched)
+                    if(d->touched && d->connected && d->id >= 0)
                         list.push_back(d);
                 }
             }
@@ -522,7 +693,9 @@ namespace Gorgon :: Devices :: OpenRGB {
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
                 for(auto &d : deviceList()) {
-                    d->engaged = false;
+                    d->connected = false;
+                    d->id        = -1;
+                    d->engaged   = false;
                     d->last_sent.clear();
                     if(d->touched)
                         d->dirty = true;
@@ -541,6 +714,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             if(s.client.Connect(s.host, s.port, 1000) && handshake()) {
                 s.connected = true;
                 Logger << "Reconnected to OpenRGB server";
+                enumerateControllersLocked();
                 return "";
             }
 
@@ -563,8 +737,10 @@ namespace Gorgon :: Devices :: OpenRGB {
             auto ev = s.client.PollEvent(0);
             if(ev < 0)
                 return handleDisconnect(s.client.GetLastError());
-            else if(ev == (int32_t)LL::NET_PACKET_ID_DEVICE_LIST_UPDATED)
-                Logger << "OpenRGB device list changed, restart is required to enumerate new devices";
+            else if(ev == (int32_t)LL::NET_PACKET_ID_DEVICE_LIST_UPDATED) {
+                Logger << "OpenRGB device list changed, re-enumerating devices...";
+                enumerateControllersLocked();
+            }
 
             struct Job {
                 std::shared_ptr<DImpl> d;
@@ -582,7 +758,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                 // Animations will be progressed here using the elapsed time
 
                 for(auto &d : deviceList()) {
-                    if(!d->dirty)
+                    if(!d->dirty || !d->connected || d->id < 0)
                         continue;
 
                     if(d->direct_mode < 0) {
@@ -637,11 +813,6 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
 
             return "";
-        }
-
-        void fireError(const std::string &msg) {
-            if(!msg.empty())
-                ErrorEvent(msg);
         }
 
         void workerLoop() {
@@ -701,19 +872,8 @@ namespace Gorgon :: Devices :: OpenRGB {
                     s.next_retry = Clock::now() + std::chrono::seconds(5);
                 }
                 else {
-                    int count = s.client.RequestControllerCount();
-                    std::lock_guard<std::mutex> sg(s.state_mtx);
-                    s.devices.clear();
-
-                    for(int i = 0; i < count; i++) {
-                        LL::Controller c;
-                        if(s.client.RequestControllerData((uint32_t)i, c))
-                            buildDevice(i, c);
-                        else
-                            Logger << "Cannot read OpenRGB device " << i << ": " << s.client.GetLastError();
-                    }
-
                     s.connected = true;
+                    enumerateControllersLocked();
                 }
             }
 
@@ -722,7 +882,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                 ig.unlock();
 
                 Logger << "Cannot connect to OpenRGB server: " << err;
-                ErrorEvent("Cannot connect to OpenRGB server: " + err);
+                fireError("Cannot connect to OpenRGB server: " + err);
                 return false;
             }
 
@@ -738,8 +898,6 @@ namespace Gorgon :: Devices :: OpenRGB {
             Logger << "OpenRGB initialized with " << s.devices.size() << " device(s)";
 
             ig.unlock();
-            DeviceConnectedEvent();
-
             return true;
         }
 
@@ -766,7 +924,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             bool wasengaged;
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
-                if(idx < 0 || idx >= (int)d->modes.size())
+                if(!d->connected || d->id < 0 || idx < 0 || idx >= (int)d->modes.size())
                     return false;
 
                 mode = d->modes[idx];
@@ -891,20 +1049,6 @@ namespace Gorgon :: Devices :: OpenRGB {
             return img;
         }
 
-        /// Returns the registry device object for an implementation
-        Device &deviceFor(const std::shared_ptr<DImpl> &d) {
-            static Device empty;
-
-            if(d) {
-                for(auto &dev : S().devices) {
-                    if(Access::impl(*dev) == d)
-                        return *dev;
-                }
-            }
-
-            return empty;
-        }
-
     } // anonymous namespace
 
     // -------------------------------------------------------------
@@ -963,7 +1107,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     Zone::Zone() : impl(std::make_shared<Impl>()) { }
 
-    Zone::Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, Device &parent) :
+    Zone::Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, const Device &parent) :
         impl(std::make_shared<Impl>())
     {
         impl->index      = index;
@@ -984,7 +1128,18 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     int Zone::GetLEDOffset() const { return impl->led_offset; }
 
-    Device &Zone::GetDevice() const { return deviceFor(impl->dev.lock()); }
+    bool Zone::IsConnected() const {
+        auto d = impl->dev.lock();
+        return d && d->connected;
+    }
+
+    std::optional<Device> Zone::GetDevice() const {
+        auto d = impl->dev.lock();
+        if(!d || !d->connected)
+            return std::nullopt;
+
+        return Device(d);
+    }
 
     Graphics::RGBA Zone::GetLEDColor(int local_idx) const {
         auto d = impl->dev.lock();
@@ -1106,6 +1261,8 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     DeviceType Device::GetType() const { return impl->type; }
 
+    bool Device::IsConnected() const { return impl->connected; }
+
     int Device::GetLEDCount() const { return (int)impl->leds.size(); }
 
     const std::vector<LED> &Device::GetLEDs() const { return impl->leds; }
@@ -1171,14 +1328,19 @@ namespace Gorgon :: Devices :: OpenRGB {
         return false;
     }
 
-    Zone *Device::FindZone(const std::string &name) {
+    std::optional<Zone> Device::FindZone(const std::string &name) const {
         auto n = lower(name);
         for(auto &z : impl->zones) {
             if(lower(z.GetName()) == n)
-                return &z;
+                return z;
         }
 
-        return nullptr;
+        for(auto &z : impl->zones) {
+            if(lower(z.GetName()).find(n) != std::string::npos)
+                return z;
+        }
+
+        return std::nullopt;
     }
 
     std::vector<Zone> Device::GetZones() const { return impl->zones; }
@@ -1275,18 +1437,11 @@ namespace Gorgon :: Devices :: OpenRGB {
         return it->second;
     }
 
-    Zone *KeyboardDevice::GetMatrixZone() {
-        if(impl->matrix_zone < 0)
-            return nullptr;
+    std::optional<Zone> KeyboardDevice::GetMatrixZone() const {
+        if(impl->matrix_zone < 0 || impl->matrix_zone >= (int)impl->zones.size())
+            return std::nullopt;
 
-        return &impl->zones[impl->matrix_zone];
-    }
-
-    const Zone *KeyboardDevice::GetMatrixZone() const {
-        if(impl->matrix_zone < 0)
-            return nullptr;
-
-        return &impl->zones[impl->matrix_zone];
+        return impl->zones[impl->matrix_zone];
     }
 
     Geometry::Size KeyboardDevice::GetMatrixSize() const {
@@ -1388,7 +1543,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             switch(p.target) {
             case PImpl::Target::AllKeyboards:
                 for(auto &d : deviceList()) {
-                    if(d->is_keyboard) {
+                    if(d->is_keyboard && d->connected) {
                         auto s = keyStrip(d, p.keys, 0, (int)d->leds.size());
                         if(!s.positions.empty())
                             strips.push_back(std::move(s));
@@ -1398,30 +1553,34 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             case PImpl::Target::Keyboard:
                 if(auto d = p.device.lock()) {
-                    auto s = keyStrip(d, p.keys, 0, (int)d->leds.size());
-                    if(!s.positions.empty())
-                        strips.push_back(std::move(s));
+                    if(d->connected) {
+                        auto s = keyStrip(d, p.keys, 0, (int)d->leds.size());
+                        if(!s.positions.empty())
+                            strips.push_back(std::move(s));
+                    }
                 }
                 break;
 
             case PImpl::Target::Zone:
                 if(p.zone) {
                     if(auto d = p.zone->dev.lock()) {
-                        int begin = p.zone->led_offset, end = begin + p.zone->led_count;
+                        if(d->connected) {
+                            int begin = p.zone->led_offset, end = begin + p.zone->led_count;
 
-                        if(p.use_keys) {
-                            auto s = keyStrip(d, p.keys, begin, end);
-                            if(!s.positions.empty())
-                                strips.push_back(std::move(s));
-                        }
-                        else {
-                            Strip s;
-                            s.dev = d;
-                            for(int i = begin; i < end; i++)
-                                s.positions.push_back({i});
+                            if(p.use_keys) {
+                                auto s = keyStrip(d, p.keys, begin, end);
+                                if(!s.positions.empty())
+                                    strips.push_back(std::move(s));
+                            }
+                            else {
+                                Strip s;
+                                s.dev = d;
+                                for(int i = begin; i < end; i++)
+                                    s.positions.push_back({i});
 
-                            if(!s.positions.empty())
-                                strips.push_back(std::move(s));
+                                if(!s.positions.empty())
+                                    strips.push_back(std::move(s));
+                            }
                         }
                     }
                 }
@@ -1503,7 +1662,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl->bg       = bg;
     }
 
-    Progressbar::Progressbar(const KeyGroup &keys, KeyboardDevice &keyboard, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+    Progressbar::Progressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
         impl->target   = Impl::Target::Keyboard;
         impl->device   = Access::impl(keyboard);
         impl->keys     = keys;
@@ -1512,7 +1671,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl->bg       = bg;
     }
 
-    Progressbar::Progressbar(const KeyGroup &keys, Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+    Progressbar::Progressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
         impl->target   = Impl::Target::Zone;
         impl->zone     = Access::impl(zone);
         impl->keys     = keys;
@@ -1521,7 +1680,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl->bg       = bg;
     }
 
-    Progressbar::Progressbar(Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+    Progressbar::Progressbar(const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
         impl->target   = Impl::Target::Zone;
         impl->zone     = Access::impl(zone);
         impl->use_keys = false;
@@ -1540,7 +1699,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     const KeyGroup &Progressbar::GetKeys() const { return impl->keys; }
 
-    void Progressbar::SetZone(Zone &zone) {
+    void Progressbar::SetZone(const Zone &zone) {
         {
             std::lock_guard<std::mutex> g(S().state_mtx);
             impl->target = Impl::Target::Zone;
@@ -1687,63 +1846,99 @@ namespace Gorgon :: Devices :: OpenRGB {
         return S().fps;
     }
 
-    std::vector<Device> GetDevices() {
+    void Refresh() {
+        if(!ensure())
+            return;
+
+        auto &s = S();
+        std::lock_guard<std::mutex> cg(s.client_mtx);
+        if(!s.client.IsConnected())
+            return;
+
+        s.client.RescanDevices();
+        enumerateControllersLocked();
+    }
+
+    std::vector<Device> GetDevices(bool only_connected) {
         std::vector<Device> list;
         if(!ensure())
             return list;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
-        for(auto &d : S().devices)
-            list.push_back(*d);
+        for(auto &d : S().devices) {
+            if(!only_connected || d->IsConnected())
+                list.push_back(*d);
+        }
 
         return list;
     }
 
-    std::vector<KeyboardDevice> GetKeyboards() {
+    std::vector<KeyboardDevice> GetKeyboards(bool only_connected) {
         std::vector<KeyboardDevice> list;
         if(!ensure())
             return list;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(auto &d : S().devices) {
-            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
-                list.push_back(*kb);
+            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get())) {
+                if(!only_connected || kb->IsConnected())
+                    list.push_back(*kb);
+            }
         }
 
         return list;
     }
 
-    Device *FindDevice(const std::string &name) {
+    std::optional<Device> FindDevice(const std::string &name) {
         if(!ensure())
-            return nullptr;
+            return std::nullopt;
 
         auto n = lower(name);
 
         std::lock_guard<std::mutex> g(S().state_mtx);
+        // Prefer connected devices
+        for(auto &d : S().devices) {
+            if(d->IsConnected() && lower(d->GetName()) == n)
+                return *d;
+        }
+
+        for(auto &d : S().devices) {
+            if(d->IsConnected() && lower(d->GetName()).find(n) != std::string::npos)
+                return *d;
+        }
+
+        // Fallback to detached devices
         for(auto &d : S().devices) {
             if(lower(d->GetName()) == n)
-                return d.get();
+                return *d;
         }
 
         for(auto &d : S().devices) {
             if(lower(d->GetName()).find(n) != std::string::npos)
-                return d.get();
+                return *d;
         }
 
-        return nullptr;
+        return std::nullopt;
     }
 
-    KeyboardDevice *GetPrimaryKeyboard() {
+    std::optional<KeyboardDevice> GetPrimaryKeyboard() {
         if(!ensure())
-            return nullptr;
+            return std::nullopt;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(auto &d : S().devices) {
-            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
-                return kb;
+            if(d->IsConnected()) {
+                if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
+                    return *kb;
+            }
         }
 
-        return nullptr;
+        for(auto &d : S().devices) {
+            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
+                return *kb;
+        }
+
+        return std::nullopt;
     }
 
     void SetKeyColor(Input::Key key, Graphics::RGBA color) {
