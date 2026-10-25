@@ -54,18 +54,27 @@ namespace Gorgon :: WindowManager {
             &keycount
         );
         
-        if(keycount < 1) return "";
+        if(keycount < 1 || !keys) return "";
         
-        KeySym keysym;
-        
-        if(keycount > 1) keysym = keys[1]; //capital key
-        else keysym = keys[0];
-        
+        KeySym keysym = keys[0];
+        // Use the shifted (capital) keysym only when the unshifted keysym is a letter
+        // (e.g. 'ı' -> 'I', 'i' -> 'İ', 'ğ' -> 'Ğ', 'ü' -> 'Ü', 'ş' -> 'Ş', 'ö' -> 'Ö', 'ç' -> 'Ç'),
+        // while keeping the primary unshifted symbol for punctuation keys (',', '.', '*', '-', '"', '<').
+        if(keycount > 1 && keys[1] != NoSymbol) {
+            Char u0 = keysym2ucs(keys[0]);
+            if((u0 >= 'a' && u0 <= 'z') || u0 > 0x7f) {
+                Char u1 = keysym2ucs(keys[1]);
+                if(u1 != 0xfffd && u1 > 0x20)
+                    keysym = keys[1];
+            }
+        }
         
         XFree(keys);
         
         std::string ret;
         Char c = keysym2ucs(keysym);
+        if(c == 0xfffd)
+            return "";
         String::AppendUnicode(ret, c);
         
         return ret;
@@ -126,6 +135,20 @@ namespace Gorgon :: WindowManager {
         if(key >= 'A' && key <='Z')
             return key;
         
+        // Distinguish left vs right physical modifier keys by X11 evdev hardware keycode first,
+        // so that even if XKB/xmodmap maps both physical keys to the same keysym (e.g. Shift_L / Control_L),
+        // Right Shift (62), Right Control (105), Right Alt (108), and Right Super (134) still emit their R* keycodes.
+        switch(keycode) {
+            case 50:  return Input::Keyboard::Keycodes::Shift;
+            case 62:  return Input::Keyboard::Keycodes::RShift;
+            case 37:  return Input::Keyboard::Keycodes::Control;
+            case 105: return Input::Keyboard::Keycodes::RControl;
+            case 64:  return Input::Keyboard::Keycodes::Alt;
+            case 108: return Input::Keyboard::Keycodes::RAlt;
+            case 133: return Input::Keyboard::Keycodes::Meta;
+            case 134: return Input::Keyboard::Keycodes::RMeta;
+        }
+
         switch(key) {
             case XK_Shift_L:
                 return Input::Keyboard::Keycodes::Shift;
@@ -138,6 +161,8 @@ namespace Gorgon :: WindowManager {
             case XK_Alt_L:
                 return Input::Keyboard::Keycodes::Alt;
             case XK_Alt_R:
+            case XK_ISO_Level3_Shift:
+            case XK_Mode_switch:
                 return Input::Keyboard::Keycodes::RAlt;
             case XK_Super_L:
                 return Input::Keyboard::Keycodes::Meta;
@@ -269,39 +294,28 @@ namespace Gorgon :: WindowManager {
         XQueryKeymap(WindowManager::display, keys);
         
         for(auto it=data->pressed.begin(); it!=data->pressed.end();) {
-            auto key = *it;
-            KeyCode kc = XKeysymToKeycode(WindowManager::display, key);
-            if((keys[kc >> 3] & (1 << (kc & 7))) == 0) {
+            auto stored = *it;
+            // stored is either an X11 hardware KeyCode (< 256) or a legacy KeySym
+            KeyCode kc = (stored < 256) ? (KeyCode)stored : XKeysymToKeycode(WindowManager::display, stored);
+            if(kc == 0 || (keys[kc >> 3] & (1 << (kc & 7))) == 0) {
+                int keycount = 0;
+                KeySym key = NoSymbol;
+                if(kc != 0) {
+                    if(KeySym *ks = XGetKeyboardMapping(WindowManager::display, kc, 1, &keycount)) {
+                        if(keycount >= 1)
+                            key = ks[0];
+                        XFree(ks);
+                    }
+                }
+                else {
+                    key = stored;
+                }
                 auto ggekey = mapx11key(key, kc);
                 
                 it = data->pressed.erase(it);
                 
                 //modifiers
-                switch(key) {
-                    case XK_Shift_L:
-                    case XK_Shift_R:
-                        Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Shift);
-                        break;
-                        
-                    case XK_Control_L:
-                    case XK_Control_R:
-                        Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Ctrl);
-                        break;
-                        
-                    case XK_Alt_L:
-                        Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Alt);
-                        break;
-                        
-                    case XK_Alt_R:
-                        Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Alt);
-                        break;
-                        
-                    case XK_Super_L:
-                    case XK_Super_R:
-                        Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Meta);
-                        break;
-                }
-                
+                Input::Keyboard::CurrentModifier.Remove(ggekey);
                 
                 if(data->handlers.count(ggekey)>0 && data->handlers[ggekey] != wind.KeyEvent.EmptyToken) {
                     wind.KeyEvent.FireFor(data->handlers[ggekey], ggekey, 0.f);
@@ -321,34 +335,10 @@ namespace Gorgon :: WindowManager {
         auto key=XLookupKeysym(&event.xkey,0);
         auto data = WindowManager::internal::getdata(wind);
         
-        data->pressed.insert(key);
+        data->pressed.insert(event.xkey.keycode);
         
-        //modifiers
-        switch(key) {
-            case XK_Shift_L:
-            case XK_Shift_R:
-                Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Shift);
-                break;
-                
-            case XK_Control_L:
-            case XK_Control_R:
-                Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Ctrl);
-                break;
-                
-            case XK_Alt_L:
-                Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Alt);
-                break;
-                
-            case XK_Alt_R:
-                Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Alt);
-                break;
-                
-            case XK_Super_L:
-            case XK_Super_R:
-                Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Meta);
-                break;
-        }
         auto ggekey = WindowManager::mapx11key(key, event.xkey.keycode);
+        Input::Keyboard::CurrentModifier.Add(ggekey);
         Input::AllowCharEvent = false;
         auto token = wind.KeyEvent(ggekey, true);
         if(token != wind.KeyEvent.EmptyToken && !Input::AllowCharEvent) {
@@ -403,33 +393,10 @@ namespace Gorgon :: WindowManager {
             }
         }
         
-        data->pressed.erase(key);
+        data->pressed.erase(event.xkey.keycode);
         
         //modifiers
-        switch(key) {
-            case XK_Shift_L:
-            case XK_Shift_R:
-                Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Shift);
-                break;
-                
-            case XK_Control_L:
-            case XK_Control_R:
-                Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Ctrl);
-                break;
-                
-            case XK_Alt_L:
-                Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Alt);
-                break;
-                
-            case XK_Alt_R:
-                Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Alt);
-                break;
-                
-            case XK_Super_L:
-            case XK_Super_R:
-                Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Meta);
-                break;
-        }
+        Input::Keyboard::CurrentModifier.Remove(ggekey);
         
         
         if(data->handlers.count(ggekey)>0 && data->handlers[ggekey] != wind.KeyEvent.EmptyToken) {

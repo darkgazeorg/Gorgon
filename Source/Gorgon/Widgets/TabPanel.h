@@ -126,7 +126,6 @@ namespace Gorgon :: Widgets {
         }
 
         ~basic_TabPanel() {
-            delete buttonspnl;
             buttons.Destroy();
             tabs.Destroy();
         }

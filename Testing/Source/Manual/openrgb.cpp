@@ -1,3 +1,4 @@
+#include "Gorgon/Widgets/Registry.h"
 #include <Gorgon/Main.h>
 #include <Gorgon/Window.h>
 #include <Gorgon/WindowManager.h>
@@ -115,41 +116,28 @@ namespace {
         return ss.str();
     }
 
-    // Short keycap labels matching OpenRGB's DeviceView
-    std::string GetShortKeyLabel(const std::string &led_name) {
+    // Short keycap labels matching OpenRGB's DeviceView, enhanced with OS-localized key labels (e.g. Turkish Ğ, Ü, Ş, İ, Ö, Ç)
+    std::string GetShortKeyLabel(const OpenRGB::KeyboardDevice &kb, int led_idx, const std::string &led_name) {
         static const std::map<std::string, std::string> lookup = {
             {"Key: Escape",             "Esc"},
             {"Key: Print Screen",       "Prt"},
             {"Key: Scroll Lock",        "Scr"},
             {"Key: Pause/Break",        "Brk"},
-            {"Key: Back Tick",          "`"},
-            {"Key: Minus",              "-"},
-            {"Key: Plus",               "+"},
-            {"Key: Equals",             "="},
             {"Key: Backspace",          "<-"},
             {"Key: Insert",             "Ins"},
             {"Key: Home",               "Hom"},
             {"Key: Page Up",            "PUp"},
             {"Key: Tab",                "Tab"},
-            {"Key: Left Bracket",       "["},
-            {"Key: Right Bracket",      "]"},
-            {"Key: Back Slash",         "\\"},
-            {"Key: ANSI Back Slash",    "\\"},
-            {"Key: ISO Back Slash",     "\\"},
             {"Key: Delete",             "Del"},
             {"Key: End",                "End"},
             {"Key: Page Down",          "PDn"},
             {"Key: Caps Lock",          "Cap"},
-            {"Key: Semicolon",          ";"},
-            {"Key: Quote",              "'"},
-            {"Key: Pound",              "#"},
+            {"Key: Enter",              "Ent"},
             {"Key: ANSI Enter",         "Ent"},
             {"Key: ISO Enter",          "Ent"},
+            {"Key: Enter (ISO)",        "Ent"},
             {"Key: Left Shift",         "Sft"},
             {"Key: Right Shift",        "Sft"},
-            {"Key: Comma",              ","},
-            {"Key: Period",             "."},
-            {"Key: Forward Slash",      "/"},
             {"Key: Up Arrow",           "^"},
             {"Key: Left Arrow",         "<"},
             {"Key: Down Arrow",         "v"},
@@ -159,11 +147,12 @@ namespace {
             {"Key: Left Windows",       "Win"},
             {"Key: Right Windows",      "Win"},
             {"Key: Left Alt",           "Alt"},
-            {"Key: Right Alt",          "Alt"},
+            {"Key: Right Alt",          "AGr"},
             {"Key: Left Fn",            "Fn"},
             {"Key: Right Fn",           "Fn"},
             {"Key: Space",              "Spc"},
             {"Key: Menu",               "Mnu"},
+            {"Key: Num Lock",           "Num"},
             {"Key: Number Lock",        "Num"},
             {"Key: Number Pad /",       "/"},
             {"Key: Number Pad *",       "*"},
@@ -197,6 +186,11 @@ namespace {
         auto it = lookup.find(led_name);
         if(it != lookup.end())
             return it->second;
+
+        // Query the localized OS keycap label (e.g., Turkish Ğ, Ü, Ş, İ, Ö, Ç, *, -, ", <)
+        std::string os_lbl = kb.GetKeyLabel(led_idx);
+        if(!os_lbl.empty() && os_lbl.size() <= 4)
+            return os_lbl;
 
         const std::string prefix = "Key: ";
         if(led_name.rfind(prefix, 0) == 0) {
@@ -249,7 +243,7 @@ namespace {
                     KeyBox box;
                     box.led_idx   = global_idx;
                     box.full_name = name;
-                    box.label     = GetShortKeyLabel(name);
+                    box.label     = GetShortKeyLabel(kb, global_idx, name);
                     box.gx        = x + PAD_LED;
                     box.gy        = y + PAD_LED;
                     box.gw        = 1.0f - 2.0f * PAD_LED;
@@ -300,7 +294,7 @@ namespace {
                 KeyBox box;
                 box.led_idx   = (int)i;
                 box.full_name = leds[i].name;
-                box.label     = GetShortKeyLabel(leds[i].name);
+                box.label     = GetShortKeyLabel(kb, (int)i, leds[i].name);
                 box.gx        = x + PAD_LED;
                 box.gy        = y + PAD_LED;
                 box.gw        = 1.0f - 2.0f * PAD_LED;
@@ -350,6 +344,28 @@ namespace {
         OpenRGB::Progressbar numRowProg;
         OpenRGB::Progressbar fKeyProg;
 
+        // Effects & Scene/Governor demo controls
+        Widgets::Label effectsLbl{"Effects:"};
+        Widgets::Button explosionBtn{"Explosion"};
+        Widgets::Button swipeBtn{"Swipe Buff"};
+        Widgets::Button deathBtn{"Death Fade"};
+        Widgets::Checkbox pulseWasdChk{"Pulse WASD"};
+        Widgets::Checkbox reactiveChk{"Reactive Keys"};
+
+        Widgets::Label govLbl{"Context:"};
+        Widgets::RadioButtons<int> govRadios;
+
+        Animation::Governor sceneA;
+        Animation::Governor sceneB;
+        bool scenesInitialized = false;
+
+        std::unique_ptr<OpenRGB::ExplosionEffect> activeExplosion;
+        std::unique_ptr<OpenRGB::SwipeEffect> activeSwipe;
+        std::unique_ptr<OpenRGB::FadeEffect> activeDeathFlash;
+        std::unique_ptr<OpenRGB::FadeEffect> activeDeathFade;
+        std::unique_ptr<OpenRGB::PulseEffect> activePulse;
+        std::unique_ptr<OpenRGB::ReactiveEffect> activeReactive;
+
         std::vector<KeyBox> keyBoxes;
         int matrixW = 24;
         int matrixH = 6;
@@ -365,7 +381,8 @@ namespace {
 
         KeyboardTabState(const OpenRGB::KeyboardDevice &keyboard,
                          Widgets::Tab<std::string> &parentTab,
-                         const Graphics::BasicPrinter &printer) :
+                         const Graphics::BasicPrinter &printer,
+                         UI::Window &mainWind) :
             kb(keyboard),
             tab(&parentTab),
             modeTitleLbl("Hardware Mode:", Widgets::Registry::Label_Bold),
@@ -520,7 +537,7 @@ namespace {
             tab->Add(directPanel);
 
             int kbBoxW = tabW - 30;
-            int kbBoxH = std::min(300, std::max(210, contentH - 150));
+            int kbBoxH = std::min(255, std::max(190, contentH - 215));
 
             kbLayerbox.Move(Pixels(0, 0));
             kbLayerbox.Resize(Pixels(kbBoxW, kbBoxH));
@@ -529,7 +546,7 @@ namespace {
             directPanel.Add(kbLayerbox);
 
             // Controls below the keyboard view
-            int row1Y = kbBoxH + 12;
+            int row1Y = kbBoxH + 8;
             selectedKeyLbl.Move(Pixels(4, row1Y));
             selectedKeyLbl.SetWidth(Pixels(360));
             directPanel.Add(selectedKeyLbl);
@@ -544,7 +561,7 @@ namespace {
             directPanel.Add(clearAllBtn);
 
             // Progressbar scrollbar 1: Number Row
-            int row2Y = row1Y + 42;
+            int row2Y = row1Y + 36;
             numRowLbl.Move(Pixels(4, row2Y));
             numRowLbl.SetWidth(Pixels(220));
             directPanel.Add(numRowLbl);
@@ -562,7 +579,7 @@ namespace {
             directPanel.Add(numRowSingleChk);
 
             // Progressbar scrollbar 2: Function Keys
-            int row3Y = row2Y + 38;
+            int row3Y = row2Y + 34;
             fKeyLbl.Move(Pixels(4, row3Y));
             fKeyLbl.SetWidth(Pixels(220));
             directPanel.Add(fKeyLbl);
@@ -579,7 +596,139 @@ namespace {
             fKeySingleChk.SetWidth(Pixels(150));
             directPanel.Add(fKeySingleChk);
 
+            // Row 4: Software Effects (Explosion, Swipe, Death Fade, Pulse WASD, Reactive)
+            int row4Y = row3Y + 36;
+            effectsLbl.Move(Pixels(4, row4Y));
+            effectsLbl.SetWidth(Pixels(65));
+            directPanel.Add(effectsLbl);
+
+            explosionBtn.Move(Pixels(75, row4Y - 2));
+            explosionBtn.SetWidth(Pixels(115));
+            directPanel.Add(explosionBtn);
+
+            swipeBtn.Move(Pixels(198, row4Y - 2));
+            swipeBtn.SetWidth(Pixels(115));
+            directPanel.Add(swipeBtn);
+
+            deathBtn.Move(Pixels(321, row4Y - 2));
+            deathBtn.SetWidth(Pixels(115));
+            directPanel.Add(deathBtn);
+
+            pulseWasdChk.Move(Pixels(448, row4Y));
+            pulseWasdChk.SetWidth(Pixels(125));
+            directPanel.Add(pulseWasdChk);
+
+            reactiveChk.Move(Pixels(580, row4Y));
+            reactiveChk.SetWidth(Pixels(145));
+            directPanel.Add(reactiveChk);
+
+            // Row 5: Scene / Governor Context Switcher
+            int row5Y = row4Y + 36;
+            govLbl.Move(Pixels(4, row5Y));
+            govLbl.SetWidth(Pixels(65));
+            directPanel.Add(govLbl);
+
+            govRadios.Move(Pixels(75, row5Y));
+            govRadios.SetWidth(Pixels(650));
+            govRadios.SetColumns(3);
+            govRadios.Add(0, "Default (Global)");
+            govRadios.Add(1, "Scene A (Combat Preset)");
+            govRadios.Add(2, "Scene B (Untouched -> Global)");
+            govRadios.Set(0);
+            directPanel.Add(govRadios);
+
+            // Initialize software effects attached to this keyboard
+            activeExplosion = std::make_unique<OpenRGB::ExplosionEffect>(Graphics::RGBA(255, 130, 0, 255), 850, 3.0f);
+            activeExplosion->TargetDevice(kb);
+
+            activeSwipe = std::make_unique<OpenRGB::SwipeEffect>(
+                Graphics::RGBA(0, 240, 180, 255), OpenRGB::SwipeDirection::LeftToRight, 750, 0.25f
+            );
+            activeSwipe->TargetDevice(kb);
+
+            activeDeathFlash = std::make_unique<OpenRGB::FadeEffect>(
+                Graphics::RGBA(255, 0, 0, 255), Graphics::RGBA(255, 0, 0, 255), 150
+            );
+            activeDeathFlash->TargetDevice(kb);
+            activeDeathFade = std::make_unique<OpenRGB::FadeEffect>(
+                Graphics::RGBA(255, 0, 0, 255), Graphics::RGBA(0, 0, 0, 0), 1100
+            );
+            activeDeathFade->TargetDevice(kb);
+            activeDeathFlash->FinishedEvent.Register([this](Animation::Controller &) {
+                if(activeDeathFade)
+                    activeDeathFade->Play();
+            });
+
+            activePulse = std::make_unique<OpenRGB::PulseEffect>(
+                Graphics::RGBA(0, 255, 90, 255), 1200, Graphics::RGBA(0, 40, 15, 255)
+            );
+            activePulse->TargetKeyboardKeys(kb, OpenRGB::KeyGroup::WASD);
+
+            activeReactive = std::make_unique<OpenRGB::ReactiveEffect>(Graphics::RGBA(0, 230, 255, 255), 550);
+            activeReactive->TargetDevice(kb);
+            activeReactive->SetRippleRadius(1.8f);
+            activeReactive->Stop();
+            activeReactive->AttachToWindow(mainWind);
+
             // Wire events
+            explosionBtn.PressEvent.Register([this]() {
+                activeExplosion->Play();
+                SyncModeRadioIfDirect();
+            });
+
+            swipeBtn.PressEvent.Register([this]() {
+                activeSwipe->Play();
+                SyncModeRadioIfDirect();
+            });
+
+            deathBtn.PressEvent.Register([this]() {
+                activeDeathFade->Stop();
+                activeDeathFlash->Play();
+                SyncModeRadioIfDirect();
+            });
+
+            pulseWasdChk.ChangedEvent.Register([this]() {
+                if(bool(pulseWasdChk)) {
+                    activePulse->Loop();
+                    SyncModeRadioIfDirect();
+                }
+                else {
+                    activePulse->Stop();
+                    RedrawKeyboard();
+                }
+            });
+
+            reactiveChk.ChangedEvent.Register([this]() {
+                if(bool(reactiveChk)) {
+                    activeReactive->Loop();
+                    SyncModeRadioIfDirect();
+                }
+                else {
+                    activeReactive->Stop();
+                    RedrawKeyboard();
+                }
+            });
+
+            govRadios.ChangedEvent.Register([this](int govIdx) {
+                if(!scenesInitialized && govIdx == 1) {
+                    scenesInitialized = true;
+                    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::WASD, Graphics::RGBA(255, 60, 0, 255));
+                    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::Arrows, Graphics::RGBA(255, 180, 0, 255));
+                    sceneA.OpenRGB.SetKeyColor(Input::Keyboard::Keycodes::Space, Graphics::RGBA(0, 180, 255, 255));
+                }
+                if(govIdx == 0) {
+                    Animation::Governor::Default().Activate();
+                }
+                else if(govIdx == 1) {
+                    sceneA.Activate();
+                }
+                else if(govIdx == 2) {
+                    sceneB.Activate();
+                }
+                SyncModeRadioIfDirect();
+                RedrawKeyboard();
+            });
+
             modeRadios.ChangedEvent.Register([this](int modeIdx) {
                 if(updatingMode)
                     return;
@@ -611,7 +760,11 @@ namespace {
                 if(selectedLed >= 0) {
                     const auto &leds = kb.GetLEDs();
                     std::string name = (selectedLed < (int)leds.size()) ? leds[selectedLed].name : ("LED #" + std::to_string(selectedLed));
-                    selectedKeyLbl.SetText("Selected: " + name + " (#" + std::to_string(selectedLed) + ")");
+                    std::string osLbl = kb.GetKeyLabel(selectedLed);
+                    if(!osLbl.empty() && name != ("Key: " + osLbl))
+                        selectedKeyLbl.SetText("Selected: " + osLbl + " [" + name + "] (#" + std::to_string(selectedLed) + ")");
+                    else
+                        selectedKeyLbl.SetText("Selected: " + name + " (#" + std::to_string(selectedLed) + ")");
 
                     auto col = kb.GetLEDColor(selectedLed);
                     updatingPicker = true;
@@ -643,6 +796,14 @@ namespace {
             clearAllBtn.PressEvent.Register([this]() {
                 numRowProg.Clear();
                 fKeyProg.Clear();
+                if(activeExplosion) activeExplosion->Stop();
+                if(activeSwipe) activeSwipe->Stop();
+                if(activeDeathFlash) activeDeathFlash->Stop();
+                if(activeDeathFade) activeDeathFade->Stop();
+                if(activePulse) activePulse->Stop();
+                if(activeReactive) activeReactive->Stop();
+                pulseWasdChk = false;
+                reactiveChk  = false;
                 kb.Clear();
                 SyncModeRadioIfDirect();
                 RedrawKeyboard();
@@ -840,8 +1001,8 @@ namespace {
                 int b = (isSelected || isHovered) ? 2 : 1;
                 gfxLayer.Draw(rx, ry, rw, rh, borderCol);
 
-                // Key fill color from current LED color
-                auto ledCol = kb.GetLEDColor(box.led_idx);
+                // Key fill color from current effective LED color (includes progressbars/animations)
+                auto ledCol = kb.GetEffectiveLEDColor(box.led_idx);
                 Graphics::RGBAf fillCol(ledCol);
                 fillCol.A = 1.0f;
                 gfxLayer.Draw(rx + b, ry + b, std::max(1, rw - 2 * b), std::max(1, rh - 2 * b), fillCol);
@@ -867,20 +1028,14 @@ namespace {
 int main() {
     Gorgon::Initialize("openrgb_ui");
 
-    UI::Window wind({1120, 680}, "openrgb_ui", "Gorgon OpenRGB Controller", true);
+    UI::Window wind({1120, 720}, "openrgb_ui", "Gorgon OpenRGB Controller", true);
     Graphics::Initialize();
 
     auto &gen = *new Widgets::SimpleGenerator;
     gen.Init("xyz", "", 7.5);
     UI::Initialize(gen);
 
-    // Load a crisp small font for keycap labels
-    Graphics::FreeType keyFont;
-    auto [sysFont, found] = OS::GetFont();
-    if(found) {
-        keyFont.LoadFile(sysFont.Filename, 12);
-    }
-    Graphics::BasicPrinter keyPrinter(keyFont, Graphics::RGBAf(1.f), Graphics::TextAlignment::Center);
+    Graphics::BasicPrinter keyPrinter{Gorgon::Widgets::Registry::Active().Printer(Graphics::NamedFont::Small).GetGlyphRenderer(), 1.f, Gorgon::Graphics::TextAlignment::Center};
 
     Widgets::Checkbox restoreOnExitChk("Restore Original Lighting on Close", true);
     Widgets::Button   keepAndExitBtn("Keep Settings & Exit");
@@ -968,7 +1123,7 @@ int main() {
             }
 
             if(foundKb) {
-                kbStates.push_back(std::make_unique<KeyboardTabState>(matchedKb, tab, keyPrinter));
+                kbStates.push_back(std::make_unique<KeyboardTabState>(matchedKb, tab, keyPrinter, wind));
                 if(keyboardTabIdx < 0)
                     keyboardTabIdx = (int)i;
                 continue;
@@ -983,10 +1138,11 @@ int main() {
             infoLabels.push_back(std::move(lbl));
         }
 
-        // Redraw keyboard layers once layout sizes are finalized
-        Gorgon::RegisterOnce([&]() {
+        // Redraw keyboard layers each frame when in Direct mode so live animations are reflected on screen
+        Gorgon::BeforeFrameEvent.Register([&]() {
             for(auto &st : kbStates) {
-                st->RedrawKeyboard();
+                if(st->kb.IsDirectMode())
+                    st->RedrawKeyboard();
             }
         });
     }

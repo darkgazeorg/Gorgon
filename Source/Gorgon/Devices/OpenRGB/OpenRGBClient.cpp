@@ -139,26 +139,80 @@ namespace {
         }
     };
 
+    void SanitizeMode(Mode &mode) {
+        // Clamp speed to [min, max] range (supporting both min <= max and min >= max)
+        uint32_t s_min = std::min(mode.speed_min, mode.speed_max);
+        uint32_t s_max = std::max(mode.speed_min, mode.speed_max);
+        if (s_min == s_max) {
+            mode.speed = s_min;
+        } else {
+            mode.speed = std::clamp(mode.speed, s_min, s_max);
+        }
+
+        // Clamp brightness to [min, max] range
+        uint32_t b_min = std::min(mode.brightness_min, mode.brightness_max);
+        uint32_t b_max = std::max(mode.brightness_min, mode.brightness_max);
+        if (b_min == b_max) {
+            mode.brightness = b_min;
+        } else {
+            mode.brightness = std::clamp(mode.brightness, b_min, b_max);
+        }
+
+        // Direction: must be 0 if no direction flags are present
+        uint32_t dir_flags = ModeFlags::HasDirectionHV | ModeFlags::HasDirectionLR | ModeFlags::HasDirectionUD;
+        if ((mode.flags & dir_flags) == 0) {
+            mode.direction = 0;
+        }
+
+        // Color mode and colors size
+        if ((mode.flags & ModeFlags::HasModeSpecificColor) != 0) {
+            if (mode.color_mode != static_cast<uint32_t>(ModeColorMode::Random) || (mode.flags & ModeFlags::HasRandomColor) == 0) {
+                mode.color_mode = static_cast<uint32_t>(ModeColorMode::ModeSpecific);
+            }
+            if (mode.colors.size() < mode.colors_min) {
+                mode.colors.resize(mode.colors_min, Color(255, 0, 0));
+            }
+            if (mode.colors_max > 0 && mode.colors.size() > mode.colors_max) {
+                mode.colors.resize(mode.colors_max);
+            }
+            if (mode.colors.empty() && mode.colors_max > 0) {
+                mode.colors.resize(1, Color(255, 0, 0));
+            }
+        } else if ((mode.flags & ModeFlags::HasRandomColor) != 0 && mode.color_mode == static_cast<uint32_t>(ModeColorMode::Random)) {
+            mode.color_mode = static_cast<uint32_t>(ModeColorMode::Random);
+            mode.colors.clear();
+        } else if ((mode.flags & ModeFlags::HasPerLedColor) != 0) {
+            mode.color_mode = static_cast<uint32_t>(ModeColorMode::PerLed);
+            mode.colors.clear();
+        } else {
+            mode.color_mode = static_cast<uint32_t>(ModeColorMode::None);
+            mode.colors.clear();
+        }
+    }
+
     void WriteModeData(std::vector<uint8_t> &buf, const Mode &mode, uint32_t protocol_version) {
-        WriteString(buf, mode.name);
-        WriteLE32(buf, mode.value);
-        WriteLE32(buf, mode.flags);
-        WriteLE32(buf, mode.speed_min);
-        WriteLE32(buf, mode.speed_max);
+        Mode m = mode;
+        SanitizeMode(m);
+
+        WriteString(buf, m.name);
+        WriteLE32(buf, m.value);
+        WriteLE32(buf, m.flags);
+        WriteLE32(buf, m.speed_min);
+        WriteLE32(buf, m.speed_max);
         if (protocol_version >= 3) {
-            WriteLE32(buf, mode.brightness_min);
-            WriteLE32(buf, mode.brightness_max);
+            WriteLE32(buf, m.brightness_min);
+            WriteLE32(buf, m.brightness_max);
         }
-        WriteLE32(buf, mode.colors_min);
-        WriteLE32(buf, mode.colors_max);
-        WriteLE32(buf, mode.speed);
+        WriteLE32(buf, m.colors_min);
+        WriteLE32(buf, m.colors_max);
+        WriteLE32(buf, m.speed);
         if (protocol_version >= 3) {
-            WriteLE32(buf, mode.brightness);
+            WriteLE32(buf, m.brightness);
         }
-        WriteLE32(buf, mode.direction);
-        WriteLE32(buf, mode.color_mode);
-        WriteLE16(buf, static_cast<uint16_t>(mode.colors.size()));
-        for (const auto &c : mode.colors) {
+        WriteLE32(buf, m.direction);
+        WriteLE32(buf, m.color_mode);
+        WriteLE16(buf, static_cast<uint16_t>(m.colors.size()));
+        for (const auto &c : m.colors) {
             WriteLE32(buf, c.ToWireRGB());
         }
     }
@@ -190,6 +244,9 @@ namespace {
         mode.colors.resize(num_colors);
         for (uint16_t i = 0; i < num_colors; ++i) {
             mode.colors[i] = Color(r.ReadU32());
+        }
+        if (r.IsOk()) {
+            SanitizeMode(mode);
         }
         return r.IsOk();
     }

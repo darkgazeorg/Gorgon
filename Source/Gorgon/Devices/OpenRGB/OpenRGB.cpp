@@ -24,6 +24,7 @@
 
 #include "../../Graphics/Bitmap.h"
 #include "../../Input/Keyboard.h"
+#include "../../Window.h"
 #include "../../Main.h"
 
 #include <algorithm>
@@ -72,17 +73,24 @@ namespace Gorgon :: Devices :: OpenRGB {
     // Implementation structures
     // -------------------------------------------------------------
 
+    struct DeviceLayer {
+        bool touched = false;
+        bool mode_dirty = false;
+        int active_mode = 0;
+        std::vector<LL::Mode> modes;
+        std::vector<Graphics::RGBA> base_leds;
+    };
+
     struct Device::Impl {
         int id = -1;
         bool connected = false;
         std::string name, vendor, description, version, serial, location;
         DeviceType type = DeviceType::Unknown;
 
-        std::vector<LED>  leds;      ///< Public LED metadata; `color` holds the desired (base) color
+        std::vector<LED>  leds;      ///< Public LED metadata (`color` mirrors the global layer's base color)
         std::vector<Zone> zones;
 
-        std::vector<LL::Mode> modes;
-        int active_mode = 0;
+        std::vector<LL::Mode> default_modes;
         int direct_mode = -1;
 
         // Snapshot taken on discovery, used for restoration
@@ -90,15 +98,22 @@ namespace Gorgon :: Devices :: OpenRGB {
         LL::Mode              orig_mode_data;
         std::vector<LL::Color> orig_colors;
         bool                  orig_direct = false;
+        std::vector<Graphics::RGBA> initial_base_leds;
 
         // Keyboard info
         bool is_keyboard = false;
         int  matrix_zone = -1;
         std::unordered_map<int, std::vector<int>> keymap;
+        std::unordered_map<int, Input::Key> led_to_key;
 
-        // Runtime state (state_mtx)
-        bool     touched     = false; ///< Software has modified this device; restore is needed
-        bool     engaged     = false; ///< Device is in direct mode driven by us
+        // Per-context layers (state_mtx)
+        DeviceLayer global_layer;
+        std::unordered_map<const Gorgon::Animation::Governor *, DeviceLayer> gov_layers;
+
+        // Runtime hardware tracking (state_mtx)
+        bool     hw_touched  = false; ///< Physical hardware has been modified by us since connection
+        bool     engaged     = false; ///< Physical hardware is currently in Direct mode driven by us
+        int      hw_mode     = -1;    ///< Last mode index sent to physical hardware
         bool     dirty       = false;
         bool     unsupported = false;
         uint64_t revision    = 0;     ///< Incremented on every write, used to detect concurrent writes
@@ -125,20 +140,43 @@ namespace Gorgon :: Devices :: OpenRGB {
         using DImpl = Device::Impl;
         using ZImpl = Zone::Impl;
         using PImpl = Progressbar::Impl;
+        using AImpl = Animation::Impl;
 
         static std::shared_ptr<DImpl> impl(const Device &d)      { return d.impl; }
         static std::shared_ptr<ZImpl> impl(const Zone &z)        { return z.impl; }
         static std::shared_ptr<PImpl> impl(const Progressbar &p) { return p.impl; }
+        static std::shared_ptr<AImpl> impl(const Animation &a)   { return a.impl; }
 
-        static void setImpl(Zone &z, std::shared_ptr<ZImpl> i)   { z.impl = std::move(i); }
+        static const Gorgon::Animation::Governor *context(const Device &d) { return d.context; }
+        static const Gorgon::Animation::Governor *context(const Zone &z)   { return z.context; }
 
-        static Device         *newDevice(std::shared_ptr<DImpl> i)   { return new Device(std::move(i)); }
-        static KeyboardDevice *newKeyboard(std::shared_ptr<DImpl> i) { return new KeyboardDevice(std::move(i)); }
+        static void setImpl(Zone &z, std::shared_ptr<ZImpl> i, const Gorgon::Animation::Governor *ctx = nullptr) {
+            z.impl = std::move(i);
+            z.context = ctx;
+        }
+
+        static Zone makeZone(const Zone &z, const Gorgon::Animation::Governor *ctx) {
+            Zone copy = z;
+            copy.context = ctx;
+            return copy;
+        }
+
+        static Device makeDevice(std::shared_ptr<DImpl> i, const Gorgon::Animation::Governor *ctx = nullptr) {
+            return Device(std::move(i), ctx);
+        }
+
+        static KeyboardDevice makeKeyboard(std::shared_ptr<DImpl> i, const Gorgon::Animation::Governor *ctx = nullptr) {
+            return KeyboardDevice(std::move(i), ctx);
+        }
+
+        static Device         *newDevice(std::shared_ptr<DImpl> i)   { return new Device(std::move(i), nullptr); }
+        static KeyboardDevice *newKeyboard(std::shared_ptr<DImpl> i) { return new KeyboardDevice(std::move(i), nullptr); }
     };
 
     struct Progressbar::Impl {
         enum class Target { None, AllKeyboards, Keyboard, Zone };
 
+        const Gorgon::Animation::Governor *context = nullptr;
         Target target = Target::None;
         KeyGroup keys;
         bool use_keys = false;
@@ -151,13 +189,73 @@ namespace Gorgon :: Devices :: OpenRGB {
         bool fill = true;
         Float ratio = 0;
         bool active = false;
+    };
 
-        std::map<std::pair<std::shared_ptr<Access::DImpl>, int>, Graphics::RGBA> underlay;
+    struct Animation::Impl {
+        enum class Type { Base, Fade, Pulse, Blink, Explosion, Swipe, Reactive };
+        enum class Target { AllDevices, AllKeyboards, Device, Keyboard, Zone };
+        enum class OriginMode { Normalized, Point, Key };
+
+        Type type = Type::Base;
+        Target target = Target::AllDevices;
+        const Gorgon::Animation::Governor *context = nullptr;
+
+        std::weak_ptr<Access::DImpl> device;
+        std::shared_ptr<Access::ZImpl> zone;
+        KeyGroup keys;
+        bool use_keys = false;
+
+        unsigned duration_ms = 1000;
+        BlendMode blend = BlendMode::AlphaBlend;
+        bool keep_when_finished = false;
+        bool visible = false;
+        unsigned current_progress_ms = 0;
+
+        std::unique_ptr<Gorgon::Animation::Controller> owned_ctrl;
+
+        // Fade / Pulse / Blink / Explosion / Swipe parameters
+        std::vector<Graphics::RGBA> stops = {Graphics::RGBA(0xffff0000u), Graphics::RGBA(0x00000000u)};
+        float duty_cycle = 0.5f;
+
+        // Explosion parameters
+        OriginMode origin_mode = OriginMode::Normalized;
+        Geometry::Pointf origin_norm = {0.5f, 0.5f};
+        Geometry::Point origin_pt = {0, 0};
+        Input::Key origin_key = 0;
+        float ring_thickness = 3.5f;
+        float max_radius = 0.f;
+
+        // Swipe parameters
+        SwipeDirection swipe_dir = SwipeDirection::LeftToRight;
+        float band_width = 0.25f;
+
+        // Reactive parameters
+        struct KeyPressState {
+            Input::Key key = 0;
+            unsigned start_ms = 0;
+            Graphics::RGBA color;
+        };
+        std::vector<KeyPressState> active_presses;
+        bool random_reactive = false;
+        float ripple_radius = 0.f;
+        unsigned reactive_clock_ms = 0;
+        Gorgon::Window *attached_window = nullptr;
+        EventToken window_key_token = 0;
+        uint32_t rng_state = 0x12345678u;
+
+        ~Impl() {
+            if(attached_window && window_key_token) {
+                attached_window->KeyEvent.Unregister(window_key_token);
+                attached_window = nullptr;
+                window_key_token = 0;
+            }
+        }
     };
 
     using DImpl = Access::DImpl;
     using ZImpl = Access::ZImpl;
     using PImpl = Access::PImpl;
+    using AImpl = Access::AImpl;
 
     namespace {
 
@@ -169,6 +267,9 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             LL::Client client;
             std::vector<std::unique_ptr<Device>> devices; ///< Registry; stable addresses until Shutdown
+
+            std::vector<std::weak_ptr<PImpl>> progressbars;
+            std::vector<std::weak_ptr<AImpl>> animations;
 
             std::thread worker;
             std::atomic<bool> running{false};
@@ -182,6 +283,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             Clock::time_point next_retry{};      ///< Lazy initialization cooldown
             Clock::time_point next_reconnect{};  ///< Worker reconnection cooldown
             bool atexit_registered = false;
+            bool hooks_registered = false;
         };
 
         State &S() {
@@ -228,6 +330,40 @@ namespace Gorgon :: Devices :: OpenRGB {
             return Graphics::RGBA(mix(a.R, b.R), mix(a.G, b.G), mix(a.B, b.B), Byte(255));
         }
 
+        Graphics::RGBA lerpRGBA(const Graphics::RGBA &a, const Graphics::RGBA &b, float t) {
+            t = Clamp(t, 0.f, 1.f);
+            auto mix = [&](Byte x, Byte y) { return Byte(x + (y - x) * t + 0.5f); };
+
+            return Graphics::RGBA(mix(a.R, b.R), mix(a.G, b.G), mix(a.B, b.B), mix(a.A, b.A));
+        }
+
+        Graphics::RGBA blendColor(const Graphics::RGBA &cur, const Graphics::RGBA &src, BlendMode mode) {
+            float a = src.A / 255.f;
+            switch(mode) {
+            case BlendMode::Overwrite:
+                return opaque(src);
+            case BlendMode::AlphaBlend:
+                return lerp(cur, src, a);
+            case BlendMode::Additive: {
+                auto add = [&](Byte c, Byte s) {
+                    int v = (int)c + (int)std::round(s * a);
+                    return Byte(std::min(255, std::max(0, v)));
+                };
+                return Graphics::RGBA(add(cur.R, src.R), add(cur.G, src.G), add(cur.B, src.B), Byte(255));
+            }
+            case BlendMode::Multiply: {
+                auto mul = [&](Byte c, Byte s) {
+                    float factor = 1.f - a + a * (s / 255.f);
+                    int v = (int)std::round(c * factor);
+                    return Byte(std::min(255, std::max(0, v)));
+                };
+                return Graphics::RGBA(mul(cur.R, src.R), mul(cur.G, src.G), mul(cur.B, src.B), Byte(255));
+            }
+            default:
+                return lerp(cur, src, a);
+            }
+        }
+
         const Graphics::RGBA transparent = Graphics::RGBA(Byte(0), Byte(0), Byte(0), Byte(0));
 
         // ---------------------------------------------------------
@@ -261,7 +397,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                 m[K::Numpad_Enter]   = {"numberpadenter", "numpadenter", "keypadenter"};
 
                 m[K::Escape]    = {"escape", "esc"};
-                m[K::Enter]     = {"enter", "return"};
+                m[K::Enter]     = {"enter", "enter(iso)", "isoenter", "ansienter", "return"};
                 m[K::Tab]       = {"tab"};
                 m[K::Backspace] = {"backspace"};
                 m[K::Space]     = {"space", "spacebar"};
@@ -293,6 +429,46 @@ namespace Gorgon :: Devices :: OpenRGB {
                 m[K::Right] = {"rightarrow", "right"};
                 m[K::Down]  = {"downarrow", "down"};
 
+                // Hardware scancode / OSTransport mappings for international & punctuation keys.
+                // OpenRGB names physical LEDs after US-ANSI / UK-ISO keycaps (`[`, `]`, `;`, `'`, `#`, `\ (ISO)`, etc.),
+                // whereas Gorgon's input system reports `OSTransport + hardware_scancode` for layout-specific keys
+                // (e.g., Turkish Ğ, Ü, Ş, İ, Ö, Ç, *, -, ", <, and dotless ı).
+                auto add_scancode = [&](int linux_x11_kc, int win_scancode, std::vector<std::string> leds) {
+#ifdef WIN32
+                    int sc = win_scancode;
+#else
+                    int sc = linux_x11_kc;
+#endif
+                    m[K::OSTransport + sc] = std::move(leds);
+                };
+
+                // Top row left of '1' (` / " / OEM_3)
+                add_scancode(49, 0x29, {"`", "backtick", "grave", "tilde", "~", "section"});
+                // Top row right of '0' (- / * / OEM_MINUS)
+                add_scancode(20, 0x0C, {"-", "minus", "hyphen", "oemminus"});
+                // Top row left of Backspace (= / - / OEM_PLUS)
+                add_scancode(21, 0x0D, {"=", "equals", "equal", "plus", "oemplus"});
+                // QWERTY row 'I' physical position (on Turkish layouts unshifted 'ı' sends OSTransport + 31 / 0x17)
+                add_scancode(31, 0x17, {"i"});
+                // QWERTY row right of 'P' ([ / Ğ / OEM_4)
+                add_scancode(34, 0x1A, {"[", "leftbracket", "openbracket"});
+                // QWERTY row second right of 'P' (] / Ü / OEM_6)
+                add_scancode(35, 0x1B, {"]", "rightbracket", "closebracket"});
+                // Home row right of 'L' (; / Ş / OEM_1)
+                add_scancode(47, 0x27, {";", "semicolon", "colon"});
+                // Home row second right of 'L' (' / İ / OEM_7)
+                add_scancode(48, 0x28, {"'", "quote", "apostrophe", "singlequote"});
+                // ISO key next to Enter or ANSI backslash above Enter (# / , / \ / OEM_5 / OEM_2)
+                add_scancode(51, 0x2B, {"#", "pound", "hash", "numbersign", "\\", "backslash", "ansibackslash", "\\(ansi)"});
+                // ISO key between Left Shift and Z (\ (ISO) / < > | / OEM_102)
+                add_scancode(94, 0x56, {"\\(iso)", "isobackslash", "<", "less", "nonusbackslash"});
+                // Bottom row right of 'M' (, / Ö / OEM_COMMA)
+                add_scancode(59, 0x33, {",", "comma"});
+                // Bottom row second right of 'M' (. / Ç / OEM_PERIOD)
+                add_scancode(60, 0x34, {".", "period", "dot"});
+                // Bottom row left of Right Shift (/ / . / OEM_2)
+                add_scancode(61, 0x35, {"/", "forwardslash", "slash", "?"});
+
                 return m;
             }();
 
@@ -307,52 +483,615 @@ namespace Gorgon :: Devices :: OpenRGB {
             return keys;
         }
 
+        std::vector<std::shared_ptr<DImpl>> deviceList() {
+            std::vector<std::shared_ptr<DImpl>> list;
+            for(auto &d : S().devices)
+                list.push_back(Access::impl(*d));
+
+            return list;
+        }
+
+        bool isDirectMode(const LL::Mode &m) {
+            return lower(m.name) == "direct";
+        }
+
         // ---------------------------------------------------------
-        // State helpers. Callers must hold state_mtx unless noted.
+        // Layer management helpers (state_mtx must be held)
         // ---------------------------------------------------------
 
-        void touch(DImpl &d) {
-            d.touched = true;
-            d.dirty   = true;
+        DeviceLayer makeDefaultLayer(const DImpl &d) {
+            DeviceLayer l;
+            l.touched     = false;
+            l.mode_dirty  = false;
+            l.active_mode = d.orig_mode;
+            l.modes       = d.default_modes;
+            l.base_leds   = d.initial_base_leds;
+            return l;
+        }
+
+        /// Returns a mutable DeviceLayer for `ctx`, lazily creating it if it doesn't exist yet.
+        DeviceLayer &getOrCreateLayer(DImpl &d, const Gorgon::Animation::Governor *ctx) {
+            if(!ctx)
+                return d.global_layer;
+
+            auto it = d.gov_layers.find(ctx);
+            if(it == d.gov_layers.end())
+                it = d.gov_layers.emplace(ctx, makeDefaultLayer(d)).first;
+
+            return it->second;
+        }
+
+        /// Returns the const DeviceLayer for a specific handle context (falls back to global_layer if not created yet)
+        const DeviceLayer &getHandleLayer(const DImpl &d, const Gorgon::Animation::Governor *ctx) {
+            if(!ctx)
+                return d.global_layer;
+
+            auto it = d.gov_layers.find(ctx);
+            if(it != d.gov_layers.end())
+                return it->second;
+
+            return d.global_layer;
+        }
+
+        /// Resolves which DeviceLayer currently drives physical hardware for device `d`,
+        /// or returns nullptr if neither the active governor nor the global layer has touched `d`.
+        DeviceLayer *resolveActiveLayer(DImpl &d, const Gorgon::Animation::Governor **out_ctx = nullptr) {
+            const Gorgon::Animation::Governor *active_gov = &Gorgon::Animation::Governor::Active();
+
+            auto it = d.gov_layers.find(active_gov);
+            if(it != d.gov_layers.end() && it->second.touched) {
+                if(out_ctx) *out_ctx = active_gov;
+                return &it->second;
+            }
+
+            if(d.global_layer.touched) {
+                if(out_ctx) *out_ctx = nullptr;
+                return &d.global_layer;
+            }
+
+            if(out_ctx) *out_ctx = nullptr;
+            return nullptr;
+        }
+
+        void touchLayer(DImpl &d, DeviceLayer &layer) {
+            if(!layer.touched && d.direct_mode >= 0) {
+                layer.active_mode = d.direct_mode;
+            }
+            layer.touched = true;
+            d.hw_touched  = true;
+            d.dirty       = true;
             d.revision++;
         }
 
-        void setLED(DImpl &d, int idx, const Graphics::RGBA &c) {
-            if(idx < 0 || idx >= (int)d.leds.size())
-                return;
-
-            auto col = opaque(c);
-            if(d.touched && d.leds[idx].color == col)
-                return;
-
-            d.leds[idx].color = col;
-            touch(d);
+        void markAllDevicesDirtyLocked() {
+            for(auto &d : deviceList()) {
+                d->dirty = true;
+                d->revision++;
+            }
+            S().wake.notify_all();
         }
 
-        Graphics::RGBA getLED(const DImpl &d, int idx) {
+        void setLED(DImpl &d, const Gorgon::Animation::Governor *ctx, int idx, const Graphics::RGBA &c) {
+            if(idx < 0 || idx >= (int)d.leds.size())
+                return;
+
+            auto &layer = getOrCreateLayer(d, ctx);
+            if(idx >= (int)layer.base_leds.size())
+                layer.base_leds.resize(d.leds.size(), Graphics::RGBA(Byte(0), Byte(0), Byte(0), Byte(255)));
+
+            auto col = opaque(c);
+            bool direct = (layer.active_mode == d.direct_mode);
+            if(layer.touched && direct && layer.base_leds[idx] == col)
+                return;
+
+            layer.base_leds[idx] = col;
+            if(d.direct_mode >= 0)
+                layer.active_mode = d.direct_mode;
+
+            if(!ctx)
+                d.leds[idx].color = col;
+
+            touchLayer(d, layer);
+        }
+
+        Graphics::RGBA getLED(const DImpl &d, const Gorgon::Animation::Governor *ctx, int idx) {
             if(idx < 0 || idx >= (int)d.leds.size())
                 return transparent;
+
+            const auto &layer = getHandleLayer(d, ctx);
+            if(idx < (int)layer.base_leds.size())
+                return layer.base_leds[idx];
 
             return d.leds[idx].color;
         }
 
-        /// Composes the final colors of the device. Animations (blink, breathing) will
-        /// be applied on top of the base colors here in the future.
-        std::vector<LL::Color> compose(const DImpl &d) {
+        // ---------------------------------------------------------
+        // Progressbar & Animation Compositing Helpers
+        // ---------------------------------------------------------
+
+        std::vector<int> resolveProgressPositionsForDevice(const PImpl &p, const DImpl &d, std::vector<std::vector<int>> &out_positions) {
+            out_positions.clear();
+            switch(p.target) {
+            case PImpl::Target::AllKeyboards:
+                if(d.is_keyboard && d.connected) {
+                    for(auto key : p.keys.keys) {
+                        auto it = d.keymap.find(key);
+                        if(it != d.keymap.end() && !it->second.empty())
+                            out_positions.push_back(it->second);
+                    }
+                }
+                break;
+
+            case PImpl::Target::Keyboard:
+                if(auto td = p.device.lock()) {
+                    if(td.get() == &d && d.connected) {
+                        for(auto key : p.keys.keys) {
+                            auto it = d.keymap.find(key);
+                            if(it != d.keymap.end() && !it->second.empty())
+                                out_positions.push_back(it->second);
+                        }
+                    }
+                }
+                break;
+
+            case PImpl::Target::Zone:
+                if(p.zone) {
+                    if(auto td = p.zone->dev.lock()) {
+                        if(td.get() == &d && d.connected) {
+                            int begin = p.zone->led_offset, end = begin + p.zone->led_count;
+                            if(p.use_keys) {
+                                for(auto key : p.keys.keys) {
+                                    auto it = d.keymap.find(key);
+                                    if(it == d.keymap.end())
+                                        continue;
+                                    std::vector<int> leds;
+                                    for(int l : it->second) {
+                                        if(l >= begin && l < end)
+                                            leds.push_back(l);
+                                    }
+                                    if(!leds.empty())
+                                        out_positions.push_back(std::move(leds));
+                                }
+                            }
+                            else {
+                                for(int i = begin; i < end; i++)
+                                    out_positions.push_back({i});
+                            }
+                        }
+                    }
+                }
+                break;
+
+            default:
+                break;
+            }
+            return {};
+        }
+
+        Graphics::RGBA levelColor(const PImpl &p) {
+            for(auto &l : p.levels) {
+                bool inside = p.ratio >= l.range.Start &&
+                              (p.ratio < l.range.End || (l.range.End >= 1.f && p.ratio <= l.range.End));
+
+                if(inside)
+                    return l.color;
+            }
+
+            return p.color;
+        }
+
+        void compositeProgressbar(const PImpl &p, const DImpl &d, std::vector<Graphics::RGBA> &colors) {
+            if(!p.active)
+                return;
+
+            std::vector<std::vector<int>> positions;
+            resolveProgressPositionsForDevice(p, d, positions);
+            if(positions.empty())
+                return;
+
+            auto fg = levelColor(p);
+            int n = (int)positions.size();
+
+            for(int i = 0; i < n; i++) {
+                float t;
+                if(p.fill) {
+                    t = Clamp(p.ratio * n - i, 0.f, 1.f);
+                }
+                else if(n == 1) {
+                    t = p.ratio;
+                }
+                else {
+                    float pos = p.ratio * (n - 1);
+                    t = Clamp(1.f - std::abs(pos - i), 0.f, 1.f);
+                }
+
+                for(int led : positions[i]) {
+                    if(led < 0 || led >= (int)colors.size())
+                        continue;
+
+                    Graphics::RGBA base_c = colors[led];
+                    if(p.bg.A != 0)
+                        base_c = lerp(base_c, p.bg, p.bg.A / 255.f);
+
+                    colors[led] = lerp(base_c, fg, t);
+                }
+            }
+        }
+
+        std::optional<Geometry::Point> findKeyMatrixCoord(const DImpl &d, Input::Key key) {
+            if(d.matrix_zone < 0 || d.matrix_zone >= (int)d.zones.size())
+                return std::nullopt;
+
+            auto it = d.keymap.find(key);
+            if(it == d.keymap.end() || it->second.empty())
+                return std::nullopt;
+
+            auto zi = Access::impl(d.zones[d.matrix_zone]);
+            if(!zi || zi->width <= 0 || zi->height <= 0)
+                return std::nullopt;
+
+            int target_local = it->second[0] - zi->led_offset;
+            if(target_local < 0 || target_local >= zi->led_count)
+                return std::nullopt;
+
+            int sum_x = 0, sum_y = 0, count = 0;
+            for(int y = 0; y < zi->height; y++) {
+                for(int x = 0; x < zi->width; x++) {
+                    if(zi->matrix[(size_t)y * zi->width + x] == target_local) {
+                        sum_x += x;
+                        sum_y += y;
+                        count++;
+                    }
+                }
+            }
+
+            if(count == 0)
+                return std::nullopt;
+
+            return Geometry::Point(sum_x / count, sum_y / count);
+        }
+
+        Graphics::RGBA evalStops(const std::vector<Graphics::RGBA> &stops, float t) {
+            if(stops.empty())
+                return transparent;
+            if(stops.size() == 1)
+                return stops[0];
+
+            t = Clamp(t, 0.f, 1.f);
+            float scaled = t * (stops.size() - 1);
+            size_t idx = std::min((size_t)std::floor(scaled), stops.size() - 2);
+            float frac = scaled - (float)idx;
+            return lerpRGBA(stops[idx], stops[idx + 1], frac);
+        }
+
+        bool animationTargetsDevice(const AImpl &a, const DImpl &d) {
+            switch(a.target) {
+            case AImpl::Target::AllDevices:
+                return d.connected;
+            case AImpl::Target::AllKeyboards:
+                return d.is_keyboard && d.connected;
+            case AImpl::Target::Device:
+            case AImpl::Target::Keyboard:
+                if(auto td = a.device.lock())
+                    return td.get() == &d && d.connected;
+                return false;
+            case AImpl::Target::Zone:
+                if(a.zone) {
+                    if(auto td = a.zone->dev.lock())
+                        return td.get() == &d && d.connected;
+                }
+                return false;
+            }
+            return false;
+        }
+
+        std::vector<int> resolveAnimationTargetLEDs(const AImpl &a, const DImpl &d) {
+            std::vector<int> leds;
+            int begin = 0, end = (int)d.leds.size();
+            if(a.target == AImpl::Target::Zone && a.zone) {
+                begin = a.zone->led_offset;
+                end   = begin + a.zone->led_count;
+            }
+
+            if(a.use_keys && d.is_keyboard) {
+                for(auto key : a.keys.keys) {
+                    auto it = d.keymap.find(key);
+                    if(it == d.keymap.end())
+                        continue;
+                    for(int l : it->second) {
+                        if(l >= begin && l < end)
+                            leds.push_back(l);
+                    }
+                }
+            }
+            else {
+                leds.reserve(std::max(0, end - begin));
+                for(int i = begin; i < end; i++)
+                    leds.push_back(i);
+            }
+            return leds;
+        }
+
+        void compositeAnimation(const AImpl &a, const DImpl &d, std::vector<Graphics::RGBA> &colors) {
+            if(!a.visible || !animationTargetsDevice(a, d))
+                return;
+
+            float dur = (float)std::max(1u, a.duration_ms);
+            float t   = Clamp(a.current_progress_ms / dur, 0.f, 1.f);
+
+            // Uniform per-target-LED effects: Fade, Pulse, Blink
+            if(a.type == AImpl::Type::Fade || a.type == AImpl::Type::Pulse || a.type == AImpl::Type::Blink) {
+                Graphics::RGBA overlay = transparent;
+                if(a.type == AImpl::Type::Fade) {
+                    overlay = evalStops(a.stops, t);
+                }
+                else if(a.type == AImpl::Type::Pulse) {
+                    Graphics::RGBA peak   = a.stops.size() > 0 ? a.stops[0] : Graphics::RGBA(0xffffffffu);
+                    Graphics::RGBA trough = a.stops.size() > 1 ? a.stops[1] : transparent;
+                    // Smooth sine wave: 0 -> 1 -> 0 over period
+                    float wave = 0.5f * (1.f - std::cos(t * 2.f * 3.14159265f));
+                    overlay = lerpRGBA(trough, peak, wave);
+                }
+                else if(a.type == AImpl::Type::Blink) {
+                    Graphics::RGBA on_col  = a.stops.size() > 0 ? a.stops[0] : Graphics::RGBA(0xffffffffu);
+                    Graphics::RGBA off_col = a.stops.size() > 1 ? a.stops[1] : transparent;
+                    overlay = (t < a.duty_cycle) ? on_col : off_col;
+                }
+
+                for(int led : resolveAnimationTargetLEDs(a, d)) {
+                    if(led >= 0 && led < (int)colors.size())
+                        colors[led] = blendColor(colors[led], overlay, a.blend);
+                }
+                return;
+            }
+
+            // Spatial ExplosionEffect
+            if(a.type == AImpl::Type::Explosion) {
+                std::shared_ptr<ZImpl> mz;
+                if(a.target == AImpl::Target::Zone && a.zone && a.zone->width > 0 && a.zone->height > 0)
+                    mz = a.zone;
+                else if(d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
+                    mz = Access::impl(d.zones[d.matrix_zone]);
+
+                Graphics::RGBA base_col = a.stops.empty() ? Graphics::RGBA(0xffff4000u) : a.stops[0];
+                float fade_out = 1.f - t * t; // Smooth intensity falloff as explosion expands
+
+                if(mz && mz->width > 0 && mz->height > 0) {
+                    float cx = a.origin_norm.X * std::max(1, mz->width - 1);
+                    float cy = a.origin_norm.Y * std::max(1, mz->height - 1);
+
+                    if(a.origin_mode == AImpl::OriginMode::Point) {
+                        cx = (float)a.origin_pt.X;
+                        cy = (float)a.origin_pt.Y;
+                    }
+                    else if(a.origin_mode == AImpl::OriginMode::Key) {
+                        if(auto kp = findKeyMatrixCoord(d, a.origin_key)) {
+                            cx = (float)kp->X;
+                            cy = (float)kp->Y;
+                        }
+                    }
+
+                    float max_r = a.max_radius;
+                    if(max_r <= 0.f) {
+                        float dx = std::max(cx, (float)(mz->width - 1) - cx);
+                        float dy = std::max(cy, (float)(mz->height - 1) - cy);
+                        max_r = std::sqrt(dx * dx + dy * dy) + std::max(1.f, a.ring_thickness);
+                    }
+
+                    float cur_r = t * max_r;
+                    float half_w = std::max(0.5f, a.ring_thickness * 0.5f);
+
+                    for(int y = 0; y < mz->height; y++) {
+                        for(int x = 0; x < mz->width; x++) {
+                            int local = mz->matrix[(size_t)y * mz->width + x];
+                            if(local < 0)
+                                continue;
+
+                            int gi = mz->led_offset + local;
+                            if(gi < 0 || gi >= (int)colors.size())
+                                continue;
+
+                            float dist = std::hypot((float)x - cx, (float)y - cy);
+                            float intensity = 0.f;
+                            if(a.ring_thickness <= 0.f) {
+                                // Filled expanding disc
+                                if(dist <= cur_r)
+                                    intensity = 1.f - 0.5f * (dist / std::max(1.f, cur_r));
+                            }
+                            else {
+                                float d_ring = std::abs(dist - cur_r);
+                                if(d_ring < half_w)
+                                    intensity = 1.f - (d_ring / half_w);
+                            }
+
+                            intensity *= fade_out;
+                            if(intensity > 0.001f) {
+                                Graphics::RGBA px = base_col;
+                                px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                                colors[gi] = blendColor(colors[gi], px, a.blend);
+                            }
+                        }
+                    }
+                }
+                else {
+                    // 1D fallback for non-matrix zones/devices
+                    auto leds = resolveAnimationTargetLEDs(a, d);
+                    int n = (int)leds.size();
+                    if(n > 0) {
+                        float center = a.origin_norm.X * std::max(1, n - 1);
+                        float max_r  = std::max(center, (float)(n - 1) - center) + std::max(1.f, a.ring_thickness);
+                        float cur_r  = t * max_r;
+                        float half_w = std::max(0.5f, a.ring_thickness * 0.5f);
+
+                        for(int i = 0; i < n; i++) {
+                            float dist = std::abs((float)i - center);
+                            float d_ring = std::abs(dist - cur_r);
+                            if(d_ring < half_w) {
+                                float intensity = (1.f - d_ring / half_w) * fade_out;
+                                Graphics::RGBA px = base_col;
+                                px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                                colors[leds[i]] = blendColor(colors[leds[i]], px, a.blend);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Spatial SwipeEffect
+            if(a.type == AImpl::Type::Swipe) {
+                std::shared_ptr<ZImpl> mz;
+                if(a.target == AImpl::Target::Zone && a.zone && a.zone->width > 0 && a.zone->height > 0)
+                    mz = a.zone;
+                else if(d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
+                    mz = Access::impl(d.zones[d.matrix_zone]);
+
+                Graphics::RGBA base_col = a.stops.empty() ? Graphics::RGBA(0xff00ffffu) : a.stops[0];
+                float bw = std::max(0.05f, a.band_width);
+                float pos = -bw + t * (1.f + 2.f * bw);
+
+                if(mz && mz->width > 0 && mz->height > 0) {
+                    for(int y = 0; y < mz->height; y++) {
+                        for(int x = 0; x < mz->width; x++) {
+                            int local = mz->matrix[(size_t)y * mz->width + x];
+                            if(local < 0)
+                                continue;
+
+                            int gi = mz->led_offset + local;
+                            if(gi < 0 || gi >= (int)colors.size())
+                                continue;
+
+                            float coord = 0.f;
+                            switch(a.swipe_dir) {
+                            case SwipeDirection::LeftToRight:
+                                coord = mz->width > 1 ? (float)x / (mz->width - 1) : 0.5f;
+                                break;
+                            case SwipeDirection::RightToLeft:
+                                coord = mz->width > 1 ? 1.f - (float)x / (mz->width - 1) : 0.5f;
+                                break;
+                            case SwipeDirection::TopToBottom:
+                                coord = mz->height > 1 ? (float)y / (mz->height - 1) : 0.5f;
+                                break;
+                            case SwipeDirection::BottomToTop:
+                                coord = mz->height > 1 ? 1.f - (float)y / (mz->height - 1) : 0.5f;
+                                break;
+                            }
+
+                            float dist = std::abs(coord - pos);
+                            if(dist < bw) {
+                                float intensity = 0.5f * (1.f + std::cos((dist / bw) * 3.14159265f));
+                                Graphics::RGBA px = base_col;
+                                px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                                colors[gi] = blendColor(colors[gi], px, a.blend);
+                            }
+                        }
+                    }
+                }
+                else {
+                    auto leds = resolveAnimationTargetLEDs(a, d);
+                    int n = (int)leds.size();
+                    for(int i = 0; i < n; i++) {
+                        float u = n > 1 ? (float)i / (n - 1) : 0.5f;
+                        if(a.swipe_dir == SwipeDirection::RightToLeft || a.swipe_dir == SwipeDirection::BottomToTop)
+                            u = 1.f - u;
+
+                        float dist = std::abs(u - pos);
+                        if(dist < bw) {
+                            float intensity = 0.5f * (1.f + std::cos((dist / bw) * 3.14159265f));
+                            Graphics::RGBA px = base_col;
+                            px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                            colors[leds[i]] = blendColor(colors[leds[i]], px, a.blend);
+                        }
+                    }
+                }
+                return;
+            }
+
+            // ReactiveEffect (per-key press fade)
+            if(a.type == AImpl::Type::Reactive && d.is_keyboard) {
+                std::shared_ptr<ZImpl> mz;
+                if(a.ripple_radius > 0.f && d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
+                    mz = Access::impl(d.zones[d.matrix_zone]);
+
+                for(const auto &kp : a.active_presses) {
+                    unsigned age = (a.reactive_clock_ms >= kp.start_ms) ? (a.reactive_clock_ms - kp.start_ms) : 0;
+                    if(age >= a.duration_ms)
+                        continue;
+
+                    float ratio = 1.f - Clamp((float)age / dur, 0.f, 1.f);
+                    Graphics::RGBA px = kp.color;
+                    px.A = Byte(Clamp(kp.color.A * ratio, 0.f, 255.f));
+
+                    auto it = d.keymap.find(kp.key);
+                    if(it != d.keymap.end()) {
+                        for(int led : it->second) {
+                            if(led >= 0 && led < (int)colors.size())
+                                colors[led] = blendColor(colors[led], px, a.blend);
+                        }
+                    }
+
+                    if(mz && a.ripple_radius > 0.f) {
+                        if(auto pt = findKeyMatrixCoord(d, kp.key)) {
+                            float cur_r = (1.f - ratio) * a.ripple_radius;
+                            for(int y = 0; y < mz->height; y++) {
+                                for(int x = 0; x < mz->width; x++) {
+                                    int local = mz->matrix[(size_t)y * mz->width + x];
+                                    if(local < 0) continue;
+                                    int gi = mz->led_offset + local;
+                                    if(gi < 0 || gi >= (int)colors.size()) continue;
+
+                                    float dist = std::hypot((float)x - pt->X, (float)y - pt->Y);
+                                    if(dist > 0.5f && std::abs(dist - cur_r) < 1.25f) {
+                                        float r_int = (1.f - std::abs(dist - cur_r) / 1.25f) * ratio;
+                                        Graphics::RGBA rpx = kp.color;
+                                        rpx.A = Byte(Clamp(kp.color.A * r_int, 0.f, 255.f));
+                                        colors[gi] = blendColor(colors[gi], rpx, a.blend);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Composes the final RGBA colors for a device in a given layer context (`state_mtx` must be held)
+        std::vector<Graphics::RGBA> composeRGBA(const DImpl &d, const DeviceLayer &layer, const Gorgon::Animation::Governor *layer_ctx) {
+            std::vector<Graphics::RGBA> colors = layer.base_leds;
+            if(colors.size() < d.leds.size())
+                colors.resize(d.leds.size(), Graphics::RGBA(Byte(0), Byte(0), Byte(0), Byte(255)));
+
+            auto &s = S();
+            const Gorgon::Animation::Governor *active_gov = &Gorgon::Animation::Governor::Active();
+
+            // 1. Composite Progressbars belonging to this layer (or global progressbars if global layer is showing)
+            for(auto &wp : s.progressbars) {
+                if(auto p = wp.lock()) {
+                    if(p->context == layer_ctx || (layer_ctx == nullptr && p->context == active_gov))
+                        compositeProgressbar(*p, d, colors);
+                }
+            }
+
+            // 2. Composite Animations belonging to this layer (or active governor animations over global fallback base)
+            for(auto &wa : s.animations) {
+                if(auto a = wa.lock()) {
+                    if(a->context == layer_ctx || (layer_ctx == nullptr && a->context == active_gov))
+                        compositeAnimation(*a, d, colors);
+                }
+            }
+
+            return colors;
+        }
+
+        std::vector<LL::Color> toWireColors(const std::vector<Graphics::RGBA> &rgba) {
             std::vector<LL::Color> out;
-            out.reserve(d.leds.size());
-
-            for(auto &l : d.leds)
-                out.push_back(wire(l.color));
-
+            out.reserve(rgba.size());
+            for(const auto &c : rgba)
+                out.push_back(wire(c));
             return out;
         }
 
-        bool isDirectMode(const LL::Mode &m) {
-            return (m.flags & LL::ModeFlags::HasPerLedColor) != 0;
-        }
-
-        void seedDefaultModeColors(std::vector<LL::Mode> &modes, const LL::Mode &orig_mode_data) {
+        void seedDefaultModeColors(std::vector<LL::Mode> &modes, const LL::Mode &orig_mode_data, const std::vector<LL::Color> &orig_colors = {}) {
             static const LL::Color palette[] = {
                 LL::Color::FromRGB(255, 0, 0),
                 LL::Color::FromRGB(255, 128, 0),
@@ -366,10 +1105,21 @@ namespace Gorgon :: Devices :: OpenRGB {
             constexpr size_t palette_sz = sizeof(palette) / sizeof(palette[0]);
 
             LL::Color primary_fallback = LL::Color::FromRGB(0, 200, 255);
+            bool found_primary = false;
             for(const auto &c : orig_mode_data.colors) {
                 if(c.ToWireRGB() != 0) {
                     primary_fallback = c;
+                    found_primary = true;
                     break;
+                }
+            }
+            if(!found_primary) {
+                for(const auto &c : orig_colors) {
+                    if(c.ToWireRGB() != 0) {
+                        primary_fallback = c;
+                        found_primary = true;
+                        break;
+                    }
                 }
             }
 
@@ -400,15 +1150,60 @@ namespace Gorgon :: Devices :: OpenRGB {
                             m.colors[i] = palette[i % palette_sz];
                     }
                 }
+
+                if((m.flags & LL::ModeFlags::HasRandomColor) == 0 || m.color_mode != static_cast<uint32_t>(LL::ModeColorMode::Random)) {
+                    m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                }
             }
         }
 
-        std::vector<std::shared_ptr<DImpl>> deviceList() {
-            std::vector<std::shared_ptr<DImpl>> list;
-            for(auto &d : S().devices)
-                list.push_back(Access::impl(*d));
+        // ---------------------------------------------------------
+        // Governor lifecycle hooks
+        // ---------------------------------------------------------
 
-            return list;
+        void onGovernorActivated(const Gorgon::Animation::Governor *) {
+            auto &s = S();
+            if(!s.initialized)
+                return;
+
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            markAllDevicesDirtyLocked();
+        }
+
+        void onGovernorDestroyed(const Gorgon::Animation::Governor *gov) {
+            auto &s = S();
+            if(!s.initialized || !gov)
+                return;
+
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            for(auto &d : deviceList()) {
+                if(d->gov_layers.erase(gov) > 0) {
+                    d->dirty = true;
+                    d->revision++;
+                }
+            }
+            for(auto &wp : s.progressbars) {
+                if(auto p = wp.lock()) {
+                    if(p->context == gov)
+                        p->context = &Gorgon::Animation::Governor::Active();
+                }
+            }
+            for(auto &wa : s.animations) {
+                if(auto a = wa.lock()) {
+                    if(a->context == gov)
+                        a->context = &Gorgon::Animation::Governor::Active();
+                }
+            }
+            s.wake.notify_all();
+        }
+
+        void registerGovernorHooks() {
+            auto &s = S();
+            if(!s.hooks_registered) {
+                s.hooks_registered = true;
+                Gorgon::Animation::internal::openrgb_governor_activated = &onGovernorActivated;
+                Gorgon::Animation::internal::openrgb_governor_destroyed = &onGovernorDestroyed;
+            }
         }
 
         // ---------------------------------------------------------
@@ -428,17 +1223,31 @@ namespace Gorgon :: Devices :: OpenRGB {
             d->location    = c.location;
             d->type        = (c.type >= LL::DeviceType::Motherboard && c.type <= LL::DeviceType::Unknown) ?
                                 static_cast<DeviceType>(static_cast<int>(c.type)) : DeviceType::Unknown;
-            d->modes       = c.modes;
+            d->default_modes = c.modes;
 
             d->orig_mode = c.active_mode;
-            d->active_mode = c.active_mode;
+            d->hw_mode   = c.active_mode;
             if(c.active_mode >= 0 && c.active_mode < (int)c.modes.size()) {
                 d->orig_mode_data = c.modes[c.active_mode];
                 d->orig_direct = isDirectMode(d->orig_mode_data) || d->orig_mode_data.name == "Direct";
             }
             d->orig_colors = c.colors;
 
-            seedDefaultModeColors(d->modes, d->orig_mode_data);
+            seedDefaultModeColors(d->default_modes, d->orig_mode_data, d->orig_colors);
+            if(d->orig_mode >= 0 && d->orig_mode < (int)d->default_modes.size()) {
+                if((d->orig_mode_data.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+                    bool any_non_black = false;
+                    for(const auto &col : d->orig_mode_data.colors) {
+                        if(col.ToWireRGB() != 0) {
+                            any_non_black = true;
+                            break;
+                        }
+                    }
+                    if(!any_non_black) {
+                        d->orig_mode_data = d->default_modes[d->orig_mode];
+                    }
+                }
+            }
 
             for(int i = 0; i < (int)c.modes.size(); i++) {
                 if(c.modes[i].name == "Direct") {
@@ -473,9 +1282,11 @@ namespace Gorgon :: Devices :: OpenRGB {
                     keyleds = true;
 
                 d->leds.push_back(led);
+                d->initial_base_leds.push_back(led.color);
             }
 
-            d->is_keyboard = d->type == DeviceType::Keyboard || keyleds;
+            d->global_layer = makeDefaultLayer(*d);
+            d->is_keyboard  = d->type == DeviceType::Keyboard || keyleds;
 
             // Registry object
             std::unique_ptr<Device> dev;
@@ -526,6 +1337,12 @@ namespace Gorgon :: Devices :: OpenRGB {
                         auto it = byname.find(cand);
                         if(it != byname.end()) {
                             d->keymap[p.first] = it->second;
+                            for(int led_idx : it->second) {
+                                // Prefer OSTransport scancode keys over 'I' for LED label lookup on Turkish keyboards
+                                // where keycode 31 ('ı' / 'I') is mapped to both 'I' and OSTransport+31
+                                if(d->led_to_key.find(led_idx) == d->led_to_key.end() || p.first >= K::OSTransport)
+                                    d->led_to_key[led_idx] = p.first;
+                            }
                             break;
                         }
                     }
@@ -581,11 +1398,11 @@ namespace Gorgon :: Devices :: OpenRGB {
                                 dev_matched[j] = true;
 
                                 bool was_connected = d->connected;
-                                d->connected   = true;
-                                d->id          = (int)i;
-                                d->location    = ctrls[i].location;
-                                d->modes       = ctrls[i].modes;
-                                d->active_mode = ctrls[i].active_mode;
+                                d->connected     = true;
+                                d->id            = (int)i;
+                                d->location      = ctrls[i].location;
+                                d->default_modes = ctrls[i].modes;
+                                d->hw_mode       = ctrls[i].active_mode;
 
                                 // Recompute direct mode index
                                 d->direct_mode = -1;
@@ -604,19 +1421,38 @@ namespace Gorgon :: Devices :: OpenRGB {
                                     }
                                 }
 
-                                // Snapshot current hardware baseline for restoration
-                                d->orig_mode = ctrls[i].active_mode;
-                                if(ctrls[i].active_mode >= 0 && ctrls[i].active_mode < (int)ctrls[i].modes.size()) {
-                                    d->orig_mode_data = ctrls[i].modes[ctrls[i].active_mode];
-                                    d->orig_direct = isDirectMode(d->orig_mode_data) || d->orig_mode_data.name == "Direct";
+                                // Only snapshot current hardware baseline if we haven't modified this device yet
+                                if(!d->hw_touched && resolveActiveLayer(*d) == nullptr) {
+                                    d->orig_mode = ctrls[i].active_mode;
+                                    if(ctrls[i].active_mode >= 0 && ctrls[i].active_mode < (int)ctrls[i].modes.size()) {
+                                        d->orig_mode_data = ctrls[i].modes[ctrls[i].active_mode];
+                                        d->orig_direct = isDirectMode(d->orig_mode_data) || d->orig_mode_data.name == "Direct";
+                                    }
+                                    d->orig_colors = ctrls[i].colors;
                                 }
-                                d->orig_colors = ctrls[i].colors;
+                                seedDefaultModeColors(d->default_modes, d->orig_mode_data, d->orig_colors);
+                                if(!d->hw_touched && resolveActiveLayer(*d) == nullptr &&
+                                   d->orig_mode >= 0 && d->orig_mode < (int)d->default_modes.size()) {
+                                    if((d->orig_mode_data.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+                                        bool any_non_black = false;
+                                        for(const auto &col : d->orig_mode_data.colors) {
+                                            if(col.ToWireRGB() != 0) {
+                                                any_non_black = true;
+                                                break;
+                                            }
+                                        }
+                                        if(!any_non_black) {
+                                            d->orig_mode_data = d->default_modes[d->orig_mode];
+                                        }
+                                    }
+                                }
 
-                                if(d->touched) {
+                                if(d->hw_touched || resolveActiveLayer(*d) != nullptr) {
                                     // Hardware reconnection state restoration:
-                                    // Software had set colors before disconnect. Re-engage and push state.
-                                    d->dirty = true;
+                                    // Software had set colors/modes before disconnect. Re-engage and push state.
+                                    d->dirty   = true;
                                     d->engaged = false;
+                                    d->hw_mode = -1;
                                     d->last_sent.clear();
                                     d->revision++;
                                     Logger << "Restoring lighting state for reconnected device: " << d->name << " (id " << d->id << ")";
@@ -624,7 +1460,10 @@ namespace Gorgon :: Devices :: OpenRGB {
                                 else if(d->orig_direct) {
                                     for(size_t k = 0; k < d->leds.size() && k < ctrls[i].colors.size(); k++) {
                                         auto col = ctrls[i].colors[k];
-                                        d->leds[k].color = Graphics::RGBA(col.R(), col.G(), col.B(), Byte(255));
+                                        auto rgba = Graphics::RGBA(col.R(), col.G(), col.B(), Byte(255));
+                                        d->leds[k].color = rgba;
+                                        if(k < d->global_layer.base_leds.size())
+                                            d->global_layer.base_leds[k] = rgba;
                                     }
                                 }
 
@@ -667,8 +1506,9 @@ namespace Gorgon :: Devices :: OpenRGB {
                         if(d->connected) {
                             Logger << "Device detached: " << d->name << " (was id " << d->id << ")";
                             d->connected = false;
-                            d->id = -1;
-                            d->engaged = false;
+                            d->id        = -1;
+                            d->engaged   = false;
+                            d->hw_mode   = -1;
                             d->last_sent.clear();
                         }
                     }
@@ -700,6 +1540,76 @@ namespace Gorgon :: Devices :: OpenRGB {
             return true;
         }
 
+        void restoreDeviceHardwareLocked(const std::shared_ptr<DImpl> &d) {
+            auto &s = S();
+            if(!d->connected || d->id < 0)
+                return;
+
+            bool is_direct = d->orig_direct ||
+                             (d->orig_mode >= 0 && d->orig_mode == d->direct_mode) ||
+                             (d->orig_mode_data.name == "Direct") ||
+                             isDirectMode(d->orig_mode_data);
+
+            bool has_per_led = !is_direct &&
+                               (((d->orig_mode_data.flags & LL::ModeFlags::HasPerLedColor) != 0) ||
+                                (d->orig_mode_data.color_mode == static_cast<uint32_t>(LL::ModeColorMode::PerLed)));
+
+            bool has_mode_specific = !is_direct && !has_per_led &&
+                                     (((d->orig_mode_data.flags & LL::ModeFlags::HasModeSpecificColor) != 0) ||
+                                      (d->orig_mode_data.color_mode == static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific)));
+
+            if(is_direct) {
+                // Direct mode: apply Direct mode, then reinstate original per-LED colors
+                s.client.UpdateMode((uint32_t)d->id, d->orig_mode, d->orig_mode_data);
+                if(d->orig_colors.size() == d->leds.size()) {
+                    s.client.UpdateLEDs((uint32_t)d->id, d->orig_colors);
+                }
+            }
+            else if(has_per_led) {
+                // Hardware mode with per-LED colors:
+                s.client.UpdateMode((uint32_t)d->id, d->orig_mode, d->orig_mode_data);
+                if(d->orig_colors.size() == d->leds.size()) {
+                    s.client.UpdateLEDs((uint32_t)d->id, d->orig_colors);
+                }
+            }
+            else if(has_mode_specific) {
+                // Hardware effect mode with mode-specific colors (Reactive, Static, Breathing, etc.):
+                auto mode_data = d->orig_mode_data;
+                if(mode_data.colors.empty() && mode_data.colors_min > 0) {
+                    mode_data.colors.resize(mode_data.colors_min, LL::Color(255, 0, 0));
+                }
+                if(mode_data.colors.empty() && mode_data.colors_max > 0) {
+                    mode_data.colors.resize(1, LL::Color(255, 0, 0));
+                }
+                bool any_non_black = false;
+                for(const auto &c : mode_data.colors) {
+                    if(c.ToWireRGB() != 0) {
+                        any_non_black = true;
+                        break;
+                    }
+                }
+                if(!any_non_black && !mode_data.colors.empty()) {
+                    bool found_orig = false;
+                    for(const auto &c : d->orig_colors) {
+                        if(c.ToWireRGB() != 0) {
+                            mode_data.colors[0] = c;
+                            found_orig = true;
+                            break;
+                        }
+                    }
+                    if(!found_orig) {
+                        mode_data.colors[0] = LL::Color::FromRGB(0, 200, 255);
+                    }
+                }
+                mode_data.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                s.client.UpdateMode((uint32_t)d->id, d->orig_mode, mode_data);
+            }
+            else {
+                // Other hardware modes (Random, Spectrum Cycle, Rainbow, None):
+                s.client.UpdateMode((uint32_t)d->id, d->orig_mode, d->orig_mode_data);
+            }
+        }
+
         /// Restores devices modified by software to their snapshot state.
         void restoreLocked() {
             auto &s = S();
@@ -710,28 +1620,21 @@ namespace Gorgon :: Devices :: OpenRGB {
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
                 for(auto &d : deviceList()) {
-                    if(d->touched && d->connected && d->id >= 0)
+                    if(d->hw_touched && d->connected && d->id >= 0)
                         list.push_back(d);
                 }
             }
 
             for(auto &d : list) {
-                // Effect modes must have their direct registers cleared first, otherwise
-                // the direct colors keep overriding the effect on some hardware.
-                std::vector<LL::Color> colors;
-                if(d->orig_direct && d->orig_colors.size() == d->leds.size())
-                    colors = d->orig_colors;
-                else
-                    colors.assign(d->leds.size(), LL::Color(0, 0, 0, 0));
-
-                s.client.UpdateLEDs((uint32_t)d->id, colors);
-                s.client.UpdateMode((uint32_t)d->id, d->orig_mode, d->orig_mode_data);
+                restoreDeviceHardwareLocked(d);
 
                 std::lock_guard<std::mutex> sg(s.state_mtx);
-                d->engaged     = false;
-                d->dirty       = false;
-                d->touched     = false;
-                d->active_mode = d->orig_mode;
+                d->engaged      = false;
+                d->dirty        = false;
+                d->hw_touched   = false;
+                d->hw_mode      = d->orig_mode;
+                d->global_layer = makeDefaultLayer(*d);
+                d->gov_layers.clear();
                 d->last_sent.clear();
             }
         }
@@ -749,8 +1652,9 @@ namespace Gorgon :: Devices :: OpenRGB {
                     d->connected = false;
                     d->id        = -1;
                     d->engaged   = false;
+                    d->hw_mode   = -1;
                     d->last_sent.clear();
-                    if(d->touched)
+                    if(d->hw_touched)
                         d->dirty = true;
                 }
             }
@@ -797,24 +1701,95 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             struct Job {
                 std::shared_ptr<DImpl> d;
-                std::vector<LL::Color> colors;
                 uint64_t version = 0;
-                bool engage = false;
-                int direct_mode = -1;
-                LL::Mode mode;
+                bool restore_orig = false;
+                bool is_direct = true;
+                bool send_mode = false;
+                int target_mode = -1;
+                LL::Mode mode_data;
+                std::vector<LL::Color> colors;
             };
 
             std::vector<Job> jobs;
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
 
-                // Animations will be progressed here using the elapsed time
+                // Clean up expired weak_ptrs
+                s.progressbars.erase(
+                    std::remove_if(s.progressbars.begin(), s.progressbars.end(),
+                                   [](const std::weak_ptr<PImpl> &w) { return w.expired(); }),
+                    s.progressbars.end());
+                s.animations.erase(
+                    std::remove_if(s.animations.begin(), s.animations.end(),
+                                   [](const std::weak_ptr<AImpl> &w) { return w.expired(); }),
+                    s.animations.end());
+
+                const Gorgon::Animation::Governor *active_gov = &Gorgon::Animation::Governor::Active();
+
+                // Check if any active overlay (progressbar or animation) is active on an otherwise untouched device
+                auto hasActiveOverlay = [&](const DImpl &d, const Gorgon::Animation::Governor **overlay_ctx) -> bool {
+                    for(auto &wp : s.progressbars) {
+                        if(auto p = wp.lock()) {
+                            if(p->active && (p->context == active_gov || p->context == nullptr)) {
+                                std::vector<std::vector<int>> pos;
+                                resolveProgressPositionsForDevice(*p, d, pos);
+                                if(!pos.empty()) {
+                                    if(overlay_ctx) *overlay_ctx = p->context;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    for(auto &wa : s.animations) {
+                        if(auto a = wa.lock()) {
+                            if(a->visible && (a->context == active_gov || a->context == nullptr) && animationTargetsDevice(*a, d)) {
+                                if(overlay_ctx) *overlay_ctx = a->context;
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                };
 
                 for(auto &d : deviceList()) {
                     if(!d->dirty || !d->connected || d->id < 0)
                         continue;
 
-                    if(d->direct_mode < 0) {
+                    const Gorgon::Animation::Governor *layer_ctx = nullptr;
+                    DeviceLayer *layer = resolveActiveLayer(*d, &layer_ctx);
+
+                    const Gorgon::Animation::Governor *overlay_ctx = nullptr;
+                    if(!layer && hasActiveOverlay(*d, &overlay_ctx)) {
+                        layer = &getOrCreateLayer(*d, overlay_ctx);
+                        if(d->direct_mode >= 0)
+                            layer->active_mode = d->direct_mode;
+                        layer_ctx = overlay_ctx;
+                        d->hw_touched = true;
+                    }
+
+                    if(!layer) {
+                        // Neither active governor nor global layer has touched this device
+                        if(d->hw_touched && (d->engaged || d->hw_mode != d->orig_mode)) {
+                            Job j;
+                            j.d            = d;
+                            j.version      = d->revision;
+                            j.restore_orig = true;
+                            jobs.push_back(std::move(j));
+                        }
+                        else {
+                            d->dirty = false;
+                        }
+                        continue;
+                    }
+
+                    int mode_idx = layer->active_mode;
+                    if(mode_idx < 0 || mode_idx >= (int)layer->modes.size())
+                        mode_idx = d->direct_mode;
+
+                    bool direct = (mode_idx == d->direct_mode) ||
+                                  (mode_idx >= 0 && mode_idx < (int)layer->modes.size() && isDirectMode(layer->modes[mode_idx]));
+
+                    if(direct && d->direct_mode < 0) {
                         d->dirty = false;
                         if(!d->unsupported) {
                             d->unsupported = true;
@@ -825,13 +1800,23 @@ namespace Gorgon :: Devices :: OpenRGB {
 
                     Job j;
                     j.d           = d;
-                    j.colors      = compose(*d);
                     j.version     = d->revision;
-                    j.engage      = !d->engaged;
-                    j.direct_mode = d->direct_mode;
-                    if(j.engage)
-                        j.mode = d->modes[d->direct_mode];
+                    j.is_direct   = direct;
+                    j.target_mode = mode_idx;
 
+                    if(direct) {
+                        j.send_mode = !d->engaged || (d->hw_mode != mode_idx) || layer->mode_dirty;
+                        if(j.send_mode && mode_idx >= 0 && mode_idx < (int)layer->modes.size())
+                            j.mode_data = layer->modes[mode_idx];
+                        j.colors = toWireColors(composeRGBA(*d, *layer, layer_ctx));
+                    }
+                    else {
+                        j.send_mode = d->engaged || (d->hw_mode != mode_idx) || layer->mode_dirty;
+                        if(mode_idx >= 0 && mode_idx < (int)layer->modes.size())
+                            j.mode_data = layer->modes[mode_idx];
+                    }
+
+                    layer->mode_dirty = false;
                     jobs.push_back(std::move(j));
                 }
             }
@@ -839,8 +1824,38 @@ namespace Gorgon :: Devices :: OpenRGB {
             for(auto &j : jobs) {
                 bool ok = true;
 
-                if(j.engage)
-                    ok = s.client.UpdateMode((uint32_t)j.d->id, j.direct_mode, j.mode);
+                if(j.restore_orig) {
+                    restoreDeviceHardwareLocked(j.d);
+                    std::lock_guard<std::mutex> sg(s.state_mtx);
+                    j.d->engaged = false;
+                    j.d->hw_mode = j.d->orig_mode;
+                    j.d->last_sent.clear();
+                    if(j.d->revision == j.version)
+                        j.d->dirty = false;
+                    continue;
+                }
+
+                if(!j.is_direct) {
+                    if(j.send_mode)
+                        ok = s.client.UpdateMode((uint32_t)j.d->id, j.target_mode, j.mode_data);
+
+                    if(!ok)
+                        return handleDisconnect(s.client.GetLastError());
+
+                    j.d->last_sent.clear();
+                    std::lock_guard<std::mutex> sg(s.state_mtx);
+                    j.d->engaged    = false;
+                    j.d->hw_mode    = j.target_mode;
+                    j.d->hw_touched = true;
+                    if(j.d->revision == j.version)
+                        j.d->dirty = false;
+                    continue;
+                }
+
+                // Direct mode job
+                if(j.send_mode) {
+                    ok = s.client.UpdateMode((uint32_t)j.d->id, j.target_mode, j.mode_data);
+                }
                 else if(j.colors == j.d->last_sent) {
                     std::lock_guard<std::mutex> sg(s.state_mtx);
                     if(j.d->revision == j.version)
@@ -857,10 +1872,9 @@ namespace Gorgon :: Devices :: OpenRGB {
                 j.d->last_sent = j.colors;
 
                 std::lock_guard<std::mutex> sg(s.state_mtx);
-                if(j.engage) {
-                    j.d->engaged     = true;
-                    j.d->active_mode = j.direct_mode;
-                }
+                j.d->engaged    = true;
+                j.d->hw_mode    = j.target_mode;
+                j.d->hw_touched = true;
                 if(j.d->revision == j.version)
                     j.d->dirty = false;
             }
@@ -904,6 +1918,8 @@ namespace Gorgon :: Devices :: OpenRGB {
         bool connectNow(const std::string &host, uint16_t port, bool force) {
             auto &s = S();
             std::unique_lock<std::mutex> ig(s.init_mtx);
+
+            registerGovernorHooks();
 
             if(s.initialized)
                 return true;
@@ -962,44 +1978,40 @@ namespace Gorgon :: Devices :: OpenRGB {
             return connectNow(s.host, s.port, false);
         }
 
-        /// Applies a hardware mode synchronously
-        bool applyMode(const std::shared_ptr<DImpl> &d, int idx) {
+        /// Applies a hardware mode in the given governor context
+        bool applyMode(const std::shared_ptr<DImpl> &d, const Gorgon::Animation::Governor *ctx, int idx) {
             if(!ensure())
                 return false;
 
             auto &s = S();
-            std::lock_guard<std::mutex> cg(s.client_mtx);
-
-            if(!s.client.IsConnected())
-                return false;
-
-            LL::Mode mode;
-            bool wasengaged;
+            bool apply_now = false;
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
-                if(!d->connected || d->id < 0 || idx < 0 || idx >= (int)d->modes.size())
+                if(!d->connected || d->id < 0)
                     return false;
 
-                mode = d->modes[idx];
-                wasengaged = d->engaged;
+                auto &layer = getOrCreateLayer(*d, ctx);
+                if(idx < 0 || idx >= (int)layer.modes.size())
+                    return false;
+
+                layer.active_mode = idx;
+                layer.touched     = true;
+                layer.mode_dirty  = true;
+                d->hw_touched     = true;
+                d->dirty          = true;
+                d->revision++;
+
+                const Gorgon::Animation::Governor *eff_ctx = nullptr;
+                auto *eff_layer = resolveActiveLayer(*d, &eff_ctx);
+                apply_now = (eff_layer == &layer);
             }
 
-            bool direct = isDirectMode(mode);
-
-            if(!direct && wasengaged)
-                s.client.UpdateLEDs((uint32_t)d->id, std::vector<LL::Color>(d->leds.size(), LL::Color(0, 0, 0, 0)));
-
-            if(!s.client.UpdateMode((uint32_t)d->id, idx, mode))
-                return false;
-
-            std::lock_guard<std::mutex> sg(s.state_mtx);
-            d->active_mode = idx;
-            d->engaged     = direct;
-            d->touched     = true;
-            d->last_sent.clear();
-            d->dirty       = direct;
-            if(direct)
-                d->revision++;
+            if(apply_now) {
+                fireError(tick());
+            }
+            else {
+                s.wake.notify_all();
+            }
 
             return true;
         }
@@ -1032,12 +2044,8 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
         }
 
-        Graphics::RGBA blendOver(const Graphics::RGBA &cur, const Graphics::RGBA &px) {
-            return lerp(cur, px, px.A / 255.f);
-        }
-
         /// state_mtx must be held
-        void drawImage(ZImpl &z, const Containers::Image &img, Geometry::Point offset, BlendMode blend) {
+        void drawImage(ZImpl &z, const Gorgon::Animation::Governor *ctx, const Containers::Image &img, Geometry::Point offset, BlendMode blend) {
             auto d = z.dev.lock();
             if(!d || z.width == 0 || z.height == 0)
                 return;
@@ -1061,23 +2069,20 @@ namespace Gorgon :: Devices :: OpenRGB {
                     int gi = z.led_offset + local;
                     auto px = imagePixel(img, x, y);
 
-                    if(blend == BlendMode::AlphaBlend)
-                        setLED(*d, gi, blendOver(getLED(*d, gi), px));
-                    else
-                        setLED(*d, gi, px);
+                    setLED(*d, ctx, gi, blendColor(getLED(*d, ctx, gi), px, blend));
                 }
             }
         }
 
-        void drawScaled(ZImpl &z, const Containers::Image &img, Containers::InterpolationMethod interp, BlendMode blend) {
+        void drawScaled(ZImpl &z, const Gorgon::Animation::Governor *ctx, const Containers::Image &img, Containers::InterpolationMethod interp, BlendMode blend) {
             if(z.width == 0 || z.height == 0 || img.GetWidth() == 0 || img.GetHeight() == 0)
                 return;
 
             auto scaled = img.Scale({z.width, z.height}, interp);
-            drawImage(z, scaled, {0, 0}, blend);
+            drawImage(z, ctx, scaled, {0, 0}, blend);
         }
 
-        Containers::Image toImage(const ZImpl &z) {
+        Containers::Image toImage(const ZImpl &z, const Gorgon::Animation::Governor *ctx) {
             auto d = z.dev.lock();
             if(!d || z.width == 0 || z.height == 0)
                 return Containers::Image();
@@ -1090,7 +2095,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
                     Graphics::RGBA c = transparent;
                     if(local >= 0)
-                        c = getLED(*d, z.led_offset + local);
+                        c = getLED(*d, ctx, z.led_offset + local);
 
                     img(x, y, 0) = c.R;
                     img(x, y, 1) = c.G;
@@ -1158,10 +2163,11 @@ namespace Gorgon :: Devices :: OpenRGB {
     // Zone
     // -------------------------------------------------------------
 
-    Zone::Zone() : impl(std::make_shared<Impl>()) { }
+    Zone::Zone() : impl(std::make_shared<Impl>()), context(nullptr) { }
 
     Zone::Zone(int index, const std::string &name, ZoneType type, int led_count, int led_offset, const Device &parent) :
-        impl(std::make_shared<Impl>())
+        impl(std::make_shared<Impl>()),
+        context(Access::context(parent))
     {
         impl->index      = index;
         impl->name       = name;
@@ -1191,7 +2197,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         if(!d || !d->connected)
             return std::nullopt;
 
-        return Device(d);
+        return Device(d, context);
     }
 
     Graphics::RGBA Zone::GetLEDColor(int local_idx) const {
@@ -1200,7 +2206,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             return transparent;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
-        return getLED(*d, impl->led_offset + local_idx);
+        return getLED(*d, context, impl->led_offset + local_idx);
     }
 
     void Zone::SetLEDColor(int local_idx, Graphics::RGBA color) {
@@ -1209,7 +2215,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             return;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
-        setLED(*d, impl->led_offset + local_idx, color);
+        setLED(*d, context, impl->led_offset + local_idx, color);
     }
 
     void Zone::SetColor(Graphics::RGBA color) {
@@ -1219,7 +2225,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(int i = 0; i < impl->led_count; i++)
-            setLED(*d, impl->led_offset + i, color);
+            setLED(*d, context, impl->led_offset + i, color);
     }
 
     void Zone::Clear() {
@@ -1270,7 +2276,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void Zone::Draw(const Containers::Image &image, Geometry::Point offset, BlendMode blend) {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        drawImage(*impl, image, offset, blend);
+        drawImage(*impl, context, image, offset, blend);
     }
 
     void Zone::DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp, BlendMode blend) {
@@ -1282,21 +2288,24 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void Zone::DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp, BlendMode blend) {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        drawScaled(*impl, image, interp, blend);
+        drawScaled(*impl, context, image, interp, blend);
     }
 
     Containers::Image Zone::ToImage() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        return toImage(*impl);
+        return toImage(*impl, context);
     }
 
     // -------------------------------------------------------------
     // Device
     // -------------------------------------------------------------
 
-    Device::Device() : impl(std::make_shared<Impl>()) { }
+    Device::Device() : impl(std::make_shared<Impl>()), context(nullptr) { }
 
-    Device::Device(std::shared_ptr<Impl> impl) : impl(std::move(impl)) { }
+    Device::Device(std::shared_ptr<Impl> impl, const Gorgon::Animation::Governor *context) :
+        impl(std::move(impl)),
+        context(context)
+    { }
 
     int Device::GetID() const { return impl->id; }
 
@@ -1333,16 +2342,36 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     Graphics::RGBA Device::GetLEDColor(int led_idx) const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        return getLED(*impl, led_idx);
+        return getLED(*impl, context, led_idx);
     }
 
     Graphics::RGBA Device::GetLEDColor(const std::string &name) const {
         return GetLEDColor(FindLED(name));
     }
 
+    Graphics::RGBA Device::GetEffectiveLEDColor(int led_idx) const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(led_idx < 0 || led_idx >= (int)impl->leds.size())
+            return transparent;
+
+        const Gorgon::Animation::Governor *eff_gov = context;
+        const DeviceLayer *layer_ptr = nullptr;
+        if(context != nullptr) {
+            layer_ptr = &getHandleLayer(*impl, context);
+        }
+        else {
+            layer_ptr = resolveActiveLayer(*impl, &eff_gov);
+            if(!layer_ptr)
+                layer_ptr = &impl->global_layer;
+        }
+
+        auto composed = composeRGBA(*impl, *layer_ptr, eff_gov);
+        return led_idx < (int)composed.size() ? composed[led_idx] : transparent;
+    }
+
     void Device::SetLEDColor(int led_idx, Graphics::RGBA color) {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        setLED(*impl, led_idx, color);
+        setLED(*impl, context, led_idx, color);
     }
 
     void Device::SetLEDColor(const std::string &name, Graphics::RGBA color) {
@@ -1352,13 +2381,13 @@ namespace Gorgon :: Devices :: OpenRGB {
     void Device::SetColor(Graphics::RGBA color) {
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(int i = 0; i < (int)impl->leds.size(); i++)
-            setLED(*impl, i, color);
+            setLED(*impl, context, i, color);
     }
 
     void Device::SetColors(const std::vector<Graphics::RGBA> &colors) {
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(int i = 0; i < (int)impl->leds.size() && i < (int)colors.size(); i++)
-            setLED(*impl, i, colors[i]);
+            setLED(*impl, context, i, colors[i]);
     }
 
     void Device::Clear() {
@@ -1367,9 +2396,17 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     int Device::GetZoneCount() const { return (int)impl->zones.size(); }
 
-    Zone &Device::GetZone(int index) { return impl->zones.at(index); }
+    Zone &Device::GetZone(int index) {
+        auto &z = impl->zones.at(index);
+        Access::setImpl(z, Access::impl(z), context);
+        return z;
+    }
 
-    const Zone &Device::GetZone(int index) const { return impl->zones.at(index); }
+    const Zone &Device::GetZone(int index) const {
+        auto &z = const_cast<std::vector<Zone> &>(impl->zones).at(index);
+        Access::setImpl(z, Access::impl(z), context);
+        return z;
+    }
 
     bool Device::HasZone(const std::string &name) const {
         auto n = lower(name);
@@ -1385,34 +2422,45 @@ namespace Gorgon :: Devices :: OpenRGB {
         auto n = lower(name);
         for(auto &z : impl->zones) {
             if(lower(z.GetName()) == n)
-                return z;
+                return Access::makeZone(z, context);
         }
 
         for(auto &z : impl->zones) {
             if(lower(z.GetName()).find(n) != std::string::npos)
-                return z;
+                return Access::makeZone(z, context);
         }
 
         return std::nullopt;
     }
 
-    std::vector<Zone> Device::GetZones() const { return impl->zones; }
+    std::vector<Zone> Device::GetZones() const {
+        std::vector<Zone> out;
+        out.reserve(impl->zones.size());
+        for(const auto &z : impl->zones)
+            out.push_back(Access::makeZone(z, context));
+        return out;
+    }
 
-    int Device::GetModeCount() const { return (int)impl->modes.size(); }
+    int Device::GetModeCount() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        return (int)getHandleLayer(*impl, context).modes.size();
+    }
 
     std::string Device::GetModeName(Mode mode_index) const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(mode_index < 0 || mode_index >= (int)impl->modes.size())
+        const auto &modes = getHandleLayer(*impl, context).modes;
+        if(mode_index < 0 || mode_index >= (int)modes.size())
             return "";
 
-        return impl->modes[mode_index].name;
+        return modes[mode_index].name;
     }
 
     std::vector<std::string> Device::GetModeNames() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &modes = getHandleLayer(*impl, context).modes;
         std::vector<std::string> names;
-        names.reserve(impl->modes.size());
-        for(auto &m : impl->modes)
+        names.reserve(modes.size());
+        for(auto &m : modes)
             names.push_back(m.name);
 
         return names;
@@ -1420,45 +2468,55 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     Device::Mode Device::GetActiveMode() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        return impl->active_mode;
+        return getHandleLayer(*impl, context).active_mode;
     }
 
     std::string Device::GetActiveModeName() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return "";
 
-        return impl->modes[impl->active_mode].name;
+        return layer.modes[layer.active_mode].name;
     }
 
     bool Device::IsDirectMode() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return false;
 
-        return impl->active_mode == impl->direct_mode || isDirectMode(impl->modes[impl->active_mode]);
+        return layer.active_mode == impl->direct_mode || isDirectMode(layer.modes[layer.active_mode]);
     }
 
     void Device::SetMode(Mode mode_index) {
-        applyMode(impl, mode_index);
+        applyMode(impl, context, mode_index);
     }
 
     void Device::SetMode(const std::string &mode_name) {
         auto n = lower(mode_name);
-        for(int i = 0; i < (int)impl->modes.size(); i++) {
-            if(lower(impl->modes[i].name) == n) {
-                applyMode(impl, i);
-                return;
+        int idx = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            const auto &modes = getHandleLayer(*impl, context).modes;
+            for(int i = 0; i < (int)modes.size(); i++) {
+                if(lower(modes[i].name) == n) {
+                    idx = i;
+                    break;
+                }
             }
         }
+        if(idx >= 0)
+            applyMode(impl, context, idx);
     }
 
     int Device::GetModeColorCount() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return 0;
 
-        const auto &m = impl->modes[impl->active_mode];
+        const auto &m = layer.modes[layer.active_mode];
         if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
             return 0;
 
@@ -1467,10 +2525,11 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     int Device::GetModeMinColors() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return 0;
 
-        const auto &m = impl->modes[impl->active_mode];
+        const auto &m = layer.modes[layer.active_mode];
         if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
             return 0;
 
@@ -1479,10 +2538,11 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     int Device::GetModeMaxColors() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return 0;
 
-        const auto &m = impl->modes[impl->active_mode];
+        const auto &m = layer.modes[layer.active_mode];
         if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
             return 0;
 
@@ -1492,10 +2552,11 @@ namespace Gorgon :: Devices :: OpenRGB {
     std::vector<Graphics::RGBA> Device::GetModeColors() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         std::vector<Graphics::RGBA> out;
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return out;
 
-        const auto &m = impl->modes[impl->active_mode];
+        const auto &m = layer.modes[layer.active_mode];
         if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
             return out;
 
@@ -1508,10 +2569,11 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     Graphics::RGBA Device::GetModeColor(int color_index) const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return transparent;
 
-        const auto &m = impl->modes[impl->active_mode];
+        const auto &m = layer.modes[layer.active_mode];
         if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 ||
            color_index < 0 || color_index >= (int)m.colors.size())
             return transparent;
@@ -1524,10 +2586,11 @@ namespace Gorgon :: Devices :: OpenRGB {
         int active = -1;
         {
             std::lock_guard<std::mutex> g(S().state_mtx);
-            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
                 return;
 
-            auto &m = impl->modes[impl->active_mode];
+            auto &m = layer.modes[layer.active_mode];
             if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 || color_index < 0)
                 return;
 
@@ -1540,21 +2603,22 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             m.colors[color_index] = wire(color);
             m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
-            active = impl->active_mode;
+            active = layer.active_mode;
         }
 
         if(active >= 0)
-            applyMode(impl, active);
+            applyMode(impl, context, active);
     }
 
     void Device::SetModeColors(const std::vector<Graphics::RGBA> &colors) {
         int active = -1;
         {
             std::lock_guard<std::mutex> g(S().state_mtx);
-            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
                 return;
 
-            auto &m = impl->modes[impl->active_mode];
+            auto &m = layer.modes[layer.active_mode];
             if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
                 return;
 
@@ -1569,63 +2633,68 @@ namespace Gorgon :: Devices :: OpenRGB {
                 m.colors[i] = wire(colors[i]);
 
             m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
-            active = impl->active_mode;
+            active = layer.active_mode;
         }
 
         if(active >= 0)
-            applyMode(impl, active);
+            applyMode(impl, context, active);
     }
 
     bool Device::SupportsRandomColor() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return false;
 
-        return (impl->modes[impl->active_mode].flags & LL::ModeFlags::HasRandomColor) != 0;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasRandomColor) != 0;
     }
 
     bool Device::IsRandomColor() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
-        if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
             return false;
 
-        return impl->modes[impl->active_mode].color_mode == static_cast<uint32_t>(LL::ModeColorMode::Random);
+        return layer.modes[layer.active_mode].color_mode == static_cast<uint32_t>(LL::ModeColorMode::Random);
     }
 
     void Device::SetRandomColor(bool random) {
         int active = -1;
         {
             std::lock_guard<std::mutex> g(S().state_mtx);
-            if(impl->active_mode < 0 || impl->active_mode >= (int)impl->modes.size())
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
                 return;
 
-            auto &m = impl->modes[impl->active_mode];
+            auto &m = layer.modes[layer.active_mode];
             if(random && (m.flags & LL::ModeFlags::HasRandomColor) != 0) {
                 m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::Random);
-                active = impl->active_mode;
+                active = layer.active_mode;
             }
             else if(!random && (m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
                 m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
-                active = impl->active_mode;
+                active = layer.active_mode;
             }
         }
 
         if(active >= 0)
-            applyMode(impl, active);
+            applyMode(impl, context, active);
     }
 
     bool Device::SetDirectMode() {
         if(impl->direct_mode < 0)
             return false;
 
-        return applyMode(impl, impl->direct_mode);
+        return applyMode(impl, context, impl->direct_mode);
     }
 
     // -------------------------------------------------------------
     // KeyboardDevice
     // -------------------------------------------------------------
 
-    KeyboardDevice::KeyboardDevice(std::shared_ptr<Impl> impl) : Device(std::move(impl)) { }
+    KeyboardDevice::KeyboardDevice(std::shared_ptr<Impl> impl, const Gorgon::Animation::Governor *context) :
+        Device(std::move(impl), context)
+    { }
 
     void KeyboardDevice::SetKeyColor(Input::Key key, Graphics::RGBA color) {
         std::lock_guard<std::mutex> g(S().state_mtx);
@@ -1635,7 +2704,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             return;
 
         for(int led : it->second)
-            setLED(*impl, led, color);
+            setLED(*impl, context, led, color);
     }
 
     void KeyboardDevice::SetKeyColor(const std::string &key_name, Graphics::RGBA color) {
@@ -1649,7 +2718,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         if(it == impl->keymap.end() || it->second.empty())
             return transparent;
 
-        return getLED(*impl, it->second[0]);
+        return getLED(*impl, context, it->second[0]);
     }
 
     void KeyboardDevice::SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) {
@@ -1661,7 +2730,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                 continue;
 
             for(int led : it->second)
-                setLED(*impl, led, color);
+                setLED(*impl, context, led, color);
         }
     }
 
@@ -1677,11 +2746,43 @@ namespace Gorgon :: Devices :: OpenRGB {
         return it->second;
     }
 
+    std::optional<Geometry::Point> KeyboardDevice::GetKeyMatrixPosition(Input::Key key) const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        return findKeyMatrixCoord(*impl, key);
+    }
+
+    Input::Key KeyboardDevice::GetKeyForLED(int led_index) const {
+        auto it = impl->led_to_key.find(led_index);
+        if(it == impl->led_to_key.end())
+            return 0;
+
+        return it->second;
+    }
+
+    std::string KeyboardDevice::GetKeyLabel(int led_index) const {
+        if(led_index < 0 || led_index >= (int)impl->leds.size())
+            return "";
+
+        auto it = impl->led_to_key.find(led_index);
+        if(it != impl->led_to_key.end()) {
+            std::string os_name = Input::Keyboard::Keycodes::GetName(it->second);
+            // Ignore replacement char U+FFFD (UTF-8: \xEF\xBF\xBD) or empty strings
+            if(!os_name.empty() && os_name != "\xEF\xBF\xBD")
+                return os_name;
+        }
+
+        const std::string &raw = impl->leds[led_index].name;
+        if(raw.rfind("Key: ", 0) == 0)
+            return raw.substr(5);
+
+        return raw;
+    }
+
     std::optional<Zone> KeyboardDevice::GetMatrixZone() const {
         if(impl->matrix_zone < 0 || impl->matrix_zone >= (int)impl->zones.size())
             return std::nullopt;
 
-        return impl->zones[impl->matrix_zone];
+        return Access::makeZone(impl->zones[impl->matrix_zone], context);
     }
 
     Geometry::Size KeyboardDevice::GetMatrixSize() const {
@@ -1747,152 +2848,20 @@ namespace Gorgon :: Devices :: OpenRGB {
     // -------------------------------------------------------------
 
     namespace {
-
-        /// An ordered list of positions (each position may light multiple LEDs, e.g. spacebar)
-        struct Strip {
-            std::shared_ptr<DImpl> dev;
-            std::vector<std::vector<int>> positions;
-        };
-
-        Strip keyStrip(const std::shared_ptr<DImpl> &d, const KeyGroup &keys, int begin, int end) {
-            Strip s;
-            s.dev = d;
-
-            for(auto key : keys.keys) {
-                auto it = d->keymap.find(key);
-                if(it == d->keymap.end())
-                    continue;
-
-                std::vector<int> leds;
-                for(int l : it->second) {
-                    if(l >= begin && l < end)
-                        leds.push_back(l);
-                }
-
-                if(!leds.empty())
-                    s.positions.push_back(leds);
-            }
-
-            return s;
+        void registerProgressbar(const std::shared_ptr<PImpl> &p) {
+            auto &s = S();
+            std::lock_guard<std::mutex> g(s.state_mtx);
+            s.progressbars.push_back(p);
         }
 
-        /// state_mtx must be held
-        std::vector<Strip> resolve(const PImpl &p) {
-            std::vector<Strip> strips;
-
-            switch(p.target) {
-            case PImpl::Target::AllKeyboards:
-                for(auto &d : deviceList()) {
-                    if(d->is_keyboard && d->connected) {
-                        auto s = keyStrip(d, p.keys, 0, (int)d->leds.size());
-                        if(!s.positions.empty())
-                            strips.push_back(std::move(s));
-                    }
-                }
-                break;
-
-            case PImpl::Target::Keyboard:
-                if(auto d = p.device.lock()) {
-                    if(d->connected) {
-                        auto s = keyStrip(d, p.keys, 0, (int)d->leds.size());
-                        if(!s.positions.empty())
-                            strips.push_back(std::move(s));
-                    }
-                }
-                break;
-
-            case PImpl::Target::Zone:
-                if(p.zone) {
-                    if(auto d = p.zone->dev.lock()) {
-                        if(d->connected) {
-                            int begin = p.zone->led_offset, end = begin + p.zone->led_count;
-
-                            if(p.use_keys) {
-                                auto s = keyStrip(d, p.keys, begin, end);
-                                if(!s.positions.empty())
-                                    strips.push_back(std::move(s));
-                            }
-                            else {
-                                Strip s;
-                                s.dev = d;
-                                for(int i = begin; i < end; i++)
-                                    s.positions.push_back({i});
-
-                                if(!s.positions.empty())
-                                    strips.push_back(std::move(s));
-                            }
-                        }
-                    }
-                }
-                break;
-
-            default:
-                break;
-            }
-
-            return strips;
-        }
-
-        Graphics::RGBA levelColor(const PImpl &p) {
-            for(auto &l : p.levels) {
-                bool inside = p.ratio >= l.range.Start &&
-                              (p.ratio < l.range.End || (l.range.End >= 1.f && p.ratio <= l.range.End));
-
-                if(inside)
-                    return l.color;
-            }
-
-            return p.color;
-        }
-
-        /// state_mtx must be held
-        void applyProgress(PImpl &p) {
-            auto strips = resolve(p);
-            auto fg = levelColor(p);
-
-            for(auto &s : strips) {
-                int n = (int)s.positions.size();
-
-                for(int i = 0; i < n; i++) {
-                    float t;
-                    if(p.fill) {
-                        t = Clamp(p.ratio * n - i, 0.f, 1.f);
-                    }
-                    else if(n == 1) {
-                        t = p.ratio;
-                    }
-                    else {
-                        float pos = p.ratio * (n - 1);
-                        t = Clamp(1.f - std::abs(pos - i), 0.f, 1.f);
-                    }
-
-                    for(int led : s.positions[i]) {
-                        auto key = std::make_pair(s.dev, led);
-
-                        auto it = p.underlay.find(key);
-                        if(it == p.underlay.end())
-                            it = p.underlay.emplace(key, getLED(*s.dev, led)).first;
-
-                        Graphics::RGBA bg = it->second;
-                        if(p.bg.A != 0)
-                            bg = lerp(it->second, p.bg, p.bg.A / 255.f);
-
-                        setLED(*s.dev, led, lerp(bg, fg, t));
-                    }
-                }
-            }
-
-            p.active = true;
-        }
-
-        void refresh(PImpl &p) {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            if(p.active)
-                applyProgress(p);
+        void markProgressDirtyLocked(const PImpl &) {
+            markAllDevicesDirtyLocked();
         }
     }
 
-    Progressbar::Progressbar() : impl(std::make_shared<Impl>()) { }
+    Progressbar::Progressbar() : impl(std::make_shared<Impl>()) {
+        registerProgressbar(impl);
+    }
 
     Progressbar::Progressbar(const KeyGroup &keys, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
         impl->target   = Impl::Target::AllKeyboards;
@@ -1903,6 +2872,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     Progressbar::Progressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+        impl->context  = Access::context(keyboard);
         impl->target   = Impl::Target::Keyboard;
         impl->device   = Access::impl(keyboard);
         impl->keys     = keys;
@@ -1912,6 +2882,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     Progressbar::Progressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+        impl->context  = Access::context(zone);
         impl->target   = Impl::Target::Zone;
         impl->zone     = Access::impl(zone);
         impl->keys     = keys;
@@ -1921,6 +2892,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     Progressbar::Progressbar(const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+        impl->context  = Access::context(zone);
         impl->target   = Impl::Target::Zone;
         impl->zone     = Access::impl(zone);
         impl->use_keys = false;
@@ -1928,78 +2900,75 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl->bg       = bg;
     }
 
+    const Gorgon::Animation::Governor *Progressbar::GetGovernor() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        return impl->context;
+    }
+
     void Progressbar::SetKeys(const KeyGroup &keys) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->keys     = keys;
-            impl->use_keys = true;
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->keys     = keys;
+        impl->use_keys = true;
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     const KeyGroup &Progressbar::GetKeys() const { return impl->keys; }
 
     void Progressbar::SetZone(const Zone &zone) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->target = Impl::Target::Zone;
-            impl->zone   = Access::impl(zone);
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target = Impl::Target::Zone;
+        impl->zone   = Access::impl(zone);
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     void Progressbar::SetColor(Graphics::RGBA color) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->color = color;
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->color = color;
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     Graphics::RGBA Progressbar::GetColor() const { return impl->color; }
 
     void Progressbar::SetBackgroundColor(Graphics::RGBA bg) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->bg = bg;
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->bg = bg;
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     Graphics::RGBA Progressbar::GetBackgroundColor() const { return impl->bg; }
 
     void Progressbar::AddLevelColor(Range<Float> range, Graphics::RGBA color) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->levels.push_back({range, color});
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->levels.push_back({range, color});
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     void Progressbar::SetLevelColors(const std::vector<LevelColor> &levels) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->levels = levels;
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->levels = levels;
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     void Progressbar::ClearLevelColors() {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->levels.clear();
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->levels.clear();
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     const std::vector<Progressbar::LevelColor> &Progressbar::GetLevelColors() const { return impl->levels; }
 
     void Progressbar::SetFillMode(bool fill) {
-        {
-            std::lock_guard<std::mutex> g(S().state_mtx);
-            impl->fill = fill;
-        }
-        refresh(*impl);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->fill = fill;
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
     }
 
     bool Progressbar::IsFillMode() const { return impl->fill; }
@@ -2009,24 +2978,912 @@ namespace Gorgon :: Devices :: OpenRGB {
             return;
 
         std::lock_guard<std::mutex> g(S().state_mtx);
-        impl->ratio = Clamp(value, Float(0), Float(1));
-        applyProgress(*impl);
+        impl->ratio  = Clamp(value, Float(0), Float(1));
+        impl->active = true;
+        markProgressDirtyLocked(*impl);
     }
 
     Float Progressbar::GetProgressRatio() const { return impl->ratio; }
 
     void Progressbar::Clear() {
         std::lock_guard<std::mutex> g(S().state_mtx);
-
-        for(auto &p : impl->underlay)
-            setLED(*p.first.first, p.first.second, p.second);
-
-        impl->underlay.clear();
-        impl->active = false;
+        if(impl->active) {
+            impl->active = false;
+            markProgressDirtyLocked(*impl);
+        }
     }
 
     // -------------------------------------------------------------
-    // Global functions
+    // OpenRGB::Animation & Derived Effects
+    // -------------------------------------------------------------
+
+    namespace {
+        std::shared_ptr<AImpl> makeAnimImpl(Gorgon::Animation::Governor *gov, unsigned duration_ms, BlendMode blend) {
+            auto a = std::make_shared<AImpl>();
+            a->context     = gov;
+            a->duration_ms = std::max(1u, duration_ms);
+            a->blend       = blend;
+            a->owned_ctrl  = std::make_unique<Gorgon::Animation::Controller>(0.0);
+            if(gov)
+                a->owned_ctrl->SetGovernor(*gov);
+            a->owned_ctrl->SetLength(a->duration_ms);
+            a->owned_ctrl->Pause();
+
+            {
+                std::lock_guard<std::mutex> g(S().state_mtx);
+                S().animations.push_back(a);
+            }
+            return a;
+        }
+    }
+
+    Animation::Animation(std::shared_ptr<Impl> impl_ptr) :
+        Gorgon::Animation::Base(*impl_ptr->owned_ctrl),
+        FinishedEvent(impl_ptr->owned_ctrl->FinishedEvent),
+        impl(std::move(impl_ptr))
+    { }
+
+    Animation::Animation(unsigned duration_ms, BlendMode blend) :
+        Animation(makeAnimImpl(&Gorgon::Animation::Governor::Active(), duration_ms, blend))
+    { }
+
+    Animation::Animation(Gorgon::Animation::Governor &governor, unsigned duration_ms, BlendMode blend) :
+        Animation(makeAnimImpl(&governor, duration_ms, blend))
+    { }
+
+    Animation::Animation(const Context &context, unsigned duration_ms, BlendMode blend) :
+        Animation(makeAnimImpl(
+            context.GetGovernor() ? const_cast<Gorgon::Animation::Governor *>(context.GetGovernor()) : &Gorgon::Animation::Governor::Active(),
+            duration_ms, blend))
+    {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->context = context.GetGovernor();
+    }
+
+    Animation::Animation(const Animation &other) :
+        Gorgon::Animation::Base(other),
+        FinishedEvent(other.impl->owned_ctrl->FinishedEvent),
+        impl(other.impl)
+    { }
+
+    Animation &Animation::operator=(const Animation &other) {
+        if(this != &other) {
+            RemoveController();
+            impl = other.impl;
+            if(impl && impl->owned_ctrl)
+                SetController(*impl->owned_ctrl);
+        }
+        return *this;
+    }
+
+    Animation::~Animation() {
+        RemoveController();
+        if(impl && impl.use_count() == 1) {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            if(impl->visible) {
+                impl->visible = false;
+                markAllDevicesDirtyLocked();
+            }
+        }
+    }
+
+    void Animation::TargetAllDevices() {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::AllDevices;
+        impl->use_keys = false;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetAllKeyboards() {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::AllKeyboards;
+        impl->use_keys = false;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetKeyGroup(const KeyGroup &group) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(impl->target != Impl::Target::Keyboard && impl->target != Impl::Target::Zone)
+            impl->target = Impl::Target::AllKeyboards;
+        impl->keys     = group;
+        impl->use_keys = true;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetKey(Input::Key key) {
+        TargetKeyGroup(KeyGroup{{key}});
+    }
+
+    void Animation::TargetDevice(const Device &device) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::Device;
+        impl->device   = Access::impl(device);
+        impl->use_keys = false;
+        if(Access::context(device))
+            impl->context = Access::context(device);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetKeyboard(const KeyboardDevice &keyboard) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::Keyboard;
+        impl->device   = Access::impl(keyboard);
+        impl->use_keys = false;
+        if(Access::context(keyboard))
+            impl->context = Access::context(keyboard);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetKeyboardKeys(const KeyboardDevice &keyboard, const KeyGroup &group) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::Keyboard;
+        impl->device   = Access::impl(keyboard);
+        impl->keys     = group;
+        impl->use_keys = true;
+        if(Access::context(keyboard))
+            impl->context = Access::context(keyboard);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::TargetKeyboardKey(const KeyboardDevice &keyboard, Input::Key key) {
+        TargetKeyboardKeys(keyboard, KeyGroup{{key}});
+    }
+
+    void Animation::TargetZone(const Zone &zone) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target = Impl::Target::Zone;
+        impl->zone   = Access::impl(zone);
+        if(Access::context(zone))
+            impl->context = Access::context(zone);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void Animation::Play() {
+        ensure();
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            impl->visible             = true;
+            impl->current_progress_ms = 0;
+            markAllDevicesDirtyLocked();
+        }
+        impl->owned_ctrl->Reset();
+        impl->owned_ctrl->SetLength(impl->duration_ms);
+        impl->owned_ctrl->Play();
+    }
+
+    void Animation::Loop() {
+        ensure();
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            impl->visible = true;
+            markAllDevicesDirtyLocked();
+        }
+        impl->owned_ctrl->SetLength(impl->duration_ms);
+        impl->owned_ctrl->Loop();
+    }
+
+    void Animation::Pause() {
+        impl->owned_ctrl->Pause();
+    }
+
+    void Animation::Resume() {
+        ensure();
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            impl->visible = true;
+            markAllDevicesDirtyLocked();
+        }
+        impl->owned_ctrl->Resume();
+    }
+
+    void Animation::Reset() {
+        impl->owned_ctrl->Reset();
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->current_progress_ms = 0;
+        if(impl->visible)
+            markAllDevicesDirtyLocked();
+    }
+
+    void Animation::Stop() {
+        impl->owned_ctrl->Pause();
+        impl->owned_ctrl->SetProgress(0u);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->active_presses.clear();
+        if(impl->visible) {
+            impl->visible             = false;
+            impl->current_progress_ms = 0;
+            markAllDevicesDirtyLocked();
+        }
+    }
+
+    bool Animation::IsPlaying() const {
+        return impl->owned_ctrl->IsPlaying() && impl->visible;
+    }
+
+    bool Animation::IsPaused() const {
+        return impl->owned_ctrl->IsPaused();
+    }
+
+    bool Animation::IsFinished() const {
+        return impl->owned_ctrl->IsFinished();
+    }
+
+    void Animation::SetSpeed(float speed) {
+        impl->owned_ctrl->SetSpeed(speed);
+    }
+
+    float Animation::GetSpeed() const {
+        return impl->owned_ctrl->GetSpeed();
+    }
+
+    void Animation::SetDuration(unsigned duration_ms) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->duration_ms = std::max(1u, duration_ms);
+        impl->owned_ctrl->SetLength(impl->duration_ms);
+    }
+
+    int Animation::GetDuration() const {
+        return (int)impl->duration_ms;
+    }
+
+    void Animation::SetBlendMode(BlendMode blend) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->blend = blend;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    BlendMode Animation::GetBlendMode() const {
+        return impl->blend;
+    }
+
+    void Animation::SetKeepWhenFinished(bool keep) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->keep_when_finished = keep;
+    }
+
+    bool Animation::GetKeepWhenFinished() const {
+        return impl->keep_when_finished;
+    }
+
+    Gorgon::Animation::Controller &Animation::GetAnimationController() {
+        return *impl->owned_ctrl;
+    }
+
+    const Gorgon::Animation::Controller &Animation::GetAnimationController() const {
+        return *impl->owned_ctrl;
+    }
+
+    const Gorgon::Animation::Governor *Animation::GetGovernor() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        return impl->context;
+    }
+
+    void Animation::SetGovernor(Gorgon::Animation::Governor &governor) {
+        impl->owned_ctrl->SetGovernor(governor);
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->context = &governor;
+        markAllDevicesDirtyLocked();
+    }
+
+    bool Animation::Progress(unsigned &leftover) {
+        leftover = 0;
+        if(!controller)
+            return false;
+
+        unsigned prog = controller->GetProgress();
+        std::lock_guard<std::mutex> g(S().state_mtx);
+
+        if(impl->type == Impl::Type::Reactive) {
+            impl->reactive_clock_ms = prog;
+            unsigned dur = impl->duration_ms;
+            auto before = impl->active_presses.size();
+            impl->active_presses.erase(
+                std::remove_if(impl->active_presses.begin(), impl->active_presses.end(),
+                               [&](const Impl::KeyPressState &kp) {
+                                   return prog >= kp.start_ms && (prog - kp.start_ms) >= dur;
+                               }),
+                impl->active_presses.end());
+
+            if(!impl->active_presses.empty() || before > 0)
+                markAllDevicesDirtyLocked();
+
+            return true; // Reactive effect runs continuously while active
+        }
+
+        if(!impl->visible)
+            return true;
+
+        if(controller->IsControlled() && !impl->owned_ctrl->IsLooping()) {
+            if(prog >= impl->duration_ms) {
+                impl->current_progress_ms = impl->duration_ms;
+                leftover = prog - impl->duration_ms;
+                if(!impl->keep_when_finished)
+                    impl->visible = false;
+                markAllDevicesDirtyLocked();
+                return false;
+            }
+        }
+
+        impl->current_progress_ms = prog % std::max(1u, impl->duration_ms);
+        markAllDevicesDirtyLocked();
+        return true;
+    }
+
+    // --- FadeEffect ---
+
+    FadeEffect::FadeEffect(Graphics::RGBA start_color, Graphics::RGBA end_color, unsigned duration_ms, BlendMode blend) :
+        Animation(duration_ms, blend)
+    {
+        impl->type  = Impl::Type::Fade;
+        impl->stops = {start_color, end_color};
+    }
+
+    FadeEffect::FadeEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA start_color, Graphics::RGBA end_color, unsigned duration_ms, BlendMode blend) :
+        Animation(governor, duration_ms, blend)
+    {
+        impl->type  = Impl::Type::Fade;
+        impl->stops = {start_color, end_color};
+    }
+
+    FadeEffect::FadeEffect(const Context &context, Graphics::RGBA start_color, Graphics::RGBA end_color, unsigned duration_ms, BlendMode blend) :
+        Animation(context, duration_ms, blend)
+    {
+        impl->type  = Impl::Type::Fade;
+        impl->stops = {start_color, end_color};
+    }
+
+    void FadeEffect::SetColors(Graphics::RGBA start_color, Graphics::RGBA end_color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {start_color, end_color};
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void FadeEffect::SetColorStops(const std::vector<Graphics::RGBA> &stops) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = stops;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    // --- PulseEffect ---
+
+    PulseEffect::PulseEffect(Graphics::RGBA peak_color, unsigned period_ms, Graphics::RGBA trough_color, BlendMode blend) :
+        Animation(period_ms, blend)
+    {
+        impl->type  = Impl::Type::Pulse;
+        impl->stops = {peak_color, trough_color};
+    }
+
+    PulseEffect::PulseEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA peak_color, unsigned period_ms, Graphics::RGBA trough_color, BlendMode blend) :
+        Animation(governor, period_ms, blend)
+    {
+        impl->type  = Impl::Type::Pulse;
+        impl->stops = {peak_color, trough_color};
+    }
+
+    PulseEffect::PulseEffect(const Context &context, Graphics::RGBA peak_color, unsigned period_ms, Graphics::RGBA trough_color, BlendMode blend) :
+        Animation(context, period_ms, blend)
+    {
+        impl->type  = Impl::Type::Pulse;
+        impl->stops = {peak_color, trough_color};
+    }
+
+    void PulseEffect::SetColors(Graphics::RGBA peak_color, Graphics::RGBA trough_color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {peak_color, trough_color};
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    // --- BlinkEffect ---
+
+    BlinkEffect::BlinkEffect(Graphics::RGBA on_color, unsigned period_ms, float duty_cycle, Graphics::RGBA off_color, BlendMode blend) :
+        Animation(period_ms, blend)
+    {
+        impl->type       = Impl::Type::Blink;
+        impl->stops      = {on_color, off_color};
+        impl->duty_cycle = Clamp(duty_cycle, 0.05f, 0.95f);
+    }
+
+    BlinkEffect::BlinkEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA on_color, unsigned period_ms, float duty_cycle, Graphics::RGBA off_color, BlendMode blend) :
+        Animation(governor, period_ms, blend)
+    {
+        impl->type       = Impl::Type::Blink;
+        impl->stops      = {on_color, off_color};
+        impl->duty_cycle = Clamp(duty_cycle, 0.05f, 0.95f);
+    }
+
+    BlinkEffect::BlinkEffect(const Context &context, Graphics::RGBA on_color, unsigned period_ms, float duty_cycle, Graphics::RGBA off_color, BlendMode blend) :
+        Animation(context, period_ms, blend)
+    {
+        impl->type       = Impl::Type::Blink;
+        impl->stops      = {on_color, off_color};
+        impl->duty_cycle = Clamp(duty_cycle, 0.05f, 0.95f);
+    }
+
+    void BlinkEffect::SetColors(Graphics::RGBA on_color, Graphics::RGBA off_color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {on_color, off_color};
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void BlinkEffect::SetDutyCycle(float duty_cycle) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->duty_cycle = Clamp(duty_cycle, 0.05f, 0.95f);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    // --- ExplosionEffect ---
+
+    ExplosionEffect::ExplosionEffect(Graphics::RGBA color, unsigned duration_ms, float ring_thickness, BlendMode blend) :
+        Animation(duration_ms, blend)
+    {
+        impl->type           = Impl::Type::Explosion;
+        impl->target         = Impl::Target::AllKeyboards;
+        impl->stops          = {color};
+        impl->ring_thickness = ring_thickness;
+    }
+
+    ExplosionEffect::ExplosionEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA color, unsigned duration_ms, float ring_thickness, BlendMode blend) :
+        Animation(governor, duration_ms, blend)
+    {
+        impl->type           = Impl::Type::Explosion;
+        impl->target         = Impl::Target::AllKeyboards;
+        impl->stops          = {color};
+        impl->ring_thickness = ring_thickness;
+    }
+
+    ExplosionEffect::ExplosionEffect(const Context &context, Graphics::RGBA color, unsigned duration_ms, float ring_thickness, BlendMode blend) :
+        Animation(context, duration_ms, blend)
+    {
+        impl->type           = Impl::Type::Explosion;
+        impl->target         = Impl::Target::AllKeyboards;
+        impl->stops          = {color};
+        impl->ring_thickness = ring_thickness;
+    }
+
+    void ExplosionEffect::SetOriginKey(Input::Key key) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->origin_mode = Impl::OriginMode::Key;
+        impl->origin_key  = key;
+    }
+
+    void ExplosionEffect::SetOriginPoint(Geometry::Point matrix_coord) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->origin_mode = Impl::OriginMode::Point;
+        impl->origin_pt   = matrix_coord;
+    }
+
+    void ExplosionEffect::SetOriginNormalized(Geometry::Pointf norm_coord) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->origin_mode = Impl::OriginMode::Normalized;
+        impl->origin_norm = norm_coord;
+    }
+
+    void ExplosionEffect::SetColor(Graphics::RGBA color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {color};
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void ExplosionEffect::SetRingThickness(float thickness) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->ring_thickness = thickness;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void ExplosionEffect::SetMaxRadius(float max_radius) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->max_radius = max_radius;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    // --- SwipeEffect ---
+
+    SwipeEffect::SwipeEffect(Graphics::RGBA color, SwipeDirection direction, unsigned duration_ms, float band_width, BlendMode blend) :
+        Animation(duration_ms, blend)
+    {
+        impl->type       = Impl::Type::Swipe;
+        impl->target     = Impl::Target::AllKeyboards;
+        impl->stops      = {color};
+        impl->swipe_dir  = direction;
+        impl->band_width = band_width;
+    }
+
+    SwipeEffect::SwipeEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA color, SwipeDirection direction, unsigned duration_ms, float band_width, BlendMode blend) :
+        Animation(governor, duration_ms, blend)
+    {
+        impl->type       = Impl::Type::Swipe;
+        impl->target     = Impl::Target::AllKeyboards;
+        impl->stops      = {color};
+        impl->swipe_dir  = direction;
+        impl->band_width = band_width;
+    }
+
+    SwipeEffect::SwipeEffect(const Context &context, Graphics::RGBA color, SwipeDirection direction, unsigned duration_ms, float band_width, BlendMode blend) :
+        Animation(context, duration_ms, blend)
+    {
+        impl->type       = Impl::Type::Swipe;
+        impl->target     = Impl::Target::AllKeyboards;
+        impl->stops      = {color};
+        impl->swipe_dir  = direction;
+        impl->band_width = band_width;
+    }
+
+    void SwipeEffect::SetColor(Graphics::RGBA color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {color};
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void SwipeEffect::SetDirection(SwipeDirection direction) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->swipe_dir = direction;
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    void SwipeEffect::SetBandWidth(float width_ratio) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->band_width = Clamp(width_ratio, 0.05f, 2.f);
+        if(impl->visible) markAllDevicesDirtyLocked();
+    }
+
+    // --- ReactiveEffect ---
+
+    ReactiveEffect::ReactiveEffect(Graphics::RGBA color, unsigned fade_ms, BlendMode blend) :
+        Animation(fade_ms, blend)
+    {
+        impl->type   = Impl::Type::Reactive;
+        impl->target = Impl::Target::AllKeyboards;
+        impl->stops  = {color};
+        Loop();
+    }
+
+    ReactiveEffect::ReactiveEffect(Gorgon::Animation::Governor &governor, Graphics::RGBA color, unsigned fade_ms, BlendMode blend) :
+        Animation(governor, fade_ms, blend)
+    {
+        impl->type   = Impl::Type::Reactive;
+        impl->target = Impl::Target::AllKeyboards;
+        impl->stops  = {color};
+        Loop();
+    }
+
+    ReactiveEffect::ReactiveEffect(const Context &context, Graphics::RGBA color, unsigned fade_ms, BlendMode blend) :
+        Animation(context, fade_ms, blend)
+    {
+        impl->type   = Impl::Type::Reactive;
+        impl->target = Impl::Target::AllKeyboards;
+        impl->stops  = {color};
+        Loop();
+    }
+
+    namespace {
+        void triggerReactiveKey(AImpl &a, Input::Key key, bool force_start) {
+            ensure();
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            if(!a.visible) {
+                if(!force_start)
+                    return;
+                a.visible = true;
+            }
+
+            Graphics::RGBA col = a.stops.empty() ? Graphics::RGBA(0xffffffffu) : a.stops[0];
+            if(a.random_reactive) {
+                static const Graphics::RGBA palette[] = {
+                    {255, 40,  40,  255},
+                    {255, 160, 0,   255},
+                    {255, 240, 0,   255},
+                    {0,   240, 80,  255},
+                    {0,   220, 255, 255},
+                    {80,  100, 255, 255},
+                    {200, 40,  255, 255},
+                    {255, 40,  160, 255}
+                };
+                a.rng_state = a.rng_state * 1664525u + 1013904223u;
+                col = palette[(a.rng_state >> 16) % 8];
+            }
+
+            for(auto &kp : a.active_presses) {
+                if(kp.key == key) {
+                    kp.start_ms = a.reactive_clock_ms;
+                    kp.color    = col;
+                    markAllDevicesDirtyLocked();
+                    return;
+                }
+            }
+
+            a.active_presses.push_back({key, a.reactive_clock_ms, col});
+            markAllDevicesDirtyLocked();
+        }
+    }
+
+    void ReactiveEffect::TriggerKey(Input::Key key) {
+        if(!impl->owned_ctrl->IsPlaying())
+            Loop();
+        triggerReactiveKey(*impl, key, true);
+    }
+
+    void ReactiveEffect::AttachToWindow(Gorgon::Window &window) {
+        DetachFromWindow();
+        std::weak_ptr<Impl> wimpl = impl;
+        impl->attached_window = &window;
+        impl->window_key_token = window.KeyEvent.Register([wimpl](Input::Key key, float state) {
+            if(state > 0.f) {
+                if(auto l = wimpl.lock()) {
+                    if(l->visible && l->owned_ctrl && l->owned_ctrl->IsPlaying() &&
+                       (l->context == nullptr || l->context == &Gorgon::Animation::Governor::Active())) {
+                        triggerReactiveKey(*l, key, false);
+                    }
+                }
+            }
+            return false; // Do not consume the key event!
+        });
+
+        // UI::Window's NewHandler uses RegisterOnce to move its widget container handler to the top
+        // (so it consumes Tab before handlers registered before it). Queue a second RegisterOnce
+        // so our non-consuming ReactiveEffect observer sits above UI::Window's handler and sees Tab too!
+        auto *win_ptr = &window;
+        auto tok = impl->window_key_token;
+        Gorgon::RegisterOnce([win_ptr, tok, wimpl]() {
+            Gorgon::RegisterOnce([win_ptr, tok, wimpl]() {
+                if(auto l = wimpl.lock()) {
+                    if(l->attached_window == win_ptr && l->window_key_token == tok)
+                        win_ptr->KeyEvent.MoveToTop(tok);
+                }
+            });
+        });
+    }
+
+    void ReactiveEffect::DetachFromWindow() {
+        if(impl->attached_window && impl->window_key_token) {
+            impl->attached_window->KeyEvent.Unregister(impl->window_key_token);
+            impl->attached_window  = nullptr;
+            impl->window_key_token = 0;
+        }
+    }
+
+    void ReactiveEffect::SetColor(Graphics::RGBA color) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->stops = {color};
+        impl->random_reactive = false;
+    }
+
+    void ReactiveEffect::SetRandomColor(bool random) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->random_reactive = random;
+    }
+
+    void ReactiveEffect::SetFadeDuration(unsigned fade_ms) {
+        SetDuration(fade_ms);
+    }
+
+    void ReactiveEffect::SetRippleRadius(float radius_cells) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->ripple_radius = std::max(0.f, radius_cells);
+    }
+
+    // -------------------------------------------------------------
+    // Context (Governor / Scene Scoped OpenRGB Interface)
+    // -------------------------------------------------------------
+
+    std::vector<Device> Context::GetDevices(bool only_connected) const {
+        std::vector<Device> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(!only_connected || d->IsConnected())
+                list.push_back(Access::makeDevice(Access::impl(*d), governor));
+        }
+
+        return list;
+    }
+
+    std::vector<KeyboardDevice> Context::GetKeyboards(bool only_connected) const {
+        std::vector<KeyboardDevice> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get())) {
+                if(!only_connected || kb->IsConnected())
+                    list.push_back(Access::makeKeyboard(Access::impl(*kb), governor));
+            }
+        }
+
+        return list;
+    }
+
+    std::optional<Device> Context::FindDevice(const std::string &name) const {
+        if(!ensure())
+            return std::nullopt;
+
+        auto n = lower(name);
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(d->IsConnected() && lower(d->GetName()) == n)
+                return Access::makeDevice(Access::impl(*d), governor);
+        }
+
+        for(auto &d : S().devices) {
+            if(d->IsConnected() && lower(d->GetName()).find(n) != std::string::npos)
+                return Access::makeDevice(Access::impl(*d), governor);
+        }
+
+        for(auto &d : S().devices) {
+            if(lower(d->GetName()) == n)
+                return Access::makeDevice(Access::impl(*d), governor);
+        }
+
+        for(auto &d : S().devices) {
+            if(lower(d->GetName()).find(n) != std::string::npos)
+                return Access::makeDevice(Access::impl(*d), governor);
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<KeyboardDevice> Context::GetPrimaryKeyboard() const {
+        if(!ensure())
+            return std::nullopt;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(d->IsConnected()) {
+                if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
+                    return Access::makeKeyboard(Access::impl(*kb), governor);
+            }
+        }
+
+        for(auto &d : S().devices) {
+            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
+                return Access::makeKeyboard(Access::impl(*kb), governor);
+        }
+
+        return std::nullopt;
+    }
+
+    void Context::SetKeyColor(Input::Key key, Graphics::RGBA color) const {
+        for(auto &kb : GetKeyboards())
+            kb.SetKeyColor(key, color);
+    }
+
+    void Context::SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) const {
+        for(auto &kb : GetKeyboards())
+            kb.SetKeyGroupColor(group, color);
+    }
+
+    void Context::Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) const {
+        for(auto &d : GetDevices()) {
+            for(auto &z : d.GetZones()) {
+                if(z.IsMatrix())
+                    z.Draw(bitmap, offset, blend);
+            }
+        }
+    }
+
+    void Context::Draw(const Containers::Image &image, Geometry::Point offset, BlendMode blend) const {
+        for(auto &d : GetDevices()) {
+            for(auto &z : d.GetZones()) {
+                if(z.IsMatrix())
+                    z.Draw(image, offset, blend);
+            }
+        }
+    }
+
+    void Context::DrawScaled(const Graphics::Bitmap &bitmap) const {
+        DrawScaled(bitmap, Containers::InterpolationMethod::Linear, BlendMode::Overwrite);
+    }
+
+    void Context::DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp, BlendMode blend) const {
+        for(auto &d : GetDevices()) {
+            for(auto &z : d.GetZones()) {
+                if(z.IsMatrix())
+                    z.DrawScaled(bitmap, interp, blend);
+            }
+        }
+    }
+
+    void Context::DrawScaled(const Containers::Image &image) const {
+        DrawScaled(image, Containers::InterpolationMethod::Linear, BlendMode::Overwrite);
+    }
+
+    void Context::DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp, BlendMode blend) const {
+        for(auto &d : GetDevices()) {
+            for(auto &z : d.GetZones()) {
+                if(z.IsMatrix())
+                    z.DrawScaled(image, interp, blend);
+            }
+        }
+    }
+
+    void Context::SetAllColor(Graphics::RGBA color) const {
+        for(auto &d : GetDevices())
+            d.SetColor(color);
+    }
+
+    void Context::ClearAll() const {
+        for(auto &d : GetDevices())
+            d.Clear();
+    }
+
+    void Context::RestoreAll() const {
+        if(!S().initialized)
+            return;
+
+        if(!governor) {
+            OpenRGB::RestoreAll();
+            return;
+        }
+
+        std::lock_guard<std::mutex> sg(S().state_mtx);
+        for(auto &d : deviceList()) {
+            if(d->gov_layers.erase(governor) > 0) {
+                d->dirty = true;
+                d->revision++;
+            }
+        }
+        S().wake.notify_all();
+    }
+
+    Progressbar Context::CreateProgressbar() const {
+        Progressbar pb;
+        AttachProgressbar(pb);
+        return pb;
+    }
+
+    Progressbar Context::CreateProgressbar(const KeyGroup &keys, Graphics::RGBA color, Graphics::RGBA bg) const {
+        Progressbar pb(keys, color, bg);
+        AttachProgressbar(pb);
+        return pb;
+    }
+
+    Progressbar Context::CreateProgressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color, Graphics::RGBA bg) const {
+        Progressbar pb(keys, keyboard, color, bg);
+        AttachProgressbar(pb);
+        return pb;
+    }
+
+    Progressbar Context::CreateProgressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) const {
+        Progressbar pb(keys, zone, color, bg);
+        AttachProgressbar(pb);
+        return pb;
+    }
+
+    Progressbar Context::CreateProgressbar(const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) const {
+        Progressbar pb(zone, color, bg);
+        AttachProgressbar(pb);
+        return pb;
+    }
+
+    void Context::AttachProgressbar(Progressbar &progressbar) const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        auto p = Access::impl(progressbar);
+        if(p && p->context != governor) {
+            p->context = governor;
+            markAllDevicesDirtyLocked();
+        }
+    }
+
+    void Context::AttachAnimation(Animation &animation) const {
+        auto a = Access::impl(animation);
+        if(!a) return;
+
+        if(governor)
+            a->owned_ctrl->SetGovernor(*const_cast<Gorgon::Animation::Governor *>(governor));
+        else
+            a->owned_ctrl->SetGovernor(Gorgon::Animation::Governor::Default());
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        if(a->context != governor) {
+            a->context = governor;
+            markAllDevicesDirtyLocked();
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Global functions (Always Modify Global Layer)
     // -------------------------------------------------------------
 
     bool Initialize(const std::string &host, uint16_t port) {
@@ -2060,6 +3917,8 @@ namespace Gorgon :: Devices :: OpenRGB {
         {
             std::lock_guard<std::mutex> sg(s.state_mtx);
             s.devices.clear();
+            s.progressbars.clear();
+            s.animations.clear();
         }
 
         s.initialized = false;
@@ -2104,141 +3963,79 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     std::vector<Device> GetDevices(bool only_connected) {
-        std::vector<Device> list;
-        if(!ensure())
-            return list;
-
-        std::lock_guard<std::mutex> g(S().state_mtx);
-        for(auto &d : S().devices) {
-            if(!only_connected || d->IsConnected())
-                list.push_back(*d);
-        }
-
-        return list;
+        return GlobalContext().GetDevices(only_connected);
     }
 
     std::vector<KeyboardDevice> GetKeyboards(bool only_connected) {
-        std::vector<KeyboardDevice> list;
-        if(!ensure())
-            return list;
-
-        std::lock_guard<std::mutex> g(S().state_mtx);
-        for(auto &d : S().devices) {
-            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get())) {
-                if(!only_connected || kb->IsConnected())
-                    list.push_back(*kb);
-            }
-        }
-
-        return list;
+        return GlobalContext().GetKeyboards(only_connected);
     }
 
     std::optional<Device> FindDevice(const std::string &name) {
-        if(!ensure())
-            return std::nullopt;
-
-        auto n = lower(name);
-
-        std::lock_guard<std::mutex> g(S().state_mtx);
-        // Prefer connected devices
-        for(auto &d : S().devices) {
-            if(d->IsConnected() && lower(d->GetName()) == n)
-                return *d;
-        }
-
-        for(auto &d : S().devices) {
-            if(d->IsConnected() && lower(d->GetName()).find(n) != std::string::npos)
-                return *d;
-        }
-
-        // Fallback to detached devices
-        for(auto &d : S().devices) {
-            if(lower(d->GetName()) == n)
-                return *d;
-        }
-
-        for(auto &d : S().devices) {
-            if(lower(d->GetName()).find(n) != std::string::npos)
-                return *d;
-        }
-
-        return std::nullopt;
+        return GlobalContext().FindDevice(name);
     }
 
     std::optional<KeyboardDevice> GetPrimaryKeyboard() {
-        if(!ensure())
-            return std::nullopt;
-
-        std::lock_guard<std::mutex> g(S().state_mtx);
-        for(auto &d : S().devices) {
-            if(d->IsConnected()) {
-                if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
-                    return *kb;
-            }
-        }
-
-        for(auto &d : S().devices) {
-            if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
-                return *kb;
-        }
-
-        return std::nullopt;
+        return GlobalContext().GetPrimaryKeyboard();
     }
 
     void SetKeyColor(Input::Key key, Graphics::RGBA color) {
-        for(auto &kb : GetKeyboards())
-            kb.SetKeyColor(key, color);
+        GlobalContext().SetKeyColor(key, color);
     }
 
     void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) {
-        for(auto &kb : GetKeyboards())
-            kb.SetKeyGroupColor(group, color);
+        GlobalContext().SetKeyGroupColor(group, color);
     }
 
     void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) {
-        for(auto &d : GetDevices()) {
-            for(auto &z : d.GetZones()) {
-                if(z.IsMatrix())
-                    z.Draw(bitmap, offset, blend);
-            }
-        }
+        GlobalContext().Draw(bitmap, offset, blend);
     }
 
     void Draw(const Containers::Image &image, Geometry::Point offset, BlendMode blend) {
-        for(auto &d : GetDevices()) {
-            for(auto &z : d.GetZones()) {
-                if(z.IsMatrix())
-                    z.Draw(image, offset, blend);
-            }
-        }
+        GlobalContext().Draw(image, offset, blend);
     }
 
     void DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp, BlendMode blend) {
-        for(auto &d : GetDevices()) {
-            for(auto &z : d.GetZones()) {
-                if(z.IsMatrix())
-                    z.DrawScaled(bitmap, interp, blend);
-            }
-        }
+        GlobalContext().DrawScaled(bitmap, interp, blend);
     }
 
     void DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp, BlendMode blend) {
-        for(auto &d : GetDevices()) {
-            for(auto &z : d.GetZones()) {
-                if(z.IsMatrix())
-                    z.DrawScaled(image, interp, blend);
-            }
-        }
+        GlobalContext().DrawScaled(image, interp, blend);
     }
 
     void SetAllColor(Graphics::RGBA color) {
-        for(auto &d : GetDevices())
-            d.SetColor(color);
+        GlobalContext().SetAllColor(color);
     }
 
     void ClearAll() {
-        for(auto &d : GetDevices())
-            d.Clear();
+        GlobalContext().ClearAll();
+    }
+
+    Progressbar CreateProgressbar() {
+        return GlobalContext().CreateProgressbar();
+    }
+
+    Progressbar CreateProgressbar(const KeyGroup &keys, Graphics::RGBA color, Graphics::RGBA bg) {
+        return GlobalContext().CreateProgressbar(keys, color, bg);
+    }
+
+    Progressbar CreateProgressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color, Graphics::RGBA bg) {
+        return GlobalContext().CreateProgressbar(keys, keyboard, color, bg);
+    }
+
+    Progressbar CreateProgressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) {
+        return GlobalContext().CreateProgressbar(keys, zone, color, bg);
+    }
+
+    Progressbar CreateProgressbar(const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) {
+        return GlobalContext().CreateProgressbar(zone, color, bg);
+    }
+
+    void AttachProgressbar(Progressbar &progressbar) {
+        GlobalContext().AttachProgressbar(progressbar);
+    }
+
+    void AttachAnimation(Animation &animation) {
+        GlobalContext().AttachAnimation(animation);
     }
 
 } // namespace Gorgon::Devices::OpenRGB

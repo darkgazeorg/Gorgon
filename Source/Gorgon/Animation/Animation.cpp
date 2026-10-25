@@ -16,12 +16,29 @@ namespace Gorgon :: Animation {
 #	define LOG if(false) log
 #endif
 
+#ifdef GORGON_OPENRGB_SUPPORT
+    namespace internal {
+        void (*openrgb_governor_activated)(const Governor *) = nullptr;
+        void (*openrgb_governor_destroyed)(const Governor *) = nullptr;
+    }
+#endif
+
     Governor *Governor::active = nullptr;
 
     Governor::~Governor() {
-        if(active == this)
+        if(active == this) {
             active = nullptr;
+#ifdef GORGON_OPENRGB_SUPPORT
+            if(internal::openrgb_governor_activated)
+                internal::openrgb_governor_activated(&Active());
+#endif
+        }
         
+#ifdef GORGON_OPENRGB_SUPPORT
+        if(internal::openrgb_governor_destroyed)
+            internal::openrgb_governor_destroyed(this);
+#endif
+
 		for(auto &c : controllers)
             c.SetGovernor(Active());
         
