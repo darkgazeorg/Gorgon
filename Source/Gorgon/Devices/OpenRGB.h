@@ -29,6 +29,7 @@
 #include "../Progress.h"
 #include "../Animation.h"
 #include "../Utils/Logging.h"
+#include "OpenRGB/Context.h"
 
 namespace Gorgon {
     class Window;
