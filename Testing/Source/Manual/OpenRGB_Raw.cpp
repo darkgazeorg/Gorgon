@@ -1,5 +1,5 @@
 /**
- * @file openrgb_raw.cpp
+ * @file OpenRGB_Raw.cpp
  * @brief Manual test application for OpenRGB raw protocol client.
  *
  * Test Sequence:
