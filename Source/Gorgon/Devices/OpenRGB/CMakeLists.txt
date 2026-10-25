@@ -5,6 +5,7 @@ target_sources(Gorgon
     FILES
         ../OpenRGB.h
         OpenRGBClient.h
+        Context.h
 )
 
 target_sources(Gorgon
