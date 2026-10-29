@@ -59,8 +59,10 @@ namespace Gorgon {
 
             std::vector<Device> GetDevices(bool only_connected = true) const;
             std::vector<KeyboardDevice> GetKeyboards(bool only_connected = true) const;
+            std::vector<Device> GetStrips(bool only_connected = true) const;
             std::optional<Device> FindDevice(const std::string &name) const;
             std::optional<KeyboardDevice> GetPrimaryKeyboard() const;
+            std::optional<Device> GetPrimaryStrip() const;
 
             // ---------------------------------------------------------
             // Context-Scoped Convenience Functions
@@ -92,6 +94,7 @@ namespace Gorgon {
             Progressbar CreateProgressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000}) const;
             Progressbar CreateProgressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000}) const;
             Progressbar CreateProgressbar(const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000}) const;
+            Progressbar CreateProgressbar(const Device &device, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000}) const;
 
             /// Moves an existing progressbar into this governor's OpenRGB context
             void AttachProgressbar(Progressbar &progressbar) const;

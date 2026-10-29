@@ -174,10 +174,13 @@ namespace Gorgon :: Animation {
 					progress=leftover;
 					Progress(0);
 				}
-				else if(leftover) {
-					progress-=leftover;
-                    if(timepassed) // prevent recursion
-                        Progress(0);
+				else {
+					isfinished=true;
+					if(leftover) {
+						progress-=leftover;
+						if(timepassed) // prevent recursion
+							Progress(0);
+					}
 				}
 				callfinished=true;
 			}

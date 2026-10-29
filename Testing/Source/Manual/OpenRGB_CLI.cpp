@@ -35,34 +35,58 @@ int main() {
 
     for(auto &d : OpenRGB::GetDevices()) {
         std::cout << "[" << d.GetID() << "] " << d.GetName() << " (" << d.GetLEDCount() << " LEDs, "
+                  << d.GetWidth() << "x" << d.GetHeight() << " matrix, "
                   << d.GetZoneCount() << " zones, mode: " << d.GetActiveModeName() << ")" << std::endl;
     }
 
-    auto kb = OpenRGB::GetPrimaryKeyboard();
-    if(!kb) {
-        std::cerr << "No keyboard found" << std::endl;
+    auto kb    = OpenRGB::GetPrimaryKeyboard();
+    auto strip = OpenRGB::FindDevice("ring");
+    if(!strip)
+        strip = OpenRGB::GetPrimaryStrip();
+
+    if(!kb && !strip) {
+        std::cerr << "No keyboard or LED strip found" << std::endl;
         return 1;
     }
 
-    std::cout << "\nKeyboard: " << kb->GetName() << ", matrix " << kb->GetWidth() << "x" << kb->GetHeight() << std::endl;
-    std::cout << "Has Escape: " << kb->HasKey(Input::Keyboard::Keycodes::Escape)
-              << ", Space: " << kb->HasKey(Input::Keyboard::Keycodes::Space)
-              << ", Numpad_5: " << kb->HasKey(Input::Keyboard::Keycodes::Numpad_5) << std::endl;
+    if(kb) {
+        std::cout << "\nKeyboard: " << kb->GetName() << ", matrix " << kb->GetWidth() << "x" << kb->GetHeight() << std::endl;
+        std::cout << "Has Escape: " << kb->HasKey(Input::Keyboard::Keycodes::Escape)
+                  << ", Space: " << kb->HasKey(Input::Keyboard::Keycodes::Space)
+                  << ", Numpad_5: " << kb->HasKey(Input::Keyboard::Keycodes::Numpad_5) << std::endl;
 
-    std::cout << "\n[1] Escape red, WASD green, Space cyan" << std::endl;
-    kb->SetKeyColor(Input::Keyboard::Keycodes::Escape, rgb(255, 0, 0));
-    kb->SetKeyGroupColor(OpenRGB::KeyGroup::WASD, rgb(0, 255, 0));
-    kb->SetKeyColor(Input::Keyboard::Keycodes::Space, rgb(0, 255, 255));
+        std::cout << "\n[1] Escape red, WASD green, Space cyan" << std::endl;
+        kb->SetKeyColor(Input::Keyboard::Keycodes::Escape, rgb(255, 0, 0));
+        kb->SetKeyGroupColor(OpenRGB::KeyGroup::WASD, rgb(0, 255, 0));
+        kb->SetKeyColor(Input::Keyboard::Keycodes::Space, rgb(0, 255, 255));
+    }
+
+    if(strip) {
+        std::cout << "\nStrip: " << strip->GetName() << ", matrix " << strip->GetWidth() << "x" << strip->GetHeight() << std::endl;
+        for(int x = 0; x < strip->GetWidth(); x++)
+            strip->SetPixel(x, 0, rgb(0, 40, 80));
+    }
     wait();
 
-    std::cout << "[2] Progress bar over number row with level colors (fill, then single key)" << std::endl;
-    OpenRGB::Progressbar bar(OpenRGB::KeyGroup::ProgressBarTargets::NumberRow, *kb);
-    bar.AddLevelColor({0.f, 0.2f}, rgb(255, 0, 0));
-    bar.AddLevelColor({0.2f, 0.8f}, rgb(255, 255, 0));
-    bar.AddLevelColor({0.8f, 1.f}, rgb(0, 255, 0));
+    std::cout << "[2] Progress bar over number row & LED strip with level colors (fill, then single key/LED)" << std::endl;
+    OpenRGB::Progressbar bar;
+    if(kb)
+        bar = OpenRGB::Progressbar(OpenRGB::KeyGroup::ProgressBarTargets::NumberRow, *kb);
+    OpenRGB::Progressbar stripBar;
+    if(strip)
+        stripBar.SetDevice(*strip);
+
+    std::vector<OpenRGB::Progressbar::LevelColor> levels = {
+        {{0.f, 0.2f}, rgb(255, 0, 0)},
+        {{0.2f, 0.8f}, rgb(255, 255, 0)},
+        {{0.8f, 1.f}, rgb(0, 255, 0)}
+    };
+    bar.SetLevelColors(levels);
+    stripBar.SetLevelColors(levels);
 
     for(int mode = 0; mode < 2; mode++) {
         bar.SetFillMode(mode == 0);
+        stripBar.SetFillMode(mode == 0);
 
         auto start = std::chrono::steady_clock::now();
         int frames = 0;
@@ -70,44 +94,57 @@ int main() {
             float t = std::chrono::duration<float>(std::chrono::steady_clock::now() - start).count() / 3.f;
             if(t > 1.f) break;
 
-            bar.SetProgressRatio(t);
+            if(kb) bar.SetProgressRatio(t);
+            if(strip) stripBar.SetProgressRatio(t);
             frames++;
             std::this_thread::sleep_for(std::chrono::milliseconds(33));
         }
 
-        bar.SetProgressRatio(1.f);
+        if(kb) bar.SetProgressRatio(1.f);
+        if(strip) stripBar.SetProgressRatio(1.f);
         std::cout << "    " << (mode == 0 ? "Fill" : "Single") << " mode done (" << frames << " updates)" << std::endl;
         wait();
     }
 
     bar.Clear();
+    stripBar.Clear();
     std::cout << "[3] Progress bar cleared, previous colors should be back" << std::endl;
     wait();
 
-    std::cout << "[4] Drawing a gradient across the keyboard matrix" << std::endl;
-    if(auto zone = kb->GetMatrixZone()) {
-        Containers::Image img({zone->GetWidth(), zone->GetHeight()}, Graphics::ColorMode::RGBA);
-        for(int y = 0; y < img.GetHeight(); y++) {
-            for(int x = 0; x < img.GetWidth(); x++) {
-                img(x, y, 0) = Byte(255 * x / std::max(1, img.GetWidth() - 1));
-                img(x, y, 1) = Byte(255 * y / std::max(1, img.GetHeight() - 1));
-                img(x, y, 2) = 0;
-                img(x, y, 3) = 255;
+    std::cout << "[4] Drawing a gradient across the keyboard and strip matrices" << std::endl;
+    if(kb) {
+        if(auto zone = kb->GetMatrixZone()) {
+            Containers::Image img({zone->GetWidth(), zone->GetHeight()}, Graphics::ColorMode::RGBA);
+            for(int y = 0; y < img.GetHeight(); y++) {
+                for(int x = 0; x < img.GetWidth(); x++) {
+                    img(x, y, 0) = Byte(255 * x / std::max(1, img.GetWidth() - 1));
+                    img(x, y, 1) = Byte(255 * y / std::max(1, img.GetHeight() - 1));
+                    img(x, y, 2) = 0;
+                    img(x, y, 3) = 255;
+                }
             }
+
+            kb->Draw(img);
+
+            auto back = kb->ToImage();
+            int populated = 0;
+            for(int y = 0; y < back.GetHeight(); y++)
+                for(int x = 0; x < back.GetWidth(); x++)
+                    if(back(x, y, 3)) populated++;
+
+            std::cout << "    Keyboard: " << populated << " of " << back.GetWidth() * back.GetHeight() << " matrix entries are populated" << std::endl;
         }
-
-        kb->Draw(img);
-
-        auto back = kb->ToImage();
-        int populated = 0;
-        for(int y = 0; y < back.GetHeight(); y++)
-            for(int x = 0; x < back.GetWidth(); x++)
-                if(back(x, y, 3)) populated++;
-
-        std::cout << "    " << populated << " of " << back.GetWidth() * back.GetHeight() << " matrix entries are populated" << std::endl;
     }
-    else {
-        std::cout << "    Keyboard has no matrix zone" << std::endl;
+    if(strip && strip->GetWidth() > 0) {
+        Containers::Image img({strip->GetWidth(), strip->GetHeight()}, Graphics::ColorMode::RGBA);
+        for(int x = 0; x < img.GetWidth(); x++) {
+            img(x, 0, 0) = Byte(255 * x / std::max(1, img.GetWidth() - 1));
+            img(x, 0, 1) = 0;
+            img(x, 0, 2) = Byte(255 * (img.GetWidth() - 1 - x) / std::max(1, img.GetWidth() - 1));
+            img(x, 0, 3) = 255;
+        }
+        strip->Draw(img);
+        std::cout << "    Strip (" << strip->GetName() << "): drew " << strip->GetWidth() << "x" << strip->GetHeight() << " gradient" << std::endl;
     }
     wait();
 
@@ -139,10 +176,9 @@ int main() {
     OpenRGB::SetKeyGroupColor(OpenRGB::KeyGroup::WASD, rgb(0, 180, 60));
     wait();
 
-    std::cout << "[6] ExplosionEffect from center (with WASD base state underneath)" << std::endl;
+    std::cout << "[6] ExplosionEffect from center (with WASD base state underneath, on all matrix/strip devices)" << std::endl;
     {
         OpenRGB::ExplosionEffect explosion(rgb(255, 120, 0), 900, 3.0f);
-        explosion.TargetDevice(*kb);
         explosion.Play();
         auto start = std::chrono::steady_clock::now();
         while(std::chrono::duration<float>(std::chrono::steady_clock::now() - start).count() < 1.1f) {
@@ -150,13 +186,12 @@ int main() {
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
     }
-    std::cout << "    Explosion finished -> WASD green base state preserved!" << std::endl;
+    std::cout << "    Explosion finished -> base state preserved!" << std::endl;
     wait();
 
-    std::cout << "[7] SwipeEffect (Left-to-Right cyan buff pickup)" << std::endl;
+    std::cout << "[7] SwipeEffect (Left-to-Right cyan buff pickup across keyboard and strip)" << std::endl;
     {
         OpenRGB::SwipeEffect swipe(rgb(0, 230, 255), OpenRGB::SwipeDirection::LeftToRight, 800, 0.25f);
-        swipe.TargetDevice(*kb);
         swipe.Play();
         auto start = std::chrono::steady_clock::now();
         while(std::chrono::duration<float>(std::chrono::steady_clock::now() - start).count() < 1.0f) {
@@ -169,9 +204,7 @@ int main() {
     std::cout << "[8] Death Animation (instant full red -> slow fade out via FinishedEvent)" << std::endl;
     {
         OpenRGB::FadeEffect flash(rgb(255, 0, 0), rgb(255, 0, 0), 150);
-        flash.TargetDevice(*kb);
         OpenRGB::FadeEffect fadeOut(rgb(255, 0, 0), RGBA(0, 0, 0, 0), 1200);
-        fadeOut.TargetDevice(*kb);
         flash.FinishedEvent.Register([&](Animation::Controller &) {
             fadeOut.Play();
         });

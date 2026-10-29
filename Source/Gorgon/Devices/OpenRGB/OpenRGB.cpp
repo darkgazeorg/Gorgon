@@ -174,7 +174,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     };
 
     struct Progressbar::Impl {
-        enum class Target { None, AllKeyboards, Keyboard, Zone };
+        enum class Target { None, AllKeyboards, AllStrips, Keyboard, Device, Zone };
 
         const Gorgon::Animation::Governor *context = nullptr;
         Target target = Target::None;
@@ -193,7 +193,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     struct Animation::Impl {
         enum class Type { Base, Fade, Pulse, Blink, Explosion, Swipe, Reactive };
-        enum class Target { AllDevices, AllKeyboards, Device, Keyboard, Zone };
+        enum class Target { AllDevices, AllKeyboards, AllStrips, Device, Keyboard, Zone };
         enum class OriginMode { Normalized, Point, Key };
 
         Type type = Type::Base;
@@ -609,6 +609,36 @@ namespace Gorgon :: Devices :: OpenRGB {
         // Progressbar & Animation Compositing Helpers
         // ---------------------------------------------------------
 
+        void appendZoneMatrixColumns(const ZImpl &zi, std::vector<std::vector<int>> &out_positions) {
+            if(zi.width > 0 && zi.height > 0) {
+                for(int x = 0; x < zi.width; x++) {
+                    std::vector<int> col_leds;
+                    for(int y = 0; y < zi.height; y++) {
+                        int local = zi.matrix[(size_t)y * zi.width + x];
+                        if(local >= 0 && local < zi.led_count)
+                            col_leds.push_back(zi.led_offset + local);
+                    }
+                    if(!col_leds.empty())
+                        out_positions.push_back(std::move(col_leds));
+                }
+            }
+            else {
+                for(int i = 0; i < zi.led_count; i++)
+                    out_positions.push_back({zi.led_offset + i});
+            }
+        }
+
+        void appendDeviceProgressPositions(const DImpl &d, std::vector<std::vector<int>> &out_positions) {
+            if(d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size()) {
+                if(auto zi = Access::impl(d.zones[d.matrix_zone])) {
+                    appendZoneMatrixColumns(*zi, out_positions);
+                    return;
+                }
+            }
+            for(int i = 0; i < (int)d.leds.size(); i++)
+                out_positions.push_back({i});
+        }
+
         std::vector<int> resolveProgressPositionsForDevice(const PImpl &p, const DImpl &d, std::vector<std::vector<int>> &out_positions) {
             out_positions.clear();
             switch(p.target) {
@@ -622,6 +652,12 @@ namespace Gorgon :: Devices :: OpenRGB {
                 }
                 break;
 
+            case PImpl::Target::AllStrips:
+                if(d.type == DeviceType::LedStrip && d.connected) {
+                    appendDeviceProgressPositions(d, out_positions);
+                }
+                break;
+
             case PImpl::Target::Keyboard:
                 if(auto td = p.device.lock()) {
                     if(td.get() == &d && d.connected) {
@@ -629,6 +665,23 @@ namespace Gorgon :: Devices :: OpenRGB {
                             auto it = d.keymap.find(key);
                             if(it != d.keymap.end() && !it->second.empty())
                                 out_positions.push_back(it->second);
+                        }
+                    }
+                }
+                break;
+
+            case PImpl::Target::Device:
+                if(auto td = p.device.lock()) {
+                    if(td.get() == &d && d.connected) {
+                        if(p.use_keys && d.is_keyboard) {
+                            for(auto key : p.keys.keys) {
+                                auto it = d.keymap.find(key);
+                                if(it != d.keymap.end() && !it->second.empty())
+                                    out_positions.push_back(it->second);
+                            }
+                        }
+                        else {
+                            appendDeviceProgressPositions(d, out_positions);
                         }
                     }
                 }
@@ -654,8 +707,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                                 }
                             }
                             else {
-                                for(int i = begin; i < end; i++)
-                                    out_positions.push_back({i});
+                                appendZoneMatrixColumns(*p.zone, out_positions);
                             }
                         }
                     }
@@ -751,6 +803,23 @@ namespace Gorgon :: Devices :: OpenRGB {
             return Geometry::Point(sum_x / count, sum_y / count);
         }
 
+        /// Finds the normalized horizontal position [0..1] of `key` on any connected keyboard matrix,
+        /// allowing key-originated effects (ExplosionEffect::SetOriginKey, ReactiveEffect) to map onto width x 1 strips.
+        std::optional<float> findKeyNormalizedX(Input::Key key) {
+            for(auto &dev_ptr : S().devices) {
+                auto kd = Access::impl(*dev_ptr);
+                if(kd && kd->is_keyboard && kd->connected && kd->matrix_zone >= 0 && kd->matrix_zone < (int)kd->zones.size()) {
+                    if(auto pt = findKeyMatrixCoord(*kd, key)) {
+                        auto zi = Access::impl(kd->zones[kd->matrix_zone]);
+                        if(zi && zi->width > 1)
+                            return Clamp((float)pt->X / (float)(zi->width - 1), 0.f, 1.f);
+                        return 0.5f;
+                    }
+                }
+            }
+            return std::nullopt;
+        }
+
         Graphics::RGBA evalStops(const std::vector<Graphics::RGBA> &stops, float t) {
             if(stops.empty())
                 return transparent;
@@ -770,6 +839,8 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return d.connected;
             case AImpl::Target::AllKeyboards:
                 return d.is_keyboard && d.connected;
+            case AImpl::Target::AllStrips:
+                return d.type == DeviceType::LedStrip && d.connected;
             case AImpl::Target::Device:
             case AImpl::Target::Keyboard:
                 if(auto td = a.device.lock())
@@ -812,6 +883,31 @@ namespace Gorgon :: Devices :: OpenRGB {
             return leds;
         }
 
+        /// Returns the matrix/strip zones on `d` that spatial effects (Explosion, Swipe, Reactive) should evaluate on.
+        /// Both 2D keyboard matrices (width x height) and 1D linear strips (width x 1) are returned as ZImpl matrices.
+        std::vector<std::shared_ptr<ZImpl>> resolveTargetMatrixZones(const AImpl &a, const DImpl &d) {
+            std::vector<std::shared_ptr<ZImpl>> out;
+            if(a.target == AImpl::Target::Zone) {
+                if(a.zone && a.zone->width > 0 && a.zone->height > 0)
+                    out.push_back(a.zone);
+                return out;
+            }
+
+            if(d.is_keyboard && d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size()) {
+                auto zi = Access::impl(d.zones[d.matrix_zone]);
+                if(zi && zi->width > 0 && zi->height > 0)
+                    out.push_back(std::move(zi));
+                return out;
+            }
+
+            for(const auto &z : d.zones) {
+                auto zi = Access::impl(z);
+                if(zi && zi->width > 0 && zi->height > 0)
+                    out.push_back(std::move(zi));
+            }
+            return out;
+        }
+
         void compositeAnimation(const AImpl &a, const DImpl &d, std::vector<Graphics::RGBA> &colors) {
             if(!a.visible || !animationTargetsDevice(a, d))
                 return;
@@ -845,80 +941,81 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
             }
 
-            // Spatial ExplosionEffect
+            // Spatial ExplosionEffect (evaluates over 2D matrices and width x 1 strips)
             if(a.type == AImpl::Type::Explosion) {
-                std::shared_ptr<ZImpl> mz;
-                if(a.target == AImpl::Target::Zone && a.zone && a.zone->width > 0 && a.zone->height > 0)
-                    mz = a.zone;
-                else if(d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
-                    mz = Access::impl(d.zones[d.matrix_zone]);
-
+                auto mzones = resolveTargetMatrixZones(a, d);
                 Graphics::RGBA base_col = a.stops.empty() ? Graphics::RGBA(0xffff4000u) : a.stops[0];
                 float fade_out = 1.f - t * t; // Smooth intensity falloff as explosion expands
 
-                if(mz && mz->width > 0 && mz->height > 0) {
-                    float cx = a.origin_norm.X * std::max(1, mz->width - 1);
-                    float cy = a.origin_norm.Y * std::max(1, mz->height - 1);
+                if(!mzones.empty()) {
+                    for(const auto &mz : mzones) {
+                        float cx = (mz->width > 1) ? a.origin_norm.X * (mz->width - 1) : 0.f;
+                        float cy = (mz->height > 1) ? a.origin_norm.Y * (mz->height - 1) : 0.f;
 
-                    if(a.origin_mode == AImpl::OriginMode::Point) {
-                        cx = (float)a.origin_pt.X;
-                        cy = (float)a.origin_pt.Y;
-                    }
-                    else if(a.origin_mode == AImpl::OriginMode::Key) {
-                        if(auto kp = findKeyMatrixCoord(d, a.origin_key)) {
-                            cx = (float)kp->X;
-                            cy = (float)kp->Y;
+                        if(a.origin_mode == AImpl::OriginMode::Point) {
+                            cx = (float)a.origin_pt.X;
+                            cy = (mz->height > 1) ? (float)a.origin_pt.Y : 0.f;
                         }
-                    }
-
-                    float max_r = a.max_radius;
-                    if(max_r <= 0.f) {
-                        float dx = std::max(cx, (float)(mz->width - 1) - cx);
-                        float dy = std::max(cy, (float)(mz->height - 1) - cy);
-                        max_r = std::sqrt(dx * dx + dy * dy) + std::max(1.f, a.ring_thickness);
-                    }
-
-                    float cur_r = t * max_r;
-                    float half_w = std::max(0.5f, a.ring_thickness * 0.5f);
-
-                    for(int y = 0; y < mz->height; y++) {
-                        for(int x = 0; x < mz->width; x++) {
-                            int local = mz->matrix[(size_t)y * mz->width + x];
-                            if(local < 0)
-                                continue;
-
-                            int gi = mz->led_offset + local;
-                            if(gi < 0 || gi >= (int)colors.size())
-                                continue;
-
-                            float dist = std::hypot((float)x - cx, (float)y - cy);
-                            float intensity = 0.f;
-                            if(a.ring_thickness <= 0.f) {
-                                // Filled expanding disc
-                                if(dist <= cur_r)
-                                    intensity = 1.f - 0.5f * (dist / std::max(1.f, cur_r));
+                        else if(a.origin_mode == AImpl::OriginMode::Key) {
+                            if(auto kp = findKeyMatrixCoord(d, a.origin_key)) {
+                                cx = (float)kp->X;
+                                cy = (float)kp->Y;
                             }
-                            else {
-                                float d_ring = std::abs(dist - cur_r);
-                                if(d_ring < half_w)
-                                    intensity = 1.f - (d_ring / half_w);
+                            else if(auto nx = findKeyNormalizedX(a.origin_key)) {
+                                cx = *nx * std::max(0, mz->width - 1);
+                                cy = 0.f;
                             }
+                        }
 
-                            intensity *= fade_out;
-                            if(intensity > 0.001f) {
-                                Graphics::RGBA px = base_col;
-                                px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
-                                colors[gi] = blendColor(colors[gi], px, a.blend);
+                        float max_r = a.max_radius;
+                        if(max_r <= 0.f) {
+                            float dx = std::max(cx, (float)(mz->width - 1) - cx);
+                            float dy = std::max(cy, (float)(mz->height - 1) - cy);
+                            max_r = std::sqrt(dx * dx + dy * dy) + std::max(1.f, a.ring_thickness);
+                        }
+
+                        float cur_r = t * max_r;
+                        float half_w = std::max(0.5f, a.ring_thickness * 0.5f);
+
+                        for(int y = 0; y < mz->height; y++) {
+                            for(int x = 0; x < mz->width; x++) {
+                                int local = mz->matrix[(size_t)y * mz->width + x];
+                                if(local < 0)
+                                    continue;
+
+                                int gi = mz->led_offset + local;
+                                if(gi < 0 || gi >= (int)colors.size())
+                                    continue;
+
+                                float dist = std::hypot((float)x - cx, (float)y - cy);
+                                float intensity = 0.f;
+                                if(a.ring_thickness <= 0.f) {
+                                    // Filled expanding disc
+                                    if(dist <= cur_r)
+                                        intensity = 1.f - 0.5f * (dist / std::max(1.f, cur_r));
+                                }
+                                else {
+                                    float d_ring = std::abs(dist - cur_r);
+                                    if(d_ring < half_w)
+                                        intensity = 1.f - (d_ring / half_w);
+                                }
+
+                                intensity *= fade_out;
+                                if(intensity > 0.001f) {
+                                    Graphics::RGBA px = base_col;
+                                    px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                                    colors[gi] = blendColor(colors[gi], px, a.blend);
+                                }
                             }
                         }
                     }
                 }
                 else {
-                    // 1D fallback for non-matrix zones/devices
+                    // 1D fallback for zoneless devices
                     auto leds = resolveAnimationTargetLEDs(a, d);
                     int n = (int)leds.size();
                     if(n > 0) {
-                        float center = a.origin_norm.X * std::max(1, n - 1);
+                        float center = a.origin_norm.X * std::max(0, n - 1);
                         float max_r  = std::max(center, (float)(n - 1) - center) + std::max(1.f, a.ring_thickness);
                         float cur_r  = t * max_r;
                         float half_w = std::max(0.5f, a.ring_thickness * 0.5f);
@@ -938,51 +1035,48 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
             }
 
-            // Spatial SwipeEffect
+            // Spatial SwipeEffect (evaluates over 2D matrices and width x 1 strips)
             if(a.type == AImpl::Type::Swipe) {
-                std::shared_ptr<ZImpl> mz;
-                if(a.target == AImpl::Target::Zone && a.zone && a.zone->width > 0 && a.zone->height > 0)
-                    mz = a.zone;
-                else if(d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
-                    mz = Access::impl(d.zones[d.matrix_zone]);
-
+                auto mzones = resolveTargetMatrixZones(a, d);
                 Graphics::RGBA base_col = a.stops.empty() ? Graphics::RGBA(0xff00ffffu) : a.stops[0];
                 float bw = std::max(0.05f, a.band_width);
                 float pos = -bw + t * (1.f + 2.f * bw);
 
-                if(mz && mz->width > 0 && mz->height > 0) {
-                    for(int y = 0; y < mz->height; y++) {
-                        for(int x = 0; x < mz->width; x++) {
-                            int local = mz->matrix[(size_t)y * mz->width + x];
-                            if(local < 0)
-                                continue;
+                if(!mzones.empty()) {
+                    for(const auto &mz : mzones) {
+                        for(int y = 0; y < mz->height; y++) {
+                            for(int x = 0; x < mz->width; x++) {
+                                int local = mz->matrix[(size_t)y * mz->width + x];
+                                if(local < 0)
+                                    continue;
 
-                            int gi = mz->led_offset + local;
-                            if(gi < 0 || gi >= (int)colors.size())
-                                continue;
+                                int gi = mz->led_offset + local;
+                                if(gi < 0 || gi >= (int)colors.size())
+                                    continue;
 
-                            float coord = 0.f;
-                            switch(a.swipe_dir) {
-                            case SwipeDirection::LeftToRight:
-                                coord = mz->width > 1 ? (float)x / (mz->width - 1) : 0.5f;
-                                break;
-                            case SwipeDirection::RightToLeft:
-                                coord = mz->width > 1 ? 1.f - (float)x / (mz->width - 1) : 0.5f;
-                                break;
-                            case SwipeDirection::TopToBottom:
-                                coord = mz->height > 1 ? (float)y / (mz->height - 1) : 0.5f;
-                                break;
-                            case SwipeDirection::BottomToTop:
-                                coord = mz->height > 1 ? 1.f - (float)y / (mz->height - 1) : 0.5f;
-                                break;
-                            }
+                                float coord = 0.f;
+                                switch(a.swipe_dir) {
+                                case SwipeDirection::LeftToRight:
+                                    coord = mz->width > 1 ? (float)x / (mz->width - 1) : 0.5f;
+                                    break;
+                                case SwipeDirection::RightToLeft:
+                                    coord = mz->width > 1 ? 1.f - (float)x / (mz->width - 1) : 0.5f;
+                                    break;
+                                case SwipeDirection::TopToBottom:
+                                    coord = mz->height > 1 ? (float)y / (mz->height - 1) : 0.5f;
+                                    break;
+                                case SwipeDirection::BottomToTop:
+                                    coord = mz->height > 1 ? 1.f - (float)y / (mz->height - 1) : 0.5f;
+                                    break;
+                                }
 
-                            float dist = std::abs(coord - pos);
-                            if(dist < bw) {
-                                float intensity = 0.5f * (1.f + std::cos((dist / bw) * 3.14159265f));
-                                Graphics::RGBA px = base_col;
-                                px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
-                                colors[gi] = blendColor(colors[gi], px, a.blend);
+                                float dist = std::abs(coord - pos);
+                                if(dist < bw) {
+                                    float intensity = 0.5f * (1.f + std::cos((dist / bw) * 3.14159265f));
+                                    Graphics::RGBA px = base_col;
+                                    px.A = Byte(Clamp(base_col.A * intensity, 0.f, 255.f));
+                                    colors[gi] = blendColor(colors[gi], px, a.blend);
+                                }
                             }
                         }
                     }
@@ -1007,11 +1101,9 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
             }
 
-            // ReactiveEffect (per-key press fade)
-            if(a.type == AImpl::Type::Reactive && d.is_keyboard) {
-                std::shared_ptr<ZImpl> mz;
-                if(a.ripple_radius > 0.f && d.matrix_zone >= 0 && d.matrix_zone < (int)d.zones.size())
-                    mz = Access::impl(d.zones[d.matrix_zone]);
+            // ReactiveEffect (per-key press fade & matrix/strip ripple)
+            if(a.type == AImpl::Type::Reactive) {
+                auto mzones = resolveTargetMatrixZones(a, d);
 
                 for(const auto &kp : a.active_presses) {
                     unsigned age = (a.reactive_clock_ms >= kp.start_ms) ? (a.reactive_clock_ms - kp.start_ms) : 0;
@@ -1022,30 +1114,75 @@ namespace Gorgon :: Devices :: OpenRGB {
                     Graphics::RGBA px = kp.color;
                     px.A = Byte(Clamp(kp.color.A * ratio, 0.f, 255.f));
 
-                    auto it = d.keymap.find(kp.key);
-                    if(it != d.keymap.end()) {
-                        for(int led : it->second) {
-                            if(led >= 0 && led < (int)colors.size())
-                                colors[led] = blendColor(colors[led], px, a.blend);
+                    if(d.is_keyboard) {
+                        auto it = d.keymap.find(kp.key);
+                        if(it != d.keymap.end()) {
+                            for(int led : it->second) {
+                                if(led >= 0 && led < (int)colors.size())
+                                    colors[led] = blendColor(colors[led], px, a.blend);
+                            }
+                        }
+
+                        if(a.ripple_radius > 0.f) {
+                            if(auto pt = findKeyMatrixCoord(d, kp.key)) {
+                                float cur_r = (1.f - ratio) * a.ripple_radius;
+                                for(const auto &mz : mzones) {
+                                    for(int y = 0; y < mz->height; y++) {
+                                        for(int x = 0; x < mz->width; x++) {
+                                            int local = mz->matrix[(size_t)y * mz->width + x];
+                                            if(local < 0) continue;
+                                            int gi = mz->led_offset + local;
+                                            if(gi < 0 || gi >= (int)colors.size()) continue;
+
+                                            float dist = std::hypot((float)x - pt->X, (float)y - pt->Y);
+                                            if(dist > 0.5f && std::abs(dist - cur_r) < 1.25f) {
+                                                float r_int = (1.f - std::abs(dist - cur_r) / 1.25f) * ratio;
+                                                Graphics::RGBA rpx = kp.color;
+                                                rpx.A = Byte(Clamp(kp.color.A * r_int, 0.f, 255.f));
+                                                colors[gi] = blendColor(colors[gi], rpx, a.blend);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
+                    else if(!mzones.empty()) {
+                        // Non-keyboard matrix / width x 1 strip: project key onto matrix X coordinate
+                        auto norm_x = findKeyNormalizedX(kp.key);
+                        for(const auto &mz : mzones) {
+                            int sx = 0;
+                            if(mz->width > 1) {
+                                if(norm_x)
+                                    sx = std::clamp((int)std::round(*norm_x * (mz->width - 1)), 0, mz->width - 1);
+                                else
+                                    sx = std::abs((int)kp.key) % mz->width;
+                            }
+                            int sy = (mz->height > 1) ? (mz->height / 2) : 0;
 
-                    if(mz && a.ripple_radius > 0.f) {
-                        if(auto pt = findKeyMatrixCoord(d, kp.key)) {
-                            float cur_r = (1.f - ratio) * a.ripple_radius;
-                            for(int y = 0; y < mz->height; y++) {
-                                for(int x = 0; x < mz->width; x++) {
-                                    int local = mz->matrix[(size_t)y * mz->width + x];
-                                    if(local < 0) continue;
-                                    int gi = mz->led_offset + local;
-                                    if(gi < 0 || gi >= (int)colors.size()) continue;
+                            int center_local = mz->matrix[(size_t)sy * mz->width + sx];
+                            if(center_local >= 0) {
+                                int gi = mz->led_offset + center_local;
+                                if(gi >= 0 && gi < (int)colors.size())
+                                    colors[gi] = blendColor(colors[gi], px, a.blend);
+                            }
 
-                                    float dist = std::hypot((float)x - pt->X, (float)y - pt->Y);
-                                    if(dist > 0.5f && std::abs(dist - cur_r) < 1.25f) {
-                                        float r_int = (1.f - std::abs(dist - cur_r) / 1.25f) * ratio;
-                                        Graphics::RGBA rpx = kp.color;
-                                        rpx.A = Byte(Clamp(kp.color.A * r_int, 0.f, 255.f));
-                                        colors[gi] = blendColor(colors[gi], rpx, a.blend);
+                            if(a.ripple_radius > 0.f) {
+                                float cur_r = (1.f - ratio) * a.ripple_radius;
+                                for(int y = 0; y < mz->height; y++) {
+                                    for(int x = 0; x < mz->width; x++) {
+                                        int local = mz->matrix[(size_t)y * mz->width + x];
+                                        if(local < 0) continue;
+                                        int gi = mz->led_offset + local;
+                                        if(gi < 0 || gi >= (int)colors.size()) continue;
+
+                                        float dist = std::hypot((float)x - sx, (float)y - sy);
+                                        if(dist > 0.5f && std::abs(dist - cur_r) < 1.25f) {
+                                            float r_int = (1.f - std::abs(dist - cur_r) / 1.25f) * ratio;
+                                            Graphics::RGBA rpx = kp.color;
+                                            rpx.A = Byte(Clamp(kp.color.A * r_int, 0.f, 255.f));
+                                            colors[gi] = blendColor(colors[gi], rpx, a.blend);
+                                        }
                                     }
                                 }
                             }
@@ -1297,6 +1434,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             // Zones
             int offset = 0;
+            bool has_2d_matrix = false;
             for(size_t i = 0; i < c.zones.size(); i++) {
                 auto &lz = c.zones[i];
                 auto type = (lz.type >= LL::ZoneType::Single && lz.type <= LL::ZoneType::Matrix) ?
@@ -1317,6 +1455,20 @@ namespace Gorgon :: Devices :: OpenRGB {
                                 zi->matrix[(size_t)y * zi->width + x] = (int)v;
                         }
                     }
+
+                    if(!has_2d_matrix) {
+                        d->matrix_zone = (int)i;
+                        has_2d_matrix = true;
+                    }
+                }
+                else if(lz.leds_count > 0) {
+                    // Treat linear / strip zones (and single-LED zones) as width x 1 matrices
+                    auto zi = Access::impl(zone);
+                    zi->width  = (int)lz.leds_count;
+                    zi->height = 1;
+                    zi->matrix.resize(zi->width);
+                    for(int x = 0; x < zi->width; x++)
+                        zi->matrix[x] = x;
 
                     if(d->matrix_zone == -1)
                         d->matrix_zone = (int)i;
@@ -2688,6 +2840,71 @@ namespace Gorgon :: Devices :: OpenRGB {
         return applyMode(impl, context, impl->direct_mode);
     }
 
+    std::optional<Zone> Device::GetMatrixZone() const {
+        if(impl->matrix_zone < 0 || impl->matrix_zone >= (int)impl->zones.size())
+            return std::nullopt;
+
+        return Access::makeZone(impl->zones[impl->matrix_zone], context);
+    }
+
+    Geometry::Size Device::GetMatrixSize() const {
+        auto z = GetMatrixZone();
+        return z ? z->GetMatrixSize() : Geometry::Size(0, 0);
+    }
+
+    int Device::GetWidth() const {
+        auto z = GetMatrixZone();
+        return z ? z->GetWidth() : 0;
+    }
+
+    int Device::GetHeight() const {
+        auto z = GetMatrixZone();
+        return z ? z->GetHeight() : 0;
+    }
+
+    Graphics::RGBA Device::GetPixel(int x, int y) const {
+        auto z = GetMatrixZone();
+        return z ? z->GetPixel(x, y) : transparent;
+    }
+
+    Graphics::RGBA Device::GetPixel(Geometry::Point p) const {
+        return GetPixel(p.X, p.Y);
+    }
+
+    void Device::SetPixel(int x, int y, Graphics::RGBA color) {
+        if(auto z = GetMatrixZone())
+            z->SetPixel(x, y, color);
+    }
+
+    void Device::SetPixel(Geometry::Point p, Graphics::RGBA color) {
+        SetPixel(p.X, p.Y, color);
+    }
+
+    void Device::Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) {
+        if(auto z = GetMatrixZone())
+            z->Draw(bitmap, offset, blend);
+    }
+
+    void Device::Draw(const Containers::Image &image, Geometry::Point offset, BlendMode blend) {
+        if(auto z = GetMatrixZone())
+            z->Draw(image, offset, blend);
+    }
+
+    void Device::DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp, BlendMode blend) {
+        if(auto z = GetMatrixZone())
+            z->DrawScaled(bitmap, interp, blend);
+    }
+
+    void Device::DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp, BlendMode blend) {
+        if(auto z = GetMatrixZone())
+            z->DrawScaled(image, interp, blend);
+    }
+
+    Containers::Image Device::ToImage() const {
+        auto z = GetMatrixZone();
+        return z ? z->ToImage() : Containers::Image();
+    }
+
     // -------------------------------------------------------------
     // KeyboardDevice
     // -------------------------------------------------------------
@@ -2778,71 +2995,6 @@ namespace Gorgon :: Devices :: OpenRGB {
         return raw;
     }
 
-    std::optional<Zone> KeyboardDevice::GetMatrixZone() const {
-        if(impl->matrix_zone < 0 || impl->matrix_zone >= (int)impl->zones.size())
-            return std::nullopt;
-
-        return Access::makeZone(impl->zones[impl->matrix_zone], context);
-    }
-
-    Geometry::Size KeyboardDevice::GetMatrixSize() const {
-        auto z = GetMatrixZone();
-        return z ? z->GetMatrixSize() : Geometry::Size(0, 0);
-    }
-
-    int KeyboardDevice::GetWidth() const {
-        auto z = GetMatrixZone();
-        return z ? z->GetWidth() : 0;
-    }
-
-    int KeyboardDevice::GetHeight() const {
-        auto z = GetMatrixZone();
-        return z ? z->GetHeight() : 0;
-    }
-
-    Graphics::RGBA KeyboardDevice::GetPixel(int x, int y) const {
-        auto z = GetMatrixZone();
-        return z ? z->GetPixel(x, y) : transparent;
-    }
-
-    Graphics::RGBA KeyboardDevice::GetPixel(Geometry::Point p) const {
-        return GetPixel(p.X, p.Y);
-    }
-
-    void KeyboardDevice::SetPixel(int x, int y, Graphics::RGBA color) {
-        if(auto z = GetMatrixZone())
-            z->SetPixel(x, y, color);
-    }
-
-    void KeyboardDevice::SetPixel(Geometry::Point p, Graphics::RGBA color) {
-        SetPixel(p.X, p.Y, color);
-    }
-
-    void KeyboardDevice::Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) {
-        if(auto z = GetMatrixZone())
-            z->Draw(bitmap, offset, blend);
-    }
-
-    void KeyboardDevice::Draw(const Containers::Image &image, Geometry::Point offset, BlendMode blend) {
-        if(auto z = GetMatrixZone())
-            z->Draw(image, offset, blend);
-    }
-
-    void KeyboardDevice::DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp, BlendMode blend) {
-        if(auto z = GetMatrixZone())
-            z->DrawScaled(bitmap, interp, blend);
-    }
-
-    void KeyboardDevice::DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp, BlendMode blend) {
-        if(auto z = GetMatrixZone())
-            z->DrawScaled(image, interp, blend);
-    }
-
-    Containers::Image KeyboardDevice::ToImage() const {
-        auto z = GetMatrixZone();
-        return z ? z->ToImage() : Containers::Image();
-    }
-
     // -------------------------------------------------------------
     // Progressbar
     // -------------------------------------------------------------
@@ -2900,6 +3052,15 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl->bg       = bg;
     }
 
+    Progressbar::Progressbar(const Device &device, Graphics::RGBA color, Graphics::RGBA bg) : Progressbar() {
+        impl->context  = Access::context(device);
+        impl->target   = Impl::Target::Device;
+        impl->device   = Access::impl(device);
+        impl->use_keys = false;
+        impl->color    = color;
+        impl->bg       = bg;
+    }
+
     const Gorgon::Animation::Governor *Progressbar::GetGovernor() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         return impl->context;
@@ -2919,6 +3080,27 @@ namespace Gorgon :: Devices :: OpenRGB {
         std::lock_guard<std::mutex> g(S().state_mtx);
         impl->target = Impl::Target::Zone;
         impl->zone   = Access::impl(zone);
+        if(Access::context(zone))
+            impl->context = Access::context(zone);
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
+    }
+
+    void Progressbar::SetDevice(const Device &device) {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::Device;
+        impl->device   = Access::impl(device);
+        impl->use_keys = false;
+        if(Access::context(device))
+            impl->context = Access::context(device);
+        if(impl->active)
+            markProgressDirtyLocked(*impl);
+    }
+
+    void Progressbar::TargetAllStrips() {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::AllStrips;
+        impl->use_keys = false;
         if(impl->active)
             markProgressDirtyLocked(*impl);
     }
@@ -3092,6 +3274,13 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void Animation::TargetKey(Input::Key key) {
         TargetKeyGroup(KeyGroup{{key}});
+    }
+
+    void Animation::TargetAllStrips() {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        impl->target   = Impl::Target::AllStrips;
+        impl->use_keys = false;
+        if(impl->visible) markAllDevicesDirtyLocked();
     }
 
     void Animation::TargetDevice(const Device &device) {
@@ -3293,19 +3482,27 @@ namespace Gorgon :: Devices :: OpenRGB {
         if(!impl->visible)
             return true;
 
-        if(controller->IsControlled() && !impl->owned_ctrl->IsLooping()) {
-            if(prog >= impl->duration_ms) {
+        if(controller->IsControlled()) {
+            if(prog > impl->duration_ms) {
                 impl->current_progress_ms = impl->duration_ms;
                 leftover = prog - impl->duration_ms;
-                if(!impl->keep_when_finished)
+                if(!impl->owned_ctrl->IsLooping() && !impl->keep_when_finished)
                     impl->visible = false;
                 markAllDevicesDirtyLocked();
                 return false;
             }
+            if(impl->current_progress_ms != prog) {
+                impl->current_progress_ms = prog;
+                markAllDevicesDirtyLocked();
+            }
+            return true;
         }
 
-        impl->current_progress_ms = prog % std::max(1u, impl->duration_ms);
-        markAllDevicesDirtyLocked();
+        unsigned wrapped = prog % std::max(1u, impl->duration_ms);
+        if(impl->current_progress_ms != wrapped) {
+            impl->current_progress_ms = wrapped;
+            markAllDevicesDirtyLocked();
+        }
         return true;
     }
 
@@ -3417,7 +3614,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(duration_ms, blend)
     {
         impl->type           = Impl::Type::Explosion;
-        impl->target         = Impl::Target::AllKeyboards;
+        impl->target         = Impl::Target::AllDevices;
         impl->stops          = {color};
         impl->ring_thickness = ring_thickness;
     }
@@ -3426,7 +3623,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(governor, duration_ms, blend)
     {
         impl->type           = Impl::Type::Explosion;
-        impl->target         = Impl::Target::AllKeyboards;
+        impl->target         = Impl::Target::AllDevices;
         impl->stops          = {color};
         impl->ring_thickness = ring_thickness;
     }
@@ -3435,7 +3632,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(context, duration_ms, blend)
     {
         impl->type           = Impl::Type::Explosion;
-        impl->target         = Impl::Target::AllKeyboards;
+        impl->target         = Impl::Target::AllDevices;
         impl->stops          = {color};
         impl->ring_thickness = ring_thickness;
     }
@@ -3482,7 +3679,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(duration_ms, blend)
     {
         impl->type       = Impl::Type::Swipe;
-        impl->target     = Impl::Target::AllKeyboards;
+        impl->target     = Impl::Target::AllDevices;
         impl->stops      = {color};
         impl->swipe_dir  = direction;
         impl->band_width = band_width;
@@ -3492,7 +3689,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(governor, duration_ms, blend)
     {
         impl->type       = Impl::Type::Swipe;
-        impl->target     = Impl::Target::AllKeyboards;
+        impl->target     = Impl::Target::AllDevices;
         impl->stops      = {color};
         impl->swipe_dir  = direction;
         impl->band_width = band_width;
@@ -3502,7 +3699,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(context, duration_ms, blend)
     {
         impl->type       = Impl::Type::Swipe;
-        impl->target     = Impl::Target::AllKeyboards;
+        impl->target     = Impl::Target::AllDevices;
         impl->stops      = {color};
         impl->swipe_dir  = direction;
         impl->band_width = band_width;
@@ -3532,7 +3729,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(fade_ms, blend)
     {
         impl->type   = Impl::Type::Reactive;
-        impl->target = Impl::Target::AllKeyboards;
+        impl->target = Impl::Target::AllDevices;
         impl->stops  = {color};
         Loop();
     }
@@ -3541,7 +3738,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(governor, fade_ms, blend)
     {
         impl->type   = Impl::Type::Reactive;
-        impl->target = Impl::Target::AllKeyboards;
+        impl->target = Impl::Target::AllDevices;
         impl->stops  = {color};
         Loop();
     }
@@ -3550,7 +3747,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         Animation(context, fade_ms, blend)
     {
         impl->type   = Impl::Type::Reactive;
-        impl->target = Impl::Target::AllKeyboards;
+        impl->target = Impl::Target::AllDevices;
         impl->stops  = {color};
         Loop();
     }
@@ -3694,6 +3891,22 @@ namespace Gorgon :: Devices :: OpenRGB {
         return list;
     }
 
+    std::vector<Device> Context::GetStrips(bool only_connected) const {
+        std::vector<Device> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(d->GetType() == DeviceType::LedStrip) {
+                if(!only_connected || d->IsConnected())
+                    list.push_back(Access::makeDevice(Access::impl(*d), governor));
+            }
+        }
+
+        return list;
+    }
+
     std::optional<Device> Context::FindDevice(const std::string &name) const {
         if(!ensure())
             return std::nullopt;
@@ -3739,6 +3952,24 @@ namespace Gorgon :: Devices :: OpenRGB {
         for(auto &d : S().devices) {
             if(auto kb = dynamic_cast<KeyboardDevice *>(d.get()))
                 return Access::makeKeyboard(Access::impl(*kb), governor);
+        }
+
+        return std::nullopt;
+    }
+
+    std::optional<Device> Context::GetPrimaryStrip() const {
+        if(!ensure())
+            return std::nullopt;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(d->IsConnected() && d->GetType() == DeviceType::LedStrip)
+                return Access::makeDevice(Access::impl(*d), governor);
+        }
+
+        for(auto &d : S().devices) {
+            if(d->GetType() == DeviceType::LedStrip)
+                return Access::makeDevice(Access::impl(*d), governor);
         }
 
         return std::nullopt;
@@ -3857,6 +4088,12 @@ namespace Gorgon :: Devices :: OpenRGB {
         return pb;
     }
 
+    Progressbar Context::CreateProgressbar(const Device &device, Graphics::RGBA color, Graphics::RGBA bg) const {
+        Progressbar pb(device, color, bg);
+        AttachProgressbar(pb);
+        return pb;
+    }
+
     void Context::AttachProgressbar(Progressbar &progressbar) const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         auto p = Access::impl(progressbar);
@@ -3970,12 +4207,20 @@ namespace Gorgon :: Devices :: OpenRGB {
         return GlobalContext().GetKeyboards(only_connected);
     }
 
+    std::vector<Device> GetStrips(bool only_connected) {
+        return GlobalContext().GetStrips(only_connected);
+    }
+
     std::optional<Device> FindDevice(const std::string &name) {
         return GlobalContext().FindDevice(name);
     }
 
     std::optional<KeyboardDevice> GetPrimaryKeyboard() {
         return GlobalContext().GetPrimaryKeyboard();
+    }
+
+    std::optional<Device> GetPrimaryStrip() {
+        return GlobalContext().GetPrimaryStrip();
     }
 
     void SetKeyColor(Input::Key key, Graphics::RGBA color) {
@@ -4028,6 +4273,10 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     Progressbar CreateProgressbar(const Zone &zone, Graphics::RGBA color, Graphics::RGBA bg) {
         return GlobalContext().CreateProgressbar(zone, color, bg);
+    }
+
+    Progressbar CreateProgressbar(const Device &device, Graphics::RGBA color, Graphics::RGBA bg) {
+        return GlobalContext().CreateProgressbar(device, color, bg);
     }
 
     void AttachProgressbar(Progressbar &progressbar) {

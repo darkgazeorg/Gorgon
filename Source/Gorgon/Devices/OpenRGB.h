@@ -365,6 +365,46 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Switches device to Direct / per-LED mode for custom software illumination
         bool SetDirectMode();
 
+        // ---------------------------------------------------------
+        // 2D LED Matrix & Strip Operations (Forwarded to Primary Matrix/Linear Zone)
+        // ---------------------------------------------------------
+
+        /// Returns the device's primary 2D matrix zone (or width x 1 linear strip zone), or nullopt if none
+        std::optional<Zone> GetMatrixZone() const;
+
+        /// Returns the 2D dimensions (width, height) of the device matrix/strip layout (width x 1 for strips), or {0, 0}
+        Geometry::Size GetMatrixSize() const;
+
+        /// Returns the width (columns / strip LED count) of the device matrix layout
+        int GetWidth() const;
+
+        /// Returns the height (rows; 1 for strips) of the device matrix layout
+        int GetHeight() const;
+
+        /// Gets LED pixel color at matrix coordinate (x, y), or transparent black (A=0) if unpopulated
+        Graphics::RGBA GetPixel(int x, int y) const;
+        Graphics::RGBA GetPixel(Geometry::Point p) const;
+
+        /// Sets LED pixel color at matrix coordinate (x, y)
+        void SetPixel(int x, int y, Graphics::RGBA color);
+        void SetPixel(Geometry::Point p, Graphics::RGBA color);
+
+        /// Draws a Bitmap onto the device matrix/strip zone (1:1 pixel mapping with offset)
+        void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
+
+        /// Draws image data onto the device matrix/strip zone
+        void Draw(const Containers::Image &image, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
+
+        /// Resamples and scales a Bitmap across the full dimensions of the device matrix/strip zone
+        void DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
+
+        /// Resamples and scales image data across the full dimensions of the device matrix/strip zone
+        void DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
+
+        /// Reads back the current state of the device matrix/strip into an Image container.
+        /// Populated LEDs have A = 255; missing/unpopulated matrix entries are denoted with A = 0.
+        Containers::Image ToImage() const;
+
     protected:
         struct Impl;
         std::shared_ptr<Impl> impl;
@@ -418,46 +458,6 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// falling back to the stripped OpenRGB LED name if not mapped to a localized OS key
         std::string GetKeyLabel(int led_index) const;
 
-        // ---------------------------------------------------------
-        // 2D LED Matrix & Bitmap Operations (Forwarded to Keyboard Zone)
-        // ---------------------------------------------------------
-
-        /// Returns the keyboard's 2D matrix zone, or nullopt if the keyboard has no matrix layout
-        std::optional<Zone> GetMatrixZone() const;
-
-        /// Returns the 2D dimensions (width, height) of the keyboard matrix layout, or {0, 0}
-        Geometry::Size GetMatrixSize() const;
-
-        /// Returns the width (columns) of the keyboard matrix layout
-        int GetWidth() const;
-
-        /// Returns the height (rows) of the keyboard matrix layout
-        int GetHeight() const;
-
-        /// Gets LED pixel color at keyboard matrix coordinate (x, y), or transparent black (A=0) if unpopulated
-        Graphics::RGBA GetPixel(int x, int y) const;
-        Graphics::RGBA GetPixel(Geometry::Point p) const;
-
-        /// Sets LED pixel color at keyboard matrix coordinate (x, y)
-        void SetPixel(int x, int y, Graphics::RGBA color);
-        void SetPixel(Geometry::Point p, Graphics::RGBA color);
-
-        /// Draws a Bitmap onto the keyboard matrix zone (1:1 pixel mapping with offset)
-        void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
-
-        /// Draws image data onto the keyboard matrix zone
-        void Draw(const Containers::Image &image, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
-
-        /// Resamples and scales a Bitmap across the full dimensions of the keyboard matrix zone
-        void DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
-
-        /// Resamples and scales image data across the full dimensions of the keyboard matrix zone
-        void DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
-
-        /// Reads back the current state of the keyboard matrix into an Image container.
-        /// Populated LEDs have A = 255; missing/unpopulated matrix entries are denoted with A = 0.
-        Containers::Image ToImage() const;
-
     private:
         explicit KeyboardDevice(std::shared_ptr<Impl> impl, const Gorgon::Animation::Governor *context = nullptr);
         friend struct Access;
@@ -492,6 +492,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Creates a progress bar across all LEDs of a specific zone (e.g., LED strip; inherits zone's governor context)
         explicit Progressbar(const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
+        /// Creates a progress bar across all LEDs of a specific device (e.g., LED strip; inherits device's governor context)
+        explicit Progressbar(const Device &device, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
+
         // ---------------------------------------------------------
         // Target & Context Configuration
         // ---------------------------------------------------------
@@ -505,6 +508,12 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         /// Sets the target zone for the progress bar
         void SetZone(const Zone &zone);
+
+        /// Sets the target device (e.g., LED strip) for the progress bar
+        void SetDevice(const Device &device);
+
+        /// Targets all connected LED strip devices in the owning context
+        void TargetAllStrips();
 
         // ---------------------------------------------------------
         // Color & Level Configuration
@@ -605,6 +614,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         void TargetAllKeyboards();
         void TargetKeyGroup(const KeyGroup &group);
         void TargetKey(Input::Key key);
+
+        /// Targets all connected LED strip devices in the owning context
+        void TargetAllStrips();
 
         /// Targets a specific device (and switches governor context if the device handle has one)
         void TargetDevice(const Device &device);
@@ -866,11 +878,17 @@ namespace Gorgon :: Devices :: OpenRGB {
     /// Returns only keyboard devices bound to the Global Layer (set only_connected to false to include detached keyboards)
     std::vector<KeyboardDevice> GetKeyboards(bool only_connected = true);
 
+    /// Returns only LED strip devices bound to the Global Layer (set only_connected to false to include detached strips)
+    std::vector<Device> GetStrips(bool only_connected = true);
+
     /// Finds a device by name (case-insensitive match) bound to the Global Layer, or nullopt
     std::optional<Device> FindDevice(const std::string &name);
 
     /// Returns the primary keyboard (first available) bound to the Global Layer, or nullopt
     std::optional<KeyboardDevice> GetPrimaryKeyboard();
+
+    /// Returns the primary LED strip (first available) bound to the Global Layer, or nullopt
+    std::optional<Device> GetPrimaryStrip();
 
     // -------------------------------------------------------------
     // Global Convenience Functions (Always Modify Global Layer)
@@ -882,16 +900,16 @@ namespace Gorgon :: Devices :: OpenRGB {
     /// Sets key group color across all connected keyboards in the Global Layer
     void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color);
 
-    /// Draws a Bitmap onto all connected keyboards and matrix zones in the Global Layer
+    /// Draws a Bitmap onto all connected keyboards and matrix/strip zones in the Global Layer
     void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
 
-    /// Draws image data onto all connected keyboards and matrix zones in the Global Layer
+    /// Draws image data onto all connected keyboards and matrix/strip zones in the Global Layer
     void Draw(const Containers::Image &image, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);
 
-    /// Scales and draws a Bitmap across all connected keyboards and matrix zones in the Global Layer
+    /// Scales and draws a Bitmap across all connected keyboards and matrix/strip zones in the Global Layer
     void DrawScaled(const Graphics::Bitmap &bitmap, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
 
-    /// Scales and draws image data across all connected keyboards and matrix zones in the Global Layer
+    /// Scales and draws image data across all connected keyboards and matrix/strip zones in the Global Layer
     void DrawScaled(const Containers::Image &image, Containers::InterpolationMethod interp = Containers::InterpolationMethod::Linear, BlendMode blend = BlendMode::Overwrite);
 
     /// Sets solid color across ALL connected devices in the Global Layer
@@ -906,6 +924,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     Progressbar CreateProgressbar(const KeyGroup &keys, const KeyboardDevice &keyboard, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
     Progressbar CreateProgressbar(const KeyGroup &keys, const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
     Progressbar CreateProgressbar(const Zone &zone, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
+    Progressbar CreateProgressbar(const Device &device, Graphics::RGBA color = {0xff00ff00}, Graphics::RGBA bg = {0x00000000});
 
     /// Moves an existing progressbar to the Global Layer
     void AttachProgressbar(Progressbar &progressbar);
