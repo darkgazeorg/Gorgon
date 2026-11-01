@@ -205,6 +205,16 @@ namespace {
         return "";
     }
 
+    inline Graphics::RGBA RGBAFromPicker(const Widgets::ColorPicker &picker) {
+        Graphics::RGBAf colf = picker;
+        return Graphics::RGBA(
+            (Byte)std::clamp((int)std::round(colf.R * 255.f), 0, 255),
+            (Byte)std::clamp((int)std::round(colf.G * 255.f), 0, 255),
+            (Byte)std::clamp((int)std::round(colf.B * 255.f), 0, 255),
+            Byte(255)
+        );
+    }
+
     struct KeyBox {
         int led_idx = -1;
         std::string full_name;
@@ -439,6 +449,14 @@ namespace {
         Widgets::Button deathBtn{"Death Fade"};
         Widgets::Checkbox pulseWasdChk{"Pulse WASD"};
         Widgets::Checkbox reactiveChk{"Reactive Keys"};
+
+        // Effect color settings
+        Widgets::Label effectColorsLbl{"Colors:"};
+        Widgets::ColorPicker explosionColor;
+        Widgets::ColorPicker swipeColor;
+        Widgets::ColorPicker deathColor;
+        Widgets::ColorPicker pulseColor;
+        Widgets::ColorPicker reactiveColor;
 
         Widgets::Label govLbl{"Context:"};
         Widgets::RadioButtons<int> govRadios;
@@ -797,13 +815,44 @@ namespace {
             reactiveChk.SetWidth(Pixels(145));
             directPanel.Add(reactiveChk);
 
-            // Row 5: Scene / Governor Context Switcher
+            // Row 5: Effect Colors
             int row5Y = row4Y + 36;
-            govLbl.Move(Pixels(4, row5Y));
+            effectColorsLbl.Move(Pixels(4, row5Y));
+            effectColorsLbl.SetWidth(Pixels(65));
+            directPanel.Add(effectColorsLbl);
+
+            explosionColor.Move(Pixels(75, row5Y));
+            explosionColor.SetWidth(Pixels(115));
+            explosionColor = Graphics::RGBAf(1.0f, 0.51f, 0.0f, 1.0f);
+            directPanel.Add(explosionColor);
+
+            swipeColor.Move(Pixels(198, row5Y));
+            swipeColor.SetWidth(Pixels(115));
+            swipeColor = Graphics::RGBAf(0.0f, 0.94f, 0.71f, 1.0f);
+            directPanel.Add(swipeColor);
+
+            deathColor.Move(Pixels(321, row5Y));
+            deathColor.SetWidth(Pixels(115));
+            deathColor = Graphics::RGBAf(1.0f, 0.0f, 0.0f, 1.0f);
+            directPanel.Add(deathColor);
+
+            pulseColor.Move(Pixels(448, row5Y));
+            pulseColor.SetWidth(Pixels(125));
+            pulseColor = Graphics::RGBAf(0.0f, 1.0f, 0.35f, 1.0f);
+            directPanel.Add(pulseColor);
+
+            reactiveColor.Move(Pixels(580, row5Y));
+            reactiveColor.SetWidth(Pixels(145));
+            reactiveColor = Graphics::RGBAf(0.0f, 0.90f, 1.0f, 1.0f);
+            directPanel.Add(reactiveColor);
+
+            // Row 6: Scene / Governor Context Switcher
+            int row6Y = row5Y + 36;
+            govLbl.Move(Pixels(4, row6Y));
             govLbl.SetWidth(Pixels(65));
             directPanel.Add(govLbl);
 
-            govRadios.Move(Pixels(75, row5Y));
+            govRadios.Move(Pixels(75, row6Y));
             govRadios.SetWidth(Pixels(650));
             govRadios.SetColumns(3);
             govRadios.Add(0, "Default (Global)");
@@ -811,23 +860,24 @@ namespace {
             govRadios.Add(2, "Scene B (Untouched -> Global)");
             govRadios.Set(0);
             directPanel.Add(govRadios);
-            directPanel.Resize(Pixels(tabW - 20, row5Y + 36));
+            directPanel.Resize(Pixels(tabW - 20, row6Y + 36));
 
             // Initialize software effects attached to this keyboard
-            activeExplosion = std::make_unique<OpenRGB::ExplosionEffect>(Graphics::RGBA(255, 130, 0, 255), 850, 3.0f);
+            activeExplosion = std::make_unique<OpenRGB::ExplosionEffect>(RGBAFromPicker(explosionColor), 850, 3.0f);
             activeExplosion->TargetDevice(kb);
 
             activeSwipe = std::make_unique<OpenRGB::SwipeEffect>(
-                Graphics::RGBA(0, 240, 180, 255), OpenRGB::SwipeDirection::LeftToRight, 750, 0.25f
+                RGBAFromPicker(swipeColor), OpenRGB::SwipeDirection::LeftToRight, 750, 0.25f
             );
             activeSwipe->TargetDevice(kb);
 
+            auto initDeathCol = RGBAFromPicker(deathColor);
             activeDeathFlash = std::make_unique<OpenRGB::FadeEffect>(
-                Graphics::RGBA(255, 0, 0, 255), Graphics::RGBA(255, 0, 0, 255), 150
+                initDeathCol, initDeathCol, 150
             );
             activeDeathFlash->TargetDevice(kb);
             activeDeathFade = std::make_unique<OpenRGB::FadeEffect>(
-                Graphics::RGBA(255, 0, 0, 255), Graphics::RGBA(0, 0, 0, 0), 1100
+                initDeathCol, Graphics::RGBA(0, 0, 0, 0), 1100
             );
             activeDeathFade->TargetDevice(kb);
             activeDeathFlash->FinishedEvent.Register([this](Animation::Controller &) {
@@ -835,12 +885,13 @@ namespace {
                     activeDeathFade->Play();
             });
 
+            auto initPulseCol = RGBAFromPicker(pulseColor);
             activePulse = std::make_unique<OpenRGB::PulseEffect>(
-                Graphics::RGBA(0, 255, 90, 255), 1200, Graphics::RGBA(0, 40, 15, 255)
+                initPulseCol, 1200, Graphics::RGBA(initPulseCol.R / 6, initPulseCol.G / 6, initPulseCol.B / 6, 255)
             );
             activePulse->TargetKeyboardKeys(kb, OpenRGB::KeyGroup::WASD);
 
-            activeReactive = std::make_unique<OpenRGB::ReactiveEffect>(Graphics::RGBA(0, 230, 255, 255), 550);
+            activeReactive = std::make_unique<OpenRGB::ReactiveEffect>(RGBAFromPicker(reactiveColor), 550);
             activeReactive->TargetDevice(kb);
             activeReactive->SetRippleRadius(1.8f);
             activeReactive->Stop();
@@ -882,6 +933,38 @@ namespace {
                 else {
                     activeReactive->Stop();
                     RedrawKeyboard();
+                }
+            });
+
+            explosionColor.ChangedEvent.Register([this]() {
+                if(activeExplosion)
+                    activeExplosion->SetColor(RGBAFromPicker(explosionColor));
+            });
+
+            swipeColor.ChangedEvent.Register([this]() {
+                if(activeSwipe)
+                    activeSwipe->SetColor(RGBAFromPicker(swipeColor));
+            });
+
+            deathColor.ChangedEvent.Register([this]() {
+                auto col = RGBAFromPicker(deathColor);
+                if(activeDeathFlash)
+                    activeDeathFlash->SetColors(col, col);
+                if(activeDeathFade)
+                    activeDeathFade->SetColors(col, Graphics::RGBA(0, 0, 0, 0));
+            });
+
+            pulseColor.ChangedEvent.Register([this]() {
+                auto col = RGBAFromPicker(pulseColor);
+                Graphics::RGBA trough(col.R / 6, col.G / 6, col.B / 6, 255);
+                if(activePulse)
+                    activePulse->SetColors(col, trough);
+            });
+
+            reactiveColor.ChangedEvent.Register([this]() {
+                if(activeReactive) {
+                    activeReactive->SetRandomColor(false);
+                    activeReactive->SetColor(RGBAFromPicker(reactiveColor));
                 }
             });
 
@@ -1345,6 +1428,14 @@ namespace {
         Widgets::Checkbox pulseChk{"Pulse Device"};
         Widgets::Checkbox reactiveChk{"Reactive Keys"};
 
+        // Effect color settings
+        Widgets::Label effectColorsLbl{"Colors:"};
+        Widgets::ColorPicker explosionColor;
+        Widgets::ColorPicker swipeColor;
+        Widgets::ColorPicker deathColor;
+        Widgets::ColorPicker pulseColor;
+        Widgets::ColorPicker reactiveColor;
+
         Widgets::Label govLbl{"Context:"};
         Widgets::RadioButtons<int> govRadios;
 
@@ -1427,54 +1518,19 @@ namespace {
             int tabW = std::max(800, tab->GetInteriorSize().Width);
             int tabH = std::max(550, tab->GetInteriorSize().Height);
 
-            int topY = 6;
-            if(!zones.empty()) {
-                zoneTitleLbl.Move(Pixels(10, topY + 4));
-                zoneTitleLbl.SetWidth(Pixels(110));
-                tab->Add(zoneTitleLbl);
+            // 1. Mode selector and info button at top
+            modeTitleLbl.Move(Pixels(10, 6));
+            modeTitleLbl.SetWidth(Pixels(200));
+            tab->Add(modeTitleLbl);
 
-                zoneDropdown.Move(Pixels(125, topY));
-                zoneDropdown.SetWidth(Pixels(std::min(450, tabW - 280)));
-                for(size_t z = 0; z < zones.size(); z++) {
-                    std::string zName = zones[z].GetName() + " (" + ZoneTypeToString(zones[z].GetType()) + ", " + std::to_string(zones[z].GetLEDCount()) + " LEDs)";
-                    zoneDropdown.List.Add(zName);
-                }
-                zoneDropdown.SetSelectedIndex(0);
-                tab->Add(zoneDropdown);
-
-                zoneDropdown.ChangedEvent.Register([this](long zIdx) {
-                    if(updatingZone || zIdx < 0 || zIdx >= (long)zones.size()) return;
-                    activeZoneIdx = (int)zIdx;
-                    selectedLed = -1;
-                    hoveredLed  = -1;
-                    selectedLedLbl.SetText("Selected LED: None (click any LED above)");
-                    prog.SetZone(zones[activeZoneIdx]);
-                    activeExplosion.TargetZone(zones[activeZoneIdx]);
-                    activeSwipe.TargetZone(zones[activeZoneIdx]);
-                    activeDeathFlash.TargetZone(zones[activeZoneIdx]);
-                    activeDeathFade.TargetZone(zones[activeZoneIdx]);
-                    activePulse.TargetZone(zones[activeZoneIdx]);
-                    activeReactive.TargetZone(zones[activeZoneIdx]);
-                    ledBoxes = BuildZoneBoxes(dev, zones[activeZoneIdx], matrixW, matrixH);
-                    RedrawDevice();
-                });
-            }
-
-            infoBtn.Move(Pixels(tabW - 140, topY));
+            infoBtn.Move(Pixels(tabW - 140, 6));
             infoBtn.SetWidth(Pixels(130));
             infoBtn.ClickEvent.Register([this]() {
                 UI::ShowMessage(dev.GetName() + " - Device Info", "[!md!]" + BuildDeviceMarkdown(dev));
             });
             tab->Add(infoBtn);
 
-            topY += 34;
-
-            modeTitleLbl.Move(Pixels(10, topY + 4));
-            modeTitleLbl.SetWidth(Pixels(200));
-            tab->Add(modeTitleLbl);
-            topY += 26;
-
-            modeRadios.Move(Pixels(10, topY));
+            modeRadios.Move(Pixels(10, 32));
             modeRadios.SetWidth(Pixels(tabW - 20));
             int modeCount = dev.GetModeCount();
             int cols = std::min(6, std::max(1, modeCount));
@@ -1638,7 +1694,41 @@ namespace {
             directPanel.EnableScroll(false, false);
             tab->Add(directPanel);
 
-            int curY = 0;
+            int curY = 4;
+            if(!zones.empty()) {
+                zoneTitleLbl.Move(Pixels(4, curY + 4));
+                zoneTitleLbl.SetWidth(Pixels(110));
+                directPanel.Add(zoneTitleLbl);
+
+                zoneDropdown.Move(Pixels(120, curY));
+                zoneDropdown.SetWidth(Pixels(std::min(450, tabW - 160)));
+                for(size_t z = 0; z < zones.size(); z++) {
+                    std::string zName = zones[z].GetName() + " (" + ZoneTypeToString(zones[z].GetType()) + ", " + std::to_string(zones[z].GetLEDCount()) + " LEDs)";
+                    zoneDropdown.List.Add(zName);
+                }
+                zoneDropdown.SetSelectedIndex(0);
+                directPanel.Add(zoneDropdown);
+
+                zoneDropdown.ChangedEvent.Register([this](long zIdx) {
+                    if(updatingZone || zIdx < 0 || zIdx >= (long)zones.size()) return;
+                    activeZoneIdx = (int)zIdx;
+                    selectedLed = -1;
+                    hoveredLed  = -1;
+                    selectedLedLbl.SetText("Selected LED: None (click any LED above)");
+                    prog.SetZone(zones[activeZoneIdx]);
+                    activeExplosion.TargetZone(zones[activeZoneIdx]);
+                    activeSwipe.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFlash.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFade.TargetZone(zones[activeZoneIdx]);
+                    activePulse.TargetZone(zones[activeZoneIdx]);
+                    activeReactive.TargetZone(zones[activeZoneIdx]);
+                    ledBoxes = BuildZoneBoxes(dev, zones[activeZoneIdx], matrixW, matrixH);
+                    RedrawDevice();
+                });
+
+                curY += 36;
+            }
+
             int boxW = tabW - 30;
             int boxH = 150;
             devLayerbox.Move(Pixels(0, curY));
@@ -1729,9 +1819,40 @@ namespace {
             reactiveChk.Move(Pixels(580, curY));
             reactiveChk.SetWidth(Pixels(145));
             directPanel.Add(reactiveChk);
+            curY += 36;
+
+            // Row 4: Effect Colors
+            effectColorsLbl.Move(Pixels(4, curY));
+            effectColorsLbl.SetWidth(Pixels(65));
+            directPanel.Add(effectColorsLbl);
+
+            explosionColor.Move(Pixels(75, curY));
+            explosionColor.SetWidth(Pixels(115));
+            explosionColor = Graphics::RGBAf(1.0f, 0.51f, 0.0f, 1.0f);
+            directPanel.Add(explosionColor);
+
+            swipeColor.Move(Pixels(198, curY));
+            swipeColor.SetWidth(Pixels(115));
+            swipeColor = Graphics::RGBAf(0.0f, 0.94f, 0.71f, 1.0f);
+            directPanel.Add(swipeColor);
+
+            deathColor.Move(Pixels(321, curY));
+            deathColor.SetWidth(Pixels(115));
+            deathColor = Graphics::RGBAf(1.0f, 0.0f, 0.0f, 1.0f);
+            directPanel.Add(deathColor);
+
+            pulseColor.Move(Pixels(448, curY));
+            pulseColor.SetWidth(Pixels(125));
+            pulseColor = Graphics::RGBAf(0.0f, 1.0f, 0.35f, 1.0f);
+            directPanel.Add(pulseColor);
+
+            reactiveColor.Move(Pixels(580, curY));
+            reactiveColor.SetWidth(Pixels(145));
+            reactiveColor = Graphics::RGBAf(0.0f, 0.90f, 1.0f, 1.0f);
+            directPanel.Add(reactiveColor);
             curY += 40;
 
-            // Row 4: Governor
+            // Row 5: Governor
             govLbl.Move(Pixels(4, curY));
             govLbl.SetWidth(Pixels(65));
             directPanel.Add(govLbl);
@@ -1746,15 +1867,33 @@ namespace {
             directPanel.Add(govRadios);
             directPanel.Resize(Pixels(tabW - 20, curY + 36));
 
-            activeExplosion.TargetDevice(dev);
-            activeSwipe.TargetDevice(dev);
-            activeDeathFlash.TargetDevice(dev);
-            activeDeathFade.TargetDevice(dev);
+            if(!zones.empty()) {
+                activeExplosion.TargetZone(zones[activeZoneIdx]);
+                activeSwipe.TargetZone(zones[activeZoneIdx]);
+                activeDeathFlash.TargetZone(zones[activeZoneIdx]);
+                activeDeathFade.TargetZone(zones[activeZoneIdx]);
+                activePulse.TargetZone(zones[activeZoneIdx]);
+                activeReactive.TargetZone(zones[activeZoneIdx]);
+            }
+            else {
+                activeExplosion.TargetDevice(dev);
+                activeSwipe.TargetDevice(dev);
+                activeDeathFlash.TargetDevice(dev);
+                activeDeathFade.TargetDevice(dev);
+                activePulse.TargetDevice(dev);
+                activeReactive.TargetDevice(dev);
+            }
+            activeExplosion.SetColor(RGBAFromPicker(explosionColor));
+            activeSwipe.SetColor(RGBAFromPicker(swipeColor));
+            auto initDeathCol = RGBAFromPicker(deathColor);
+            activeDeathFlash.SetColors(initDeathCol, initDeathCol);
+            activeDeathFade.SetColors(initDeathCol, Graphics::RGBA(0, 0, 0, 0));
+            auto initPulseCol = RGBAFromPicker(pulseColor);
+            activePulse.SetColors(initPulseCol, Graphics::RGBA(initPulseCol.R / 6, initPulseCol.G / 6, initPulseCol.B / 6, 255));
+            activeReactive.SetColor(RGBAFromPicker(reactiveColor));
             activeDeathFlash.FinishedEvent.Register([this](Animation::Controller &) {
                 activeDeathFade.Play();
             });
-            activePulse.TargetDevice(dev);
-            activeReactive.TargetDevice(dev);
             activeReactive.SetRippleRadius(2.0f);
             activeReactive.Stop();
             activeReactive.AttachToWindow(mainWind);
@@ -1795,6 +1934,31 @@ namespace {
                     activeReactive.Stop();
                     RedrawDevice();
                 }
+            });
+
+            explosionColor.ChangedEvent.Register([this]() {
+                activeExplosion.SetColor(RGBAFromPicker(explosionColor));
+            });
+
+            swipeColor.ChangedEvent.Register([this]() {
+                activeSwipe.SetColor(RGBAFromPicker(swipeColor));
+            });
+
+            deathColor.ChangedEvent.Register([this]() {
+                auto col = RGBAFromPicker(deathColor);
+                activeDeathFlash.SetColors(col, col);
+                activeDeathFade.SetColors(col, Graphics::RGBA(0, 0, 0, 0));
+            });
+
+            pulseColor.ChangedEvent.Register([this]() {
+                auto col = RGBAFromPicker(pulseColor);
+                Graphics::RGBA trough(col.R / 6, col.G / 6, col.B / 6, 255);
+                activePulse.SetColors(col, trough);
+            });
+
+            reactiveColor.ChangedEvent.Register([this]() {
+                activeReactive.SetRandomColor(false);
+                activeReactive.SetColor(RGBAFromPicker(reactiveColor));
             });
 
             progMinusBtn.PressEvent.Register([this]() {
