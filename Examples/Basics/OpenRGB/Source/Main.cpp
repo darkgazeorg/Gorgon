@@ -17,6 +17,42 @@
  *   Goal 9. Restoring hardware to the user's original OEM lighting state
  *
  * ============================================================================
+ * OPENRGB DOWNLOAD, SUPPORTED DEVICES & WRITE-ONLY KEYBOARDS GUIDE
+ * ============================================================================
+ * • Official Website & Download: https://openrgb.org
+ * • List of Supported Devices:  https://openrgb.org/devices.html
+ * • Source & Wiki:              https://gitlab.com/CalcProgrammer1/OpenRGB
+ *
+ * Handling Write-Only / Unidirectional Keyboards:
+ * ----------------------------------------------------------------------------
+ * Many gaming keyboards (such as certain Corsair, Razer, Asus, MSI, or custom
+ * QMK keyboards) have write-only USB HID endpoints for LED data. While the host
+ * computer can write RGB colors to the device, the keyboard firmware provides no
+ * protocol command to read back its currently running lighting state.
+ *
+ * When OpenRGB starts, it cannot query the current colors from such devices,
+ * defaulting to an initial Direct mode with LEDs turned off.
+ *
+ * Recommended Practices for Games & Applications:
+ * 1. Default Profile in OpenRGB:
+ *    Encourage users to configure a default profile (e.g. `Default.orp`) in the
+ *    OpenRGB desktop application. OpenRGB can automatically load this profile on
+ *    system startup or when external SDK applications release control.
+ * 2. Settings Menu Toggle:
+ *    Provide an "RGB Lighting" toggle in the game's Settings menu. When disabled,
+ *    call `OpenRGB::Initialize(true);` or `OpenRGB::Suspend();` at startup.
+ *    Gorgon will keep all lighting calls in memory without touching the physical
+ *    hardware, leaving the keyboard's onboard memory profile untouched.
+ * 3. Window Focus Suspend / Resume:
+ *    Hook `OpenRGB::Suspend()` to `Window::LostFocusEvent` and `OpenRGB::Resume()`
+ *    to `Window::FocusedEvent` (demonstrated in Goal 8 below). This temporarily
+ *    hands control back whenever the user Alt-Tabs out of the game.
+ * 4. Hardware Mode Switching:
+ *    Instead of restoring all-black Direct mode, applications can switch the device
+ *    to a known hardware effect mode (such as "Static" or "Rainbow") via
+ *    `dev.SetMode(...)` or leave the device in its hardware mode.
+ *
+ * ============================================================================
  * HOW OPENRGB & SHORTCUTS WORK WITH SCENES (Gorgon::Scene)
  * ============================================================================
  * While this example operates on the active window and global OpenRGB layer,

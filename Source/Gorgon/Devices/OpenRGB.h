@@ -10,6 +10,14 @@
  * - Key-specific and key-group illumination via Gorgon::Input::Key.
  * - Automatic background thread with rate-limiting, dirty diffing, and fault-tolerant reconnection.
  * - Automatic hardware state backup and clean restoration on engine shutdown.
+ *
+ * Resources & Compatibility:
+ * - Official Website & Downloads: https://openrgb.org
+ * - Supported Devices List: https://openrgb.org/devices.html
+ * - Source Repository & Wiki: https://gitlab.com/CalcProgrammer1/OpenRGB
+ * - Note on Write-Only Keyboards: Some keyboards have write-only USB endpoints and
+ *   cannot report current LED colors back to OpenRGB. See OpenRGB example for guidelines
+ *   on profiles, suspend/resume, and settings toggles for these devices.
  */
 
 #include <string>
