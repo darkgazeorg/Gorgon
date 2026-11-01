@@ -5,7 +5,7 @@ include(Scripts/Windows.cmake)
 set(CMAKE_CXX_STANDARD 17)
 
 project(Gorgon 
-    VERSION 4.1.0
+    VERSION 4.2.0
     DESCRIPTION "Gorgon is a cross-platform framework for games and visual applications. \
         It provides a powerful and flexible set of tools for creating high-performance graphics, \
         audio, and input handling. Gorgon is designed to be easy to use and highly customizable."

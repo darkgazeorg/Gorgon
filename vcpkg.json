@@ -1,6 +1,6 @@
 {
   "name": "gorgon",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "builtin-baseline": "05442024c3fda64320bd25d2251cc9807b84fb6f",
   "dependencies": [
     "libpng",

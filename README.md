@@ -1,6 +1,24 @@
-# Gorgon Library 4.1
+# Gorgon Library 4.2
 
 Gorgon is a cross-platform framework for games and visual applications. It provides a powerful, flexible, and easy to use set of tools for creating games, GUI, computer graphics and image processing applications. Gorgon abstracts OS, graphics, audio, and input handling natively on Windows and Linux. It has a built-in programming language called GScript which has a similar syntax to Basic/Fortran.
+
+## Modules
+
+* **Core & Application Lifecycle** (Main engine loop, Scene system & scene management, Event & ConsumableEvent dispatcher, high-resolution Time, Configuration, Logging)
+* **Window Management** (Cross-platform native windowing for Windows & Linux/X11, multi-monitor enumeration, clipboard management, native drag-and-drop)
+* **Graphics & Rendering** (OpenGL rendering abstractions, 2D layers & transformations, FrameBuffer & shaders, textures, bitmap blending)
+* **CGI & Vector Graphics** (Computer generated images, lines, circles, Bézier curves, polylines, polygons & path fills, color models & representations)
+* **Image Processing & Formats** (Software image transformations, scaling/interpolation, image encoding/decoding for PNG, JPEG, LZMA)
+* **UI & Widgets** (Retained-mode UI framework, layout organizers [Flow, List], template-driven styling with composer, STL-like typed widgets [e.g. `List<T>`, `Inputbox<T>`], core controls [Button, Checkbox, Textbox, MarkdownLabel, Panel, ColorPicker, Scrollbars], ready-to-use standard dialog boxes, custom DialogWindow, and built-in tooltip system)
+* **Input & Shortcuts** (Keyboard & mouse event handling, modifier tracking, KeyRepeater, customizable Shortcut manager with multi-key chords and color bindings)
+* **OpenRGB Support** (Hardware RGB integration for keyboards, LED strips, single LEDs, custom effects [fade, pulse, blink, explosion, swipe, reactive], progressbars, shortcut action-key highlighting)
+* **Animation System** (Governors, Controllers, Timers, tweening, and timeline progress tracking)
+* **Audio & Sound** (Multi-channel sound playback, 3D spatial audio environment, streaming audio controllers, PulseAudio backend, format loaders for WAV, OGG Vorbis, FLAC)
+* **Scripting Engine (GScript)** (Embedded language compiler & virtual machine, AST & intermediate bytecode generation, runtime scopes, reflection & C++ binding)
+* **Containers & Math** (Geometry primitives [Points, Sizes, Rectangles, Bounds], Collection, Hashmap, basic_Image, math utilities)
+* **Filesystem & I/O** (Cross-platform file & directory abstraction, memory streams, URI parsing, JSON serialization with automatic resource loading)
+* **Network** (HTTP client with CURL backend)
+* **Resource Management** (Packaged binary resource files, embedded fonts & FreeType text rendering, image assets, sound blobs, GID typing)
 
 ## Requirements
 
