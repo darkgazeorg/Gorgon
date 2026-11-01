@@ -16,6 +16,8 @@
 #   include <winsock2.h>
 #   include <ws2tcpip.h>
     using socket_t = SOCKET;
+#   undef min
+#   undef max
 #   define INVALID_SOCKET_VALUE INVALID_SOCKET
 #   define SOCKET_CLOSE(s) closesocket(s)
 #   define LAST_SOCK_ERR() WSAGetLastError()
