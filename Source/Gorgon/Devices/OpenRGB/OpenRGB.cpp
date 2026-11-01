@@ -557,7 +557,6 @@ namespace Gorgon :: Devices :: OpenRGB {
                 layer.active_mode = d.direct_mode;
             }
             layer.touched = true;
-            d.hw_touched  = true;
             d.dirty       = true;
             d.revision++;
         }
@@ -567,7 +566,8 @@ namespace Gorgon :: Devices :: OpenRGB {
                 d->dirty = true;
                 d->revision++;
             }
-            S().wake.notify_all();
+            if(!S().suspended.load())
+                S().wake.notify_all();
         }
 
         void setLED(DImpl &d, const Gorgon::Animation::Governor *ctx, int idx, const Graphics::RGBA &c) {
@@ -652,8 +652,19 @@ namespace Gorgon :: Devices :: OpenRGB {
                 break;
 
             case PImpl::Target::AllStrips:
-                if(d.type == DeviceType::LedStrip && d.connected) {
-                    appendDeviceProgressPositions(d, out_positions);
+                if(d.connected) {
+                    if(d.type == DeviceType::LedStrip) {
+                        appendDeviceProgressPositions(d, out_positions);
+                    }
+                    else {
+                        for(const auto &z : d.zones) {
+                            if(z.GetType() == ZoneType::Linear) {
+                                if(auto zi = Access::impl(z)) {
+                                    appendZoneMatrixColumns(*zi, out_positions);
+                                }
+                            }
+                        }
+                    }
                 }
                 break;
 
@@ -839,7 +850,12 @@ namespace Gorgon :: Devices :: OpenRGB {
             case AImpl::Target::AllKeyboards:
                 return d.is_keyboard && d.connected;
             case AImpl::Target::AllStrips:
-                return d.type == DeviceType::LedStrip && d.connected;
+                if(!d.connected) return false;
+                if(d.type == DeviceType::LedStrip) return true;
+                for(const auto &z : d.zones) {
+                    if(z.GetType() == ZoneType::Linear) return true;
+                }
+                return false;
             case AImpl::Target::Device:
             case AImpl::Target::Keyboard:
                 if(auto td = a.device.lock())
@@ -857,6 +873,16 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         std::vector<int> resolveAnimationTargetLEDs(const AImpl &a, const DImpl &d) {
             std::vector<int> leds;
+            if(a.target == AImpl::Target::AllStrips && d.type != DeviceType::LedStrip) {
+                for(const auto &z : d.zones) {
+                    if(z.GetType() == ZoneType::Linear) {
+                        for(int i = 0; i < z.GetLEDCount(); i++)
+                            leds.push_back(z.GetLEDOffset() + i);
+                    }
+                }
+                return leds;
+            }
+
             int begin = 0, end = (int)d.leds.size();
             if(a.target == AImpl::Target::Zone && a.zone) {
                 begin = a.zone->led_offset;
@@ -889,6 +915,17 @@ namespace Gorgon :: Devices :: OpenRGB {
             if(a.target == AImpl::Target::Zone) {
                 if(a.zone && a.zone->width > 0 && a.zone->height > 0)
                     out.push_back(a.zone);
+                return out;
+            }
+
+            if(a.target == AImpl::Target::AllStrips && d.type != DeviceType::LedStrip) {
+                for(const auto &z : d.zones) {
+                    if(z.GetType() == ZoneType::Linear) {
+                        auto zi = Access::impl(z);
+                        if(zi && zi->width > 0 && zi->height > 0)
+                            out.push_back(std::move(zi));
+                    }
+                }
                 return out;
             }
 
@@ -1921,15 +1958,23 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Restores devices modified by software to their snapshot state.
         void restoreLocked() {
             auto &s = S();
-            if(!s.client.IsConnected())
-                return;
 
             std::vector<std::shared_ptr<DImpl>> list;
             {
                 std::lock_guard<std::mutex> sg(s.state_mtx);
                 for(auto &d : deviceList()) {
-                    if(d->hw_touched && d->connected && d->id >= 0)
+                    if(d->hw_touched && d->connected && d->id >= 0 && s.client.IsConnected()) {
                         list.push_back(d);
+                    }
+                    else {
+                        d->engaged      = false;
+                        d->dirty        = false;
+                        d->hw_touched   = false;
+                        d->hw_mode      = d->orig_mode;
+                        d->global_layer = makeDefaultLayer(*d);
+                        d->gov_layers.clear();
+                        d->last_sent.clear();
+                    }
                 }
             }
 
@@ -1962,7 +2007,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                     d->engaged   = false;
                     d->hw_mode   = -1;
                     d->last_sent.clear();
-                    if(d->hw_touched)
+                    if(d->hw_touched || resolveActiveLayer(*d) != nullptr)
                         d->dirty = true;
                 }
             }
@@ -2086,7 +2131,6 @@ namespace Gorgon :: Devices :: OpenRGB {
                         if(d->direct_mode >= 0)
                             layer->active_mode = d->direct_mode;
                         layer_ctx = overlay_ctx;
-                        d->hw_touched = true;
                     }
 
                     if(!layer) {
@@ -2319,7 +2363,6 @@ namespace Gorgon :: Devices :: OpenRGB {
                 layer.active_mode = idx;
                 layer.touched     = true;
                 layer.mode_dirty  = true;
-                d->hw_touched     = true;
                 d->dirty          = true;
                 d->revision++;
 
@@ -2327,6 +2370,9 @@ namespace Gorgon :: Devices :: OpenRGB {
                 auto *eff_layer = resolveActiveLayer(*d, &eff_ctx);
                 apply_now = (eff_layer == &layer);
             }
+
+            if(s.suspended.load())
+                return true;
 
             if(apply_now) {
                 fireError(tick());
@@ -2763,6 +2809,41 @@ namespace Gorgon :: Devices :: OpenRGB {
         return out;
     }
 
+    std::vector<Zone> Device::GetLinearZones() const {
+        std::vector<Zone> out;
+        for(const auto &z : impl->zones) {
+            if(z.GetType() == ZoneType::Linear)
+                out.push_back(Access::makeZone(z, context));
+        }
+        return out;
+    }
+
+    std::vector<Zone> Device::GetSingleZones() const {
+        std::vector<Zone> out;
+        for(const auto &z : impl->zones) {
+            if(z.GetType() == ZoneType::Single)
+                out.push_back(Access::makeZone(z, context));
+        }
+        return out;
+    }
+
+    std::vector<Zone> Device::GetMatrixZones() const {
+        std::vector<Zone> out;
+        for(const auto &z : impl->zones) {
+            if(z.GetType() == ZoneType::Matrix)
+                out.push_back(Access::makeZone(z, context));
+        }
+        return out;
+    }
+
+    bool Device::HasZoneType(ZoneType type) const {
+        for(const auto &z : impl->zones) {
+            if(z.GetType() == type)
+                return true;
+        }
+        return false;
+    }
+
     int Device::GetModeCount() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         return (int)getHandleLayer(*impl, context).modes.size();
@@ -2999,6 +3080,171 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
         }
 
+        if(active >= 0)
+            applyMode(impl, context, active);
+    }
+
+    bool Device::SupportsModeSpeed() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasSpeed) != 0;
+    }
+
+    unsigned Device::GetModeSpeed() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].speed;
+    }
+
+    unsigned Device::GetModeMinSpeed() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].speed_min;
+    }
+
+    unsigned Device::GetModeMaxSpeed() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].speed_max;
+    }
+
+    void Device::SetModeSpeed(unsigned speed) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+                return;
+            auto &m = layer.modes[layer.active_mode];
+            if((m.flags & LL::ModeFlags::HasSpeed) == 0)
+                return;
+            if(m.speed_max > 0 || m.speed_min > 0) {
+                auto [low, high] = std::minmax(m.speed_min, m.speed_max);
+                speed = std::clamp(speed, low, high);
+            }
+            m.speed = speed;
+            active = layer.active_mode;
+        }
+        if(active >= 0)
+            applyMode(impl, context, active);
+    }
+
+    bool Device::SupportsModeDirection() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        uint32_t dir_mask = LL::ModeFlags::HasDirectionLR | LL::ModeFlags::HasDirectionUD | LL::ModeFlags::HasDirectionHV;
+        return (layer.modes[layer.active_mode].flags & dir_mask) != 0;
+    }
+
+    bool Device::SupportsModeDirectionLR() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasDirectionLR) != 0;
+    }
+
+    bool Device::SupportsModeDirectionUD() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasDirectionUD) != 0;
+    }
+
+    bool Device::SupportsModeDirectionHV() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasDirectionHV) != 0;
+    }
+
+    ModeDirection Device::GetModeDirection() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return ModeDirection::Left;
+        return static_cast<ModeDirection>(layer.modes[layer.active_mode].direction);
+    }
+
+    void Device::SetModeDirection(ModeDirection direction) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+                return;
+            auto &m = layer.modes[layer.active_mode];
+            uint32_t dir_mask = LL::ModeFlags::HasDirectionLR | LL::ModeFlags::HasDirectionUD | LL::ModeFlags::HasDirectionHV;
+            if((m.flags & dir_mask) == 0)
+                return;
+            m.direction = static_cast<uint32_t>(direction);
+            active = layer.active_mode;
+        }
+        if(active >= 0)
+            applyMode(impl, context, active);
+    }
+
+    bool Device::SupportsModeBrightness() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+        return (layer.modes[layer.active_mode].flags & LL::ModeFlags::HasBrightness) != 0;
+    }
+
+    unsigned Device::GetModeBrightness() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].brightness;
+    }
+
+    unsigned Device::GetModeMinBrightness() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].brightness_min;
+    }
+
+    unsigned Device::GetModeMaxBrightness() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return 0;
+        return layer.modes[layer.active_mode].brightness_max;
+    }
+
+    void Device::SetModeBrightness(unsigned brightness) {
+        int active = -1;
+        {
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            auto &layer = getOrCreateLayer(*impl, context);
+            if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+                return;
+            auto &m = layer.modes[layer.active_mode];
+            if((m.flags & LL::ModeFlags::HasBrightness) == 0)
+                return;
+            if(m.brightness_max > 0 || m.brightness_min > 0) {
+                auto [low, high] = std::minmax(m.brightness_min, m.brightness_max);
+                brightness = std::clamp(brightness, low, high);
+            }
+            m.brightness = brightness;
+            active = layer.active_mode;
+        }
         if(active >= 0)
             applyMode(impl, context, active);
     }
@@ -3338,8 +3584,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     bool Progressbar::IsFillMode() const { return impl->fill; }
 
     void Progressbar::SetProgressRatio(Float value) {
-        if(!ensure())
-            return;
+        ensure();
 
         std::lock_guard<std::mutex> g(S().state_mtx);
         impl->ratio  = Clamp(value, Float(0), Float(1));
@@ -4074,6 +4319,56 @@ namespace Gorgon :: Devices :: OpenRGB {
         return list;
     }
 
+    std::vector<Zone> Context::GetStripZones(bool only_connected) const {
+        std::vector<Zone> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(!only_connected || d->IsConnected()) {
+                for(const auto &z : Access::impl(*d)->zones) {
+                    if(z.GetType() == ZoneType::Linear)
+                        list.push_back(Access::makeZone(z, governor));
+                }
+            }
+        }
+        return list;
+    }
+
+    std::vector<Zone> Context::GetSingleLEDZones(bool only_connected) const {
+        std::vector<Zone> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(!only_connected || d->IsConnected()) {
+                for(const auto &z : Access::impl(*d)->zones) {
+                    if(z.GetType() == ZoneType::Single)
+                        list.push_back(Access::makeZone(z, governor));
+                }
+            }
+        }
+        return list;
+    }
+
+    std::vector<Zone> Context::GetAllZones(bool only_connected) const {
+        std::vector<Zone> list;
+        if(!ensure())
+            return list;
+
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        for(auto &d : S().devices) {
+            if(!only_connected || d->IsConnected()) {
+                for(const auto &z : Access::impl(*d)->zones) {
+                    list.push_back(Access::makeZone(z, governor));
+                }
+            }
+        }
+        return list;
+    }
+
     std::optional<Device> Context::FindDevice(const std::string &name) const {
         if(!ensure())
             return std::nullopt;
@@ -4406,8 +4701,14 @@ namespace Gorgon :: Devices :: OpenRGB {
     // Global functions (Always Modify Global Layer)
     // -------------------------------------------------------------
 
-    bool Initialize(const std::string &host, uint16_t port) {
+    bool Initialize(const std::string &host, uint16_t port, bool suspended) {
+        if(suspended)
+            S().suspended = true;
         return connectNow(host, port, true);
+    }
+
+    bool Initialize(bool suspended) {
+        return Initialize("127.0.0.1", 6742, suspended);
     }
 
     bool IsAvailable() {
@@ -4457,10 +4758,13 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void Suspend() {
         auto &s = S();
-        if(!s.initialized || s.suspended.load())
+        if(s.suspended.exchange(true))
             return;
 
-        s.suspended = true;
+        if(!s.initialized) {
+            Logger << "OpenRGB suspended (pre-initialization)";
+            return;
+        }
 
         std::lock_guard<std::mutex> cg(s.client_mtx);
         if(!s.client.IsConnected())
@@ -4490,16 +4794,19 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void Resume() {
         auto &s = S();
-        if(!s.initialized || !s.suspended.load())
+        if(!s.suspended.exchange(false))
             return;
 
-        s.suspended = false;
+        if(!s.initialized) {
+            ensure();
+        }
 
         {
             std::lock_guard<std::mutex> sg(s.state_mtx);
             for(auto &d : deviceList()) {
                 if(d->connected && d->id >= 0) {
                     d->dirty = true;
+                    d->revision++;
                 }
             }
         }
@@ -4525,6 +4832,16 @@ namespace Gorgon :: Devices :: OpenRGB {
             ds.id = d->id;
             ds.name = d->name;
             ds.active_mode = d->global_layer.active_mode;
+            if(ds.active_mode >= 0 && ds.active_mode < (int)d->global_layer.modes.size()) {
+                const auto &m = d->global_layer.modes[ds.active_mode];
+                ds.speed = m.speed;
+                ds.brightness = m.brightness;
+                ds.direction = m.direction;
+                ds.color_mode = m.color_mode;
+                ds.mode_colors.reserve(m.colors.size());
+                for(const auto &c : m.colors)
+                    ds.mode_colors.emplace_back(c.R(), c.G(), c.B(), Byte(255));
+            }
             ds.colors = d->global_layer.base_leds;
             snap.devices.push_back(std::move(ds));
         }
@@ -4542,19 +4859,37 @@ namespace Gorgon :: Devices :: OpenRGB {
                 for(auto &d : deviceList()) {
                     if(d->id == ds.id || (ds.id < 0 && d->name == ds.name)) {
                         d->global_layer.active_mode = ds.active_mode;
+                        if(ds.active_mode >= 0 && ds.active_mode < (int)d->global_layer.modes.size()) {
+                            auto &m = d->global_layer.modes[ds.active_mode];
+                            m.speed = ds.speed;
+                            m.brightness = ds.brightness;
+                            m.direction = ds.direction;
+                            m.color_mode = ds.color_mode;
+                            if(!ds.mode_colors.empty()) {
+                                m.colors.clear();
+                                for(const auto &c : ds.mode_colors)
+                                    m.colors.push_back(wire(c));
+                            }
+                        }
                         d->global_layer.base_leds = ds.colors;
-                        d->hw_touched = true;
+                        d->global_layer.touched = true;
+                        d->global_layer.mode_dirty = true;
                         d->dirty = true;
+                        d->revision++;
                         break;
                     }
                 }
             }
         }
 
-        s.wake.notify_all();
+        if(!s.suspended.load())
+            s.wake.notify_all();
     }
 
     void Flush() {
+        if(S().suspended.load())
+            return;
+
         if(!ensure())
             return;
 
@@ -4593,6 +4928,18 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     std::vector<Device> GetStrips(bool only_connected) {
         return GlobalContext().GetStrips(only_connected);
+    }
+
+    std::vector<Zone> GetStripZones(bool only_connected) {
+        return GlobalContext().GetStripZones(only_connected);
+    }
+
+    std::vector<Zone> GetSingleLEDZones(bool only_connected) {
+        return GlobalContext().GetSingleLEDZones(only_connected);
+    }
+
+    std::vector<Zone> GetAllZones(bool only_connected) {
+        return GlobalContext().GetAllZones(only_connected);
     }
 
     std::optional<Device> FindDevice(const std::string &name) {

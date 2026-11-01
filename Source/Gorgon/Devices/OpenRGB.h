@@ -106,6 +106,16 @@ namespace Gorgon :: Devices :: OpenRGB {
         BottomToTop
     };
 
+    /// Hardware lighting effect direction
+    enum class ModeDirection : uint32_t {
+        Left       = 0,
+        Right      = 1,
+        Up         = 2,
+        Down       = 3,
+        Horizontal = 4,
+        Vertical   = 5
+    };
+
     /// Metadata for a single physical LED
     struct LED {
         int index = 0;
@@ -320,6 +330,18 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Returns all zones belonging to this device (bound to this device handle's context)
         std::vector<Zone> GetZones() const;
 
+        /// Returns all linear strip zones belonging to this device
+        std::vector<Zone> GetLinearZones() const;
+
+        /// Returns all single-LED zones belonging to this device
+        std::vector<Zone> GetSingleZones() const;
+
+        /// Returns all 2D matrix zones belonging to this device
+        std::vector<Zone> GetMatrixZones() const;
+
+        /// Returns true if this device has at least one zone of the given layout type
+        bool HasZoneType(ZoneType type) const;
+
         // ---------------------------------------------------------
         // Hardware Modes
         // ---------------------------------------------------------
@@ -362,6 +384,32 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         /// Enables or disables random color mode on the active mode (if supported)
         void SetRandomColor(bool random);
+
+        // ---------------------------------------------------------
+        // Mode Parameters (Speed, Direction, Brightness)
+        // ---------------------------------------------------------
+
+        /// Returns true if the active mode supports adjustable animation speed
+        bool SupportsModeSpeed() const;
+        unsigned GetModeSpeed() const;
+        unsigned GetModeMinSpeed() const;
+        unsigned GetModeMaxSpeed() const;
+        void SetModeSpeed(unsigned speed);
+
+        /// Returns true if the active mode supports directional movement
+        bool SupportsModeDirection() const;
+        bool SupportsModeDirectionLR() const;
+        bool SupportsModeDirectionUD() const;
+        bool SupportsModeDirectionHV() const;
+        ModeDirection GetModeDirection() const;
+        void SetModeDirection(ModeDirection direction);
+
+        /// Returns true if the active mode supports adjustable brightness
+        bool SupportsModeBrightness() const;
+        unsigned GetModeBrightness() const;
+        unsigned GetModeMinBrightness() const;
+        unsigned GetModeMaxBrightness() const;
+        void SetModeBrightness(unsigned brightness);
 
         /// Switches device to Direct / per-LED mode for custom software illumination
         bool SetDirectMode();
@@ -848,7 +896,12 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     /// Explicitly initializes the OpenRGB subsystem and connects to the server.
     /// Note: Initialization is lazy and automatic on the first call to any lighting function.
-    bool Initialize(const std::string &host = "127.0.0.1", uint16_t port = 6742);
+    /// Set `suspended` to true (or call `OpenRGB::Suspend()` before initialization) to start
+    /// with hardware updates disabled so all API calls operate in memory without modifying devices.
+    bool Initialize(const std::string &host = "127.0.0.1", uint16_t port = 6742, bool suspended = false);
+
+    /// Explicitly initializes the OpenRGB subsystem on default localhost:6742, optionally starting in suspended state.
+    bool Initialize(bool suspended);
 
     /// Returns true if connected to the OpenRGB server and initialized
     bool IsAvailable();
@@ -860,9 +913,11 @@ namespace Gorgon :: Devices :: OpenRGB {
     /// Reverts all connected hardware to their original captured state without disconnecting
     void RestoreAll();
 
-    /// Temporarily restores all connected devices to their original OEM hardware lighting
-    /// while keeping all software layers, animations, progressbars, and action keys intact in memory.
-    /// Hardware updates are paused until Resume() is called.
+    /// Suspends OpenRGB hardware output. Can be called before or after initialization:
+    /// - If called before initialization (at startup), OpenRGB starts in suspended mode and never modifies hardware.
+    /// - If called while running, temporarily restores any modified devices to their original OEM hardware lighting.
+    /// In both cases, all API calls continue to update software layers, animations, progressbars, and shortcuts in memory
+    /// until Resume() is called.
     void Suspend();
 
     /// Resumes software RGB lighting after Suspend(), re-engaging hardware direct mode
@@ -908,6 +963,15 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     /// Returns only LED strip devices bound to the Global Layer (set only_connected to false to include detached strips)
     std::vector<Device> GetStrips(bool only_connected = true);
+
+    /// Returns all linear strip zones across all connected devices (including motherboard ARGB headers)
+    std::vector<Zone> GetStripZones(bool only_connected = true);
+
+    /// Returns all single-LED zones across all connected devices (including 12V RGB headers)
+    std::vector<Zone> GetSingleLEDZones(bool only_connected = true);
+
+    /// Returns all zones of all connected devices bound to the Global Layer
+    std::vector<Zone> GetAllZones(bool only_connected = true);
 
     /// Finds a device by name (case-insensitive match) bound to the Global Layer, or nullopt
     std::optional<Device> FindDevice(const std::string &name);

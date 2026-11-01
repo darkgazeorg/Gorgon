@@ -280,13 +280,27 @@ TEST_CASE("Window and Scene Scoping", "[Shortcuts]") {
 }
 
 TEST_CASE("OpenRGB Suspend, Resume and StateSnapshot APIs", "[OpenRGB]") {
+    // Test calling Suspend() before initialization (startup disabled mode)
+    Devices::OpenRGB::Shutdown(true);
     REQUIRE_FALSE(Devices::OpenRGB::IsSuspended());
 
     Devices::OpenRGB::Suspend();
     REQUIRE(Devices::OpenRGB::IsSuspended());
 
+    // Calls while suspended should work in memory without modifying physical hardware
+    Devices::OpenRGB::SetKeyColor(Keycodes::W, Graphics::RGBA(255, 0, 0, 255));
+    auto prog = Devices::OpenRGB::CreateProgressbar(Devices::OpenRGB::KeyGroup::ProgressBarTargets::NumberRow);
+    prog.SetProgressRatio(0.65f);
+    REQUIRE(prog.GetProgressRatio() == 0.65f);
+    REQUIRE(Devices::OpenRGB::IsSuspended());
+
+    if(auto kb = Devices::OpenRGB::GetPrimaryKeyboard()) {
+        REQUIRE(kb->GetKeyColor(Keycodes::W) == Graphics::RGBA(255, 0, 0, 255));
+    }
+
     auto snapshot = Devices::OpenRGB::CaptureState();
     Devices::OpenRGB::RestoreState(snapshot);
+    Devices::OpenRGB::RestoreAll();
 
     Devices::OpenRGB::Resume();
     REQUIRE_FALSE(Devices::OpenRGB::IsSuspended());
@@ -331,3 +345,87 @@ TEST_CASE("OpenRGB Key Availability Queries", "[OpenRGB]") {
         REQUIRE(ctx.GetKeys().empty());
     }
 }
+
+TEST_CASE("OpenRGB Multi-Zone and Mode Settings", "[OpenRGB]") {
+    auto all_zones = Devices::OpenRGB::GetAllZones();
+    auto strip_zones = Devices::OpenRGB::GetStripZones();
+    auto single_zones = Devices::OpenRGB::GetSingleLEDZones();
+
+    for(const auto &z : strip_zones) {
+        REQUIRE(z.GetType() == Devices::OpenRGB::ZoneType::Linear);
+    }
+
+    for(const auto &z : single_zones) {
+        REQUIRE(z.GetType() == Devices::OpenRGB::ZoneType::Single);
+    }
+
+    for(auto dev : Devices::OpenRGB::GetDevices()) {
+        auto dev_linear = dev.GetLinearZones();
+        auto dev_single = dev.GetSingleZones();
+        auto dev_matrix = dev.GetMatrixZones();
+
+        for(const auto &z : dev_linear) {
+            REQUIRE(z.GetType() == Devices::OpenRGB::ZoneType::Linear);
+        }
+        for(const auto &z : dev_single) {
+            REQUIRE(z.GetType() == Devices::OpenRGB::ZoneType::Single);
+        }
+        for(const auto &z : dev_matrix) {
+            REQUIRE(z.GetType() == Devices::OpenRGB::ZoneType::Matrix);
+        }
+
+        REQUIRE(dev.HasZoneType(Devices::OpenRGB::ZoneType::Linear) == !dev_linear.empty());
+        REQUIRE(dev.HasZoneType(Devices::OpenRGB::ZoneType::Single) == !dev_single.empty());
+        REQUIRE(dev.HasZoneType(Devices::OpenRGB::ZoneType::Matrix) == !dev_matrix.empty());
+
+        // Mode speed tests
+        if(dev.SupportsModeSpeed()) {
+            unsigned orig_speed = dev.GetModeSpeed();
+            unsigned s1 = dev.GetModeMinSpeed();
+            unsigned s2 = dev.GetModeMaxSpeed();
+            auto [low_s, high_s] = std::minmax(s1, s2);
+
+            unsigned test_speed = (low_s + high_s) / 2;
+            dev.SetModeSpeed(test_speed);
+            REQUIRE(dev.GetModeSpeed() == test_speed);
+
+            dev.SetModeSpeed(orig_speed);
+            REQUIRE(dev.GetModeSpeed() == orig_speed);
+        }
+
+        // Mode brightness tests
+        if(dev.SupportsModeBrightness()) {
+            unsigned orig_b = dev.GetModeBrightness();
+            unsigned b1 = dev.GetModeMinBrightness();
+            unsigned b2 = dev.GetModeMaxBrightness();
+            auto [low_b, high_b] = std::minmax(b1, b2);
+
+            unsigned test_b = (low_b + high_b) / 2;
+            dev.SetModeBrightness(test_b);
+            REQUIRE(dev.GetModeBrightness() == test_b);
+
+            dev.SetModeBrightness(orig_b);
+            REQUIRE(dev.GetModeBrightness() == orig_b);
+        }
+
+        // Mode direction tests
+        if(dev.SupportsModeDirection()) {
+            auto orig_dir = dev.GetModeDirection();
+            if(dev.SupportsModeDirectionLR()) {
+                dev.SetModeDirection(Devices::OpenRGB::ModeDirection::Right);
+                REQUIRE(dev.GetModeDirection() == Devices::OpenRGB::ModeDirection::Right);
+            }
+            dev.SetModeDirection(orig_dir);
+            REQUIRE(dev.GetModeDirection() == orig_dir);
+        }
+    }
+
+    // Full snapshot state capture and restore test
+    auto snap = Devices::OpenRGB::CaptureState();
+    REQUIRE_FALSE(snap.devices.empty());
+
+    // Restore snapshot
+    Devices::OpenRGB::RestoreState(snap);
+    Devices::OpenRGB::RestoreAll();
+}
+

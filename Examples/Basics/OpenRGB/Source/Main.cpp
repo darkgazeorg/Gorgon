@@ -323,11 +323,22 @@ void Goal7_ModifierAwareShortcuts(Gorgon::UI::Window &window, Gorgon::Widgets::L
 // -----------------------------------------------------------------------------
 // Goal 8: Focus Lost & Temporary Force Restore (Suspend / Resume / StateSnapshot)
 // -----------------------------------------------------------------------------
-// Demonstrates how to restore OEM hardware lighting when window focus is lost or manually:
-//   - OpenRGB::Suspend() / ForceRestore(): Reverts physical devices to original OEM mode
-//     while keeping software layers, animations, and progressbars intact in memory.
+// Demonstrates how to restore OEM hardware lighting when window focus is lost,
+// when starting the application disabled, or when toggled via a Settings menu:
+//   - OpenRGB::Suspend() / ForceRestore(): Can be called before or after initialization.
+//     If called at startup (or via OpenRGB::Initialize(true)), OpenRGB starts suspended
+//     and never modifies physical hardware while all API calls continue to update software
+//     layers in memory. If called while running, it reverts modified devices to their
+//     original OEM mode while keeping software layers, animations, and progressbars intact.
 //   - OpenRGB::Resume(): Re-engages direct mode and flushes all software colors back to hardware.
 //   - OpenRGB::CaptureState() & RestoreState(): Allows capturing/restoring software snapshots.
+//
+// Recommendation for Games & Applications:
+//   Place an "Enable OpenRGB Lighting" toggle in your application's Settings menu.
+//   On startup, if the user's saved preference has RGB disabled, call `OpenRGB::Suspend();`
+//   (or `OpenRGB::Initialize(true);`). Your game code can unconditionally call `SetKeyColor()`,
+//   update progressbars, play effects, and register shortcuts without `if(rgbEnabled)` branches;
+//   toggling the setting at runtime simply calls `OpenRGB::Resume()` or `OpenRGB::Suspend()`.
 static OpenRGB::StateSnapshot s_savedSnapshot;
 
 void Goal8_FocusAndForceRestore(Gorgon::Widgets::Label &statusLbl) {
@@ -359,6 +370,21 @@ void Goal9_RestoreHardware(Gorgon::Widgets::Label &statusLbl) {
 // =============================================================================
 int main() {
     Gorgon::Initialize("OpenRGBExample");
+
+    // -------------------------------------------------------------------------
+    // Tip: Starting with OpenRGB Suspended (Settings Toggle Pattern)
+    // -------------------------------------------------------------------------
+    // To start an application with OpenRGB disabled by default (or based on a
+    // user configuration setting), call `OpenRGB::Suspend();` or
+    // `OpenRGB::Initialize(true);` here before any lighting calls.
+    // All OpenRGB calls (SetKeyColor, Progressbar, Shortcuts, Animations) will
+    // work normally in memory without modifying physical devices at all until
+    // `OpenRGB::Resume()` is called (for example, from a Settings menu toggle).
+    //
+    // if(!userSettings.enableOpenRGB) {
+    //     OpenRGB::Suspend();
+    // }
+
     Gorgon::UI::Window window({980, 840}, "openrgb_example", "Gorgon OpenRGB & Shortcut Keys Interactive Guide", true);
     Gorgon::UI::Initialize();
 

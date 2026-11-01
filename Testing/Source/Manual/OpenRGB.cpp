@@ -306,6 +306,73 @@ namespace {
         return boxes;
     }
 
+    // Builds visual layout boxes for an addressable lighting zone (Single LED, Linear Strip, Matrix)
+    std::vector<KeyBox> BuildZoneBoxes(const OpenRGB::Device &dev, const OpenRGB::Zone &z, int &outW, int &outH) {
+        std::vector<KeyBox> boxes;
+        constexpr float PAD_LED = 0.08f;
+        const auto &leds = dev.GetLEDs();
+        int offset = z.GetLEDOffset();
+        int count  = z.GetLEDCount();
+
+        if(z.GetType() == OpenRGB::ZoneType::Single || count <= 1) {
+            outW = 1;
+            outH = 1;
+            KeyBox box;
+            box.led_idx   = offset;
+            box.full_name = (offset >= 0 && offset < (int)leds.size()) ? leds[offset].name : z.GetName();
+            box.label     = z.GetName();
+            box.gx        = PAD_LED;
+            box.gy        = PAD_LED;
+            box.gw        = 1.0f - 2.0f * PAD_LED;
+            box.gh        = 1.0f - 2.0f * PAD_LED;
+            boxes.push_back(box);
+            return boxes;
+        }
+
+        if(z.IsMatrix()) {
+            outW = z.GetWidth();
+            outH = z.GetHeight();
+            for(int y = 0; y < outH; y++) {
+                for(int x = 0; x < outW; x++) {
+                    int local_idx = z.GetLEDIndexAt(x, y);
+                    if(local_idx < 0) continue;
+                    int global_idx = offset + local_idx;
+                    if(global_idx < 0 || global_idx >= (int)leds.size()) continue;
+
+                    KeyBox box;
+                    box.led_idx   = global_idx;
+                    box.full_name = leds[global_idx].name;
+                    box.label     = std::to_string(local_idx);
+                    box.gx        = x + PAD_LED;
+                    box.gy        = y + PAD_LED;
+                    box.gw        = 1.0f - 2.0f * PAD_LED;
+                    box.gh        = 1.0f - 2.0f * PAD_LED;
+                    boxes.push_back(box);
+                }
+            }
+            return boxes;
+        }
+
+        // Linear strip zone
+        outW = std::max(1, count);
+        outH = 1;
+        for(int x = 0; x < count; x++) {
+            int global_idx = offset + x;
+            if(global_idx < 0 || global_idx >= (int)leds.size()) break;
+
+            KeyBox box;
+            box.led_idx   = global_idx;
+            box.full_name = leds[global_idx].name;
+            box.label     = std::to_string(x);
+            box.gx        = x + PAD_LED;
+            box.gy        = PAD_LED;
+            box.gw        = 1.0f - 2.0f * PAD_LED;
+            box.gh        = 1.0f - 2.0f * PAD_LED;
+            boxes.push_back(box);
+        }
+        return boxes;
+    }
+
     struct KeyboardTabState {
         OpenRGB::KeyboardDevice kb;
         Widgets::Tab<std::string> *tab = nullptr;
@@ -322,6 +389,22 @@ namespace {
         Widgets::Button removeModeColorBtn{"- Remove Color"};
         std::array<std::unique_ptr<Widgets::Label>, MAX_MODE_COLORS> modeColorLabels;
         std::array<std::unique_ptr<Widgets::ColorPicker>, MAX_MODE_COLORS> modeColorPickers;
+
+        // Mode parameters (Speed, Direction, Brightness)
+        Widgets::Label speedLbl{"Speed:"};
+        Widgets::HScrollbar speedScroll;
+        Widgets::Label speedValLbl;
+        bool updatingSpeed = false;
+
+        Widgets::Label brightnessLbl{"Brightness:"};
+        Widgets::HScrollbar brightnessScroll;
+        Widgets::Label brightnessValLbl;
+        bool updatingBrightness = false;
+
+        Widgets::Label directionLbl{"Direction:"};
+        Widgets::RadioButtons<int> directionRadios;
+        bool updatingDirection = false;
+
         Widgets::MarkdownLabel nonDirectInfoLbl;
 
         Widgets::Panel directPanel{Widgets::Registry::Panel_Blank};
@@ -334,11 +417,15 @@ namespace {
         Widgets::Button clearAllBtn;
 
         Widgets::Label numRowLbl;
+        Widgets::Button numRowMinusBtn{"-"};
         Widgets::HScrollbar numRowScroll{0, 110};
+        Widgets::Button numRowPlusBtn{"+"};
         Widgets::Checkbox numRowSingleChk{"Single Key"};
 
         Widgets::Label fKeyLbl;
+        Widgets::Button fKeyMinusBtn{"-"};
         Widgets::HScrollbar fKeyScroll{0, 110};
+        Widgets::Button fKeyPlusBtn{"+"};
         Widgets::Checkbox fKeySingleChk{"Single Key"};
 
         OpenRGB::Progressbar numRowProg;
@@ -525,6 +612,57 @@ namespace {
                 }
             });
 
+            speedScroll.Range = 1;
+            speedScroll.SmallChange = 1;
+            speedScroll.LargeChange = 5;
+            speedScroll.DisableSmoothChange();
+            nonDirectPanel.Add(speedLbl);
+            nonDirectPanel.Add(speedScroll);
+            nonDirectPanel.Add(speedValLbl);
+
+            brightnessScroll.Range = 1;
+            brightnessScroll.SmallChange = 1;
+            brightnessScroll.LargeChange = 10;
+            brightnessScroll.DisableSmoothChange();
+            nonDirectPanel.Add(brightnessLbl);
+            nonDirectPanel.Add(brightnessScroll);
+            nonDirectPanel.Add(brightnessValLbl);
+
+            directionRadios.SetColumns(4);
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Left), "Left");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Right), "Right");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Up), "Up");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Down), "Down");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Horizontal), "Horizontal");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Vertical), "Vertical");
+            nonDirectPanel.Add(directionLbl);
+            nonDirectPanel.Add(directionRadios);
+
+            speedScroll.ValueChanged.Register([this](int val) {
+                if(updatingSpeed) return;
+                unsigned s1 = kb.GetModeMinSpeed();
+                unsigned s2 = kb.GetModeMaxSpeed();
+                auto [lowS, highS] = std::minmax(s1, s2);
+                unsigned actualSpeed = lowS + (unsigned)val;
+                kb.SetModeSpeed(actualSpeed);
+                speedValLbl.SetText(std::to_string(actualSpeed) + " (" + std::to_string(lowS) + ".." + std::to_string(highS) + ")");
+            });
+
+            brightnessScroll.ValueChanged.Register([this](int val) {
+                if(updatingBrightness) return;
+                unsigned b1 = kb.GetModeMinBrightness();
+                unsigned b2 = kb.GetModeMaxBrightness();
+                auto [lowB, highB] = std::minmax(b1, b2);
+                unsigned actualB = lowB + (unsigned)val;
+                kb.SetModeBrightness(actualB);
+                brightnessValLbl.SetText(std::to_string(actualB) + " (" + std::to_string(lowB) + ".." + std::to_string(highB) + ")");
+            });
+
+            directionRadios.ChangedEvent.Register([this](int dirVal) {
+                if(updatingDirection) return;
+                kb.SetModeDirection(static_cast<OpenRGB::ModeDirection>(dirVal));
+            });
+
             nonDirectInfoLbl.SetAutosize(UI::Autosize::None, UI::Autosize::Automatic);
             nonDirectInfoLbl.Move(Pixels(10, 120));
             nonDirectInfoLbl.SetWidth(Pixels(tabW - 40));
@@ -566,13 +704,21 @@ namespace {
             numRowLbl.SetWidth(Pixels(220));
             directPanel.Add(numRowLbl);
 
+            numRowMinusBtn.Move(Pixels(230, row2Y));
+            numRowMinusBtn.SetWidth(Pixels(30));
+            directPanel.Add(numRowMinusBtn);
+
             numRowScroll.Range = 10;
             numRowScroll.SmallChange = 5;
             numRowScroll.LargeChange = 20;
             numRowScroll.DisableSmoothChange();
-            numRowScroll.Move(Pixels(230, row2Y));
-            numRowScroll.SetWidth(Pixels(320));
+            numRowScroll.Move(Pixels(265, row2Y));
+            numRowScroll.SetWidth(Pixels(250));
             directPanel.Add(numRowScroll);
+
+            numRowPlusBtn.Move(Pixels(520, row2Y));
+            numRowPlusBtn.SetWidth(Pixels(30));
+            directPanel.Add(numRowPlusBtn);
 
             numRowSingleChk.Move(Pixels(565, row2Y));
             numRowSingleChk.SetWidth(Pixels(150));
@@ -584,17 +730,38 @@ namespace {
             fKeyLbl.SetWidth(Pixels(220));
             directPanel.Add(fKeyLbl);
 
+            fKeyMinusBtn.Move(Pixels(230, row3Y));
+            fKeyMinusBtn.SetWidth(Pixels(30));
+            directPanel.Add(fKeyMinusBtn);
+
             fKeyScroll.Range = 10;
             fKeyScroll.SmallChange = 5;
             fKeyScroll.LargeChange = 20;
             fKeyScroll.DisableSmoothChange();
-            fKeyScroll.Move(Pixels(230, row3Y));
-            fKeyScroll.SetWidth(Pixels(320));
+            fKeyScroll.Move(Pixels(265, row3Y));
+            fKeyScroll.SetWidth(Pixels(250));
             directPanel.Add(fKeyScroll);
+
+            fKeyPlusBtn.Move(Pixels(520, row3Y));
+            fKeyPlusBtn.SetWidth(Pixels(30));
+            directPanel.Add(fKeyPlusBtn);
 
             fKeySingleChk.Move(Pixels(565, row3Y));
             fKeySingleChk.SetWidth(Pixels(150));
             directPanel.Add(fKeySingleChk);
+
+            numRowMinusBtn.PressEvent.Register([this]() {
+                numRowScroll.SetValue(std::max(0, numRowScroll.GetValue() - 10));
+            });
+            numRowPlusBtn.PressEvent.Register([this]() {
+                numRowScroll.SetValue(std::min(100, numRowScroll.GetValue() + 10));
+            });
+            fKeyMinusBtn.PressEvent.Register([this]() {
+                fKeyScroll.SetValue(std::max(0, fKeyScroll.GetValue() - 10));
+            });
+            fKeyPlusBtn.PressEvent.Register([this]() {
+                fKeyScroll.SetValue(std::min(100, fKeyScroll.GetValue() + 10));
+            });
 
             // Row 4: Software Effects (Explosion, Swipe, Death Fade, Pulse WASD, Reactive)
             int row4Y = row3Y + 36;
@@ -918,17 +1085,108 @@ namespace {
                 }
                 updatingModeColors = false;
 
-                int infoTop = 10;
-                if(maxCols > 0 || hasRand) {
-                    int rows = (!isRand && numShown > 0) ? ((numShown + 3) / 4) : 0;
-                    infoTop = 42 + rows * 38;
+                int rows = (!isRand && numShown > 0) ? ((numShown + 3) / 4) : 0;
+                int nextY = (maxCols > 0 || hasRand) ? (46 + rows * 38) : 10;
+
+                bool hasSpeed = kb.SupportsModeSpeed();
+                if(hasSpeed) {
+                    unsigned curS = kb.GetModeSpeed();
+                    unsigned s1   = kb.GetModeMinSpeed();
+                    unsigned s2   = kb.GetModeMaxSpeed();
+                    auto [lowS, highS] = std::minmax(s1, s2);
+                    speedScroll.SetMaximum(std::max(1u, highS - lowS) + 1);
+                    updatingSpeed = true;
+                    speedScroll.SetValue(curS >= lowS ? (curS - lowS) : 0);
+                    updatingSpeed = false;
+                    speedValLbl.SetText(std::to_string(curS) + " (" + std::to_string(lowS) + ".." + std::to_string(highS) + ")");
+                    speedLbl.Move(Pixels(10, nextY));
+                    speedLbl.SetWidth(Pixels(75));
+                    speedScroll.Move(Pixels(90, nextY));
+                    speedScroll.SetWidth(Pixels(240));
+                    speedValLbl.Move(Pixels(340, nextY));
+                    speedValLbl.SetWidth(Pixels(120));
+                    speedLbl.Show();
+                    speedScroll.Show();
+                    speedValLbl.Show();
+                    nextY += 36;
                 }
-                nonDirectInfoLbl.Move(Pixels(10, infoTop));
+                else {
+                    speedLbl.Hide();
+                    speedScroll.Hide();
+                    speedValLbl.Hide();
+                }
+
+                bool hasBrightness = kb.SupportsModeBrightness();
+                if(hasBrightness) {
+                    unsigned curB = kb.GetModeBrightness();
+                    unsigned b1   = kb.GetModeMinBrightness();
+                    unsigned b2   = kb.GetModeMaxBrightness();
+                    auto [lowB, highB] = std::minmax(b1, b2);
+                    brightnessScroll.SetMaximum(std::max(1u, highB - lowB) + 1);
+                    updatingBrightness = true;
+                    brightnessScroll.SetValue(curB >= lowB ? (curB - lowB) : 0);
+                    updatingBrightness = false;
+                    brightnessValLbl.SetText(std::to_string(curB) + " (" + std::to_string(lowB) + ".." + std::to_string(highB) + ")");
+                    brightnessLbl.Move(Pixels(10, nextY));
+                    brightnessLbl.SetWidth(Pixels(85));
+                    brightnessScroll.Move(Pixels(100, nextY));
+                    brightnessScroll.SetWidth(Pixels(230));
+                    brightnessValLbl.Move(Pixels(340, nextY));
+                    brightnessValLbl.SetWidth(Pixels(120));
+                    brightnessLbl.Show();
+                    brightnessScroll.Show();
+                    brightnessValLbl.Show();
+                    nextY += 36;
+                }
+                else {
+                    brightnessLbl.Hide();
+                    brightnessScroll.Hide();
+                    brightnessValLbl.Hide();
+                }
+
+                bool hasDir = kb.SupportsModeDirection();
+                if(hasDir) {
+                    updatingDirection = true;
+                    bool supLR = kb.SupportsModeDirectionLR();
+                    bool supUD = kb.SupportsModeDirectionUD();
+                    bool supHV = kb.SupportsModeDirectionHV();
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Left), supLR);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Right), supLR);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Up), supUD);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Down), supUD);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Horizontal), supHV);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Vertical), supHV);
+                    directionRadios.Set(static_cast<int>(kb.GetModeDirection()));
+                    updatingDirection = false;
+
+                    directionLbl.Move(Pixels(10, nextY));
+                    directionLbl.SetWidth(Pixels(85));
+                    directionRadios.Move(Pixels(100, nextY));
+                    directionRadios.SetWidth(Pixels(360));
+                    directionLbl.Show();
+                    directionRadios.Show();
+                    nextY += 40;
+                }
+                else {
+                    directionLbl.Hide();
+                    directionRadios.Hide();
+                }
+
+                nonDirectInfoLbl.Move(Pixels(10, nextY + 10));
 
                 std::ostringstream ss;
                 ss << "## Hardware Mode Active: **" << kb.GetActiveModeName() << "**\n\n";
                 if(maxCols > 0) {
                     ss << "* **Mode Colors:** " << cols.size() << " active (supports " << minCols << " to " << maxCols << " colors)\n";
+                }
+                if(hasSpeed) {
+                    ss << "* **Speed:** " << kb.GetModeSpeed() << "\n";
+                }
+                if(hasBrightness) {
+                    ss << "* **Brightness:** " << kb.GetModeBrightness() << "\n";
+                }
+                if(hasDir) {
+                    ss << "* **Direction:** " << static_cast<int>(kb.GetModeDirection()) << "\n";
                 }
                 ss << "* Select **Direct** mode above to display the interactive on-screen keyboard and progressbars.\n\n"
                    << "---\n\n"
@@ -1023,38 +1281,70 @@ namespace {
         }
     };
 
-    struct StripTabState {
-        OpenRGB::Device strip;
+    struct MultiZoneDeviceTabState {
+        OpenRGB::Device dev;
         Widgets::Tab<std::string> *tab = nullptr;
 
         Widgets::Label modeTitleLbl;
         Widgets::RadioButtons<int> modeRadios;
 
+        static constexpr int MAX_MODE_COLORS = 8;
+
         Widgets::Panel nonDirectPanel{Widgets::Registry::Panel_Blank};
+        Widgets::Label modeColorsTitleLbl;
+        Widgets::Checkbox randomColorChk{"Random Colors"};
+        Widgets::Button addModeColorBtn{"+ Add Color"};
+        Widgets::Button removeModeColorBtn{"- Remove Color"};
+        std::array<std::unique_ptr<Widgets::Label>, MAX_MODE_COLORS> modeColorLabels;
+        std::array<std::unique_ptr<Widgets::ColorPicker>, MAX_MODE_COLORS> modeColorPickers;
+
+        Widgets::Label speedLbl{"Speed:"};
+        Widgets::HScrollbar speedScroll;
+        Widgets::Label speedValLbl;
+        bool updatingSpeed = false;
+
+        Widgets::Label brightnessLbl{"Brightness:"};
+        Widgets::HScrollbar brightnessScroll;
+        Widgets::Label brightnessValLbl;
+        bool updatingBrightness = false;
+
+        Widgets::Label directionLbl{"Direction:"};
+        Widgets::RadioButtons<int> directionRadios;
+        bool updatingDirection = false;
+
         Widgets::MarkdownLabel nonDirectInfoLbl;
 
         Widgets::Panel directPanel{Widgets::Registry::Panel_Blank};
-        Widgets::Layerbox stripLayerbox{Widgets::Registry::Layerbox_Regular};
+        Widgets::Label zoneTitleLbl;
+        Widgets::RadioButtons<int> zoneRadios;
+        bool updatingZone = false;
+
+        Widgets::Layerbox devLayerbox{Widgets::Registry::Layerbox_Regular};
         Graphics::Layer gfxLayer;
         Input::Layer inpLayer;
 
         Widgets::Label selectedLedLbl;
         Widgets::ColorPicker colorPicker;
+        Widgets::Button fillZoneBtn{"Fill Zone"};
+        Widgets::Button fillDevBtn{"Fill Device"};
         Widgets::Button gradientBtn{"Draw Gradient"};
-        Widgets::Button clearAllBtn{"Clear Strip"};
+        Widgets::Button clearZoneBtn{"Clear Zone"};
+        Widgets::Button clearDevBtn{"Clear Device"};
 
-        Widgets::Label stripProgLbl;
-        Widgets::HScrollbar stripProgScroll{0, 110};
-        Widgets::Checkbox stripSingleChk{"Single LED"};
+        Widgets::Label progLbl;
+        Widgets::Button progMinusBtn{"-"};
+        Widgets::HScrollbar progScroll{0, 110};
+        Widgets::Button progPlusBtn{"+"};
+        Widgets::Checkbox progSingleChk{"Single LED"};
 
-        OpenRGB::Progressbar stripProg;
+        OpenRGB::Progressbar prog;
 
         // Effects & Scene/Governor demo controls
         Widgets::Label effectsLbl{"Effects:"};
         Widgets::Button explosionBtn{"Explosion"};
         Widgets::Button swipeBtn{"Swipe Buff"};
         Widgets::Button deathBtn{"Death Fade"};
-        Widgets::Checkbox pulseChk{"Pulse Strip"};
+        Widgets::Checkbox pulseChk{"Pulse Device"};
         Widgets::Checkbox reactiveChk{"Reactive Keys"};
 
         Widgets::Label govLbl{"Context:"};
@@ -1071,27 +1361,32 @@ namespace {
         OpenRGB::PulseEffect activePulse;
         OpenRGB::ReactiveEffect activeReactive;
 
+        std::vector<OpenRGB::Zone> zones;
+        int activeZoneIdx = 0;
         std::vector<KeyBox> ledBoxes;
-        int matrixW = 12;
+        int matrixW = 1;
         int matrixH = 1;
         int selectedLed = -1;
         int hoveredLed  = -1;
         int progPct     = 0;
-        bool updatingPicker = false;
-        bool updatingMode   = false;
+        bool updatingPicker     = false;
+        bool updatingMode       = false;
+        bool updatingModeColors = false;
 
         const Graphics::BasicPrinter *keyPrinter = nullptr;
 
-        StripTabState(const OpenRGB::Device &device,
-                      Widgets::Tab<std::string> &parentTab,
-                      const Graphics::BasicPrinter &printer,
-                      UI::Window &mainWind) :
-            strip(device),
+        MultiZoneDeviceTabState(const OpenRGB::Device &device,
+                                Widgets::Tab<std::string> &parentTab,
+                                const Graphics::BasicPrinter &printer,
+                                UI::Window &mainWind) :
+            dev(device),
             tab(&parentTab),
             modeTitleLbl("Hardware Mode:", Widgets::Registry::Label_Bold),
+            modeColorsTitleLbl("Mode Color Settings:", Widgets::Registry::Label_Bold),
+            zoneTitleLbl("Lighting Zone:", Widgets::Registry::Label_Bold),
             selectedLedLbl("Selected LED: None (click any LED above)", Widgets::Registry::Label_Bold),
-            stripProgLbl("Strip Progress: 0%"),
-            stripProg(device),
+            progLbl("Zone Progress: 0%"),
+            prog(device),
             activeExplosion(Graphics::RGBA(255, 130, 0, 255), 850, 2.5f),
             activeSwipe(Graphics::RGBA(0, 240, 180, 255), OpenRGB::SwipeDirection::LeftToRight, 750, 0.25f),
             activeDeathFlash(Graphics::RGBA(255, 0, 0, 255), Graphics::RGBA(255, 0, 0, 255), 150),
@@ -1100,29 +1395,24 @@ namespace {
             activeReactive(Graphics::RGBA(0, 230, 255, 255), 550),
             keyPrinter(&printer)
         {
-            auto sz = strip.GetMatrixSize();
-            if(sz.Width > 0 && sz.Height > 0) {
-                matrixW = sz.Width;
-                matrixH = sz.Height;
+            zones = dev.GetZones();
+            activeZoneIdx = 0;
+            if(!zones.empty()) {
+                ledBoxes = BuildZoneBoxes(dev, zones[0], matrixW, matrixH);
+                prog.SetZone(zones[0]);
             }
             else {
-                matrixW = std::max(1, strip.GetLEDCount());
+                matrixW = std::max(1, dev.GetLEDCount());
                 matrixH = 1;
-            }
-
-            constexpr float PAD_LED = 0.08f;
-            const auto &leds = strip.GetLEDs();
-            for(int y = 0; y < matrixH; y++) {
-                for(int x = 0; x < matrixW; x++) {
-                    int idx = y * matrixW + x;
-                    if(idx >= (int)leds.size())
-                        break;
+                constexpr float PAD_LED = 0.08f;
+                const auto &leds = dev.GetLEDs();
+                for(int i = 0; i < (int)leds.size(); i++) {
                     KeyBox box;
-                    box.led_idx   = idx;
-                    box.full_name = leds[idx].name;
-                    box.label     = std::to_string(idx);
-                    box.gx        = x + PAD_LED;
-                    box.gy        = y + PAD_LED;
+                    box.led_idx   = i;
+                    box.full_name = leds[i].name;
+                    box.label     = std::to_string(i);
+                    box.gx        = i + PAD_LED;
+                    box.gy        = PAD_LED;
                     box.gw        = 1.0f - 2.0f * PAD_LED;
                     box.gh        = 1.0f - 2.0f * PAD_LED;
                     ledBoxes.push_back(box);
@@ -1134,7 +1424,7 @@ namespace {
                 {Range<Float>(0.25f, 0.75f), Graphics::RGBA(255, 200, 0, 255)},
                 {Range<Float>(0.75f, 1.0f), Graphics::RGBA(0, 230, 80, 255)}
             };
-            stripProg.SetLevelColors(levels);
+            prog.SetLevelColors(levels);
 
             int tabW = std::max(800, tab->GetInteriorSize().Width);
             int tabH = std::max(550, tab->GetInteriorSize().Height);
@@ -1145,15 +1435,15 @@ namespace {
 
             modeRadios.Move(Pixels(10, 32));
             modeRadios.SetWidth(Pixels(tabW - 20));
-            int modeCount = strip.GetModeCount();
+            int modeCount = dev.GetModeCount();
             int cols = std::min(6, std::max(1, modeCount));
             modeRadios.SetColumns(cols);
             for(int m = 0; m < modeCount; m++) {
-                modeRadios.Add(m, strip.GetModeName(m));
+                modeRadios.Add(m, dev.GetModeName(m));
             }
-            if(strip.GetActiveMode() >= 0) {
+            if(dev.GetActiveMode() >= 0) {
                 updatingMode = true;
-                modeRadios.Set(strip.GetActiveMode());
+                modeRadios.Set(dev.GetActiveMode());
                 updatingMode = false;
             }
             tab->Add(modeRadios);
@@ -1161,95 +1451,287 @@ namespace {
             int contentTop = modeRadios.GetBounds().Bottom + 10;
             int contentH   = std::max(350, tabH - contentTop - 10);
 
+            // 1. Non-Direct Panel
             nonDirectPanel.Move(Pixels(10, contentTop));
             nonDirectPanel.Resize(Pixels(tabW - 20, contentH));
             tab->Add(nonDirectPanel);
 
+            modeColorsTitleLbl.Move(Pixels(10, 6));
+            modeColorsTitleLbl.SetWidth(Pixels(220));
+            nonDirectPanel.Add(modeColorsTitleLbl);
+
+            randomColorChk.Move(Pixels(240, 6));
+            randomColorChk.SetWidth(Pixels(170));
+            nonDirectPanel.Add(randomColorChk);
+
+            addModeColorBtn.Move(Pixels(425, 4));
+            addModeColorBtn.SetWidth(Pixels(135));
+            nonDirectPanel.Add(addModeColorBtn);
+
+            removeModeColorBtn.Move(Pixels(570, 4));
+            removeModeColorBtn.SetWidth(Pixels(150));
+            nonDirectPanel.Add(removeModeColorBtn);
+
+            for(int i = 0; i < MAX_MODE_COLORS; i++) {
+                int col = i % 4;
+                int row = i / 4;
+                int xBase = 10 + col * 245;
+                int yBase = 40 + row * 38;
+
+                modeColorLabels[i] = std::make_unique<Widgets::Label>("Color " + std::to_string(i + 1) + ":");
+                modeColorLabels[i]->Move(Pixels(xBase, yBase));
+                modeColorLabels[i]->SetWidth(Pixels(75));
+                nonDirectPanel.Add(*modeColorLabels[i]);
+
+                modeColorPickers[i] = std::make_unique<Widgets::ColorPicker>();
+                modeColorPickers[i]->Move(Pixels(xBase + 78, yBase));
+                modeColorPickers[i]->SetWidth(Pixels(155));
+                nonDirectPanel.Add(*modeColorPickers[i]);
+
+                int idx = i;
+                modeColorPickers[i]->ChangedEvent.Register([this, idx]() {
+                    if(updatingModeColors) return;
+                    Graphics::RGBAf colf = *modeColorPickers[idx];
+                    Graphics::RGBA col(
+                        (Byte)std::clamp((int)std::round(colf.R * 255.f), 0, 255),
+                        (Byte)std::clamp((int)std::round(colf.G * 255.f), 0, 255),
+                        (Byte)std::clamp((int)std::round(colf.B * 255.f), 0, 255),
+                        Byte(255)
+                    );
+                    dev.SetModeColor(col, idx);
+                    updatingModeColors = true;
+                    randomColorChk = dev.IsRandomColor();
+                    updatingModeColors = false;
+                });
+            }
+
+            randomColorChk.ChangedEvent.Register([this]() {
+                if(updatingModeColors) return;
+                dev.SetRandomColor(bool(randomColorChk));
+                UpdateModeView();
+            });
+
+            addModeColorBtn.PressEvent.Register([this]() {
+                auto cols = dev.GetModeColors();
+                int maxCols = dev.GetModeMaxColors();
+                if((int)cols.size() < maxCols) {
+                    static const Graphics::RGBA palette[] = {
+                        {255, 0, 0, 255}, {255, 128, 0, 255}, {255, 230, 0, 255}, {0, 230, 60, 255},
+                        {0, 210, 255, 255}, {40, 80, 255, 255}, {180, 0, 255, 255}, {255, 0, 140, 255}
+                    };
+                    cols.push_back(palette[cols.size() % 8]);
+                    dev.SetModeColors(cols);
+                    UpdateModeView();
+                }
+            });
+
+            removeModeColorBtn.PressEvent.Register([this]() {
+                auto cols = dev.GetModeColors();
+                int minCols = std::max(1, dev.GetModeMinColors());
+                if((int)cols.size() > minCols) {
+                    cols.pop_back();
+                    dev.SetModeColors(cols);
+                    UpdateModeView();
+                }
+            });
+
+            speedScroll.Range = 1;
+            speedScroll.SmallChange = 1;
+            speedScroll.LargeChange = 5;
+            speedScroll.DisableSmoothChange();
+            nonDirectPanel.Add(speedLbl);
+            nonDirectPanel.Add(speedScroll);
+            nonDirectPanel.Add(speedValLbl);
+
+            brightnessScroll.Range = 1;
+            brightnessScroll.SmallChange = 1;
+            brightnessScroll.LargeChange = 10;
+            brightnessScroll.DisableSmoothChange();
+            nonDirectPanel.Add(brightnessLbl);
+            nonDirectPanel.Add(brightnessScroll);
+            nonDirectPanel.Add(brightnessValLbl);
+
+            directionRadios.SetColumns(4);
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Left), "Left");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Right), "Right");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Up), "Up");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Down), "Down");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Horizontal), "Horizontal");
+            directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Vertical), "Vertical");
+            nonDirectPanel.Add(directionLbl);
+            nonDirectPanel.Add(directionRadios);
+
+            speedScroll.ValueChanged.Register([this](int val) {
+                if(updatingSpeed) return;
+                unsigned s1 = dev.GetModeMinSpeed();
+                unsigned s2 = dev.GetModeMaxSpeed();
+                auto [lowS, highS] = std::minmax(s1, s2);
+                unsigned actualSpeed = lowS + (unsigned)val;
+                dev.SetModeSpeed(actualSpeed);
+                speedValLbl.SetText(std::to_string(actualSpeed) + " (" + std::to_string(lowS) + ".." + std::to_string(highS) + ")");
+            });
+
+            brightnessScroll.ValueChanged.Register([this](int val) {
+                if(updatingBrightness) return;
+                unsigned b1 = dev.GetModeMinBrightness();
+                unsigned b2 = dev.GetModeMaxBrightness();
+                auto [lowB, highB] = std::minmax(b1, b2);
+                unsigned actualB = lowB + (unsigned)val;
+                dev.SetModeBrightness(actualB);
+                brightnessValLbl.SetText(std::to_string(actualB) + " (" + std::to_string(lowB) + ".." + std::to_string(highB) + ")");
+            });
+
+            directionRadios.ChangedEvent.Register([this](int dirVal) {
+                if(updatingDirection) return;
+                dev.SetModeDirection(static_cast<OpenRGB::ModeDirection>(dirVal));
+            });
+
             nonDirectInfoLbl.SetAutosize(UI::Autosize::None, UI::Autosize::Automatic);
-            nonDirectInfoLbl.Move(Pixels(10, 10));
+            nonDirectInfoLbl.Move(Pixels(10, 120));
             nonDirectInfoLbl.SetWidth(Pixels(tabW - 40));
             nonDirectPanel.Add(nonDirectInfoLbl);
 
+            // 2. Direct Panel
             directPanel.Move(Pixels(10, contentTop));
             directPanel.Resize(Pixels(tabW - 20, contentH));
             directPanel.EnableScroll(false, false);
             tab->Add(directPanel);
 
-            int stripBoxW = tabW - 30;
-            int stripBoxH = std::min(180, std::max(130, contentH - 215));
+            int curY = 4;
+            if(!zones.empty()) {
+                zoneTitleLbl.Move(Pixels(4, curY));
+                zoneTitleLbl.SetWidth(Pixels(130));
+                directPanel.Add(zoneTitleLbl);
 
-            stripLayerbox.Move(Pixels(0, 0));
-            stripLayerbox.Resize(Pixels(stripBoxW, stripBoxH));
-            stripLayerbox.GetLayer().Add(gfxLayer);
-            stripLayerbox.GetLayer().Add(inpLayer);
-            directPanel.Add(stripLayerbox);
+                zoneRadios.Move(Pixels(140, curY));
+                zoneRadios.SetWidth(Pixels(tabW - 170));
+                int zCols = std::min(4, std::max(1, (int)zones.size()));
+                zoneRadios.SetColumns(zCols);
+                for(size_t z = 0; z < zones.size(); z++) {
+                    std::string zName = zones[z].GetName() + " (" + ZoneTypeToString(zones[z].GetType()) + ", " + std::to_string(zones[z].GetLEDCount()) + " LEDs)";
+                    zoneRadios.Add((int)z, zName);
+                }
+                zoneRadios.Set(0);
+                directPanel.Add(zoneRadios);
 
-            int row1Y = stripBoxH + 12;
-            selectedLedLbl.Move(Pixels(4, row1Y));
-            selectedLedLbl.SetWidth(Pixels(340));
+                zoneRadios.ChangedEvent.Register([this](int zIdx) {
+                    if(updatingZone || zIdx < 0 || zIdx >= (int)zones.size()) return;
+                    activeZoneIdx = zIdx;
+                    selectedLed = -1;
+                    hoveredLed = -1;
+                    selectedLedLbl.SetText("Selected LED: None (click any LED above)");
+                    prog.SetZone(zones[activeZoneIdx]);
+                    activeExplosion.TargetZone(zones[activeZoneIdx]);
+                    activeSwipe.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFlash.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFade.TargetZone(zones[activeZoneIdx]);
+                    activePulse.TargetZone(zones[activeZoneIdx]);
+                    activeReactive.TargetZone(zones[activeZoneIdx]);
+                    ledBoxes = BuildZoneBoxes(dev, zones[activeZoneIdx], matrixW, matrixH);
+                    RedrawDevice();
+                });
+
+                curY += 34;
+            }
+
+            int boxW = tabW - 30;
+            int boxH = 150;
+            devLayerbox.Move(Pixels(0, curY));
+            devLayerbox.Resize(Pixels(boxW, boxH));
+            devLayerbox.GetLayer().Add(gfxLayer);
+            devLayerbox.GetLayer().Add(inpLayer);
+            directPanel.Add(devLayerbox);
+            curY += boxH + 10;
+
+            // Row 1: Selected LED + Color Picker + Fill Zone + Fill Device + Gradient + Clear Zone + Clear Device
+            selectedLedLbl.Move(Pixels(4, curY));
+            selectedLedLbl.SetWidth(Pixels(240));
             directPanel.Add(selectedLedLbl);
 
-            colorPicker.Move(Pixels(350, row1Y));
-            colorPicker.SetWidth(Pixels(170));
+            colorPicker.Move(Pixels(250, curY));
+            colorPicker.SetWidth(Pixels(135));
             colorPicker = Graphics::RGBAf(0.f, 0.f, 0.f, 1.f);
             directPanel.Add(colorPicker);
 
-            gradientBtn.Move(Pixels(530, row1Y));
-            gradientBtn.SetWidth(Pixels(135));
+            fillZoneBtn.Move(Pixels(390, curY));
+            fillZoneBtn.SetWidth(Pixels(85));
+            directPanel.Add(fillZoneBtn);
+
+            fillDevBtn.Move(Pixels(480, curY));
+            fillDevBtn.SetWidth(Pixels(90));
+            directPanel.Add(fillDevBtn);
+
+            gradientBtn.Move(Pixels(575, curY));
+            gradientBtn.SetWidth(Pixels(110));
             directPanel.Add(gradientBtn);
 
-            clearAllBtn.Move(Pixels(675, row1Y));
-            clearAllBtn.SetWidth(Pixels(130));
-            directPanel.Add(clearAllBtn);
+            clearZoneBtn.Move(Pixels(690, curY));
+            clearZoneBtn.SetWidth(Pixels(95));
+            directPanel.Add(clearZoneBtn);
 
-            int row2Y = row1Y + 40;
-            stripProgLbl.Move(Pixels(4, row2Y));
-            stripProgLbl.SetWidth(Pixels(220));
-            directPanel.Add(stripProgLbl);
+            clearDevBtn.Move(Pixels(790, curY));
+            clearDevBtn.SetWidth(Pixels(95));
+            directPanel.Add(clearDevBtn);
+            curY += 36;
 
-            stripProgScroll.Range = 10;
-            stripProgScroll.SmallChange = 5;
-            stripProgScroll.LargeChange = 20;
-            stripProgScroll.DisableSmoothChange();
-            stripProgScroll.Move(Pixels(230, row2Y));
-            stripProgScroll.SetWidth(Pixels(320));
-            directPanel.Add(stripProgScroll);
+            // Row 2: Progress bar
+            progLbl.Move(Pixels(4, curY));
+            progLbl.SetWidth(Pixels(220));
+            directPanel.Add(progLbl);
 
-            stripSingleChk.Move(Pixels(565, row2Y));
-            stripSingleChk.SetWidth(Pixels(150));
-            directPanel.Add(stripSingleChk);
+            progMinusBtn.Move(Pixels(230, curY));
+            progMinusBtn.SetWidth(Pixels(30));
+            directPanel.Add(progMinusBtn);
 
-            int row3Y = row2Y + 42;
-            effectsLbl.Move(Pixels(4, row3Y));
+            progScroll.Range = 10;
+            progScroll.SmallChange = 5;
+            progScroll.LargeChange = 20;
+            progScroll.DisableSmoothChange();
+            progScroll.Move(Pixels(265, curY));
+            progScroll.SetWidth(Pixels(250));
+            directPanel.Add(progScroll);
+
+            progPlusBtn.Move(Pixels(520, curY));
+            progPlusBtn.SetWidth(Pixels(30));
+            directPanel.Add(progPlusBtn);
+
+            progSingleChk.Move(Pixels(565, curY));
+            progSingleChk.SetWidth(Pixels(150));
+            directPanel.Add(progSingleChk);
+            curY += 38;
+
+            // Row 3: Effects
+            effectsLbl.Move(Pixels(4, curY));
             effectsLbl.SetWidth(Pixels(65));
             directPanel.Add(effectsLbl);
 
-            explosionBtn.Move(Pixels(75, row3Y - 2));
+            explosionBtn.Move(Pixels(75, curY - 2));
             explosionBtn.SetWidth(Pixels(115));
             directPanel.Add(explosionBtn);
 
-            swipeBtn.Move(Pixels(198, row3Y - 2));
+            swipeBtn.Move(Pixels(198, curY - 2));
             swipeBtn.SetWidth(Pixels(115));
             directPanel.Add(swipeBtn);
 
-            deathBtn.Move(Pixels(321, row3Y - 2));
+            deathBtn.Move(Pixels(321, curY - 2));
             deathBtn.SetWidth(Pixels(115));
             directPanel.Add(deathBtn);
 
-            pulseChk.Move(Pixels(448, row3Y));
+            pulseChk.Move(Pixels(448, curY));
             pulseChk.SetWidth(Pixels(125));
             directPanel.Add(pulseChk);
 
-            reactiveChk.Move(Pixels(580, row3Y));
+            reactiveChk.Move(Pixels(580, curY));
             reactiveChk.SetWidth(Pixels(145));
             directPanel.Add(reactiveChk);
+            curY += 40;
 
-            int row4Y = row3Y + 40;
-            govLbl.Move(Pixels(4, row4Y));
+            // Row 4: Governor
+            govLbl.Move(Pixels(4, curY));
             govLbl.SetWidth(Pixels(65));
             directPanel.Add(govLbl);
 
-            govRadios.Move(Pixels(75, row4Y));
+            govRadios.Move(Pixels(75, curY));
             govRadios.SetWidth(Pixels(650));
             govRadios.SetColumns(3);
             govRadios.Add(0, "Default (Global)");
@@ -1258,15 +1740,15 @@ namespace {
             govRadios.Set(0);
             directPanel.Add(govRadios);
 
-            activeExplosion.TargetDevice(strip);
-            activeSwipe.TargetDevice(strip);
-            activeDeathFlash.TargetDevice(strip);
-            activeDeathFade.TargetDevice(strip);
+            activeExplosion.TargetDevice(dev);
+            activeSwipe.TargetDevice(dev);
+            activeDeathFlash.TargetDevice(dev);
+            activeDeathFade.TargetDevice(dev);
             activeDeathFlash.FinishedEvent.Register([this](Animation::Controller &) {
                 activeDeathFade.Play();
             });
-            activePulse.TargetDevice(strip);
-            activeReactive.TargetDevice(strip);
+            activePulse.TargetDevice(dev);
+            activeReactive.TargetDevice(dev);
             activeReactive.SetRippleRadius(2.0f);
             activeReactive.Stop();
             activeReactive.AttachToWindow(mainWind);
@@ -1294,7 +1776,7 @@ namespace {
                 }
                 else {
                     activePulse.Stop();
-                    RedrawStrip();
+                    RedrawDevice();
                 }
             });
 
@@ -1305,14 +1787,39 @@ namespace {
                 }
                 else {
                     activeReactive.Stop();
-                    RedrawStrip();
+                    RedrawDevice();
                 }
+            });
+
+            progMinusBtn.PressEvent.Register([this]() {
+                progScroll.SetValue(std::max(0, progScroll.GetValue() - 10));
+            });
+            progPlusBtn.PressEvent.Register([this]() {
+                progScroll.SetValue(std::min(100, progScroll.GetValue() + 10));
+            });
+
+            progScroll.ValueChanged.Register([this](int val) {
+                progPct = std::clamp(val, 0, 100);
+                progLbl.SetText("Zone Progress: " + std::to_string(progPct) + "%");
+                if(progPct == 0)
+                    prog.Clear();
+                else
+                    prog.SetProgressRatio(progPct / 100.0f);
+                SyncModeRadioIfDirect();
+                RedrawDevice();
+            });
+
+            progSingleChk.ChangedEvent.Register([this]() {
+                prog.SetSingleKeyMode(bool(progSingleChk));
+                if(progPct > 0)
+                    prog.SetProgressRatio(progPct / 100.0f);
+                RedrawDevice();
             });
 
             govRadios.ChangedEvent.Register([this](int govIdx) {
                 if(!scenesInitialized && govIdx == 1) {
                     scenesInitialized = true;
-                    if(auto sDev = sceneA.OpenRGB.FindDevice(strip.GetName())) {
+                    if(auto sDev = sceneA.OpenRGB.FindDevice(dev.GetName())) {
                         for(int x = 0; x < sDev->GetWidth(); x++) {
                             float t = sDev->GetWidth() > 1 ? (float)x / (sDev->GetWidth() - 1) : 0.f;
                             sDev->SetPixel(x, 0, Graphics::RGBA(Byte(255 * (1.f - t)), Byte(60), Byte(255 * t), Byte(255)));
@@ -1329,13 +1836,12 @@ namespace {
                     sceneB.Activate();
                 }
                 SyncModeRadioIfDirect();
-                RedrawStrip();
+                RedrawDevice();
             });
 
             modeRadios.ChangedEvent.Register([this](int modeIdx) {
-                if(updatingMode)
-                    return;
-                strip.SetMode(modeIdx);
+                if(updatingMode) return;
+                dev.SetMode(modeIdx);
                 UpdateModeView();
             });
 
@@ -1343,28 +1849,25 @@ namespace {
                 int hit = HitTestLED(pt);
                 if(hit != hoveredLed) {
                     hoveredLed = hit;
-                    RedrawStrip();
+                    RedrawDevice();
                 }
             });
 
             inpLayer.SetOut([this]() {
                 if(hoveredLed != -1) {
                     hoveredLed = -1;
-                    RedrawStrip();
+                    RedrawDevice();
                 }
             });
 
             inpLayer.SetClick([this](Geometry::Point pt, Input::Mouse::Button btn) {
-                if(btn != Input::Mouse::Button::Left)
-                    return;
-
+                if(btn != Input::Mouse::Button::Left) return;
                 selectedLed = HitTestLED(pt);
                 if(selectedLed >= 0) {
-                    const auto &leds = strip.GetLEDs();
+                    const auto &leds = dev.GetLEDs();
                     std::string name = (selectedLed < (int)leds.size()) ? leds[selectedLed].name : ("LED #" + std::to_string(selectedLed));
-                    selectedLedLbl.SetText("Selected: " + name + " [x=" + std::to_string(selectedLed) + ", y=0]");
-
-                    auto col = strip.GetLEDColor(selectedLed);
+                    selectedLedLbl.SetText("Selected: " + name + " [#" + std::to_string(selectedLed) + "]");
+                    auto col = dev.GetLEDColor(selectedLed);
                     updatingPicker = true;
                     colorPicker = Graphics::RGBAf(col);
                     updatingPicker = false;
@@ -1372,13 +1875,11 @@ namespace {
                 else {
                     selectedLedLbl.SetText("Selected LED: None (click any LED above)");
                 }
-                RedrawStrip();
+                RedrawDevice();
             });
 
             colorPicker.ChangedEvent.Register([this]() {
-                if(updatingPicker || selectedLed < 0)
-                    return;
-
+                if(updatingPicker || selectedLed < 0) return;
                 Graphics::RGBAf colf = colorPicker;
                 Graphics::RGBA col(
                     (Byte)std::clamp((int)std::round(colf.R * 255.f), 0, 255),
@@ -1386,29 +1887,62 @@ namespace {
                     (Byte)std::clamp((int)std::round(colf.B * 255.f), 0, 255),
                     Byte(255)
                 );
-                strip.SetPixel(selectedLed, 0, col);
+                dev.SetLEDColor(selectedLed, col);
                 SyncModeRadioIfDirect();
-                RedrawStrip();
+                RedrawDevice();
+            });
+
+            fillZoneBtn.PressEvent.Register([this]() {
+                if(activeZoneIdx >= 0 && activeZoneIdx < (int)zones.size()) {
+                    Graphics::RGBAf colf = colorPicker;
+                    Graphics::RGBA col(
+                        (Byte)std::clamp((int)std::round(colf.R * 255.f), 0, 255),
+                        (Byte)std::clamp((int)std::round(colf.G * 255.f), 0, 255),
+                        (Byte)std::clamp((int)std::round(colf.B * 255.f), 0, 255),
+                        Byte(255)
+                    );
+                    zones[activeZoneIdx].SetColor(col);
+                    SyncModeRadioIfDirect();
+                    RedrawDevice();
+                }
+            });
+
+            fillDevBtn.PressEvent.Register([this]() {
+                Graphics::RGBAf colf = colorPicker;
+                Graphics::RGBA col(
+                    (Byte)std::clamp((int)std::round(colf.R * 255.f), 0, 255),
+                    (Byte)std::clamp((int)std::round(colf.G * 255.f), 0, 255),
+                    (Byte)std::clamp((int)std::round(colf.B * 255.f), 0, 255),
+                    Byte(255)
+                );
+                dev.SetColor(col);
+                SyncModeRadioIfDirect();
+                RedrawDevice();
             });
 
             gradientBtn.PressEvent.Register([this]() {
-                Containers::Image img({matrixW, matrixH}, Graphics::ColorMode::RGBA);
-                for(int y = 0; y < matrixH; y++) {
-                    for(int x = 0; x < matrixW; x++) {
-                        float t = matrixW > 1 ? (float)x / (matrixW - 1) : 0.f;
-                        img(x, y, 0) = Byte(255 * (1.f - t));
-                        img(x, y, 1) = Byte(180 * std::sin(t * 3.14159265f));
-                        img(x, y, 2) = Byte(255 * t);
-                        img(x, y, 3) = 255;
+                if(activeZoneIdx >= 0 && activeZoneIdx < (int)zones.size()) {
+                    int count = zones[activeZoneIdx].GetLEDCount();
+                    for(int i = 0; i < count; i++) {
+                        float t = count > 1 ? (float)i / (count - 1) : 0.f;
+                        Graphics::RGBA c(Byte(255 * (1.f - t)), Byte(180 * std::sin(t * 3.14159265f)), Byte(255 * t), 255);
+                        zones[activeZoneIdx].SetLEDColor(i, c);
                     }
+                    SyncModeRadioIfDirect();
+                    RedrawDevice();
                 }
-                strip.Draw(img);
-                SyncModeRadioIfDirect();
-                RedrawStrip();
             });
 
-            clearAllBtn.PressEvent.Register([this]() {
-                stripProg.Clear();
+            clearZoneBtn.PressEvent.Register([this]() {
+                if(activeZoneIdx >= 0 && activeZoneIdx < (int)zones.size()) {
+                    zones[activeZoneIdx].Clear();
+                    SyncModeRadioIfDirect();
+                    RedrawDevice();
+                }
+            });
+
+            clearDevBtn.PressEvent.Register([this]() {
+                prog.Clear();
                 activeExplosion.Stop();
                 activeSwipe.Stop();
                 activeDeathFlash.Stop();
@@ -1417,35 +1951,17 @@ namespace {
                 activeReactive.Stop();
                 pulseChk    = false;
                 reactiveChk = false;
-                strip.Clear();
+                dev.Clear();
                 SyncModeRadioIfDirect();
-                RedrawStrip();
-            });
-
-            stripProgScroll.ValueChanged.Register([this](int val) {
-                progPct = std::clamp(val, 0, 100);
-                stripProgLbl.SetText("Strip Progress: " + std::to_string(progPct) + "%");
-                if(progPct == 0)
-                    stripProg.Clear();
-                else
-                    stripProg.SetProgressRatio(progPct / 100.0f);
-                SyncModeRadioIfDirect();
-                RedrawStrip();
-            });
-
-            stripSingleChk.ChangedEvent.Register([this]() {
-                stripProg.SetSingleKeyMode(bool(stripSingleChk));
-                if(progPct > 0)
-                    stripProg.SetProgressRatio(progPct / 100.0f);
-                RedrawStrip();
+                RedrawDevice();
             });
 
             UpdateModeView();
         }
 
         void SyncModeRadioIfDirect() {
-            for(int m = 0; m < strip.GetModeCount(); m++) {
-                if(strip.GetModeName(m) == "Direct") {
+            for(int m = 0; m < dev.GetModeCount(); m++) {
+                if(dev.GetModeName(m) == "Direct") {
                     if((int)modeRadios != m) {
                         updatingMode = true;
                         modeRadios.Set(m);
@@ -1457,18 +1973,167 @@ namespace {
         }
 
         void UpdateModeView() {
-            if(strip.IsDirectMode()) {
+            if(dev.IsDirectMode()) {
                 nonDirectPanel.Hide();
                 directPanel.Show();
-                RedrawStrip();
+                RedrawDevice();
             }
             else {
                 directPanel.Hide();
+
+                updatingModeColors = true;
+                int minCols  = dev.GetModeMinColors();
+                int maxCols  = dev.GetModeMaxColors();
+                bool hasRand = dev.SupportsRandomColor();
+                bool isRand  = dev.IsRandomColor();
+                auto cols    = dev.GetModeColors();
+                int numShown = std::min((int)cols.size(), MAX_MODE_COLORS);
+
+                if(maxCols > 0 || hasRand) {
+                    modeColorsTitleLbl.Show();
+                }
+                else {
+                    modeColorsTitleLbl.Hide();
+                }
+
+                if(hasRand) {
+                    randomColorChk = isRand;
+                    randomColorChk.Show();
+                }
+                else {
+                    randomColorChk.Hide();
+                }
+
+                if(maxCols > minCols && maxCols > 1 && !isRand) {
+                    addModeColorBtn.Show();
+                    removeModeColorBtn.Show();
+                    addModeColorBtn.SetEnabled((int)cols.size() < std::min(maxCols, MAX_MODE_COLORS));
+                    removeModeColorBtn.SetEnabled((int)cols.size() > std::max(1, minCols));
+                }
+                else {
+                    addModeColorBtn.Hide();
+                    removeModeColorBtn.Hide();
+                }
+
+                for(int i = 0; i < MAX_MODE_COLORS; i++) {
+                    if(i < numShown && !isRand) {
+                        *modeColorPickers[i] = Graphics::RGBAf(cols[i]);
+                        modeColorLabels[i]->Show();
+                        modeColorPickers[i]->Show();
+                    }
+                    else {
+                        modeColorLabels[i]->Hide();
+                        modeColorPickers[i]->Hide();
+                    }
+                }
+                updatingModeColors = false;
+
+                int rows = (!isRand && numShown > 0) ? ((numShown + 3) / 4) : 0;
+                int nextY = (maxCols > 0 || hasRand) ? (46 + rows * 38) : 10;
+
+                bool hasSpeed = dev.SupportsModeSpeed();
+                if(hasSpeed) {
+                    unsigned curS = dev.GetModeSpeed();
+                    unsigned s1   = dev.GetModeMinSpeed();
+                    unsigned s2   = dev.GetModeMaxSpeed();
+                    auto [lowS, highS] = std::minmax(s1, s2);
+                    speedScroll.SetMaximum(std::max(1u, highS - lowS) + 1);
+                    updatingSpeed = true;
+                    speedScroll.SetValue(curS >= lowS ? (curS - lowS) : 0);
+                    updatingSpeed = false;
+                    speedValLbl.SetText(std::to_string(curS) + " (" + std::to_string(lowS) + ".." + std::to_string(highS) + ")");
+                    speedLbl.Move(Pixels(10, nextY));
+                    speedLbl.SetWidth(Pixels(75));
+                    speedScroll.Move(Pixels(90, nextY));
+                    speedScroll.SetWidth(Pixels(240));
+                    speedValLbl.Move(Pixels(340, nextY));
+                    speedValLbl.SetWidth(Pixels(120));
+                    speedLbl.Show();
+                    speedScroll.Show();
+                    speedValLbl.Show();
+                    nextY += 36;
+                }
+                else {
+                    speedLbl.Hide();
+                    speedScroll.Hide();
+                    speedValLbl.Hide();
+                }
+
+                bool hasBrightness = dev.SupportsModeBrightness();
+                if(hasBrightness) {
+                    unsigned curB = dev.GetModeBrightness();
+                    unsigned b1   = dev.GetModeMinBrightness();
+                    unsigned b2   = dev.GetModeMaxBrightness();
+                    auto [lowB, highB] = std::minmax(b1, b2);
+                    brightnessScroll.SetMaximum(std::max(1u, highB - lowB) + 1);
+                    updatingBrightness = true;
+                    brightnessScroll.SetValue(curB >= lowB ? (curB - lowB) : 0);
+                    updatingBrightness = false;
+                    brightnessValLbl.SetText(std::to_string(curB) + " (" + std::to_string(lowB) + ".." + std::to_string(highB) + ")");
+                    brightnessLbl.Move(Pixels(10, nextY));
+                    brightnessLbl.SetWidth(Pixels(85));
+                    brightnessScroll.Move(Pixels(100, nextY));
+                    brightnessScroll.SetWidth(Pixels(230));
+                    brightnessValLbl.Move(Pixels(340, nextY));
+                    brightnessValLbl.SetWidth(Pixels(120));
+                    brightnessLbl.Show();
+                    brightnessScroll.Show();
+                    brightnessValLbl.Show();
+                    nextY += 36;
+                }
+                else {
+                    brightnessLbl.Hide();
+                    brightnessScroll.Hide();
+                    brightnessValLbl.Hide();
+                }
+
+                bool hasDir = dev.SupportsModeDirection();
+                if(hasDir) {
+                    updatingDirection = true;
+                    bool supLR = dev.SupportsModeDirectionLR();
+                    bool supUD = dev.SupportsModeDirectionUD();
+                    bool supHV = dev.SupportsModeDirectionHV();
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Left), supLR);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Right), supLR);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Up), supUD);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Down), supUD);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Horizontal), supHV);
+                    directionRadios.SetEnabled(static_cast<int>(OpenRGB::ModeDirection::Vertical), supHV);
+                    directionRadios.Set(static_cast<int>(dev.GetModeDirection()));
+                    updatingDirection = false;
+
+                    directionLbl.Move(Pixels(10, nextY));
+                    directionLbl.SetWidth(Pixels(85));
+                    directionRadios.Move(Pixels(100, nextY));
+                    directionRadios.SetWidth(Pixels(360));
+                    directionLbl.Show();
+                    directionRadios.Show();
+                    nextY += 40;
+                }
+                else {
+                    directionLbl.Hide();
+                    directionRadios.Hide();
+                }
+
+                nonDirectInfoLbl.Move(Pixels(10, nextY + 10));
+
                 std::ostringstream ss;
-                ss << "## Hardware Mode Active: **" << strip.GetActiveModeName() << "**\n\n"
-                   << "* Select **Direct** mode above to display the interactive `width x 1` LED strip, progressbar, and animations.\n\n"
+                ss << "## Hardware Mode Active: **" << dev.GetActiveModeName() << "**\n\n";
+                if(maxCols > 0) {
+                    ss << "* **Mode Colors:** " << cols.size() << " active (supports " << minCols << " to " << maxCols << " colors)\n";
+                }
+                if(hasSpeed) {
+                    ss << "* **Speed:** " << dev.GetModeSpeed() << "\n";
+                }
+                if(hasBrightness) {
+                    ss << "* **Brightness:** " << dev.GetModeBrightness() << "\n";
+                }
+                if(hasDir) {
+                    ss << "* **Direction:** " << static_cast<int>(dev.GetModeDirection()) << "\n";
+                }
+                ss << "* Select **Direct** mode above to control lighting zones, per-LED illumination, and animations.\n\n"
                    << "---\n\n"
-                   << BuildDeviceMarkdown(strip);
+                   << BuildDeviceMarkdown(dev);
                 nonDirectInfoLbl.SetText(ss.str());
                 nonDirectPanel.Show();
             }
@@ -1484,40 +2149,45 @@ namespace {
             return -1;
         }
 
-        void RedrawStrip() {
+        void RedrawDevice() {
             gfxLayer.Clear();
 
-            stripLayerbox.Refresh();
-            auto targetSz = stripLayerbox.GetLayer().GetCalculatedSize();
+            devLayerbox.Refresh();
+            auto targetSz = devLayerbox.GetLayer().GetCalculatedSize();
             if(targetSz.Width <= 0 || targetSz.Height <= 0)
-                targetSz = stripLayerbox.GetCurrentSize();
+                targetSz = devLayerbox.GetCurrentSize();
             if(targetSz.Width <= 0 || targetSz.Height <= 0)
                 return;
 
             gfxLayer.Draw(0, 0, targetSz.Width, targetSz.Height, Graphics::RGBAf(0.11f, 0.12f, 0.14f, 1.0f));
 
+            if(activeZoneIdx < 0 || activeZoneIdx >= (int)zones.size())
+                return;
+
+            const auto &curZone = zones[activeZoneIdx];
             float padTop  = 24.0f;
             float padSide = 16.0f;
             float availW  = std::max(10.0f, targetSz.Width - 2.0f * padSide);
             float availH  = std::max(10.0f, targetSz.Height - padTop - 12.0f);
 
-            float cellSize = std::min({availW / std::max(1, matrixW), availH / std::max(1, matrixH), 64.0f});
-            float totalW   = cellSize * matrixW;
-            float totalH   = cellSize * matrixH;
+            bool isSingle = (curZone.GetType() == OpenRGB::ZoneType::Single || curZone.GetLEDCount() <= 1);
+            float cellSize = isSingle ? std::min(availH, 120.0f) : std::min({availW / std::max(1, matrixW), availH / std::max(1, matrixH), 64.0f});
+            float totalW   = isSingle ? std::min(availW, 260.0f) : cellSize * matrixW;
+            float totalH   = isSingle ? cellSize : cellSize * matrixH;
             float offsetX  = (targetSz.Width - totalW) * 0.5f;
             float offsetY  = padTop + (availH - totalH) * 0.5f;
 
             if(keyPrinter) {
-                std::string zoneTitle = strip.GetName() + " (" + std::to_string(matrixW) + "x" + std::to_string(matrixH) + " Strip Matrix)";
+                std::string zoneTitle = dev.GetName() + " - " + curZone.GetName() + " (" + ZoneTypeToString(curZone.GetType()) + ", " + std::to_string(curZone.GetLEDCount()) + " LEDs)";
                 keyPrinter->Print(gfxLayer, zoneTitle, (int)offsetX + 2, (int)(offsetY - 20),
                                   Graphics::RGBAf(0.85f, 0.87f, 0.90f, 1.0f));
             }
 
             for(auto &box : ledBoxes) {
-                int rx = (int)std::round(offsetX + box.gx * cellSize);
-                int ry = (int)std::round(offsetY + box.gy * cellSize);
-                int rw = std::max(4, (int)std::round(box.gw * cellSize));
-                int rh = std::max(4, (int)std::round(box.gh * cellSize));
+                int rx = (int)std::round(offsetX + (isSingle ? 0 : box.gx * cellSize));
+                int ry = (int)std::round(offsetY + (isSingle ? 0 : box.gy * cellSize));
+                int rw = (int)std::round(isSingle ? totalW : box.gw * cellSize);
+                int rh = (int)std::round(isSingle ? totalH : box.gh * cellSize);
                 box.screen_rect = {rx, ry, rw, rh};
 
                 bool isSelected = (box.led_idx == selectedLed);
@@ -1527,12 +2197,15 @@ namespace {
                     ? Graphics::RGBAf(1.0f, 0.90f, 0.20f, 1.0f)
                     : (isHovered
                         ? Graphics::RGBAf(0.35f, 0.85f, 1.0f, 1.0f)
-                        : Graphics::RGBAf(0.15f, 0.45f, 0.60f, 1.0f));
+                        : Graphics::RGBAf(0.20f, 0.50f, 0.70f, 1.0f));
 
-                int b = (isSelected || isHovered) ? 2 : 1;
+                int b = isSelected ? 3 : (isHovered ? 2 : 1);
                 gfxLayer.Draw(rx, ry, rw, rh, borderCol);
 
-                auto ledCol = strip.GetEffectiveLEDColor(box.led_idx);
+                Graphics::RGBA ledCol = (box.led_idx >= 0 && box.led_idx < dev.GetLEDCount())
+                    ? dev.GetEffectiveLEDColor(box.led_idx)
+                    : Graphics::RGBA(0, 0, 0, 255);
+
                 Graphics::RGBAf fillCol(ledCol);
                 fillCol.A = 1.0f;
                 gfxLayer.Draw(rx + b, ry + b, std::max(1, rw - 2 * b), std::max(1, rh - 2 * b), fillCol);
@@ -1616,7 +2289,7 @@ int main() {
 
     std::vector<std::unique_ptr<Widgets::MarkdownLabel>> infoLabels;
     std::vector<std::unique_ptr<KeyboardTabState>> kbStates;
-    std::vector<std::unique_ptr<StripTabState>> stripStates;
+    std::vector<std::unique_ptr<MultiZoneDeviceTabState>> devStates;
 
     auto devices   = OpenRGB::GetDevices();
     auto keyboards = OpenRGB::GetKeyboards();
@@ -1659,29 +2332,19 @@ int main() {
                 continue;
             }
 
-            if(dev.GetType() == OpenRGB::DeviceType::LedStrip && dev.GetLEDCount() > 0) {
-                stripStates.push_back(std::make_unique<StripTabState>(dev, tab, keyPrinter, wind));
-                continue;
-            }
-
-            // Other non-keyboard/non-strip device: display Markdown info
-            auto lbl = std::make_unique<Widgets::MarkdownLabel>(BuildDeviceMarkdown(dev));
-            lbl->SetAutosize(UI::Autosize::None, UI::Autosize::Automatic);
-            lbl->Move(Pixels(15, 15));
-            lbl->SetWidth(Pixels( std::max(600, tab.GetInteriorSize().Width - 30) ));
-            tab.Add(*lbl);
-            infoLabels.push_back(std::move(lbl));
+            // All non-keyboard devices (Motherboards, Strips, Coolers, GPUs, Mice, etc.)
+            devStates.push_back(std::make_unique<MultiZoneDeviceTabState>(dev, tab, keyPrinter, wind));
         }
 
-        // Redraw keyboard and strip layers each frame when in Direct mode so live animations are reflected on screen
+        // Redraw keyboard and device layers each frame when in Direct mode so live animations are reflected on screen
         Gorgon::BeforeFrameEvent.Register([&]() {
             for(auto &st : kbStates) {
                 if(st->kb.IsDirectMode())
                     st->RedrawKeyboard();
             }
-            for(auto &st : stripStates) {
-                if(st->strip.IsDirectMode())
-                    st->RedrawStrip();
+            for(auto &st : devStates) {
+                if(st->dev.IsDirectMode())
+                    st->RedrawDevice();
             }
         });
     }

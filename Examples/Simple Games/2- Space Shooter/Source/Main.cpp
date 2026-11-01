@@ -10,6 +10,7 @@
 // =============================================================================
 
 #include "EndGame.h"
+#include "Gorgon/Devices/OpenRGB.h"
 #include "MainMenu.h"  // The main menu screen
 #include "Game.h"      // The gameplay screen
 #include "Scenes.h"    // The numeric IDs that identify each scene

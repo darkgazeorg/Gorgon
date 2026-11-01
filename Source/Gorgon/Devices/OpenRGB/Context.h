@@ -45,6 +45,11 @@ namespace Gorgon {
                 int id = -1;
                 std::string name;
                 int active_mode = -1;
+                uint32_t speed = 0;
+                uint32_t brightness = 0;
+                uint32_t direction = 0;
+                uint32_t color_mode = 0;
+                std::vector<Graphics::RGBA> mode_colors;
                 std::vector<Graphics::RGBA> colors;
             };
             std::vector<DeviceState> devices;
@@ -77,6 +82,9 @@ namespace Gorgon {
             std::vector<Device> GetDevices(bool only_connected = true) const;
             std::vector<KeyboardDevice> GetKeyboards(bool only_connected = true) const;
             std::vector<Device> GetStrips(bool only_connected = true) const;
+            std::vector<Zone> GetStripZones(bool only_connected = true) const;
+            std::vector<Zone> GetSingleLEDZones(bool only_connected = true) const;
+            std::vector<Zone> GetAllZones(bool only_connected = true) const;
             std::optional<Device> FindDevice(const std::string &name) const;
             std::optional<KeyboardDevice> GetPrimaryKeyboard() const;
             std::optional<Device> GetPrimaryStrip() const;
