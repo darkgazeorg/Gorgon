@@ -83,6 +83,7 @@ namespace {
               (static_cast<uint32_t>(p[3]) << 24);
     }
 
+    [[maybe_unused]] // reserved for future use
     inline int32_t ReadLE32Signed(const uint8_t *p) {
         return static_cast<int32_t>(ReadLE32(p));
     }
@@ -233,8 +234,8 @@ namespace {
             mode.brightness_min = 0;
             mode.brightness_max = 100;
         }
-        mode.colors_min = r.ReadU32();
-        mode.colors_max = r.ReadU32();
+        mode.colors_min = std::clamp(r.ReadU32(), 0u, 1000u);
+        mode.colors_max = std::clamp(r.ReadU32(), mode.colors_min, 1000u);
         mode.speed = r.ReadU32();
         if (protocol_version >= 3) {
             mode.brightness = r.ReadU32();
@@ -257,9 +258,9 @@ namespace {
     bool ReadZoneData(BinaryReader &r, Zone &zone, uint32_t protocol_version) {
         zone.name = r.ReadString();
         zone.type = static_cast<ZoneType>(r.ReadI32());
-        zone.leds_min = r.ReadU32();
-        zone.leds_max = r.ReadU32();
-        zone.leds_count = r.ReadU32();
+        zone.leds_min = std::clamp(r.ReadU32(), 0u, 10000u);
+        zone.leds_max = std::clamp(r.ReadU32(), zone.leds_min, 10000u);
+        zone.leds_count = std::clamp(r.ReadU32(), zone.leds_min, zone.leds_max);
 
         uint16_t zone_matrix_len = r.ReadU16();
         if (zone_matrix_len > 0) {
@@ -284,7 +285,7 @@ namespace {
                 zone.segments[s].name = r.ReadString();
                 zone.segments[s].type = r.ReadI32();
                 zone.segments[s].start_idx = r.ReadU32();
-                zone.segments[s].leds_count = r.ReadU32();
+                zone.segments[s].leds_count = std::clamp(r.ReadU32(), 0u, 1000u);
             }
         }
 
@@ -309,27 +310,27 @@ namespace {
         ctrl.serial = r.ReadString();
         ctrl.location = r.ReadString();
 
-        uint16_t num_modes = r.ReadU16();
+        uint16_t num_modes = std::clamp<uint16_t>(r.ReadU16(), 0, 1000);
         ctrl.active_mode = r.ReadI32();
         ctrl.modes.resize(num_modes);
         for (uint16_t m = 0; m < num_modes; ++m) {
             if (!ReadModeData(r, ctrl.modes[m], protocol_version)) return false;
         }
 
-        uint16_t num_zones = r.ReadU16();
+        uint16_t num_zones = std::clamp<uint16_t>(r.ReadU16(), 0, 1000);
         ctrl.zones.resize(num_zones);
         for (uint16_t z = 0; z < num_zones; ++z) {
             if (!ReadZoneData(r, ctrl.zones[z], protocol_version)) return false;
         }
 
-        uint16_t num_leds = r.ReadU16();
+        uint16_t num_leds = std::clamp<uint16_t>(r.ReadU16(), 0, 1000);
         ctrl.leds.resize(num_leds);
         for (uint16_t l = 0; l < num_leds; ++l) {
             ctrl.leds[l].name = r.ReadString();
             ctrl.leds[l].value = r.ReadU32();
         }
 
-        uint16_t num_colors = r.ReadU16();
+        uint16_t num_colors = std::clamp<uint16_t>(r.ReadU16(), 0, 1000);
         ctrl.colors.resize(num_colors);
         for (uint16_t c = 0; c < num_colors; ++c) {
             ctrl.colors[c] = Color(r.ReadU32());
