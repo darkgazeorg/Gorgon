@@ -103,6 +103,7 @@ namespace {
         }
 
         bool IsOk() const { return ok; }
+        void SetError() { ok = false; }
         size_t Remaining() const { return (offset <= size) ? (size - offset) : 0; }
         size_t GetOffset() const { return offset; }
 
@@ -264,7 +265,12 @@ namespace {
         if (zone_matrix_len > 0) {
             zone.matrix_map.height = r.ReadU32();
             zone.matrix_map.width = r.ReadU32();
-            uint32_t matrix_size = zone.matrix_map.height * zone.matrix_map.width;
+            uint64_t total = static_cast<uint64_t>(zone.matrix_map.height) * static_cast<uint64_t>(zone.matrix_map.width);
+            if (!r.IsOk() || total > (r.Remaining() / sizeof(uint32_t))) {
+                r.SetError();
+                return false;
+            }
+            uint32_t matrix_size = static_cast<uint32_t>(total);
             zone.matrix_map.matrix.resize(matrix_size);
             for (uint32_t i = 0; i < matrix_size; ++i) {
                 zone.matrix_map.matrix[i] = r.ReadU32();
@@ -406,10 +412,45 @@ struct Client::Impl {
         return true;
     }
 
-    bool Recv(void *data, size_t len) {
+    bool WaitForRead(int timeout_ms) {
+        if (timeout_ms < 0) return false;
+#if defined(_WIN32) || defined(_WIN64)
+        fd_set rset;
+        FD_ZERO(&rset);
+        FD_SET(sock, &rset);
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        int sel = select(static_cast<int>(sock + 1), &rset, nullptr, nullptr, &tv);
+        return sel > 0;
+#else
+        struct pollfd pfd;
+        pfd.fd = sock;
+        pfd.events = POLLIN;
+        pfd.revents = 0;
+        int p = poll(&pfd, 1, timeout_ms);
+        return p > 0;
+#endif
+    }
+
+    bool Recv(void *data, size_t len, const std::chrono::steady_clock::time_point *deadline = nullptr) {
         char *ptr = reinterpret_cast<char*>(data);
         size_t remaining = len;
         while (remaining > 0) {
+            if (deadline) {
+                auto now = std::chrono::steady_clock::now();
+                if (now >= *deadline) {
+                    last_error = "Socket recv timed out";
+                    Close();
+                    return false;
+                }
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(*deadline - now).count();
+                if (!WaitForRead(static_cast<int>(std::max<int64_t>(1, ms)))) {
+                    last_error = "Socket recv timed out";
+                    Close();
+                    return false;
+                }
+            }
 #if defined(_WIN32) || defined(_WIN64)
             int recvd = ::recv(sock, ptr, static_cast<int>(remaining), 0);
 #else
@@ -454,34 +495,15 @@ struct Client::Impl {
             return false;
         }
 
+        std::chrono::steady_clock::time_point deadline;
+        const std::chrono::steady_clock::time_point *deadline_ptr = nullptr;
         if (timeout_ms > 0) {
-#if defined(_WIN32) || defined(_WIN64)
-            fd_set rset;
-            FD_ZERO(&rset);
-            FD_SET(sock, &rset);
-            struct timeval tv;
-            tv.tv_sec = timeout_ms / 1000;
-            tv.tv_usec = (timeout_ms % 1000) * 1000;
-            int sel = select(static_cast<int>(sock + 1), &rset, nullptr, nullptr, &tv);
-            if (sel <= 0) {
-                last_error = "Read packet timed out";
-                return false;
-            }
-#else
-            struct pollfd pfd;
-            pfd.fd = sock;
-            pfd.events = POLLIN;
-            pfd.revents = 0;
-            int p = poll(&pfd, 1, static_cast<int>(timeout_ms));
-            if (p <= 0) {
-                last_error = "Read packet timed out";
-                return false;
-            }
-#endif
+            deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+            deadline_ptr = &deadline;
         }
 
         uint8_t header[16];
-        if (!Recv(header, sizeof(header))) return false;
+        if (!Recv(header, sizeof(header), deadline_ptr)) return false;
 
         if (header[0] != 'O' || header[1] != 'R' || header[2] != 'G' || header[3] != 'B') {
             last_error = "Invalid packet magic (expected 'ORGB')";
@@ -501,7 +523,7 @@ struct Client::Impl {
 
         out_payload.resize(pkt_size);
         if (pkt_size > 0) {
-            if (!Recv(out_payload.data(), pkt_size)) {
+            if (!Recv(out_payload.data(), pkt_size, deadline_ptr)) {
                 return false;
             }
         }

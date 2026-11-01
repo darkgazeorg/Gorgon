@@ -53,21 +53,19 @@ namespace Gorgon :: Input {
                 overlay = Devices::OpenRGB::internal::registerShortcutOverlay(current_governor);
             }
 
-            overlay->context = current_governor;
-            overlay->mode = highlight_mode;
-            overlay->modifier_key_color = modifier_key_color;
-            overlay->active = enabled && (attached_window != nullptr || (attached_scene != nullptr && scene_window != nullptr));
-
-            overlay->bindings.clear();
+            std::vector<Devices::OpenRGB::internal::ShortcutBinding> bindings;
+            bindings.reserve(shortcuts.size());
             for(const auto &kv : shortcuts) {
                 Devices::OpenRGB::internal::ShortcutBinding b;
                 b.key = kv.first.key;
                 b.modifier = kv.first.modifier;
                 b.color = kv.second.color;
-                overlay->bindings.push_back(b);
+                bindings.push_back(b);
             }
 
-            Devices::OpenRGB::internal::updateShortcutOverlay(overlay);
+            bool active = enabled && (attached_window != nullptr || (attached_scene != nullptr && scene_window != nullptr));
+            Devices::OpenRGB::internal::updateShortcutOverlayBindings(
+                overlay, current_governor, highlight_mode, modifier_key_color, active, std::move(bindings));
         }
 #endif
 
@@ -80,7 +78,7 @@ namespace Gorgon :: Input {
             if(overlay && highlight_mode == ModifierHighlightMode::ActiveModifiers) {
                 if(cur_mod != last_modifier) {
                     last_modifier = cur_mod;
-                    Devices::OpenRGB::internal::updateShortcutOverlay(overlay);
+                    Devices::OpenRGB::internal::markOverlayDirty();
                 }
             }
 #endif
@@ -241,8 +239,7 @@ namespace Gorgon :: Input {
         impl->detachScene();
 #ifdef GORGON_OPENRGB_SUPPORT
         if(impl->overlay) {
-            impl->overlay->active = false;
-            Devices::OpenRGB::internal::updateShortcutOverlay(impl->overlay);
+            Devices::OpenRGB::internal::setShortcutOverlayActive(impl->overlay, false);
         }
 #endif
     }
@@ -259,8 +256,7 @@ namespace Gorgon :: Input {
         impl->enabled = enabled;
 #ifdef GORGON_OPENRGB_SUPPORT
         if(impl->overlay) {
-            impl->overlay->active = enabled;
-            Devices::OpenRGB::internal::updateShortcutOverlay(impl->overlay);
+            Devices::OpenRGB::internal::setShortcutOverlayActive(impl->overlay, enabled);
         }
 #endif
     }
@@ -321,8 +317,7 @@ namespace Gorgon :: Input {
         impl->modifier_key_color = color;
 #ifdef GORGON_OPENRGB_SUPPORT
         if(impl->overlay) {
-            impl->overlay->modifier_key_color = color;
-            Devices::OpenRGB::internal::updateShortcutOverlay(impl->overlay);
+            Devices::OpenRGB::internal::setShortcutOverlayModifierColor(impl->overlay, color);
         }
 #endif
     }
@@ -335,8 +330,7 @@ namespace Gorgon :: Input {
         impl->highlight_mode = mode;
 #ifdef GORGON_OPENRGB_SUPPORT
         if(impl->overlay) {
-            impl->overlay->mode = mode;
-            Devices::OpenRGB::internal::updateShortcutOverlay(impl->overlay);
+            Devices::OpenRGB::internal::setShortcutOverlayMode(impl->overlay, mode);
         }
 #endif
     }

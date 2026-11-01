@@ -11,7 +11,9 @@
 #include <Gorgon/Scene.h>
 #include <Gorgon/Input/Shortcuts.h>
 #include <Gorgon/Input/Keyboard.h>
+#ifdef GORGON_OPENRGB_SUPPORT
 #include <Gorgon/Devices/OpenRGB.h>
+#endif
 #include <Gorgon/UI.h>
 
 #if defined(LINUX)
@@ -184,6 +186,7 @@ TEST_CASE("Enabled Toggle", "[Shortcuts]") {
     REQUIRE(count == 2);
 }
 
+#ifdef GORGON_OPENRGB_SUPPORT
 TEST_CASE("OpenRGB SetActionKeys and ClearActionKeys API", "[Shortcuts]") {
     std::vector<Devices::OpenRGB::internal::ShortcutBinding> bindings;
     Devices::OpenRGB::internal::ShortcutBinding b1;
@@ -201,6 +204,7 @@ TEST_CASE("OpenRGB SetActionKeys and ClearActionKeys API", "[Shortcuts]") {
     test_gov.OpenRGB.SetActionKeys(bindings, ModifierHighlightMode::RegularKeys);
     test_gov.OpenRGB.ClearActionKeys();
 }
+#endif
 
 class TestScene : public Gorgon::Scene {
 public:
@@ -279,6 +283,7 @@ TEST_CASE("Window and Scene Scoping", "[Shortcuts]") {
     Keyboard::CurrentModifier = Keyboard::Modifier::None;
 }
 
+#ifdef GORGON_OPENRGB_SUPPORT
 TEST_CASE("OpenRGB Suspend, Resume and StateSnapshot APIs", "[OpenRGB]") {
     // Test calling Suspend() before initialization (startup disabled mode)
     Devices::OpenRGB::Shutdown(true);
@@ -347,6 +352,11 @@ TEST_CASE("OpenRGB Key Availability Queries", "[OpenRGB]") {
 }
 
 TEST_CASE("OpenRGB Multi-Zone and Mode Settings", "[OpenRGB]") {
+    if(Devices::OpenRGB::GetDevices().empty()) {
+        SUCCEED("No OpenRGB server or physical devices available; skipping hardware checks.");
+        return;
+    }
+
     auto all_zones = Devices::OpenRGB::GetAllZones();
     auto strip_zones = Devices::OpenRGB::GetStripZones();
     auto single_zones = Devices::OpenRGB::GetSingleLEDZones();
@@ -428,4 +438,5 @@ TEST_CASE("OpenRGB Multi-Zone and Mode Settings", "[OpenRGB]") {
     Devices::OpenRGB::RestoreState(snap);
     Devices::OpenRGB::RestoreAll();
 }
+#endif
 

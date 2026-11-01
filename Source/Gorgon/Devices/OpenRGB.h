@@ -20,6 +20,8 @@
  *   on profiles, suspend/resume, and settings toggles for these devices.
  */
 
+#ifdef GORGON_OPENRGB_SUPPORT
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -326,8 +328,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         int GetZoneCount() const;
 
         /// Gets a zone by index, throws std::out_of_range if index is invalid
-        Zone &GetZone(int index);
-        const Zone &GetZone(int index) const;
+        Zone GetZone(int index) const;
 
         /// Returns true if this device has a zone with the given name (case-insensitive)
         bool HasZone(const std::string &name) const;
@@ -1069,6 +1070,16 @@ namespace Gorgon :: Devices :: OpenRGB {
         std::shared_ptr<ShortcutOverlay> registerShortcutOverlay(const Gorgon::Animation::Governor *context);
         void updateShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay);
         void unregisterShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay);
+        void setShortcutOverlayActive(const std::shared_ptr<ShortcutOverlay> &overlay, bool active);
+        void setShortcutOverlayMode(const std::shared_ptr<ShortcutOverlay> &overlay, ModifierHighlightMode mode);
+        void setShortcutOverlayModifierColor(const std::shared_ptr<ShortcutOverlay> &overlay, Graphics::RGBA color);
+        void updateShortcutOverlayBindings(const std::shared_ptr<ShortcutOverlay> &overlay,
+                                           const Gorgon::Animation::Governor *context,
+                                           ModifierHighlightMode mode,
+                                           Graphics::RGBA modifier_key_color,
+                                           bool active,
+                                           std::vector<ShortcutBinding> bindings);
+        void markOverlayDirty();
     }
 
     /// Sets modifier-aware action key highlights across all connected keyboards in the Global Layer
@@ -1091,3 +1102,6 @@ namespace Gorgon :: Devices :: OpenRGB {
     extern Utils::Logger Logger;
 
 } // namespace Gorgon::Devices::OpenRGB
+
+#endif // GORGON_OPENRGB_SUPPORT
+

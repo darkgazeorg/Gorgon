@@ -28,14 +28,16 @@
 
 namespace {
 
-    std::function<void()> g_restore_handler;
+    volatile std::sig_atomic_t g_interrupted = 0;
 
     void SignalHandler(int signum) {
-        if (g_restore_handler) {
-            std::cout << "\n\n[!] Interrupted by Signal (" << signum << "). Restoring original hardware state before exiting..." << std::endl;
-            g_restore_handler();
-        }
-        std::_Exit(128 + signum);
+        g_interrupted = signum;
+    }
+
+    bool WaitPrompt() {
+        if (g_interrupted) return false;
+        std::cin.get();
+        return (g_interrupted == 0);
     }
 
     std::string ToLower(std::string str) {
@@ -255,8 +257,6 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     };
 
-    g_restore_handler = RestoreHardware;
-
     struct HardwareScopeGuard {
         std::function<void()> restore_fn;
         bool active = true;
@@ -306,7 +306,7 @@ int main() {
     }
 
     std::cout << "\n>>> [CHECK 1] Is Escape RED? Press [Enter] to proceed to WASD + Space test... <<<" << std::flush;
-    std::cin.get();
+    if (!WaitPrompt()) goto cleanup;
 
     // -------------------------------------------------------------
     // Test Step 2: Entire region / device write (WASD in Green, Space in Cyan)
@@ -347,7 +347,7 @@ int main() {
     }
 
     std::cout << "\n>>> [CHECK 2] Are WASD (Green) and Space (Cyan) illuminated (and Escape off)? Press [Enter] to proceed to 30 FPS animation test... <<<" << std::flush;
-    std::cin.get();
+    if (!WaitPrompt()) goto cleanup;
 
     // -------------------------------------------------------------
     // Test Step 3: 30 FPS Linear Sliding Animation on Number Keys
@@ -381,7 +381,7 @@ int main() {
         std::cout << std::endl;
 
         std::cout << "\n>>> Press [Enter] to run the 30 FPS animation test (~6 seconds total)... <<<" << std::flush;
-        std::cin.get();
+        if (!WaitPrompt()) goto cleanup;
 
         struct BenchmarkStats {
             int total_frames = 0;
@@ -413,6 +413,7 @@ int main() {
         auto start_bulk = Clock::now();
 
         for (int frame = 0; frame < frames_per_test; ++frame) {
+            if (g_interrupted) break;
             auto frame_start = Clock::now();
 
             // 1. Advance position (ping-pong between 0 and key_count - 1)
@@ -483,6 +484,7 @@ int main() {
         auto start_single = Clock::now();
 
         for (int frame = 0; frame < frames_per_test; ++frame) {
+            if (g_interrupted) break;
             auto frame_start = Clock::now();
 
             // 1. Advance position
@@ -577,7 +579,12 @@ int main() {
     }
 
     std::cout << "\n>>> [CHECK 3] Did the light smoothly slide across number keys 1-0? Press [Enter] to restore status and exit... <<<" << std::flush;
-    std::cin.get();
+    WaitPrompt();
+
+cleanup:
+    if (g_interrupted) {
+        std::cout << "\n\n[!] Interrupted by Signal (" << g_interrupted << "). Restoring original hardware state before exiting..." << std::endl;
+    }
 
     // -------------------------------------------------------------
     // Test Step 4: Restore original state
@@ -585,12 +592,15 @@ int main() {
     std::cout << "\n[7/7] Restoring original status..." << std::endl;
 
     scope_guard.active = false; // Disarm RAII guard since we perform normal restoration now
-    g_restore_handler = nullptr;
 
     RestoreHardware();
 
     client.Disconnect();
     std::cout << "\nDone! OpenRGB connection closed. Original status restored cleanly.\n" << std::endl;
+
+    if (g_interrupted) {
+        std::_Exit(128 + g_interrupted);
+    }
 
     return 0;
 }
