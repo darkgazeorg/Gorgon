@@ -446,6 +446,12 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Returns true if this keyboard has the specified key on its layout
         bool HasKey(Input::Key key) const;
 
+        /// Returns true if this keyboard has the specified key by name (e.g. "Space", "Escape")
+        bool HasKey(const std::string &key_name) const;
+
+        /// Returns all mapped keys supported on this keyboard's layout
+        std::vector<Input::Key> GetKeys() const;
+
         /// Returns the LED indices associated with the key (may be multiple for large keys like spacebar)
         std::vector<int> GetKeyLEDIndices(Input::Key key) const;
 
@@ -921,6 +927,15 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     /// Sets key group color across all connected keyboards in the Global Layer
     void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color);
+
+    /// Returns true if any connected keyboard has the specified key on its layout
+    bool HasKey(Input::Key key);
+
+    /// Returns true if any connected keyboard has the specified key by name (e.g. "Space", "Escape")
+    bool HasKey(const std::string &key_name);
+
+    /// Returns all mapped keys supported on the primary keyboard (or empty if none connected)
+    std::vector<Input::Key> GetKeys();
 
     /// Draws a Bitmap onto all connected keyboards and matrix/strip zones in the Global Layer
     void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = BlendMode::Overwrite);

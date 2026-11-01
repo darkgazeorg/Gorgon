@@ -3125,6 +3125,18 @@ namespace Gorgon :: Devices :: OpenRGB {
         return impl->keymap.count(key) != 0;
     }
 
+    bool KeyboardDevice::HasKey(const std::string &key_name) const {
+        return FindLED(key_name) >= 0;
+    }
+
+    std::vector<Input::Key> KeyboardDevice::GetKeys() const {
+        std::vector<Input::Key> keys;
+        keys.reserve(impl->keymap.size());
+        for(const auto &pair : impl->keymap)
+            keys.push_back(pair.first);
+        return keys;
+    }
+
     std::vector<int> KeyboardDevice::GetKeyLEDIndices(Input::Key key) const {
         auto it = impl->keymap.find(key);
         if(it == impl->keymap.end())
@@ -4140,6 +4152,28 @@ namespace Gorgon :: Devices :: OpenRGB {
             kb.SetKeyGroupColor(group, color);
     }
 
+    bool Context::HasKey(Input::Key key) const {
+        for(auto &kb : GetKeyboards()) {
+            if(kb.HasKey(key))
+                return true;
+        }
+        return false;
+    }
+
+    bool Context::HasKey(const std::string &key_name) const {
+        for(auto &kb : GetKeyboards()) {
+            if(kb.HasKey(key_name))
+                return true;
+        }
+        return false;
+    }
+
+    std::vector<Input::Key> Context::GetKeys() const {
+        if(auto kb = GetPrimaryKeyboard())
+            return kb->GetKeys();
+        return {};
+    }
+
     void Context::Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) const {
         for(auto &d : GetDevices()) {
             for(auto &z : d.GetZones()) {
@@ -4579,6 +4613,18 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) {
         GlobalContext().SetKeyColor(group, color);
+    }
+
+    bool HasKey(Input::Key key) {
+        return GlobalContext().HasKey(key);
+    }
+
+    bool HasKey(const std::string &key_name) {
+        return GlobalContext().HasKey(key_name);
+    }
+
+    std::vector<Input::Key> GetKeys() {
+        return GlobalContext().GetKeys();
     }
 
     void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) {

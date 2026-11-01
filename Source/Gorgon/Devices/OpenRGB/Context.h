@@ -88,6 +88,15 @@ namespace Gorgon {
             void SetKeyColor(Input::Key key, Graphics::RGBA color) const;
             void SetKeyColor(const KeyGroup &group, Graphics::RGBA color) const;
 
+            /// Returns true if any connected keyboard has the specified key on its layout
+            bool HasKey(Input::Key key) const;
+
+            /// Returns true if any connected keyboard has the specified key by name (e.g. "Space", "Escape")
+            bool HasKey(const std::string &key_name) const;
+
+            /// Returns all mapped keys supported on the primary keyboard (or empty if none connected)
+            std::vector<Input::Key> GetKeys() const;
+
             void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = static_cast<BlendMode>(0)) const;
             void Draw(const Containers::Image &image, Geometry::Point offset = {0, 0}, BlendMode blend = static_cast<BlendMode>(0)) const;
 

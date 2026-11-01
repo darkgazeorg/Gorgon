@@ -299,3 +299,35 @@ TEST_CASE("OpenRGB Suspend, Resume and StateSnapshot APIs", "[OpenRGB]") {
     ctx.Resume();
     REQUIRE_FALSE(ctx.IsSuspended());
 }
+
+TEST_CASE("OpenRGB Key Availability Queries", "[OpenRGB]") {
+    if(auto kb = Devices::OpenRGB::GetPrimaryKeyboard()) {
+        REQUIRE(Devices::OpenRGB::HasKey(Keycodes::Space));
+        REQUIRE(Devices::OpenRGB::HasKey("Space"));
+        REQUIRE(kb->HasKey(Keycodes::Space));
+        REQUIRE(kb->HasKey("Space"));
+        REQUIRE_FALSE(kb->GetKeys().empty());
+
+        auto keys = Devices::OpenRGB::GetKeys();
+        REQUIRE_FALSE(keys.empty());
+
+        // Context methods
+        auto ctx = Devices::OpenRGB::GlobalContext();
+        REQUIRE(ctx.HasKey(Keycodes::Space));
+        REQUIRE(ctx.HasKey("Space"));
+        REQUIRE_FALSE(ctx.GetKeys().empty());
+
+        // Non-existent key
+        REQUIRE_FALSE(Devices::OpenRGB::HasKey(0x7fffffff));
+        REQUIRE_FALSE(Devices::OpenRGB::HasKey("NonExistentKey_XYZ_123"));
+    } else {
+        REQUIRE_FALSE(Devices::OpenRGB::HasKey(Keycodes::Space));
+        REQUIRE_FALSE(Devices::OpenRGB::HasKey("Space"));
+        REQUIRE(Devices::OpenRGB::GetKeys().empty());
+
+        auto ctx = Devices::OpenRGB::GlobalContext();
+        REQUIRE_FALSE(ctx.HasKey(Keycodes::Space));
+        REQUIRE_FALSE(ctx.HasKey("Space"));
+        REQUIRE(ctx.GetKeys().empty());
+    }
+}
