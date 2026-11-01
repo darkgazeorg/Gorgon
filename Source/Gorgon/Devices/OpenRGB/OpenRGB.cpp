@@ -20,6 +20,7 @@
  */
 
 #include "../OpenRGB.h"
+#include "Gorgon/String.h"
 #include "OpenRGBClient.h"
 
 #include "../../Graphics/Bitmap.h"
@@ -245,7 +246,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         ~Impl() {
             if(attached_window && window_key_token) {
-                attached_window->KeyEvent.Unregister(window_key_token);
+                attached_window->KeyPreviewEvent.Unregister(window_key_token);
                 attached_window = nullptr;
                 window_key_token = 0;
             }
@@ -270,12 +271,15 @@ namespace Gorgon :: Devices :: OpenRGB {
 
             std::vector<std::weak_ptr<PImpl>> progressbars;
             std::vector<std::weak_ptr<AImpl>> animations;
+            std::vector<std::weak_ptr<internal::ShortcutOverlay>> shortcut_overlays;
+            std::map<const Gorgon::Animation::Governor *, std::shared_ptr<internal::ShortcutOverlay>> context_action_keys;
 
             std::thread worker;
             std::atomic<bool> running{false};
             std::atomic<bool> initialized{false};
             std::atomic<bool> connected{false};
             std::atomic<int>  fps{30};
+            std::atomic<bool> suspended{false};
 
             std::string host = "127.0.0.1";
             uint16_t    port = 6742;
@@ -295,22 +299,14 @@ namespace Gorgon :: Devices :: OpenRGB {
         // Utilities
         // ---------------------------------------------------------
 
-        std::string lower(std::string s) {
-            std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return (char)std::tolower(c); });
-            return s;
-        }
-
         /// Lowercases, removes the "Key:" prefix and whitespace for tolerant name matching
         std::string normalize(const std::string &name) {
-            std::string s = lower(name);
+            std::string s = String::ToLower(name);
             if(s.rfind("key:", 0) == 0)
                 s = s.substr(4);
 
             std::string r;
-            for(char c : s) {
-                if(c != ' ' && c != '_' && c != '\t')
-                    r += c;
-            }
+            std::copy_if(s.begin(), s.end(), std::back_inserter(r), [](char c) { return c != ' ' && c != '_' && c != '\t'; });
 
             return r;
         }
@@ -323,6 +319,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             return Graphics::RGBA(c.R, c.G, c.B, Byte(255));
         }
 
+        //TODO: Use builtin or move to builtin Color subsystem {
         Graphics::RGBA lerp(const Graphics::RGBA &a, const Graphics::RGBA &b, float t) {
             t = Clamp(t, 0.f, 1.f);
             auto mix = [&](Byte x, Byte y) { return Byte(x + (y - x) * t + 0.5f); };
@@ -365,6 +362,8 @@ namespace Gorgon :: Devices :: OpenRGB {
         }
 
         const Graphics::RGBA transparent = Graphics::RGBA(Byte(0), Byte(0), Byte(0), Byte(0));
+
+        //}
 
         // ---------------------------------------------------------
         // Key name mapping
@@ -492,7 +491,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         }
 
         bool isDirectMode(const LL::Mode &m) {
-            return lower(m.name) == "direct";
+            return String::ToLower(m.name) == "direct";
         }
 
         // ---------------------------------------------------------
@@ -1192,6 +1191,148 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
         }
 
+        void compositeShortcutOverlay(const internal::ShortcutOverlay &o, const DImpl &d, std::vector<Graphics::RGBA> &colors) {
+            if(o.mode == ModifierHighlightMode::Disabled || o.bindings.empty() || !d.is_keyboard)
+                return;
+
+            auto current_mod = Input::Keyboard::CurrentModifier;
+
+            auto applyKey = [&](Input::Key k, const Graphics::RGBA &col) {
+                if(col.A == 0) return;
+                auto it = d.keymap.find(k);
+                if(it != d.keymap.end()) {
+                    for(int led_idx : it->second) {
+                        if(led_idx >= 0 && led_idx < (int)colors.size()) {
+                            colors[led_idx] = blendColor(colors[led_idx], col, BlendMode::AlphaBlend);
+                        }
+                    }
+                }
+            };
+
+            if(o.mode == ModifierHighlightMode::ActiveModifiers) {
+                if(current_mod != Input::Keyboard::Modifier::None) {
+                    // 1. When a modifier combination is held, illuminate its matching action keys and 
+                    // further highlight the modifier keys that can be combined with the current modifier.
+                    for(const auto &b : o.bindings) {
+                        if(b.modifier == current_mod && b.color.A > 0) {
+                            applyKey(b.key, b.color);
+                        }
+                    }
+
+                    // Split and highlight the modifier keys that are part of the current modifier combination.
+                    if(current_mod & Input::Keyboard::Modifier::Ctrl) {
+                        applyKey(Input::Keyboard::Keycodes::Control, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RControl, o.modifier_key_color);
+                    }
+                    if(current_mod & Input::Keyboard::Modifier::Shift) {
+                        applyKey(Input::Keyboard::Keycodes::Shift, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RShift, o.modifier_key_color);
+                    }
+                    if(current_mod & Input::Keyboard::Modifier::Alt) {
+                        applyKey(Input::Keyboard::Keycodes::Alt, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RAlt, o.modifier_key_color);
+                    }
+                    if(current_mod & Input::Keyboard::Modifier::Meta) {
+                        applyKey(Input::Keyboard::Keycodes::Meta, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RMeta, o.modifier_key_color);
+                    }
+
+                    bool has_ctrl = false, has_shift = false, has_alt = false, has_meta = false;
+                    for(const auto &b : o.bindings) {
+                        if(b.modifier == current_mod) continue;
+
+                        if((b.modifier & current_mod) && (b.modifier & Input::Keyboard::Modifier::Ctrl))  has_ctrl = true;
+                        if((b.modifier & current_mod) && (b.modifier & Input::Keyboard::Modifier::Shift)) has_shift = true;
+                        if((b.modifier & current_mod) && (b.modifier & Input::Keyboard::Modifier::Alt))   has_alt = true;
+                        if((b.modifier & current_mod) && (b.modifier & Input::Keyboard::Modifier::Meta))  has_meta = true;
+                    }
+
+                    if(has_ctrl) {
+                        applyKey(Input::Keyboard::Keycodes::Control, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RControl, o.modifier_key_color);
+                    }
+                    if(has_shift) {
+                        applyKey(Input::Keyboard::Keycodes::Shift, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RShift, o.modifier_key_color);
+                    }
+                    if(has_alt) {
+                        applyKey(Input::Keyboard::Keycodes::Alt, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RAlt, o.modifier_key_color);
+                    }
+                    if(has_meta) {
+                        applyKey(Input::Keyboard::Keycodes::Meta, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RMeta, o.modifier_key_color);
+                    }
+                }
+                else {
+
+                    // 2. Highlight only the modifier keys that have shortcuts registered.
+                    // For instance if there are no shortcuts with Meta key, it will not be highlighted.
+                    // Highlight the ones that have shortcuts registered.
+                    bool has_ctrl = false, has_shift = false, has_alt = false, has_meta = false;
+                    for(const auto &b : o.bindings) {
+                        if(b.modifier & Input::Keyboard::Modifier::Ctrl)  has_ctrl = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Shift && !(
+                        b.modifier & Input::Keyboard::Modifier::Ctrl)) has_shift = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Alt)   has_alt = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Meta)  has_meta = true;
+                    }
+
+                    if(has_ctrl) {
+                        applyKey(Input::Keyboard::Keycodes::Control, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RControl, o.modifier_key_color);
+                    }
+                    if(has_shift) {
+                        applyKey(Input::Keyboard::Keycodes::Shift, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RShift, o.modifier_key_color);
+                    }
+                    if(has_alt) {
+                        applyKey(Input::Keyboard::Keycodes::Alt, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RAlt, o.modifier_key_color);
+                    }
+                    if(has_meta) {
+                        applyKey(Input::Keyboard::Keycodes::Meta, o.modifier_key_color);
+                        applyKey(Input::Keyboard::Keycodes::RMeta, o.modifier_key_color);
+                    }
+
+                    // 3. Highlight the action keys that do not have any modifiers
+                    for(const auto &b : o.bindings) {
+                        if(b.modifier == Input::Keyboard::Modifier::None && b.color.A > 0) {
+                            applyKey(b.key, b.color);
+                        }
+                    }
+                }
+            }
+            else if(o.mode == ModifierHighlightMode::RegularKeys) {
+                bool has_ctrl = false, has_shift = false, has_alt = false, has_meta = false;
+                for(const auto &b : o.bindings) {
+                    if(b.color.A > 0) {
+                        applyKey(b.key, b.color);
+                        if(b.modifier & Input::Keyboard::Modifier::Ctrl)  has_ctrl = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Shift) has_shift = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Alt)   has_alt = true;
+                        if(b.modifier & Input::Keyboard::Modifier::Meta)  has_meta = true;
+                    }
+                }
+                if(has_ctrl) {
+                    applyKey(Input::Keyboard::Keycodes::Control, o.modifier_key_color);
+                    applyKey(Input::Keyboard::Keycodes::RControl, o.modifier_key_color);
+                }
+                if(has_shift) {
+                    applyKey(Input::Keyboard::Keycodes::Shift, o.modifier_key_color);
+                    applyKey(Input::Keyboard::Keycodes::RShift, o.modifier_key_color);
+                }
+                if(has_alt) {
+                    applyKey(Input::Keyboard::Keycodes::Alt, o.modifier_key_color);
+                    applyKey(Input::Keyboard::Keycodes::RAlt, o.modifier_key_color);
+                }
+                if(has_meta) {
+                    applyKey(Input::Keyboard::Keycodes::Meta, o.modifier_key_color);
+                    applyKey(Input::Keyboard::Keycodes::RMeta, o.modifier_key_color);
+                }
+            }
+        }
+
         /// Composes the final RGBA colors for a device in a given layer context (`state_mtx` must be held)
         std::vector<Graphics::RGBA> composeRGBA(const DImpl &d, const DeviceLayer &layer, const Gorgon::Animation::Governor *layer_ctx) {
             std::vector<Graphics::RGBA> colors = layer.base_leds;
@@ -1214,6 +1355,14 @@ namespace Gorgon :: Devices :: OpenRGB {
                 if(auto a = wa.lock()) {
                     if(a->context == layer_ctx || (layer_ctx == nullptr && a->context == active_gov))
                         compositeAnimation(*a, d, colors);
+                }
+            }
+
+            // 3. Composite Shortcut Overlays belonging to this layer (or active governor shortcuts over global fallback base)
+            for(auto &wo : s.shortcut_overlays) {
+                if(auto o = wo.lock()) {
+                    if(o->active && (o->context == active_gov || o->context == nullptr || o->context == layer_ctx))
+                        compositeShortcutOverlay(*o, d, colors);
                 }
             }
 
@@ -1331,6 +1480,13 @@ namespace Gorgon :: Devices :: OpenRGB {
                         a->context = &Gorgon::Animation::Governor::Active();
                 }
             }
+            for(auto &wo : s.shortcut_overlays) {
+                if(auto o = wo.lock()) {
+                    if(o->context == gov)
+                        o->context = &Gorgon::Animation::Governor::Active();
+                }
+            }
+            s.context_action_keys.erase(gov);
             s.wake.notify_all();
         }
 
@@ -1415,7 +1571,7 @@ namespace Gorgon :: Devices :: OpenRGB {
                     led.color = Graphics::RGBA(Byte(0), Byte(0), Byte(0), Byte(255));
                 }
 
-                if(lower(led.name).rfind("key:", 0) == 0)
+                if(String::ToLower(led.name).rfind("key:", 0) == 0)
                     keyleds = true;
 
                 d->leds.push_back(led);
@@ -1837,7 +1993,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             auto &s = S();
             std::lock_guard<std::mutex> cg(s.client_mtx);
 
-            if(!s.initialized)
+            if(!s.initialized || s.suspended.load())
                 return "";
 
             if(!s.client.IsConnected())
@@ -1875,10 +2031,14 @@ namespace Gorgon :: Devices :: OpenRGB {
                     std::remove_if(s.animations.begin(), s.animations.end(),
                                    [](const std::weak_ptr<AImpl> &w) { return w.expired(); }),
                     s.animations.end());
+                s.shortcut_overlays.erase(
+                    std::remove_if(s.shortcut_overlays.begin(), s.shortcut_overlays.end(),
+                                   [](const std::weak_ptr<internal::ShortcutOverlay> &w) { return w.expired(); }),
+                    s.shortcut_overlays.end());
 
                 const Gorgon::Animation::Governor *active_gov = &Gorgon::Animation::Governor::Active();
 
-                // Check if any active overlay (progressbar or animation) is active on an otherwise untouched device
+                // Check if any active overlay (progressbar, animation, or shortcuts) is active on an otherwise untouched device
                 auto hasActiveOverlay = [&](const DImpl &d, const Gorgon::Animation::Governor **overlay_ctx) -> bool {
                     for(auto &wp : s.progressbars) {
                         if(auto p = wp.lock()) {
@@ -1897,6 +2057,16 @@ namespace Gorgon :: Devices :: OpenRGB {
                             if(a->visible && (a->context == active_gov || a->context == nullptr) && animationTargetsDevice(*a, d)) {
                                 if(overlay_ctx) *overlay_ctx = a->context;
                                 return true;
+                            }
+                        }
+                    }
+                    if(d.is_keyboard) {
+                        for(auto &wo : s.shortcut_overlays) {
+                            if(auto o = wo.lock()) {
+                                if(o->active && (o->context == active_gov || o->context == nullptr) && o->mode != ModifierHighlightMode::Disabled && !o->bindings.empty()) {
+                                    if(overlay_ctx) *overlay_ctx = o->context;
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -2561,9 +2731,9 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     bool Device::HasZone(const std::string &name) const {
-        auto n = lower(name);
+        auto n = String::ToLower(name);
         for(auto &z : impl->zones) {
-            if(lower(z.GetName()) == n)
+            if(String::ToLower(z.GetName()) == n)
                 return true;
         }
 
@@ -2571,14 +2741,14 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     std::optional<Zone> Device::FindZone(const std::string &name) const {
-        auto n = lower(name);
+        auto n = String::ToLower(name);
         for(auto &z : impl->zones) {
-            if(lower(z.GetName()) == n)
+            if(String::ToLower(z.GetName()) == n)
                 return Access::makeZone(z, context);
         }
 
         for(auto &z : impl->zones) {
-            if(lower(z.GetName()).find(n) != std::string::npos)
+            if(String::ToLower(z.GetName()).find(n) != std::string::npos)
                 return Access::makeZone(z, context);
         }
 
@@ -2646,13 +2816,13 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     void Device::SetMode(const std::string &mode_name) {
-        auto n = lower(mode_name);
+        auto n = String::ToLower(mode_name);
         int idx = -1;
         {
             std::lock_guard<std::mutex> g(S().state_mtx);
             const auto &modes = getHandleLayer(*impl, context).modes;
             for(int i = 0; i < (int)modes.size(); i++) {
-                if(lower(modes[i].name) == n) {
+                if(String::ToLower(modes[i].name) == n) {
                     idx = i;
                     break;
                 }
@@ -3802,7 +3972,7 @@ namespace Gorgon :: Devices :: OpenRGB {
         DetachFromWindow();
         std::weak_ptr<Impl> wimpl = impl;
         impl->attached_window = &window;
-        impl->window_key_token = window.KeyEvent.Register([wimpl](Input::Key key, float state) {
+        impl->window_key_token = window.KeyPreviewEvent.Register([wimpl](Input::Key key, float state) {
             if(state > 0.f) {
                 if(auto l = wimpl.lock()) {
                     if(l->visible && l->owned_ctrl && l->owned_ctrl->IsPlaying() &&
@@ -3811,27 +3981,12 @@ namespace Gorgon :: Devices :: OpenRGB {
                     }
                 }
             }
-            return false; // Do not consume the key event!
-        });
-
-        // UI::Window's NewHandler uses RegisterOnce to move its widget container handler to the top
-        // (so it consumes Tab before handlers registered before it). Queue a second RegisterOnce
-        // so our non-consuming ReactiveEffect observer sits above UI::Window's handler and sees Tab too!
-        auto *win_ptr = &window;
-        auto tok = impl->window_key_token;
-        Gorgon::RegisterOnce([win_ptr, tok, wimpl]() {
-            Gorgon::RegisterOnce([win_ptr, tok, wimpl]() {
-                if(auto l = wimpl.lock()) {
-                    if(l->attached_window == win_ptr && l->window_key_token == tok)
-                        win_ptr->KeyEvent.MoveToTop(tok);
-                }
-            });
         });
     }
 
     void ReactiveEffect::DetachFromWindow() {
         if(impl->attached_window && impl->window_key_token) {
-            impl->attached_window->KeyEvent.Unregister(impl->window_key_token);
+            impl->attached_window->KeyPreviewEvent.Unregister(impl->window_key_token);
             impl->attached_window  = nullptr;
             impl->window_key_token = 0;
         }
@@ -3911,26 +4066,26 @@ namespace Gorgon :: Devices :: OpenRGB {
         if(!ensure())
             return std::nullopt;
 
-        auto n = lower(name);
+        auto n = String::ToLower(name);
 
         std::lock_guard<std::mutex> g(S().state_mtx);
         for(auto &d : S().devices) {
-            if(d->IsConnected() && lower(d->GetName()) == n)
+            if(d->IsConnected() && String::ToLower(d->GetName()) == n)
                 return Access::makeDevice(Access::impl(*d), governor);
         }
 
         for(auto &d : S().devices) {
-            if(d->IsConnected() && lower(d->GetName()).find(n) != std::string::npos)
+            if(d->IsConnected() && String::ToLower(d->GetName()).find(n) != std::string::npos)
                 return Access::makeDevice(Access::impl(*d), governor);
         }
 
         for(auto &d : S().devices) {
-            if(lower(d->GetName()) == n)
+            if(String::ToLower(d->GetName()) == n)
                 return Access::makeDevice(Access::impl(*d), governor);
         }
 
         for(auto &d : S().devices) {
-            if(lower(d->GetName()).find(n) != std::string::npos)
+            if(String::ToLower(d->GetName()).find(n) != std::string::npos)
                 return Access::makeDevice(Access::impl(*d), governor);
         }
 
@@ -3980,7 +4135,7 @@ namespace Gorgon :: Devices :: OpenRGB {
             kb.SetKeyColor(key, color);
     }
 
-    void Context::SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) const {
+    void Context::SetKeyColor(const KeyGroup &group, Graphics::RGBA color) const {
         for(auto &kb : GetKeyboards())
             kb.SetKeyGroupColor(group, color);
     }
@@ -4058,6 +4213,26 @@ namespace Gorgon :: Devices :: OpenRGB {
         S().wake.notify_all();
     }
 
+    void Context::Suspend() const {
+        OpenRGB::Suspend();
+    }
+
+    void Context::Resume() const {
+        OpenRGB::Resume();
+    }
+
+    bool Context::IsSuspended() const {
+        return OpenRGB::IsSuspended();
+    }
+
+    StateSnapshot Context::CaptureState() const {
+        return OpenRGB::CaptureState();
+    }
+
+    void Context::RestoreState(const StateSnapshot &state) const {
+        OpenRGB::RestoreState(state);
+    }
+
     Progressbar Context::CreateProgressbar() const {
         Progressbar pb;
         AttachProgressbar(pb);
@@ -4119,6 +4294,80 @@ namespace Gorgon :: Devices :: OpenRGB {
         }
     }
 
+    namespace internal {
+        std::shared_ptr<ShortcutOverlay> registerShortcutOverlay(const Gorgon::Animation::Governor *context) {
+            auto overlay = std::make_shared<ShortcutOverlay>();
+            overlay->context = context;
+            overlay->active = true;
+            overlay->mode = ModifierHighlightMode::ActiveModifiers;
+            {
+                std::lock_guard<std::mutex> g(S().state_mtx);
+                S().shortcut_overlays.push_back(overlay);
+                markAllDevicesDirtyLocked();
+            }
+            return overlay;
+        }
+
+        void updateShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay) {
+            if(!overlay) return;
+            ensure();
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            markAllDevicesDirtyLocked();
+        }
+
+        void unregisterShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay) {
+            if(!overlay) return;
+            std::lock_guard<std::mutex> g(S().state_mtx);
+            overlay->active = false;
+            auto &vec = S().shortcut_overlays;
+            vec.erase(
+                std::remove_if(vec.begin(), vec.end(),
+                               [&](const std::weak_ptr<ShortcutOverlay> &w) {
+                                   auto sp = w.lock();
+                                   return !sp || sp == overlay;
+                               }),
+                vec.end());
+            markAllDevicesDirtyLocked();
+        }
+    }
+
+    void Context::SetActionKeys(const std::vector<internal::ShortcutBinding> &bindings, ModifierHighlightMode mode) const {
+        auto &s = S();
+        std::shared_ptr<internal::ShortcutOverlay> overlay;
+        {
+            std::lock_guard<std::mutex> g(s.state_mtx);
+            auto it = s.context_action_keys.find(governor);
+            if(it != s.context_action_keys.end()) {
+                overlay = it->second;
+            }
+        }
+        if(!overlay) {
+            overlay = internal::registerShortcutOverlay(governor);
+            std::lock_guard<std::mutex> g(s.state_mtx);
+            s.context_action_keys[governor] = overlay;
+        }
+        overlay->mode = mode;
+        overlay->bindings = bindings;
+        overlay->active = true;
+        internal::updateShortcutOverlay(overlay);
+    }
+
+    void Context::ClearActionKeys() const {
+        auto &s = S();
+        std::shared_ptr<internal::ShortcutOverlay> overlay;
+        {
+            std::lock_guard<std::mutex> g(s.state_mtx);
+            auto it = s.context_action_keys.find(governor);
+            if(it != s.context_action_keys.end()) {
+                overlay = it->second;
+                s.context_action_keys.erase(it);
+            }
+        }
+        if(overlay) {
+            internal::unregisterShortcutOverlay(overlay);
+        }
+    }
+
     // -------------------------------------------------------------
     // Global functions (Always Modify Global Layer)
     // -------------------------------------------------------------
@@ -4156,6 +4405,8 @@ namespace Gorgon :: Devices :: OpenRGB {
             s.devices.clear();
             s.progressbars.clear();
             s.animations.clear();
+            s.shortcut_overlays.clear();
+            s.context_action_keys.clear();
         }
 
         s.initialized = false;
@@ -4168,6 +4419,105 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         std::lock_guard<std::mutex> cg(S().client_mtx);
         restoreLocked();
+    }
+
+    void Suspend() {
+        auto &s = S();
+        if(!s.initialized || s.suspended.load())
+            return;
+
+        s.suspended = true;
+
+        std::lock_guard<std::mutex> cg(s.client_mtx);
+        if(!s.client.IsConnected())
+            return;
+
+        std::vector<std::shared_ptr<DImpl>> list;
+        {
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            for(auto &d : deviceList()) {
+                if(d->hw_touched && d->connected && d->id >= 0)
+                    list.push_back(d);
+            }
+        }
+
+        for(auto &d : list) {
+            restoreDeviceHardwareLocked(d);
+
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            d->engaged    = false;
+            d->hw_touched = false;
+            d->hw_mode    = d->orig_mode;
+            d->last_sent.clear();
+        }
+
+        Logger << "OpenRGB suspended: hardware restored to OEM profile";
+    }
+
+    void Resume() {
+        auto &s = S();
+        if(!s.initialized || !s.suspended.load())
+            return;
+
+        s.suspended = false;
+
+        {
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            for(auto &d : deviceList()) {
+                if(d->connected && d->id >= 0) {
+                    d->dirty = true;
+                }
+            }
+        }
+
+        s.wake.notify_all();
+        Logger << "OpenRGB resumed: software RGB lighting restored";
+    }
+
+    bool IsSuspended() {
+        return S().suspended.load();
+    }
+
+    StateSnapshot CaptureState() {
+        StateSnapshot snap;
+        auto &s = S();
+        if(!s.initialized)
+            return snap;
+
+        std::lock_guard<std::mutex> sg(s.state_mtx);
+        for(const auto &d : deviceList()) {
+            if(!d->connected || d->id < 0) continue;
+            StateSnapshot::DeviceState ds;
+            ds.id = d->id;
+            ds.name = d->name;
+            ds.active_mode = d->global_layer.active_mode;
+            ds.colors = d->global_layer.base_leds;
+            snap.devices.push_back(std::move(ds));
+        }
+        return snap;
+    }
+
+    void RestoreState(const StateSnapshot &state) {
+        auto &s = S();
+        if(!s.initialized)
+            return;
+
+        {
+            std::lock_guard<std::mutex> sg(s.state_mtx);
+            for(const auto &ds : state.devices) {
+                for(auto &d : deviceList()) {
+                    if(d->id == ds.id || (ds.id < 0 && d->name == ds.name)) {
+                        d->global_layer.active_mode = ds.active_mode;
+                        d->global_layer.base_leds = ds.colors;
+                        d->hw_touched = true;
+                        d->dirty = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        s.wake.notify_all();
     }
 
     void Flush() {
@@ -4228,7 +4578,7 @@ namespace Gorgon :: Devices :: OpenRGB {
     }
 
     void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) {
-        GlobalContext().SetKeyGroupColor(group, color);
+        GlobalContext().SetKeyColor(group, color);
     }
 
     void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset, BlendMode blend) {
@@ -4285,6 +4635,14 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     void AttachAnimation(Animation &animation) {
         GlobalContext().AttachAnimation(animation);
+    }
+
+    void SetActionKeys(const std::vector<internal::ShortcutBinding> &bindings, ModifierHighlightMode mode) {
+        GlobalContext().SetActionKeys(bindings, mode);
+    }
+
+    void ClearActionKeys() {
+        GlobalContext().ClearActionKeys();
     }
 
 } // namespace Gorgon::Devices::OpenRGB

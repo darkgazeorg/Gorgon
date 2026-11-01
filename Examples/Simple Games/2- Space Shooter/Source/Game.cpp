@@ -13,6 +13,7 @@
 
 #include "Game.h"
 #include "EndGame.h"
+#include "Gorgon/Devices/OpenRGB.h"
 #include "Gorgon/Graphics.h"
 #include "Gorgon/Graphics/Font.h"
 #include "Scenes.h"
@@ -50,6 +51,10 @@ void Game::first_activation() {
     // Asteroids are shared across the whole game (hence the static helpers).
     Assets::Astroid::LoadAll();
     Assets::Astroid::PrepareAll();
+
+    // If the player has a keyboard supported by OpenRGB, and the OpenRGB server is running, we can set the 
+    // WASD keys to red to indicate movement controls.
+    OpenRGB.SetKeyColor(Gorgon::Devices::OpenRGB::KeyGroup::WASD, Gorgon::Graphics::Color::Red);
 }
 
 // doframe() is the simulation step. It is called once per frame.

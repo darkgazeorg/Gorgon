@@ -712,8 +712,8 @@ namespace {
             govRadios.ChangedEvent.Register([this](int govIdx) {
                 if(!scenesInitialized && govIdx == 1) {
                     scenesInitialized = true;
-                    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::WASD, Graphics::RGBA(255, 60, 0, 255));
-                    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::Arrows, Graphics::RGBA(255, 180, 0, 255));
+                    sceneA.OpenRGB.SetKeyColor(OpenRGB::KeyGroup::WASD, Graphics::RGBA(255, 60, 0, 255));
+                    sceneA.OpenRGB.SetKeyColor(OpenRGB::KeyGroup::Arrows, Graphics::RGBA(255, 180, 0, 255));
                     sceneA.OpenRGB.SetKeyColor(Input::Keyboard::Keycodes::Space, Graphics::RGBA(0, 180, 255, 255));
                 }
                 if(govIdx == 0) {

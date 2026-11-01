@@ -293,6 +293,7 @@ namespace WindowManager {
 		Input::Keyboard::CurrentModifier = Input::Keyboard::Modifier::None;
 
 		for(auto key : data->pressedkeys) {
+			data->parent->KeyPreviewEvent(key, 0.0f);
 			if(data->handlers.count(key)>0 && data->handlers[key]!=ConsumableEvent<Window, Input::Key, bool>::EmptyToken) {
 				data->parent->KeyEvent.FireFor(data->handlers[key], key, false);
 				data->handlers[key] = ConsumableEvent<Window, Input::Key, bool>::EmptyToken;
@@ -344,6 +345,9 @@ namespace WindowManager {
 		//if the key is repeating, do not repeat keyevent.
 		if(!(lParam&1<<30)) {
 			data->pressedkeys.insert(key);
+
+			// Preview event is broadcast to all preview listeners on press
+			data->parent->KeyPreviewEvent(key, 1.0f);
             
             Input::AllowCharEvent = false;
 			auto token = data->parent->KeyEvent(key, true);
@@ -380,6 +384,9 @@ namespace WindowManager {
 		}
 
 		data->pressedkeys.erase(key);
+
+		// Preview event is broadcast to all preview listeners on release
+		data->parent->KeyPreviewEvent(key, 0.0f);
 
 		if(data->handlers.count(key)>0 && data->handlers[key]!=ConsumableEvent<Window, Input::Key, bool>::EmptyToken) {
 			data->parent->KeyEvent.FireFor(data->handlers[key], key, false);

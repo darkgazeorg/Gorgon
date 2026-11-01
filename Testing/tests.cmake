@@ -40,6 +40,7 @@ set(UnitTests
 	URI
 	IO
 	LZMA
+	Shortcuts
 )
 
 if(${SCRIPTING})

@@ -237,6 +237,8 @@ namespace Gorgon :: UI {
         
         using WidgetContainer::Add;
         using Gorgon::Window::Add;
+        using Gorgon::Window::KeyPreviewEvent;
+        using Gorgon::Window::Shortcuts;
         using Gorgon::Window::KeyEvent;
         using Gorgon::Window::CharacterEvent;
 

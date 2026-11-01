@@ -63,6 +63,9 @@ protected:
     // at the chosen difficulty level, then switches to the gameplay scene.
     // Difficulty is an integer where 0 = easy and higher values are harder.
     void StartNewGame(int difficulty);
+
+    // Called once when the scene is first created.
+    virtual void first_activation() override;
     
 
 private:

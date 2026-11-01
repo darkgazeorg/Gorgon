@@ -153,8 +153,8 @@ int main() {
     Animation::Governor sceneB;
 
     // Scene A sets WASD to blue and NumberRow to yellow
-    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::WASD, rgb(0, 80, 255));
-    sceneA.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::NumberRow, rgb(255, 200, 0));
+    sceneA.OpenRGB.SetKeyColor(OpenRGB::KeyGroup::WASD, rgb(0, 80, 255));
+    sceneA.OpenRGB.SetKeyColor(OpenRGB::KeyGroup::NumberRow, rgb(255, 200, 0));
 
     // Scene B leaves the keyboard untouched (will fall back to Global layer)
     std::cout << "    Activating Scene A (WASD blue, NumberRow yellow)..." << std::endl;

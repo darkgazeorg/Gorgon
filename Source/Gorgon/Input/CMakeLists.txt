@@ -9,6 +9,7 @@ target_sources(Gorgon
 		KeyRepeater.h
 		Layer.h
 		Mouse.h
+		Shortcuts.h
 )
 
 target_sources(Gorgon
@@ -18,4 +19,5 @@ target_sources(Gorgon
 		Layer.cpp
 		Keyboard.cpp
 		KeyRepeater.cpp
+		Shortcuts.cpp
 )

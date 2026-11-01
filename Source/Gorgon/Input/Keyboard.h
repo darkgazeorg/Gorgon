@@ -131,6 +131,9 @@ namespace Keyboard {
 		constexpr Key Numpad_Enter  = 0b101101101;
 		constexpr Key Numpad_Plus   = 0b101101110;
 		constexpr Key Numpad_Minus  = 0b101101111;
+
+		/// Modifier base for checking if modifiers match.
+		constexpr Key ModifierBase  = 0b000001111;
     
 		/// Keycodes that are transported from OS.
 		constexpr Key OSTransport   = 0b100000000000;
@@ -200,6 +203,8 @@ namespace Keyboard {
 		Modifier(Type key=None) : 
 		Key(key)
 		{ }
+
+		Modifier(const Modifier &) = default;
 
 		/// Assignment operator
 		Modifier &operator =(const Modifier &) = default;
@@ -273,7 +278,13 @@ namespace Keyboard {
 			
 		/// And operator
 		Modifier operator &(const Modifier &r) const {
-			return {Type(Key & r.Key)};
+			auto ret = Key & r.Key;
+
+			if((ret & Keycodes::ModifierBase) == 0) {
+				return {None};
+			}
+
+			return {Type(ret)};
 		}
 		
 		/// Check modifier

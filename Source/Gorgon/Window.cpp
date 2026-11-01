@@ -91,6 +91,11 @@ namespace Gorgon {
 
         RestoredEvent.Swap(other.RestoredEvent);
         
+        KeyPreviewEvent.Swap(other.KeyPreviewEvent);
+        Shortcuts.Swap(other.Shortcuts);
+        if(Shortcuts.IsAttached()) Shortcuts.AttachTo(*this);
+        if(other.Shortcuts.IsAttached()) other.Shortcuts.AttachTo(other);
+
         KeyEvent.Swap(other.KeyEvent);
 
         CharacterEvent.Swap(other.CharacterEvent);
@@ -284,6 +289,7 @@ namespace Gorgon {
         Layer::Add(*pointerlayer);
         
         Pointers.PointerChanged.Register(*this, &Window::UpdatePointer);
+        Shortcuts.AttachTo(*this);
     }
 
     void Window::SetBackground(const Graphics::Bitmap &value) {

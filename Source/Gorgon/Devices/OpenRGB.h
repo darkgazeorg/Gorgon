@@ -28,6 +28,7 @@
 #include "../Input/Keyboard.h"
 #include "../Progress.h"
 #include "../Animation.h"
+#include "../Input/Shortcuts.h"
 #include "../Utils/Logging.h"
 #include "OpenRGB/Context.h"
 
@@ -817,11 +818,11 @@ namespace Gorgon :: Devices :: OpenRGB {
         /// Manually triggers a key press flash on the given key
         void TriggerKey(Input::Key key);
 
-        /// Automatically listens to `window.KeyEvent` and triggers whenever a key is pressed
+        /// Automatically listens to `window.KeyPreviewEvent` and triggers whenever a key is pressed
         /// while this animation's governor is active
         void AttachToWindow(Gorgon::Window &window);
 
-        /// Stops listening to the attached window's KeyEvent
+        /// Stops listening to the attached window's KeyPreviewEvent
         void DetachFromWindow();
 
         /// Sets the reactive flash color (or enables rainbow/random color per key press)
@@ -852,6 +853,27 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     /// Reverts all connected hardware to their original captured state without disconnecting
     void RestoreAll();
+
+    /// Temporarily restores all connected devices to their original OEM hardware lighting
+    /// while keeping all software layers, animations, progressbars, and action keys intact in memory.
+    /// Hardware updates are paused until Resume() is called.
+    void Suspend();
+
+    /// Resumes software RGB lighting after Suspend(), re-engaging hardware direct mode
+    /// and pushing all software layers and active animations back to the physical devices.
+    void Resume();
+
+    /// Returns true if hardware updates are currently suspended
+    bool IsSuspended();
+
+    /// Alias for Suspend() providing a temporary force restore of OEM hardware state
+    inline void ForceRestore() { Suspend(); }
+
+    /// Captures the current software layer state of all devices
+    StateSnapshot CaptureState();
+
+    /// Restores previously captured software layer state across all devices
+    void RestoreState(const StateSnapshot &state);
 
     /// Immediately flushes all dirty / pending LED changes over the network
     void Flush();
@@ -931,6 +953,39 @@ namespace Gorgon :: Devices :: OpenRGB {
 
     /// Moves an existing OpenRGB animation/effect to the Global Layer
     void AttachAnimation(Animation &animation);
+
+    // -------------------------------------------------------------
+    // Action Keys & Shortcut Highlighting
+    // -------------------------------------------------------------
+
+    using Input::ModifierHighlightMode;
+    using Input::Shortcut;
+
+    namespace internal {
+        struct ShortcutBinding {
+            Input::Key key = 0;
+            Input::Keyboard::Modifier modifier = Input::Keyboard::Modifier::None;
+            Graphics::RGBA color = {0,0,0,0};
+        };
+
+        struct ShortcutOverlay {
+            const Gorgon::Animation::Governor *context = nullptr;
+            ModifierHighlightMode mode = ModifierHighlightMode::ActiveModifiers;
+            Graphics::RGBA modifier_key_color = Graphics::RGBA(60, 160, 255, 255);
+            bool active = true;
+            std::vector<ShortcutBinding> bindings;
+        };
+
+        std::shared_ptr<ShortcutOverlay> registerShortcutOverlay(const Gorgon::Animation::Governor *context);
+        void updateShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay);
+        void unregisterShortcutOverlay(const std::shared_ptr<ShortcutOverlay> &overlay);
+    }
+
+    /// Sets modifier-aware action key highlights across all connected keyboards in the Global Layer
+    void SetActionKeys(const std::vector<internal::ShortcutBinding> &bindings, ModifierHighlightMode mode = ModifierHighlightMode::ActiveModifiers);
+
+    /// Clears modifier-aware action key highlights in the Global Layer
+    void ClearActionKeys();
 
     // -------------------------------------------------------------
     // Events & Logging

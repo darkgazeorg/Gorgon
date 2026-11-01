@@ -317,6 +317,8 @@ namespace Gorgon :: WindowManager {
                 //modifiers
                 Input::Keyboard::CurrentModifier.Remove(ggekey);
                 
+                wind.KeyPreviewEvent(ggekey, 0.f);
+
                 if(data->handlers.count(ggekey)>0 && data->handlers[ggekey] != wind.KeyEvent.EmptyToken) {
                     wind.KeyEvent.FireFor(data->handlers[ggekey], ggekey, 0.f);
                     data->handlers[ggekey] = wind.KeyEvent.EmptyToken;
@@ -339,11 +341,14 @@ namespace Gorgon :: WindowManager {
         
         auto ggekey = WindowManager::mapx11key(key, event.xkey.keycode);
         Input::Keyboard::CurrentModifier.Add(ggekey);
+
+        // Preview event is broadcast to all preview listeners on press
+        wind.KeyPreviewEvent(ggekey, 1.0f);
+
         Input::AllowCharEvent = false;
         auto token = wind.KeyEvent(ggekey, true);
         if(token != wind.KeyEvent.EmptyToken && !Input::AllowCharEvent) {
             data->handlers[ggekey]=token;
-            
             return;
         }
         
@@ -397,7 +402,9 @@ namespace Gorgon :: WindowManager {
         
         //modifiers
         Input::Keyboard::CurrentModifier.Remove(ggekey);
-        
+
+        // Preview event is broadcast to all preview listeners on release
+        wind.KeyPreviewEvent(ggekey, 0.0f);
         
         if(data->handlers.count(ggekey)>0 && data->handlers[ggekey] != wind.KeyEvent.EmptyToken) {
             wind.KeyEvent.FireFor(data->handlers[ggekey], ggekey, 0.f);

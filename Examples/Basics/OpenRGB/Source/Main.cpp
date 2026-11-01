@@ -1,48 +1,45 @@
 /**
  * @file Main.cpp
- * @brief Simple, well-commented example and reference guide for Gorgon::Devices::OpenRGB.
+ * @brief Interactive, well-commented example and reference guide for Gorgon::Devices::OpenRGB
+ *        and Gorgon::Input::Shortcuts.
  *
- * This example demonstrates how to accomplish common RGB hardware lighting goals:
+ * This example launches an interactive UI window with separate buttons and descriptions
+ * for each goal, demonstrating how to accomplish common RGB hardware lighting goals:
  *
  *   Goal 1. Checking availability and enumerating connected RGB devices
  *   Goal 2. Highlighting individual keys and key groups (Base State)
- *   Goal 3. Displaying an interpolated progress bar on keys (e.g., Health / Loading)
- *   Goal 4. Drawing a 2D image or bitmap onto the keyboard matrix
- *   Goal 5. Playing software lighting effects over the Base State
- *   Goal 6. Restoring hardware to the user's original lighting state
+ *   Goal 3. Displaying a health progress bar on number keys with +/- adjustment
+ *   Goal 4. Displaying a progress bar on LED strips (e.g. ring/ambient) with +/- adjustment
+ *   Goal 5. Drawing a 2D image or bitmap onto the keyboard matrix
+ *   Goal 6. Playing software lighting effects over the Base State
+ *   Goal 7. Modifier-aware shortcuts & dynamic action key lighting
+ *   Goal 8. Focus lost & temporary force restore (Suspend / Resume / StateSnapshot)
+ *   Goal 9. Restoring hardware to the user's original OEM lighting state
  *
  * ============================================================================
- * HOW OPENRGB WORKS WITH SCENES (Gorgon::Scene & Gorgon::Animation::Governor)
+ * HOW OPENRGB & SHORTCUTS WORK WITH SCENES (Gorgon::Scene)
  * ============================================================================
- * While this example keeps things simple by using the global `OpenRGB::`
- * functions directly, every `Gorgon::Scene` (and `Animation::Governor`) has a
- * built-in `.OpenRGB` member (`Gorgon::Devices::OpenRGB::Context`) that mirrors
- * the exact same API:
+ * While this example operates on the active window and global OpenRGB layer,
+ * every `Gorgon::Scene` (and `Animation::Governor`) has built-in `.OpenRGB` and
+ * `.Shortcuts` members that mirror the exact same API:
  *
- *   1. Scene-Isolated Lighting:
- *      Instead of calling `OpenRGB::SetKeyGroupColor(...)`, call it on your scene:
+ *   1. Scene-Isolated Lighting & Shortcuts:
+ *      Instead of calling `OpenRGB::SetKeyGroupColor(...)` or `window.Shortcuts.Set(...)`,
+ *      call them on your scene:
  *
- *          combatScene.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::WASD, RGBA::Red);
- *          menuScene.OpenRGB.SetKeyColor(Keycodes::Enter, RGBA::Green);
+ *          combatScene.OpenRGB.SetKeyGroupColor(OpenRGB::KeyGroup::WASD, RGBA{255, 0, 0, 255});
+ *          combatScene.Shortcuts.Set(Keycodes::P, [&]() { pauseGame(); }, RGBA{255, 255, 0, 255});
  *
  *   2. Automatic Switching on Scene Activation:
- *      Whenever a scene becomes active (via `SceneManager` or `scene.Activate()`),
- *      Gorgon automatically switches the physical hardware to that scene's
- *      lighting layer, progressbars, and active effects. Animations belonging to
- *      inactive scenes are automatically paused and hidden.
+ *      Whenever a scene becomes active (via `SceneManager::SwitchScene()` or `scene.Activate()`),
+ *      Gorgon automatically activates that scene's shortcuts on the window and switches
+ *      the physical hardware to that scene's lighting layer. When the scene deactivates,
+ *      its shortcuts unhook and its lighting smoothly yields to the next scene or base state.
  *
  *   3. Zero Overhead & Global Fallback:
- *      Creating a `Scene` does NOT initialize OpenRGB or allocate device layers
- *      until you actually call a method on `scene.OpenRGB`. Furthermore, any
- *      device not modified in the active scene automatically falls back to the
- *      Global Layer (the `OpenRGB::` namespace functions shown below).
- *
- *   4. Binding Effects to a Scene:
- *      Pass your `scene` (or `scene.OpenRGB`) as the first argument to any effect
- *      so it only plays while that scene is active:
- *
- *          OpenRGB::PulseEffect lowHpWarning(combatScene, RGBA::Red, 800);
- *          lowHpWarning.Loop();
+ *      Creating a `Scene` does NOT initialize OpenRGB or allocate device layers until you
+ *      actually call a method on `scene.OpenRGB`. Any device not modified in the active
+ *      scene automatically falls back to the Global Layer.
  * ============================================================================
  */
 
@@ -50,251 +47,537 @@
 #include <Gorgon/Graphics/Color.h>
 #include <Gorgon/Containers/Image.h>
 #include <Gorgon/Main.h>
+#include <Gorgon/UI.h>
+#include <Gorgon/UI/Window.h>
+#include <Gorgon/Widgets/Button.h>
+#include <Gorgon/Widgets/Label.h>
+#include <Gorgon/Input/Shortcuts.h>
+#include <Gorgon/Input/Keyboard.h>
 
-#include <chrono>
 #include <iostream>
-#include <thread>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace OpenRGB  = Gorgon::Devices::OpenRGB;
 namespace Keycodes = Gorgon::Input::Keyboard::Keycodes;
+using Modifier     = Gorgon::Input::Keyboard::Modifier;
 using Gorgon::Graphics::RGBA;
+using Gorgon::UI::Units;
+using Gorgon::UI::Percentage;
 
-/// Helper to pause between steps so you can inspect the physical keyboard.
-static void waitForEnter() {
-    std::cout << "  -> Press <Enter> to continue...";
-    std::cin.get();
-    std::cout << "\n";
+// -----------------------------------------------------------------------------
+// Goal 1: Device Enumeration & Availability
+// -----------------------------------------------------------------------------
+// Checks connection to the OpenRGB SDK server and enumerates connected devices
+// (keyboards, LED strips, mice, motherboards, RAM, etc.).
+void Goal1_DeviceEnumeration(Gorgon::Widgets::Label &statusLbl) {
+    if(!OpenRGB::IsAvailable()) {
+        statusLbl.SetText("Status: OpenRGB server not detected at 127.0.0.1:6742.");
+        std::cout << "[Stage 1] OpenRGB server not running.\n";
+        return;
+    }
+
+    auto keyboards = OpenRGB::GetKeyboards();
+    auto strips    = OpenRGB::GetStrips();
+    auto allDevs   = OpenRGB::GetDevices();
+
+    std::string msg = "Status: Found " + std::to_string(allDevs.size()) + " device(s) — " +
+                      std::to_string(keyboards.size()) + " keyboard(s), " +
+                      std::to_string(strips.size()) + " strip(s).";
+    statusLbl.SetText(msg);
+
+    std::cout << "[Stage 1] Connected to OpenRGB:\n";
+    for(const auto &d : allDevs) {
+        std::cout << "  - " << d.GetName() << " (" << d.GetLEDCount() << " LEDs)\n";
+    }
 }
 
-int main() {
-    // =========================================================================
-    // Goal 1: Zero-Boilerplate Initialization & Device Discovery
-    // =========================================================================
-    // You do NOT need to manually call `OpenRGB::Initialize()` before using
-    // lighting functions: the subsystem connects lazily to 127.0.0.1:6742 on
-    // the first lighting call.
-    //
-    // All OpenRGB calls are fault-tolerant: if the OpenRGB server is not
-    // running or no compatible hardware is attached, functions safely no-op
-    // so your game logic never needs `if(OpenRGB::IsAvailable())` guards.
-    std::cout << "=== Goal 1: Device Discovery ===\n";
+// -----------------------------------------------------------------------------
+// Goal 2: Base State Lighting (Key Groups & Strips)
+// -----------------------------------------------------------------------------
+// Highlights individual keys and standard groups (WASD, Arrows, Space, Enter)
+// and sets ambient lighting on strips. This establishes the "Base State" which
+// animations and progressbars overlay without destroying the underlying colors.
+void Goal2_BaseStateLighting(Gorgon::Widgets::Label &statusLbl) {
+    // 1. WASD movement keys in bright red
+    OpenRGB::SetKeyGroupColor(OpenRGB::KeyGroup::WASD, RGBA{255, 30, 30, 255});
 
-    if (OpenRGB::IsAvailable()) {
-        auto devices = OpenRGB::GetDevices();
-        std::cout << "Connected to OpenRGB server. Found " << devices.size() << " device(s):\n";
-        for (const auto &dev : devices) {
-            std::cout << "  [" << dev.GetID() << "] " << dev.GetName()
-                      << " (" << dev.GetLEDCount() << " LEDs, "
-                      << dev.GetWidth() << "x" << dev.GetHeight() << " matrix, "
-                      << dev.GetZoneCount() << " zone(s), initial mode: "
-                      << dev.GetActiveModeName() << ")\n";
-        }
-    } else {
-        std::cout << "OpenRGB SDK server is not running on 127.0.0.1:6742.\n"
-                  << "All lighting calls below will safely no-op.\n";
-    }
-    waitForEnter();
+    // 2. Arrow keys in sky blue
+    OpenRGB::SetKeyGroupColor(OpenRGB::KeyGroup::Arrows, RGBA{30, 140, 255, 255});
 
+    // 3. Enter key in vivid green
+    OpenRGB::SetKeyColor(Keycodes::Enter, RGBA{30, 255, 60, 255});
 
-    // =========================================================================
-    // Goal 2: Highlighting Keys & Key Groups (Base State)
-    // =========================================================================
-    // Setting key colors modifies the "Base State" of the keyboard.
-    // The Base State persists underneath temporary progressbars and animations.
-    //
-    // Built-in KeyGroup presets:
-    //   - OpenRGB::KeyGroup::WASD          (W, A, S, D)
-    //   - OpenRGB::KeyGroup::Arrows        (Up, Down, Left, Right)
-    //   - OpenRGB::KeyGroup::NumberRow     (1, 2, 3, 4, 5, 6, 7, 8, 9, 0)
-    //   - OpenRGB::KeyGroup::FunctionKeys  (F1 through F12)
-    //   - OpenRGB::KeyGroup::Modifiers     (Shift, Ctrl, Alt, Super/Windows)
-    //   - OpenRGB::KeyGroup::Numpad        (All numpad keys)
-    //   - OpenRGB::KeyGroup::NumpadDigits  (Numpad 0 through 9)
-    //   - OpenRGB::KeyGroup::Letters       (A through Z)
-    //   - OpenRGB::KeyGroup::All           (Every mapped key on the keyboard)
-    std::cout << "=== Goal 2: Highlighting Keys & Key Groups ===\n";
-    std::cout << "Lighting Escape (Red), WASD (Green), Space (Cyan), and Q/E/R abilities (Gold).\n";
+    // 4. Space bar in radiant gold
+    OpenRGB::SetKeyColor(Keycodes::Space, RGBA{255, 215, 0, 255});
 
-    // Start with a clean unlit base state across all devices
-    OpenRGB::ClearAll();
-
-    // Highlight individual keys using standard Gorgon Keycodes
-    OpenRGB::SetKeyColor(Keycodes::Escape, RGBA{255, 0, 0, 255});
-    OpenRGB::SetKeyColor(Keycodes::Space,  RGBA{0, 220, 255, 255});
-
-    // Highlight a built-in key group
-    OpenRGB::SetKeyGroupColor(OpenRGB::KeyGroup::WASD, RGBA{0, 255, 80, 255});
-
-    // Define and highlight a custom key group (e.g., ability hotkeys Q, E, R)
-    OpenRGB::KeyGroup abilityKeys{{Keycodes::Q, Keycodes::E, Keycodes::R}};
-    OpenRGB::SetKeyGroupColor(abilityKeys, RGBA{255, 180, 0, 255});
-
-    waitForEnter();
-
-
-    // =========================================================================
-    // Goal 3: Displaying a Progress Bar on Keys or LED Strips (Health / Loading)
-    // =========================================================================
-    // `OpenRGB::Progressbar` implements `Gorgon::ProgressDisplay` and renders a
-    // smoothly interpolated bar over any ordered `KeyGroup`, linear `Zone`, or
-    // LED Strip `Device` (treated as a `width x 1` matrix).
-    //
-    // Common targets:
-    //   - OpenRGB::KeyGroup::NumberRow     (10 keys: '1' through '0')
-    //   - OpenRGB::KeyGroup::FunctionKeys  (12 keys: 'F1' through 'F12')
-    //   - OpenRGB::KeyGroup::NumpadDigits  (10 keys: 'Numpad_0' through 'Numpad_9')
-    //   - Any LED Strip Device or Zone     (e.g., `OpenRGB::CreateProgressbar(*strip)`)
-    //
-    // You can also attach level-color rules so the bar changes color based on
-    // its current ratio (e.g., Red when critical, Yellow when medium, Green when high).
-    std::cout << "=== Goal 3: Progress Bar (Keyboard Number Row & LED Strips) ===\n";
-    std::cout << "Animating a health/loading bar across the Number Row (and any connected LED strip)...\n";
-
-    auto healthBar = OpenRGB::CreateProgressbar(OpenRGB::KeyGroup::NumberRow);
-    OpenRGB::Progressbar stripBar;
-    stripBar.TargetAllStrips();
-
-    // Optional: change bar color automatically depending on the progress value
-    std::vector<OpenRGB::Progressbar::LevelColor> levels = {
-        {{0.0f, 0.35f}, RGBA{255, 30, 0, 255}},   // Critical: Red
-        {{0.35f, 0.70f}, RGBA{255, 200, 0, 255}}, // Warning:  Yellow
-        {{0.70f, 1.0f}, RGBA{0, 255, 80, 255}}    // Healthy:  Green
-    };
-    healthBar.SetLevelColors(levels);
-    stripBar.SetLevelColors(levels);
-
-    // Note: Call `healthBar.SetSingleKeyMode(true)` if you only want a single
-    // sliding indicator dot instead of filling all keys/LEDs up to the value.
-
-    for (int i = 0; i <= 40; ++i) {
-        float ratio = static_cast<float>(i) / 40.0f;
-        healthBar.SetProgressRatio(ratio);
-        stripBar.SetProgressRatio(ratio);
-        std::this_thread::sleep_for(std::chrono::milliseconds(25));
+    // 5. Ambient violet for all connected LED strips
+    for(auto &strip : OpenRGB::GetStrips()) {
+        strip.SetColor(RGBA{140, 30, 255, 255});
     }
 
-    waitForEnter();
+    statusLbl.SetText("Status: Base State applied (WASD=Red, Arrows=Blue, Enter=Green, Space=Gold, Strips=Violet).");
+    std::cout << "[Stage 2] Applied static Base State key highlights and strip lighting.\n";
+}
 
-    // Clearing the progressbar removes its overlay while keeping the Base State intact
-    healthBar.Clear();
-    stripBar.Clear();
+// -----------------------------------------------------------------------------
+// Goal 3: Keyboard Health / Progress Bar
+// -----------------------------------------------------------------------------
+// Demonstrates Gorgon::Devices::OpenRGB::Progressbar across keyboard keys (number row 1-0).
+// Level colors transition automatically: Green (>50%), Yellow (25-50%), Red (<25%).
+// Unfilled LEDs preserve the Base State underneath.
+static float s_healthRatio = 1.0f;
+static int s_healthStep = 0;
 
+void SetHealthRatio(float ratio, Gorgon::Widgets::Label &statusLbl) {
+    static bool initialized = false;
+    
+    // Create a progress bar targeting the number row keys (1-0)
+    static OpenRGB::Progressbar bar{OpenRGB::KeyGroup::NumberRow};
 
-    // =========================================================================
-    // Goal 4: Drawing a 2D Image / Bitmap onto the Keyboard Matrix
-    // =========================================================================
-    // Keyboards (and LED matrix panels) expose a 2D coordinate grid. You can draw
-    // any `Gorgon::Graphics::Bitmap` or `Gorgon::Containers::Image` onto the
-    // physical keys using:
-    //   - `OpenRGB::Draw(image, offset, blend)`       -- 1:1 pixel mapping
-    //   - `OpenRGB::DrawScaled(image, interp, blend)` -- stretches to fit the matrix
-    //
-    // Supported BlendModes:
-    //   - BlendMode::Overwrite   (replaces underlying base colors)
-    //   - BlendMode::AlphaBlend  (blends using the image's alpha channel)
-    //   - BlendMode::Additive    (adds RGB values onto existing colors)
-    //   - BlendMode::Multiply    (multiplies existing colors by image colors)
-    std::cout << "=== Goal 4: Drawing a 2D Image onto the Keyboard Matrix ===\n";
-    std::cout << "Drawing a horizontal sunset gradient image across the keyboard matrix,\n"
-              << "then re-highlighting WASD on top.\n";
+    if(!initialized) {
+        // Define level colors for the progress bar, this can be used to mark health levels
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.50f, 1.00f), RGBA{30, 255, 60, 255});
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.25f, 0.50f), RGBA{255, 220, 0, 255});
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.00f, 0.25f), RGBA{255, 30, 0, 255});
+        bar.SetBackgroundColor(RGBA{0, 0, 0, 0}); // transparent unfilled background
+        initialized = true;
+    }
 
-    Gorgon::Containers::Image gradient({24, 6}, Gorgon::Graphics::ColorMode::RGBA);
-    for (int y = 0; y < gradient.GetHeight(); ++y) {
-        for (int x = 0; x < gradient.GetWidth(); ++x) {
-            float t = static_cast<float>(x) / static_cast<float>(gradient.GetWidth() - 1);
-            gradient(x, y, 0) = static_cast<Gorgon::Byte>(255 * (1.0f - t)); // Red
-            gradient(x, y, 1) = static_cast<Gorgon::Byte>(60 * (1.0f - t));  // Green
-            gradient(x, y, 2) = static_cast<Gorgon::Byte>(255 * t);          // Blue
-            gradient(x, y, 3) = 255;                                         // Alpha
+    s_healthRatio = Gorgon::Clamp(ratio, 0.0f, 1.0f);
+    bar.SetProgressRatio(s_healthRatio);
+
+    int pct = int(s_healthRatio * 100);
+    std::string colorName = (pct >= 50) ? "Green" : ((pct >= 25) ? "Yellow" : "Red");
+    statusLbl.SetText("Status: Keyboard Health Progressbar set to " + std::to_string(pct) + "% (" + colorName + ").");
+    std::cout << "[Stage 3] Keyboard health set to " << pct << "% (" << colorName << ").\n";
+}
+
+void Goal3_HealthProgressbar(Gorgon::Widgets::Label &statusLbl) {
+    static const float steps[] = {1.0f, 0.75f, 0.50f, 0.25f, 0.10f};
+    s_healthStep = (s_healthStep + 1) % 5;
+    SetHealthRatio(steps[s_healthStep], statusLbl);
+}
+
+// -----------------------------------------------------------------------------
+// Goal 4: LED Strip Progress Bar (e.g. Mana / Ring / Shield)
+// -----------------------------------------------------------------------------
+// Demonstrates OpenRGB::Progressbar on connected LED strips (e.g., ring strip).
+// Shows smooth progression with automatic level transitions:
+// Cyan (>50%), Blue (25-50%), Purple (<25%).
+static float s_stripRatio = 1.0f;
+static int s_stripStep = 0;
+
+void SetStripRatio(float ratio, Gorgon::Widgets::Label &statusLbl) {
+    static bool initialized = false;
+    static OpenRGB::Progressbar bar;
+
+    // Initialize the strip progress bar only once, can be handled in the constructor if
+    // in a class, but here we do it in a function
+    if(!initialized) {
+        // Target all connected LED strips for the progress bar
+        bar.TargetAllStrips();
+        // Define level colors for the progress bar, this can be used to mark health levels
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.50f, 1.00f), RGBA{0, 240, 255, 255});
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.25f, 0.50f), RGBA{30, 100, 255, 255});
+        bar.AddLevelColor(Gorgon::Range<Gorgon::Float>(0.00f, 0.25f), RGBA{180, 0, 255, 255});
+        bar.SetBackgroundColor(RGBA{0, 0, 0, 0}); // transparent unfilled background
+        initialized = true;
+    }
+
+    // Clamp the ratio to [0.0, 1.0] and update the progress bar
+    s_stripRatio = Gorgon::Clamp(ratio, 0.0f, 1.0f);
+    bar.SetProgressRatio(s_stripRatio);
+
+    int pct = int(s_stripRatio * 100);
+    std::string colorName = (pct >= 50) ? "Cyan" : ((pct >= 25) ? "Blue" : "Purple");
+    statusLbl.SetText("Status: LED Strip Progressbar set to " + std::to_string(pct) + "% (" + colorName + ").");
+    std::cout << "[Stage 4] LED strip progress set to " << pct << "% (" << colorName << ").\n";
+}
+
+void Goal4_StripProgressbar(Gorgon::Widgets::Label &statusLbl) {
+    static const float steps[] = {1.0f, 0.80f, 0.60f, 0.40f, 0.20f};
+    s_stripStep = (s_stripStep + 1) % 5;
+    SetStripRatio(steps[s_stripStep], statusLbl);
+}
+
+// -----------------------------------------------------------------------------
+// Goal 5: 2D Matrix Gradient Drawing
+// -----------------------------------------------------------------------------
+// Creates a 2D image with a sunset gradient and draws it scaled across the
+// physical 2D keyboard matrix and strips using OpenRGB::DrawScaled.
+void Goal5_MatrixGradientDrawing(Gorgon::Widgets::Label &statusLbl) {
+    constexpr int imgW = 24, imgH = 6;
+    Gorgon::Containers::Image gradient(Gorgon::Geometry::Size{imgW, imgH}, Gorgon::Graphics::ColorMode::RGBA);
+
+    for(int y = 0; y < imgH; y++) {
+        for(int x = 0; x < imgW; x++) {
+            float tx = float(x) / float(imgW - 1);
+            float ty = float(y) / float(imgH - 1);
+
+            Gorgon::Byte r = Gorgon::Byte(255 * (1.0f - ty * 0.4f));
+            Gorgon::Byte g = Gorgon::Byte(180 * tx * (1.0f - ty));
+            Gorgon::Byte b = Gorgon::Byte(255 * ty);
+
+            gradient(x, y, 0) = r;
+            gradient(x, y, 1) = g;
+            gradient(x, y, 2) = b;
+            gradient(x, y, 3) = 255;
         }
     }
 
-    // Stretch the 2D image across all matrix zones in the Base State
     OpenRGB::DrawScaled(gradient);
 
-    // Highlight WASD in bright green over the gradient
-    OpenRGB::SetKeyGroupColor(OpenRGB::KeyGroup::WASD, RGBA{0, 255, 100, 255});
+    statusLbl.SetText("Status: 2D Sunset gradient drawn across keyboard matrix and strips.");
+    std::cout << "[Stage 5] Drew 24x6 sunset gradient across keyboard matrix.\n";
+}
 
-    waitForEnter();
+// -----------------------------------------------------------------------------
+// Goal 6: Software Lighting Effect (Explosion / Shockwave)
+// -----------------------------------------------------------------------------
+// Software animations inherit from `OpenRGB::Animation` and run non-destructively
+// over the Base State. When the shockwave finishes, the Base State is automatically restored.
+//
+// Other built-in effects available in Gorgon::Devices::OpenRGB:
+//   - OpenRGB::FadeEffect      : Smooth linear transition between colors or alpha
+//   - OpenRGB::PulseEffect     : Rhythmic pulsing/breathing between min and max intensities
+//   - OpenRGB::BlinkEffect     : Crisp blinking/strobing at specified frequency
+//   - OpenRGB::SwipeEffect     : Directional linear wave moving across zones or keys
+//   - OpenRGB::ReactiveEffect  : Dynamic ripple/flash radiating outward from any pressed key
+static std::unique_ptr<OpenRGB::ExplosionEffect> s_activeExplosion;
 
+void Goal6_SoftwareLightingEffect(Gorgon::Widgets::Label &statusLbl) {
+    s_activeExplosion = std::make_unique<OpenRGB::ExplosionEffect>(RGBA{255, 160, 0, 255}, 900, 3.5f);
+    s_activeExplosion->Play();
 
-    // =========================================================================
-    // Goal 5: Playing Software Lighting Effects Over the Base State
-    // =========================================================================
-    // Software effects inherit from `OpenRGB::Animation` (and `Gorgon::Animation::Base`).
-    // They have value semantics, can be allocated directly on the stack or as class
-    // members, and composite non-destructively over your Base State. When a one-shot
-    // effect finishes, the keyboard automatically returns to its Base State.
-    //
-    // Below we demonstrate `ExplosionEffect`. Other built-in effects include:
-    //
-    //   1. OpenRGB::FadeEffect(startColor, endColor, durationMs, blendMode)
-    //      Smoothly interpolates target LEDs between two colors (or across multiple
-    //      color stops via `.SetColorStops({...})`). Great for damage flashes or death fades.
-    //
-    //   2. OpenRGB::PulseEffect(peakColor, periodMs, troughColor, blendMode)
-    //      Smooth sine-wave breathing between two colors. Call `.Loop()` for continuous
-    //      low-health or active-buff pulsing.
-    //
-    //   3. OpenRGB::BlinkEffect(onColor, periodMs, dutyCycle, offColor, blendMode)
-    //      Alternates between on and off colors with a configurable duty cycle (0.0 - 1.0).
-    //
-    //   4. OpenRGB::SwipeEffect(color, SwipeDirection, durationMs, bandWidth, blendMode)
-    //      Sweeps a band of light across the keyboard (`LeftToRight`, `RightToLeft`,
-    //      `TopToBottom`, `BottomToTop`). Great for level-up or buff pickup indicators.
-    //
-    //   5. OpenRGB::ReactiveEffect(color, fadeMs, blendMode)
-    //      Illuminates keys as they are pressed and fades them back to the Base State.
-    //      Supports radial neighbor ripples (`.SetRippleRadius(1.8f)`), rainbow random
-    //      colors (`.SetRandomColor(true)`), and automatic window input hooking
-    //      (`.AttachToWindow(window)`).
-    //
-    // Targeting & Chaining:
-    //   - Effects target all devices by default, or can be restricted via:
-    //     `.TargetKeyGroup(OpenRGB::KeyGroup::WASD)`, `.TargetKey(Keycodes::Space)`,
-    //     `.TargetDevice(dev)`, or `.TargetZone(zone)`.
-    //   - Chain animations sequentially using `effect.FinishedEvent.Register(...)`.
-    std::cout << "=== Goal 5: Software Lighting Effect (ExplosionEffect) ===\n";
-    std::cout << "Playing a radial orange shockwave from the center of the keyboard.\n"
-              << "Notice how the gradient and WASD Base State remain intact underneath!\n";
+    statusLbl.SetText("Status: Playing ExplosionEffect shockwave! Base State remains intact underneath.");
+    std::cout << "[Stage 6] Triggered software ExplosionEffect shockwave.\n";
+}
 
-    {
-        OpenRGB::ExplosionEffect explosion(RGBA{255, 160, 0, 255}, 950, 3.5f);
+// -----------------------------------------------------------------------------
+// Goal 7: Modifier-Aware Shortcuts & Dynamic Action Key Lighting
+// -----------------------------------------------------------------------------
+// Uses `Gorgon::Input::Shortcuts` attached to the window (`window.Shortcuts`).
+// In ActiveModifiers mode (default):
+//   - Holding Ctrl illuminates the physical Ctrl key in electric blue and lights
+//     S (Green) and O (Cyan) on the physical keyboard.
+//   - Holding Alt illuminates Alt and lights X (Orange).
+//   - Holding a modifier with NO registered keys (e.g. Shift alone or Meta) does NOT highlight it!
+//   - Pressing the shortcut combination triggers the action!
+static bool s_shortcutsSetup = false;
+static int s_shortcutModeIdx = 0;
 
-        // Optional: center the explosion on a specific key instead of the matrix center:
-        // explosion.SetOriginKey(Keycodes::G);
+void Goal7_ModifierAwareShortcuts(Gorgon::UI::Window &window, Gorgon::Widgets::Label &statusLbl) {
+    if(!s_shortcutsSetup) {
+        s_shortcutsSetup = true;
 
-        // Reset frame delta timer before starting the animation loop
-        Gorgon::NextFrame(false);
-        explosion.Play();
+        // Register shortcuts with lambdas and RGB colors:
+        // 1. Ctrl + S -> Save (Green)
+        window.Shortcuts.Set(Keycodes::S, Modifier::Ctrl, [&statusLbl]() {
+            statusLbl.SetText("Executed Shortcut: [Ctrl + S] -> Document Saved successfully!");
+            std::cout << "  -> Shortcut triggered: Ctrl + S (Save)\n";
+        }, RGBA{0, 255, 60, 255});
 
-        // In a regular windowed Gorgon app, `window.Run()` or your main loop calls
-        // `Gorgon::NextFrame()` automatically every frame. Here in a console app,
-        // we pump `Gorgon::NextFrame(false)` for ~1 second while the effect plays:
-        while (!explosion.IsFinished()) {
-            Gorgon::NextFrame(false);
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
-        }
+        // 2. Ctrl + O -> Open (Cyan)
+        window.Shortcuts.Set(Keycodes::O, Modifier::Ctrl, [&statusLbl]() {
+            statusLbl.SetText("Executed Shortcut: [Ctrl + O] -> File Open dialog launched!");
+            std::cout << "  -> Shortcut triggered: Ctrl + O (Open)\n";
+        }, RGBA{0, 200, 255, 255});
+
+        // 3. Ctrl + Shift + F -> Find (Yellow)
+        window.Shortcuts.Set(Keycodes::F, Modifier::ShiftCtrl, [&statusLbl]() {
+            statusLbl.SetText("Executed Shortcut: [Ctrl + Shift + F] -> Find in Project launched!");
+            std::cout << "  -> Shortcut triggered: Ctrl + Shift + F (Find)\n";
+        }, RGBA{255, 220, 0, 255});
+
+        // 4. Alt + X -> Exit (Orange)
+        window.Shortcuts.Set(Keycodes::X, Modifier::Alt, [&statusLbl, &window]() {
+            statusLbl.SetText("Executed Shortcut: [Alt + X] -> Exit shortcut activated. Goodbye!");
+            std::cout << "  -> Shortcut triggered: Alt + X (Exit)\n";
+            window.Quit();
+        }, RGBA{255, 100, 0, 255});
+
+        // 5. F1 -> Help (Purple)
+        window.Shortcuts.Set(Keycodes::F1, Modifier::None, [&statusLbl]() {
+            statusLbl.SetText("Executed Shortcut: [F1] -> Help dialog launched!");
+            std::cout << "  -> Shortcut triggered: F1 (Help)\n";
+        }, RGBA{180, 0, 255, 255});
+        
     }
 
-    std::cout << "  Explosion finished — keyboard returned to its Base State.\n";
-    waitForEnter();
+    // Clicking the button cycles the highlight mode between ActiveModifiers and RegularKeys
+    s_shortcutModeIdx = (s_shortcutModeIdx + 1) % 2;
+    if(s_shortcutModeIdx == 1) {
+        window.Shortcuts.SetHighlightMode(Gorgon::Input::ModifierHighlightMode::ActiveModifiers);
+        statusLbl.SetText("Shortcuts Mode: ActiveModifiers (default). Hold Ctrl or Alt on your keyboard to illuminate shortcuts!");
+        std::cout << "[Stage 7] Mode set to ActiveModifiers. Hold Ctrl or Alt on your physical keyboard!\n";
+    }
+    else {
+        window.Shortcuts.SetHighlightMode(Gorgon::Input::ModifierHighlightMode::RegularKeys);
+        statusLbl.SetText("Shortcuts Mode: RegularKeys. All bound shortcut keys and modifiers are constantly illuminated.");
+        std::cout << "[Stage 7] Mode set to RegularKeys. All shortcut keys are constantly illuminated.\n";
+    }
+}
 
+// -----------------------------------------------------------------------------
+// Goal 8: Focus Lost & Temporary Force Restore (Suspend / Resume / StateSnapshot)
+// -----------------------------------------------------------------------------
+// Demonstrates how to restore OEM hardware lighting when window focus is lost or manually:
+//   - OpenRGB::Suspend() / ForceRestore(): Reverts physical devices to original OEM mode
+//     while keeping software layers, animations, and progressbars intact in memory.
+//   - OpenRGB::Resume(): Re-engages direct mode and flushes all software colors back to hardware.
+//   - OpenRGB::CaptureState() & RestoreState(): Allows capturing/restoring software snapshots.
+static OpenRGB::StateSnapshot s_savedSnapshot;
 
-    // =========================================================================
-    // Goal 6: Scene Integration Summary & Automatic Hardware Restoration
-    // =========================================================================
-    std::cout << "=== Goal 6: Scenes & Hardware Restoration ===\n";
-    std::cout << "Tip: In multi-scene games, use `myScene.OpenRGB.SetKeyGroupColor(...)`\n"
-              << "     instead of global `OpenRGB::` calls. Gorgon will automatically\n"
-              << "     switch keyboard lighting and pause/resume effects as scenes change.\n\n";
+void Goal8_FocusAndForceRestore(Gorgon::Widgets::Label &statusLbl) {
+    if(OpenRGB::IsSuspended()) {
+        OpenRGB::Resume();
+        statusLbl.SetText("Status: OpenRGB Resumed. Software RGB lighting restored across all devices.");
+        std::cout << "[Stage 8] Resumed software RGB lighting.\n";
+    }
+    else {
+        s_savedSnapshot = OpenRGB::CaptureState();
+        OpenRGB::Suspend();
+        statusLbl.SetText("Status: OpenRGB Suspended (Force Restored). OEM hardware lighting active; software state preserved.");
+        std::cout << "[Stage 8] Force-restored hardware to OEM profile (Suspend).\n";
+    }
+}
 
-    // You can manually revert all devices back to the user's original hardware
-    // mode and colors at any time by calling `OpenRGB::RestoreAll()`.
-    // Even if you don't call it explicitly, Gorgon automatically restores all
-    // hardware when the application exits.
-    std::cout << "Restoring hardware to its original lighting state and exiting...\n";
+// -----------------------------------------------------------------------------
+// Goal 9: Hardware Restoration (Permanent Restore)
+// -----------------------------------------------------------------------------
+// Reverts all connected devices to the user's initial OEM profiles and colors.
+void Goal9_RestoreHardware(Gorgon::Widgets::Label &statusLbl) {
     OpenRGB::RestoreAll();
+    statusLbl.SetText("Status: Hardware restored to original OEM profile and colors.");
+    std::cout << "[Stage 9] Restored all hardware to initial user state.\n";
+}
 
+// =============================================================================
+// Application Entry Point
+// =============================================================================
+int main() {
+    Gorgon::Initialize("OpenRGBExample");
+    Gorgon::UI::Window window({980, 840}, "openrgb_example", "Gorgon OpenRGB & Shortcut Keys Interactive Guide", true);
+    Gorgon::UI::Initialize();
+
+    window.Center();
+
+    // Title and Subtitle
+    Gorgon::Widgets::Label titleLbl("Gorgon OpenRGB & Shortcut Keys Interactive Guide");
+    titleLbl.Move(Units(0.8f, 0.5f));
+    titleLbl.SetWidth(Percentage(95));
+    window.Add(titleLbl);
+
+    Gorgon::Widgets::Label subtitleLbl("Click stage buttons or +/- to adjust; hold Ctrl or Alt on physical keyboard; alt-tab to test focus restore.");
+    subtitleLbl.Move(Units(0.8f, 1.4f));
+    subtitleLbl.SetWidth(Percentage(95));
+    window.Add(subtitleLbl);
+
+    // Status Display Label at the bottom
+    Gorgon::Widgets::Label statusLbl("Status: Initialized. Shortcuts are active! Try holding Ctrl or Alt on your keyboard.");
+    statusLbl.Move(Units(0.8f, 20.6f));
+    statusLbl.SetWidth(Percentage(95));
+    window.Add(statusLbl);
+
+    // Stage 1: Device Enumeration
+    Gorgon::Widgets::Button btn1("Stage 1: Enumerate Devices", [&]() { Goal1_DeviceEnumeration(statusLbl); });
+    btn1.Move(Units(0.8f, 2.4f));
+    btn1.SetWidth(Units(8.5f));
+    window.Add(btn1);
+
+    Gorgon::Widgets::Label desc1("Queries OpenRGB server and lists connected keyboards, LED strips, and other hardware.");
+    desc1.Move(Units(0.8f, 3.4f));
+    desc1.SetWidth(Percentage(95));
+    window.Add(desc1);
+
+    // Stage 2: Base State Lighting
+    Gorgon::Widgets::Button btn2("Stage 2: Static Base State", [&]() { Goal2_BaseStateLighting(statusLbl); });
+    btn2.Move(Units(0.8f, 4.4f));
+    btn2.SetWidth(Units(8.5f));
+    window.Add(btn2);
+
+    Gorgon::Widgets::Label desc2("Sets persistent Base State colors: WASD (Red), Arrows (Blue), Enter (Green), Space (Gold), Strips (Violet).");
+    desc2.Move(Units(0.8f, 5.4f));
+    desc2.SetWidth(Percentage(95));
+    window.Add(desc2);
+
+    // Stage 3: Keyboard Health Progressbar + Buttons
+    Gorgon::Widgets::Button btn3("Stage 3: Cycle Health Bar", [&]() { Goal3_HealthProgressbar(statusLbl); });
+    btn3.Move(Units(0.8f, 6.4f));
+    btn3.SetWidth(Units(8.5f));
+    window.Add(btn3);
+
+    Gorgon::Widgets::Button btn3_minus("-", [&]() { SetHealthRatio(s_healthRatio - 0.10f, statusLbl); });
+    btn3_minus.Move(Units(9.6f, 6.4f));
+    btn3_minus.SetWidth(Units(1.2f));
+    window.Add(btn3_minus);
+
+    Gorgon::Widgets::Button btn3_plus("+", [&]() { SetHealthRatio(s_healthRatio + 0.10f, statusLbl); });
+    btn3_plus.Move(Units(11.0f, 6.4f));
+    btn3_plus.SetWidth(Units(1.2f));
+    window.Add(btn3_plus);
+
+    Gorgon::Widgets::Label desc3("Cycles health ratio on number keys (1-0). Use +/- to fine-tune. Colors: Green (>50%), Yellow (25-50%), Red (<25%).");
+    desc3.Move(Units(0.8f, 7.4f));
+    desc3.SetWidth(Percentage(95));
+    window.Add(desc3);
+
+    // Stage 4: LED Strip Progressbar + Buttons
+    Gorgon::Widgets::Button btn4("Stage 4: Strip Progress Bar", [&]() { Goal4_StripProgressbar(statusLbl); });
+    btn4.Move(Units(0.8f, 8.4f));
+    btn4.SetWidth(Units(8.5f));
+    window.Add(btn4);
+
+    Gorgon::Widgets::Button btn4_minus("-", [&]() { SetStripRatio(s_stripRatio - 0.10f, statusLbl); });
+    btn4_minus.Move(Units(9.6f, 8.4f));
+    btn4_minus.SetWidth(Units(1.2f));
+    window.Add(btn4_minus);
+
+    Gorgon::Widgets::Button btn4_plus("+", [&]() { SetStripRatio(s_stripRatio + 0.10f, statusLbl); });
+    btn4_plus.Move(Units(11.0f, 8.4f));
+    btn4_plus.SetWidth(Units(1.2f));
+    window.Add(btn4_plus);
+
+    Gorgon::Widgets::Label desc4("Targets connected LED strips (e.g. ring). Use +/- to fine-tune. Colors: Cyan (>50%), Blue (25-50%), Purple (<25%).");
+    desc4.Move(Units(0.8f, 9.4f));
+    desc4.SetWidth(Percentage(95));
+    window.Add(desc4);
+
+    // Stage 5: Matrix Gradient Drawing
+    Gorgon::Widgets::Button btn5("Stage 5: 2D Matrix Gradient", [&]() { Goal5_MatrixGradientDrawing(statusLbl); });
+    btn5.Move(Units(0.8f, 10.4f));
+    btn5.SetWidth(Units(8.5f));
+    window.Add(btn5);
+
+    Gorgon::Widgets::Label desc5("Draws a 24x6 sunset gradient image smoothly scaled across physical keyboard matrix and strips.");
+    desc5.Move(Units(0.8f, 11.4f));
+    desc5.SetWidth(Percentage(95));
+    window.Add(desc5);
+
+    // Stage 6: Software Lighting Effect
+    Gorgon::Widgets::Button btn6("Stage 6: Shockwave Effect", [&]() { Goal6_SoftwareLightingEffect(statusLbl); });
+    btn6.Move(Units(0.8f, 12.4f));
+    btn6.SetWidth(Units(8.5f));
+    window.Add(btn6);
+
+    Gorgon::Widgets::Label desc6("Plays an ExplosionEffect shockwave over Base State non-destructively; Base State returns when finished.");
+    desc6.Move(Units(0.8f, 13.4f));
+    desc6.SetWidth(Percentage(95));
+    window.Add(desc6);
+
+    // Stage 7: Modifier-Aware Shortcuts
+    Gorgon::Widgets::Button btn7("Stage 7: Toggle Shortcut Mode", [&]() { Goal7_ModifierAwareShortcuts(window, statusLbl); });
+    btn7.Move(Units(0.8f, 14.4f));
+    btn7.SetWidth(Units(8.5f));
+    window.Add(btn7);
+
+    Gorgon::Widgets::Label desc7("Binds Ctrl+S (Save), Ctrl+O (Open), Ctrl+Shift+F (Find), Alt+X (Exit). Hold Ctrl or Alt on your physical keyboard!");
+    desc7.Move(Units(0.8f, 15.4f));
+    desc7.SetWidth(Percentage(95));
+    window.Add(desc7);
+
+    // Stage 8: Focus Lost & Force Restore (Suspend / Resume)
+    Gorgon::Widgets::Button btn8("Stage 8: Toggle Suspend/Resume", [&]() { Goal8_FocusAndForceRestore(statusLbl); });
+    btn8.Move(Units(0.8f, 16.4f));
+    btn8.SetWidth(Units(8.5f));
+    window.Add(btn8);
+
+    Gorgon::Widgets::Label desc8("Force-restores OEM state (Suspend) while preserving software layers in memory, or resumes. Also triggers on focus lost/gain!");
+    desc8.Move(Units(0.8f, 17.4f));
+    desc8.SetWidth(Percentage(95));
+    window.Add(desc8);
+
+    // Stage 9: Restore OEM Hardware
+    Gorgon::Widgets::Button btn9("Stage 9: Restore OEM Lighting", [&]() { Goal9_RestoreHardware(statusLbl); });
+    btn9.Move(Units(0.8f, 18.4f));
+    btn9.SetWidth(Units(8.5f));
+    window.Add(btn9);
+
+    Gorgon::Widgets::Label desc9("Reverts all devices to initial captured OEM profiles and colors without disconnecting.");
+    desc9.Move(Units(0.8f, 19.4f));
+    desc9.SetWidth(Percentage(95));
+    window.Add(desc9);
+
+    // Bottom Action Buttons: Suspend, Resume, Restore OEM, and Exit
+    Gorgon::Widgets::Button suspendBtn("Suspend (OEM)", [&]() {
+        OpenRGB::Suspend();
+        statusLbl.SetText("OpenRGB Suspended: Hardware temporarily restored to OEM state.");
+    });
+    suspendBtn.Move(Units(11.0f, 21.6f));
+    suspendBtn.SetWidth(Units(4.6f));
+    window.Add(suspendBtn);
+
+    Gorgon::Widgets::Button resumeBtn("Resume RGB", [&]() {
+        OpenRGB::Resume();
+        statusLbl.SetText("OpenRGB Resumed: Software RGB lighting restored across all devices.");
+    });
+    resumeBtn.Move(Units(16.0f, 21.6f));
+    resumeBtn.SetWidth(Units(4.6f));
+    window.Add(resumeBtn);
+
+    Gorgon::Widgets::Button restoreBtn("Restore OEM", [&]() {
+        Goal9_RestoreHardware(statusLbl);
+    });
+    restoreBtn.Move(Units(21.0f, 21.6f));
+    restoreBtn.SetWidth(Units(4.6f));
+    window.Add(restoreBtn);
+
+    Gorgon::Widgets::Button quitBtn("Exit Example", [&]() {
+        window.Quit();
+    });
+    quitBtn.Move(Units(26.0f, 21.6f));
+    quitBtn.SetWidth(Units(4.6f));
+    window.Add(quitBtn);
+
+    // Pre-register shortcuts so holding Ctrl/Alt works immediately
+    Goal7_ModifierAwareShortcuts(window, statusLbl);
+
+    // -------------------------------------------------------------------------
+    // Automatic Restoration on Window Focus Lost
+    // -------------------------------------------------------------------------
+    // When the application window loses focus (e.g. user alt-tabs away),
+    // OpenRGB::Suspend() temporarily restores physical hardware to original OEM
+    // lighting while preserving all software state in memory. When focus returns,
+    // OpenRGB::Resume() instantly restores all software RGB lighting!
+    window.LostFocusEvent.Register([&]() {
+        OpenRGB::Suspend();
+        statusLbl.SetText("Window Lost Focus: Hardware temporarily restored to OEM profile (OpenRGB::Suspend).");
+        std::cout << "[Focus] Window lost focus: hardware temporarily restored to OEM state.\n";
+    });
+
+    window.FocusedEvent.Register([&]() {
+        OpenRGB::Resume();
+        statusLbl.SetText("Window Focused: Resumed software RGB lighting (OpenRGB::Resume).");
+        std::cout << "[Focus] Window regained focus: resumed software RGB lighting.\n";
+    });
+
+    // Clean exit on Escape or close button
+    window.ClosingEvent.Register([&]() {
+        window.Quit();
+    });
+
+    window.KeyEvent.Register([&](Gorgon::Input::Key key, float state) {
+        if(!state && key == Keycodes::Escape) {
+            window.Quit();
+            return true;
+        }
+        return false;
+    });
+
+    std::cout << "========================================================\n"
+              << " Gorgon OpenRGB & Shortcut Keys Interactive Guide Running\n"
+              << "========================================================\n"
+              << " Window opened. Try holding Ctrl or Alt on your keyboard!\n"
+              << " Alt-tab to test automatic OEM restore on window focus lost.\n"
+              << " Shortcuts bound:\n"
+              << "   - Ctrl + S         -> Save (Green key)\n"
+              << "   - Ctrl + O         -> Open (Cyan key)\n"
+              << "   - Ctrl + Shift + F -> Find (Yellow key)\n"
+              << "   - Alt + X          -> Exit (Orange key)\n"
+              << " Press Escape or click Exit to quit.\n";
+
+    window.Run();
     return 0;
 }

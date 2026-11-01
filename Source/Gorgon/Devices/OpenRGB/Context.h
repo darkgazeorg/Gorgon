@@ -12,6 +12,7 @@
 namespace Gorgon {
     namespace Input {
         using Key = int;
+        enum class ModifierHighlightMode;
     }
     namespace Graphics {
         class Bitmap;
@@ -25,6 +26,11 @@ namespace Gorgon {
         class Governor;
     }
     namespace Devices :: OpenRGB {
+        using Input::ModifierHighlightMode;
+        namespace internal {
+            struct ShortcutBinding;
+        }
+
         class Device;
         class KeyboardDevice;
         class Zone;
@@ -32,6 +38,17 @@ namespace Gorgon {
         class Animation;
         struct KeyGroup;
         enum class BlendMode;
+
+        /// Snapshot of software lighting state across devices
+        struct StateSnapshot {
+            struct DeviceState {
+                int id = -1;
+                std::string name;
+                int active_mode = -1;
+                std::vector<Graphics::RGBA> colors;
+            };
+            std::vector<DeviceState> devices;
+        };
 
         /**
          * @brief Represents a governor-scoped (or scene-scoped) OpenRGB lighting context.
@@ -69,7 +86,7 @@ namespace Gorgon {
             // ---------------------------------------------------------
 
             void SetKeyColor(Input::Key key, Graphics::RGBA color) const;
-            void SetKeyGroupColor(const KeyGroup &group, Graphics::RGBA color) const;
+            void SetKeyColor(const KeyGroup &group, Graphics::RGBA color) const;
 
             void Draw(const Graphics::Bitmap &bitmap, Geometry::Point offset = {0, 0}, BlendMode blend = static_cast<BlendMode>(0)) const;
             void Draw(const Containers::Image &image, Geometry::Point offset = {0, 0}, BlendMode blend = static_cast<BlendMode>(0)) const;
@@ -84,6 +101,24 @@ namespace Gorgon {
 
             /// Restores/detaches all devices in this context so they fall back to the global layer (or hardware original state)
             void RestoreAll() const;
+
+            /// Temporarily restores hardware to OEM state without losing software state
+            void Suspend() const;
+
+            /// Resumes software lighting after Suspend()
+            void Resume() const;
+
+            /// Returns true if OpenRGB output is suspended
+            bool IsSuspended() const;
+
+            /// Alias for Suspend() providing temporary force restore
+            inline void ForceRestore() const { Suspend(); }
+
+            /// Captures current software lighting state of devices
+            StateSnapshot CaptureState() const;
+
+            /// Restores previously captured software lighting state
+            void RestoreState(const StateSnapshot &state) const;
 
             // ---------------------------------------------------------
             // Progressbars & Animations
@@ -101,6 +136,16 @@ namespace Gorgon {
 
             /// Moves an existing OpenRGB animation/effect into this governor's OpenRGB context
             void AttachAnimation(Animation &animation) const;
+
+            // ---------------------------------------------------------
+            // Action Keys & Shortcut Highlighting
+            // ---------------------------------------------------------
+
+            /// Sets modifier-aware action key highlights in this context
+            void SetActionKeys(const std::vector<internal::ShortcutBinding> &bindings, ModifierHighlightMode mode = static_cast<ModifierHighlightMode>(0)) const;
+
+            /// Clears modifier-aware action key highlights in this context
+            void ClearActionKeys() const;
 
         private:
             const Gorgon::Animation::Governor *governor = nullptr;

@@ -13,6 +13,7 @@
 #include "Layer.h"
 #include "Input.h"
 #include "Input/Keyboard.h"
+#include "Input/Shortcuts.h"
 #include "Graphics/Pointer.h"
 
 namespace Gorgon {
@@ -451,6 +452,18 @@ namespace Gorgon {
         /// Called after the window is restored from minimized state, either by the user or programmatically
         Event<Window> RestoredEvent{*this};
         
+        /// Called before KeyEvent is dispatched. This event is broadcast to all registered
+        /// preview listeners on every key press and key release. Preview listeners cannot block
+        /// or consume input.
+        ///
+        /// ### Parameters: ###
+        /// **Key** `(Input::Key)`: The key that is pressed or released
+        /// **Amount** `(float)`: 1.0f for press, 0.0f for release
+        Event<Window, Input::Key, float> KeyPreviewEvent{*this};
+
+        /// Keyboard shortcut and action key manager scoped to this window
+        Input::Shortcuts Shortcuts;
+
         /// Called when a key is pressed or released. This key could be a keyboard key
         /// or any other controller key including mouse. In case of mouse, this method
         /// will be triggered if mouse call is not handled by layers. 
