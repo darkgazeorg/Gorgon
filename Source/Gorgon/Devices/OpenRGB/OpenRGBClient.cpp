@@ -570,7 +570,7 @@ bool Client::Connect(const std::string &host, uint16_t port, uint32_t timeout_ms
     fcntl(s, F_SETFL, flags | O_NONBLOCK);
 #endif
 
-    int conn_res = ::connect(s, result->ai_addr, static_cast<socklen_t>(result->ai_addrlen));
+    int conn_res = ::connect(s, result->ai_addr, static_cast<int>(result->ai_addrlen));
     freeaddrinfo(result);
 
     bool connected = false;
