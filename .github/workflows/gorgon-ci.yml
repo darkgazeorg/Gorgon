@@ -94,19 +94,29 @@ jobs:
           choco install doxygen.install -y
         shell: cmd
 
+      - name: Setup MSVC Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Configure and Build
         run: |
-          :: Configure with the Visual Studio generator to use MSVC
+          :: Add locally downloaded Ninja to PATH
+          set "PATH=%CD%\.tools\ninja;%PATH%"
+
+          :: Configure with Ninja and the MSVC compiler
           cmake -S . -B build ^
-            -G "Visual Studio 17 2022" ^
-            -A x64 ^
+            -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER=cl ^
+            -DCMAKE_CXX_COMPILER=cl ^
             -DCMAKE_TOOLCHAIN_FILE="%CD%\.tools\vcpkg\scripts\buildsystems\vcpkg.cmake" ^
             -DVCPKG_TARGET_TRIPLET=x64-windows ^
             -DVCPKG_MANIFEST_MODE=ON ^
             -DVCPKG_MANIFEST_FEATURES="freetype;flac;ogg;vorbis;curl"
           
-          :: Build the Release configuration
-          cmake --build build --config Release --parallel
+          :: Build the project
+          cmake --build build --parallel
         shell: cmd
 
       - name: Prepare Artifacts
