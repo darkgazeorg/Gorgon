@@ -292,6 +292,7 @@ int main() {
     // Clear all keys to unlit/black so previous leftover states are wiped clean
     client.UpdateLEDs(static_cast<uint32_t>(keyboard_id), black_colors);
 
+    [&]() {
     // -------------------------------------------------------------
     // Test Step 1: Single LED write (Escape in Red)
     // -------------------------------------------------------------
@@ -306,7 +307,7 @@ int main() {
     }
 
     std::cout << "\n>>> [CHECK 1] Is Escape RED? Press [Enter] to proceed to WASD + Space test... <<<" << std::flush;
-    if (!WaitPrompt()) goto cleanup;
+    if (!WaitPrompt()) return;
 
     // -------------------------------------------------------------
     // Test Step 2: Entire region / device write (WASD in Green, Space in Cyan)
@@ -347,7 +348,7 @@ int main() {
     }
 
     std::cout << "\n>>> [CHECK 2] Are WASD (Green) and Space (Cyan) illuminated (and Escape off)? Press [Enter] to proceed to 30 FPS animation test... <<<" << std::flush;
-    if (!WaitPrompt()) goto cleanup;
+    if (!WaitPrompt()) return;
 
     // -------------------------------------------------------------
     // Test Step 3: 30 FPS Linear Sliding Animation on Number Keys
@@ -381,7 +382,7 @@ int main() {
         std::cout << std::endl;
 
         std::cout << "\n>>> Press [Enter] to run the 30 FPS animation test (~6 seconds total)... <<<" << std::flush;
-        if (!WaitPrompt()) goto cleanup;
+        if (!WaitPrompt()) return;
 
         struct BenchmarkStats {
             int total_frames = 0;
@@ -580,8 +581,8 @@ int main() {
 
     std::cout << "\n>>> [CHECK 3] Did the light smoothly slide across number keys 1-0? Press [Enter] to restore status and exit... <<<" << std::flush;
     WaitPrompt();
+    }();
 
-cleanup:
     if (g_interrupted) {
         std::cout << "\n\n[!] Interrupted by Signal (" << g_interrupted << "). Restoring original hardware state before exiting..." << std::endl;
     }

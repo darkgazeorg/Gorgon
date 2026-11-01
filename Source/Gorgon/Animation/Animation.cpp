@@ -25,6 +25,38 @@ namespace Gorgon :: Animation {
 
     Governor *Governor::active = nullptr;
 
+    Governor::Governor(Governor &&other) : controllers(std::move(other.controllers)) {
+        for(auto &c : controllers)
+            c.governor = this;
+
+        if(active == &other) {
+            active = this;
+#ifdef GORGON_OPENRGB_SUPPORT
+            if(internal::openrgb_governor_activated)
+                internal::openrgb_governor_activated(this);
+#endif
+        }
+    }
+
+    Governor &Governor::operator=(Governor &&other) {
+        if(this != &other) {
+            for(auto &c : controllers)
+                c.governor = nullptr;
+            controllers = std::move(other.controllers);
+            for(auto &c : controllers)
+                c.governor = this;
+
+            if(active == &other) {
+                active = this;
+#ifdef GORGON_OPENRGB_SUPPORT
+                if(internal::openrgb_governor_activated)
+                    internal::openrgb_governor_activated(this);
+#endif
+            }
+        }
+        return *this;
+    }
+
     Governor::~Governor() {
         if(active == this) {
             active = nullptr;

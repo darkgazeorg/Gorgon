@@ -169,10 +169,12 @@ namespace {
         }
 
         // Color mode and colors size
-        if ((mode.flags & ModeFlags::HasModeSpecificColor) != 0) {
-            if (mode.color_mode != static_cast<uint32_t>(ModeColorMode::Random) || (mode.flags & ModeFlags::HasRandomColor) == 0) {
-                mode.color_mode = static_cast<uint32_t>(ModeColorMode::ModeSpecific);
-            }
+        if (mode.color_mode == static_cast<uint32_t>(ModeColorMode::PerLed) && (mode.flags & ModeFlags::HasPerLedColor) != 0) {
+            mode.colors.clear();
+        } else if (mode.color_mode == static_cast<uint32_t>(ModeColorMode::Random) && (mode.flags & ModeFlags::HasRandomColor) != 0) {
+            mode.colors.clear();
+        } else if ((mode.flags & ModeFlags::HasModeSpecificColor) != 0) {
+            mode.color_mode = static_cast<uint32_t>(ModeColorMode::ModeSpecific);
             if (mode.colors.size() < mode.colors_min) {
                 mode.colors.resize(mode.colors_min, Color(255, 0, 0));
             }
@@ -182,11 +184,11 @@ namespace {
             if (mode.colors.empty() && mode.colors_max > 0) {
                 mode.colors.resize(1, Color(255, 0, 0));
             }
-        } else if ((mode.flags & ModeFlags::HasRandomColor) != 0 && mode.color_mode == static_cast<uint32_t>(ModeColorMode::Random)) {
-            mode.color_mode = static_cast<uint32_t>(ModeColorMode::Random);
-            mode.colors.clear();
         } else if ((mode.flags & ModeFlags::HasPerLedColor) != 0) {
             mode.color_mode = static_cast<uint32_t>(ModeColorMode::PerLed);
+            mode.colors.clear();
+        } else if ((mode.flags & ModeFlags::HasRandomColor) != 0) {
+            mode.color_mode = static_cast<uint32_t>(ModeColorMode::Random);
             mode.colors.clear();
         } else {
             mode.color_mode = static_cast<uint32_t>(ModeColorMode::None);
@@ -393,10 +395,44 @@ struct Client::Impl {
         protocol_version = 0;
     }
 
-    bool Send(const void *data, size_t len) {
+    bool WaitForWrite(int timeout_ms) {
+        if (timeout_ms < 0) return false;
+#if defined(_WIN32) || defined(_WIN64)
+        fd_set wset;
+        FD_ZERO(&wset);
+        FD_SET(sock, &wset);
+        struct timeval tv;
+        tv.tv_sec = timeout_ms / 1000;
+        tv.tv_usec = (timeout_ms % 1000) * 1000;
+        int sel = select(static_cast<int>(sock + 1), nullptr, &wset, nullptr, &tv);
+        return sel > 0;
+#else
+        struct pollfd pfd;
+        pfd.fd = sock;
+        pfd.events = POLLOUT;
+        pfd.revents = 0;
+        int p = poll(&pfd, 1, timeout_ms);
+        return p > 0;
+#endif
+    }
+
+    bool Send(const void *data, size_t len, int timeout_ms = 2000) {
         const char *ptr = reinterpret_cast<const char*>(data);
         size_t remaining = len;
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
         while (remaining > 0) {
+            auto now = std::chrono::steady_clock::now();
+            if (now >= deadline) {
+                last_error = "Socket send timed out";
+                Close();
+                return false;
+            }
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+            if (!WaitForWrite(static_cast<int>(std::max<int64_t>(1, ms)))) {
+                last_error = "Socket send timed out";
+                Close();
+                return false;
+            }
 #if defined(_WIN32) || defined(_WIN64)
             int sent = ::send(sock, ptr, static_cast<int>(remaining), 0);
 #else

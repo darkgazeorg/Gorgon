@@ -46,9 +46,9 @@ namespace Gorgon {
         public:
             Governor() = default;
             Governor(const Governor &) : controllers() { }
-            Governor(Governor &&) = default;
+            Governor(Governor &&other);
             Governor &operator=(const Governor &) { return *this; }
-            Governor &operator=(Governor &&) = default;
+            Governor &operator=(Governor &&other);
 
             /// Destroys this governor. If it is the active governor, default governor will be activated.
             virtual ~Governor();
@@ -96,6 +96,7 @@ namespace Gorgon {
 
 		/// Controllers are required to progress animations
 		class ControllerBase {
+			friend class Governor;
 		public:
 			/// Default constructor
 			ControllerBase();

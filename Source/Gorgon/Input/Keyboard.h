@@ -169,7 +169,7 @@ namespace Keyboard {
 	/// This class represents a modifier key. These keys can be 
 	class Modifier {
 	public:
-		/// A type to represent modifier keys
+		/// A type to represent modifier keys. Do not use this type directly, use the Modifier class instead.
 		enum Type {
 			/// No modifier is pressed
 			None		= 0,
@@ -200,7 +200,7 @@ namespace Keyboard {
 		};
 			
 		/// Constructs a new modifier from the given modifier key
-		Modifier(Type key=None) : 
+		constexpr Modifier(Type key=None) : 
 		Key(key)
 		{ }
 

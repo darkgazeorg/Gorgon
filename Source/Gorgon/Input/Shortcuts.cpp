@@ -15,7 +15,7 @@ namespace Gorgon :: Input {
         bool operator()(const Shortcut &a, const Shortcut &b) const {
             if(a.key != b.key)
                 return a.key < b.key;
-            return a.modifier < b.modifier;
+            return a.modifier.Key < b.modifier.Key;
         }
     };
 
@@ -30,7 +30,7 @@ namespace Gorgon :: Input {
         bool enabled = true;
         ModifierHighlightMode highlight_mode = ModifierHighlightMode::ActiveModifiers;
         Graphics::RGBA modifier_key_color{60, 160, 255, 255};
-        Keyboard::Modifier::Type last_modifier = Keyboard::Modifier::None;
+        Keyboard::Modifier last_modifier = Keyboard::Modifier::None;
 
         Window *attached_window = nullptr;
         EventToken window_token;
@@ -72,7 +72,7 @@ namespace Gorgon :: Input {
         void handleKey(Key key, float state) {
             if(!enabled) return;
 
-            auto cur_mod = Input::Keyboard::CurrentModifier.Key;
+            auto cur_mod = Input::Keyboard::CurrentModifier;
 
 #ifdef GORGON_OPENRGB_SUPPORT
             if(overlay && highlight_mode == ModifierHighlightMode::ActiveModifiers) {
@@ -87,7 +87,8 @@ namespace Gorgon :: Input {
                 Shortcut sc(key, cur_mod);
                 auto it = shortcuts.find(sc);
                 if(it != shortcuts.end() && it->second.callback) {
-                    it->second.callback(key, Input::Keyboard::CurrentModifier);
+                    auto cb = it->second.callback;
+                    cb(key, Input::Keyboard::CurrentModifier);
                 }
             }
         }
@@ -169,9 +170,6 @@ namespace Gorgon :: Input {
 
 #ifdef GORGON_OPENRGB_SUPPORT
         impl->current_governor = nullptr;
-        if(impl->overlay) {
-            impl->overlay->context = nullptr;
-        }
         impl->syncOpenRGB();
 #endif
 
@@ -186,9 +184,6 @@ namespace Gorgon :: Input {
 
 #ifdef GORGON_OPENRGB_SUPPORT
         impl->current_governor = &scene;
-        if(impl->overlay) {
-            impl->overlay->context = &scene;
-        }
         impl->syncOpenRGB();
 #endif
 
@@ -256,7 +251,9 @@ namespace Gorgon :: Input {
         impl->enabled = enabled;
 #ifdef GORGON_OPENRGB_SUPPORT
         if(impl->overlay) {
-            Devices::OpenRGB::internal::setShortcutOverlayActive(impl->overlay, enabled);
+            bool active = enabled && (impl->attached_window != nullptr ||
+                                      (impl->attached_scene != nullptr && impl->scene_window != nullptr));
+            Devices::OpenRGB::internal::setShortcutOverlayActive(impl->overlay, active);
         }
 #endif
     }
@@ -342,9 +339,6 @@ namespace Gorgon :: Input {
 #ifdef GORGON_OPENRGB_SUPPORT
     void Shortcuts::SetOpenRGBContext(const Devices::OpenRGB::Context &context) {
         impl->current_governor = context.GetGovernor();
-        if(impl->overlay) {
-            impl->overlay->context = impl->current_governor;
-        }
         impl->syncOpenRGB();
     }
 #endif

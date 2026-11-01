@@ -64,9 +64,6 @@ namespace Gorgon {
             return parent;
         }
 
-        /// Keyboard shortcut and action key manager scoped to this scene
-        Input::Shortcuts Shortcuts;
-
         /// Fires whenever activation of this layer is completed.
         /// Will not be fired if the layer is already active and
         /// Activate function is called.
@@ -76,6 +73,9 @@ namespace Gorgon {
         /// Will not be fired if the layer is already inactive and
         /// Deactivate function is called.
         Gorgon::Event<Scene> DeactivatedEvent{*this};
+
+        /// Keyboard shortcut and action key manager scoped to this scene
+        Input::Shortcuts Shortcuts;
 
     protected:
         /// Called only for the first time this scene is activated.

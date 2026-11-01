@@ -666,7 +666,7 @@ namespace Gorgon :: Devices :: OpenRGB {
 
         /// Copy constructor (shares the underlying effect state)
         Animation(const Animation &other);
-        Animation &operator=(const Animation &other);
+        Animation &operator=(const Animation &other) = delete;
 
         virtual ~Animation();
 
@@ -911,6 +911,12 @@ namespace Gorgon :: Devices :: OpenRGB {
     /// Set `suspended` to true (or call `OpenRGB::Suspend()` before initialization) to start
     /// with hardware updates disabled so all API calls operate in memory without modifying devices.
     bool Initialize(const std::string &host = "127.0.0.1", uint16_t port = 6742, bool suspended = false);
+
+    /// Explicitly initializes the OpenRGB subsystem and connects to the server.
+    /// Note: Initialization is lazy and automatic on the first call to any lighting function.
+    /// Set `suspended` to true (or call `OpenRGB::Suspend()` before initialization) to start
+    /// with hardware updates disabled so all API calls operate in memory without modifying devices.
+    inline bool Initialize(const char *host, uint16_t port = 6742, bool suspended = false) { return Initialize(std::string(host), port, suspended); }
 
     /// Explicitly initializes the OpenRGB subsystem on default localhost:6742, optionally starting in suspended state.
     bool Initialize(bool suspended);

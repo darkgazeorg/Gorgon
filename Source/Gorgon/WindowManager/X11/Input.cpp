@@ -135,39 +135,21 @@ namespace Gorgon :: WindowManager {
         if(key >= 'A' && key <='Z')
             return key;
         
-        // Distinguish left vs right physical modifier keys by X11 evdev hardware keycode first,
-        // so that even if XKB/xmodmap maps both physical keys to the same keysym (e.g. Shift_L / Control_L),
-        // Right Shift (62), Right Control (105), Right Alt (108), and Right Super (134) still emit their R* keycodes.
-        switch(keycode) {
-            case 50:  return Input::Keyboard::Keycodes::Shift;
-            case 62:  return Input::Keyboard::Keycodes::RShift;
-            case 37:  return Input::Keyboard::Keycodes::Control;
-            case 105: return Input::Keyboard::Keycodes::RControl;
-            case 64:  return Input::Keyboard::Keycodes::Alt;
-            case 108: return Input::Keyboard::Keycodes::RAlt;
-            case 133: return Input::Keyboard::Keycodes::Meta;
-            case 134: return Input::Keyboard::Keycodes::RMeta;
-        }
-
         switch(key) {
             case XK_Shift_L:
-                return Input::Keyboard::Keycodes::Shift;
             case XK_Shift_R:
-                return Input::Keyboard::Keycodes::RShift;
+                return (keycode == 62 || key == XK_Shift_R) ? Input::Keyboard::Keycodes::RShift : Input::Keyboard::Keycodes::Shift;
             case XK_Control_L:
-                return Input::Keyboard::Keycodes::Control;
             case XK_Control_R:
-                return Input::Keyboard::Keycodes::RControl;
+                return (keycode == 105 || key == XK_Control_R) ? Input::Keyboard::Keycodes::RControl : Input::Keyboard::Keycodes::Control;
             case XK_Alt_L:
-                return Input::Keyboard::Keycodes::Alt;
             case XK_Alt_R:
             case XK_ISO_Level3_Shift:
             case XK_Mode_switch:
-                return Input::Keyboard::Keycodes::RAlt;
+                return (keycode == 108 || key != XK_Alt_L) ? Input::Keyboard::Keycodes::RAlt : Input::Keyboard::Keycodes::Alt;
             case XK_Super_L:
-                return Input::Keyboard::Keycodes::Meta;
             case XK_Super_R:
-                return Input::Keyboard::Keycodes::RMeta;
+                return (keycode == 134 || key == XK_Super_R) ? Input::Keyboard::Keycodes::RMeta : Input::Keyboard::Keycodes::Meta;
                 
             case XK_Home:
                 return Input::Keyboard::Keycodes::Home;
@@ -288,6 +270,55 @@ namespace Gorgon :: WindowManager {
         }
         return keycode + Input::Keyboard::Keycodes::OSTransport;
     }
+
+    namespace {
+        bool isaltgrheld(const Gorgon::internal::windowdata *data) {
+            if(!data) return false;
+            for(auto stored : data->pressed) {
+                KeyCode kc = (stored < 256) ? (KeyCode)stored : XKeysymToKeycode(WindowManager::display, stored);
+                if(kc != 0) {
+                    int keycount = 0;
+                    if(KeySym *ks = XGetKeyboardMapping(WindowManager::display, kc, 1, &keycount)) {
+                        bool is_altgr = (keycount >= 1 && (ks[0] == XK_ISO_Level3_Shift || ks[0] == XK_Mode_switch));
+                        XFree(ks);
+                        if(is_altgr) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool canproducechar(const Gorgon::internal::windowdata *data) {
+            if(!Input::Keyboard::CurrentModifier.IsModified())
+                return true;
+            // Allow AltGr (ISO_Level3_Shift / Mode_switch) combinations (such as {[]}\| on Turkish layouts)
+            // to emit character events as long as Ctrl and Meta are not pressed.
+            auto mod = Input::Keyboard::CurrentModifier;
+            if(((mod & Input::Keyboard::Modifier::Ctrl) || (mod & Input::Keyboard::Modifier::Meta)) == 0 && isaltgrheld(data))
+                return true;
+            return false;
+        }
+
+        void syncaltmodifier(const Gorgon::internal::windowdata *data) {
+            if(!data) return;
+            for(auto stored : data->pressed) {
+                KeyCode kc = (stored < 256) ? (KeyCode)stored : XKeysymToKeycode(WindowManager::display, stored);
+                if(kc != 0) {
+                    int keycount = 0;
+                    KeySym ks0 = NoSymbol;
+                    if(KeySym *ks = XGetKeyboardMapping(WindowManager::display, kc, 1, &keycount)) {
+                        if(keycount >= 1) ks0 = ks[0];
+                        XFree(ks);
+                    }
+                    auto k = mapx11key(ks0, kc);
+                    if(k == Input::Keyboard::Keycodes::Alt || k == Input::Keyboard::Keycodes::RAlt) {
+                        Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Alt);
+                        return;
+                    }
+                }
+            }
+        }
+    }
     
     void assertkeys(Window &wind, Gorgon::internal::windowdata *data) {
         char keys[32];
@@ -316,6 +347,8 @@ namespace Gorgon :: WindowManager {
                 
                 //modifiers
                 Input::Keyboard::CurrentModifier.Remove(ggekey);
+                if(ggekey == Input::Keyboard::Keycodes::Alt || ggekey == Input::Keyboard::Keycodes::RAlt)
+                    syncaltmodifier(data);
                 
                 wind.KeyPreviewEvent(ggekey, 0.f);
 
@@ -352,7 +385,7 @@ namespace Gorgon :: WindowManager {
             return;
         }
         
-        if(!Input::Keyboard::CurrentModifier.IsModified()) {
+        if(canproducechar(data)) {
             XLookupString(&event.xkey, nullptr, 0, &key, nullptr); //append shift and other mods                    
             Input::Keyboard::Char c = keysym2ucs(key);
             
@@ -382,7 +415,7 @@ namespace Gorgon :: WindowManager {
                     //if keypress handled, key will not be repeated.
                     //what about backspace, arrow keys and delete?
                 }
-                else if(!Input::Keyboard::CurrentModifier.IsModified()) {
+                else if(canproducechar(data)) {
                     XLookupString(&event.xkey, nullptr, 0, &key, nullptr);
                     Input::Keyboard::Char c = keysym2ucs(key);
                     
@@ -402,6 +435,8 @@ namespace Gorgon :: WindowManager {
         
         //modifiers
         Input::Keyboard::CurrentModifier.Remove(ggekey);
+        if(ggekey == Input::Keyboard::Keycodes::Alt || ggekey == Input::Keyboard::Keycodes::RAlt)
+            syncaltmodifier(data);
 
         // Preview event is broadcast to all preview listeners on release
         wind.KeyPreviewEvent(ggekey, 0.0f);

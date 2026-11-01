@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#include <vector>
 #include <memory>
 #include "../Input.h"
 #include "../Input/Keyboard.h"
@@ -29,17 +28,13 @@ namespace Gorgon :: Input {
      */
     struct Shortcut {
         Key key = 0;
-        Keyboard::Modifier::Type modifier = Keyboard::Modifier::None;
+        Keyboard::Modifier modifier = Keyboard::Modifier::None;
 
         constexpr Shortcut() = default;
-        constexpr Shortcut(Key key, Keyboard::Modifier::Type modifier = Keyboard::Modifier::None) :
+        constexpr Shortcut(Key key, Keyboard::Modifier modifier = Keyboard::Modifier::None) :
             key(key), modifier(modifier) { }
-        Shortcut(Key key, Keyboard::Modifier modifier) :
-            key(key), modifier(modifier.Key) { }
-        constexpr Shortcut(Keyboard::Modifier::Type modifier, Key key) :
+        constexpr Shortcut(Keyboard::Modifier modifier, Key key) :
             key(key), modifier(modifier) { }
-        Shortcut(Keyboard::Modifier modifier, Key key) :
-            key(key), modifier(modifier.Key) { }
 
         constexpr bool operator==(const Shortcut &other) const {
             return key == other.key && modifier == other.modifier;

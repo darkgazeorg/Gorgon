@@ -3881,16 +3881,6 @@ namespace Gorgon :: Devices :: OpenRGB {
         impl(other.impl)
     { }
 
-    Animation &Animation::operator=(const Animation &other) {
-        if(this != &other) {
-            RemoveController();
-            impl = other.impl;
-            if(impl && impl->owned_ctrl)
-                SetController(*impl->owned_ctrl);
-        }
-        return *this;
-    }
-
     Animation::~Animation() {
         RemoveController();
         if(impl && impl.use_count() == 1) {
