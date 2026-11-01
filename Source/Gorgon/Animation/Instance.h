@@ -70,7 +70,8 @@ namespace Gorgon :: Animation {
 		/// Move constructor for value-semantic animations or temporaries (rvalues).
 		/// Transfers ownership to a heap-allocated copy managed by this instance.
 		template<class T_, typename = std::enable_if_t<
-			!std::is_same_v<std::decay_t<T_>, basic_Instance> &&
+            !std::is_same_v<std::decay_t<T_>, basic_Instance> &&
+            !std::is_lvalue_reference_v<T_> &&
 			std::is_base_of_v<A_, std::decay_t<T_>> &&
 			!std::is_abstract_v<std::decay_t<T_>>
 		>>
