@@ -1,5 +1,8 @@
 #pragma once
 
+#include <type_traits>
+#include <utility>
+
 #include "../Animation.h"
 
 namespace Gorgon :: Animation {
@@ -64,6 +67,31 @@ namespace Gorgon :: Animation {
             return *this;
 		}
 
+		/// Move constructor for value-semantic animations or temporaries (rvalues).
+		/// Transfers ownership to a heap-allocated copy managed by this instance.
+		template<class T_, typename = std::enable_if_t<
+            !std::is_same_v<std::decay_t<T_>, basic_Instance> &&
+            !std::is_lvalue_reference_v<T_> &&
+			std::is_base_of_v<A_, std::decay_t<T_>> &&
+			!std::is_abstract_v<std::decay_t<T_>>
+		>>
+		basic_Instance(T_ &&val) : instance(new std::decay_t<T_>(std::forward<T_>(val))), isowned(true) { }
+
+		/// Move assignment for value-semantic animations or temporaries (rvalues).
+		/// Transfers ownership to a heap-allocated copy managed by this instance.
+		template<class T_, typename = std::enable_if_t<
+			!std::is_same_v<std::decay_t<T_>, basic_Instance> &&
+			std::is_base_of_v<A_, std::decay_t<T_>> &&
+			!std::is_abstract_v<std::decay_t<T_>>
+		>>
+		basic_Instance &operator =(T_ &&val) {
+			RemoveAnimation();
+			instance = new std::decay_t<T_>(std::forward<T_>(val));
+			isowned = true;
+
+			return *this;
+		}
+
 		/// Check if this instance has an animation
 		bool HasAnimation() const {
 			return instance != nullptr;
@@ -94,6 +122,19 @@ namespace Gorgon :: Animation {
 
 			instance = &value;
 			this->isowned = owner;
+		}
+
+		/// Sets the animation stored in this container from value-semantic animations or temporaries (rvalues).
+		template<class T_, typename = std::enable_if_t<
+			!std::is_same_v<std::decay_t<T_>, basic_Instance> &&
+			std::is_base_of_v<A_, std::decay_t<T_>> &&
+			!std::is_abstract_v<std::decay_t<T_>>
+		>>
+		void SetAnimation(T_ &&val) {
+			RemoveAnimation();
+
+			instance = new std::decay_t<T_>(std::forward<T_>(val));
+			this->isowned = true;
 		}
 		
 		/// Removes the animation stored in the container, if the container owns

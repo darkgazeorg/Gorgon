@@ -12,6 +12,7 @@ option(AUDIO "Enable audio. Disabling audio might break the entire build." ON)
 option(SCRIPTING "Enable scripting module." ON)
 option(UI "Enable UI module. Disabling might break the entire build." ON)
 option(CGI "Enable CGI module. UI depends on CGI module." ON)
+option(OPENRGB "Enable OpenRGB hardware lighting support." ON)
 
 # Optional Features
 option(MAINTAINER "Enable maintainer mode. Currently enables installation of RelWithDebInfo configuration." OFF)
@@ -101,6 +102,10 @@ endif()
 
 if(UI)
     target_compile_definitions(Gorgon PUBLIC GORGON_UI_SUPPORT)
+endif()
+
+if(OPENRGB)
+    target_compile_definitions(Gorgon PUBLIC GORGON_OPENRGB_SUPPORT)
 endif()
 
 if(FLAC)

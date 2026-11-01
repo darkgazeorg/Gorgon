@@ -94,25 +94,28 @@ jobs:
           choco install doxygen.install -y
         shell: cmd
 
+      - name: Setup MSVC Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Configure and Build
         run: |
-          :: 1. Initialize MSVC Environment for x64
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          
-          :: 2. Add locally downloaded Ninja to PATH
+          :: Add locally downloaded Ninja to PATH
           set "PATH=%CD%\.tools\ninja;%PATH%"
-          
-          :: 3. Configure with vcpkg Manifest Mode
-          :: We enable features explicitly as defined in your vcpkg.json
+
+          :: Configure with Ninja and the MSVC compiler
           cmake -S . -B build ^
             -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_C_COMPILER=cl ^
+            -DCMAKE_CXX_COMPILER=cl ^
             -DCMAKE_TOOLCHAIN_FILE="%CD%\.tools\vcpkg\scripts\buildsystems\vcpkg.cmake" ^
             -DVCPKG_TARGET_TRIPLET=x64-windows ^
             -DVCPKG_MANIFEST_MODE=ON ^
             -DVCPKG_MANIFEST_FEATURES="freetype;flac;ogg;vorbis;curl"
           
-          :: 4. Build Project
+          :: Build the project
           cmake --build build --parallel
         shell: cmd
 

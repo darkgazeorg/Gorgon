@@ -230,6 +230,9 @@ namespace Gorgon :: Widgets {
             for(auto p : this->elements) {
                 p.second.SetWidth(Pixels((GetCurrentWidth() - spacing * (GetColumns() - 1)) / GetColumns()));
             }
+
+            if(IsVisible())
+                this->PlaceIn((UI::WidgetContainer&)*this, {0, 0}, spacing);
         }
 
         virtual bool allowfocus() const override {

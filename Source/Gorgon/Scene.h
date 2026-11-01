@@ -10,6 +10,7 @@
 #include "UI/Window.h"
 #include "Time.h"
 #include "Widgets/Panel.h"
+#include "Input/Shortcuts.h"
 
 
 
@@ -34,6 +35,7 @@ namespace Gorgon {
 
     class Scene : public Animation::Governor {
         friend class SceneManager;
+        friend class Input::Shortcuts;
     public:
 
         /// Empty constructor. After this constructor, the scene
@@ -57,6 +59,11 @@ namespace Gorgon {
         /// Called when the scene receives a key
         virtual void KeyEvent(Gorgon::Input::Key, float) { }
 
+        /// Returns the parent SceneManager if attached, or nullptr
+        SceneManager *GetManager() const {
+            return parent;
+        }
+
         /// Fires whenever activation of this layer is completed.
         /// Will not be fired if the layer is already active and
         /// Activate function is called.
@@ -66,6 +73,9 @@ namespace Gorgon {
         /// Will not be fired if the layer is already inactive and
         /// Deactivate function is called.
         Gorgon::Event<Scene> DeactivatedEvent{*this};
+
+        /// Keyboard shortcut and action key manager scoped to this scene
+        Input::Shortcuts Shortcuts;
 
     protected:
         /// Called only for the first time this scene is activated.

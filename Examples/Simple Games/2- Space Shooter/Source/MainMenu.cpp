@@ -3,6 +3,14 @@
 #include "Game.h"
 
 
+void MainMenu::first_activation() {
+    // Set keyboard colors for W and S keys to indicate their function in the main menu.
+#ifdef GORGON_OPENRGB_SUPPORT
+    OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::W, Gorgon::Graphics::Color::Green);
+    OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::S, Gorgon::Graphics::Color::Red);
+#endif
+}
+
 MainMenu::MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id) : 
     Gorgon::Scene(parent, id),
     quit("Quit (S)"),  // Create a button with the label "Quit"
@@ -18,6 +26,12 @@ MainMenu::MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id) :
     // When the player clicks Start, show the game settings menu.
     start.ClickEvent.Register([this]() {
         game_settings.Show();
+
+        // Now the player can use W A and D keys to select difficulty or close the pop-up.  Set their colors to indicate that.
+#ifdef GORGON_OPENRGB_SUPPORT
+        OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::A, Gorgon::Graphics::Color::Yellow);
+        OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::D, Gorgon::Graphics::Color::Orange);
+#endif
     });
 
     quit.Move(5, 3); // Place the Quit button two rows below Start
@@ -40,8 +54,8 @@ MainMenu::MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id) :
     game_settings_info = "Choose a difficulty level for the game.";
     easy.Text = "Easy (W)";
     medium.Text = "Medium (A)";
-    hard.Text = "Hard (S)";
-    close_settings.Text = "Close (D)";
+    hard.Text = "Hard (D)";
+    close_settings.Text = "Close (S)";
 
     // Give the pop-up a title and a fixed interior size (in UI units).
     // ResizeInterior sets the usable area inside the window border, so the
@@ -102,9 +116,24 @@ MainMenu::MainMenu(Gorgon::SceneManager &parent, Gorgon::SceneID id) :
     game_settings.SetCancel(close_settings);
 
     game_settings.Hide(); // Start with the settings menu hidden
+
+    game_settings.ClosedEvent.Register([this]() {
+        // Clear A and D key colors when the settings pop-up is closed, so the player knows they are no longer active.
+#ifdef GORGON_OPENRGB_SUPPORT
+        OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::A, Gorgon::Graphics::Color::Black);
+        OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::D, Gorgon::Graphics::Color::Black);
+#endif
+    });
 }
 
 void MainMenu::StartNewGame(int difficulty) {
+    // Clear A and D key colors when the settings pop-up is closed
+    // so that when the player returns to the main menu, keyboard colors are reset to their default state.
+#ifdef GORGON_OPENRGB_SUPPORT
+    OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::A, Gorgon::Graphics::Color::Black);
+    OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::D, Gorgon::Graphics::Color::Black);
+#endif
+
     // Tell the gameplay scene to reset itself for the chosen difficulty.
     // NewGame() deletes the old simulation and creates a fresh one.
     Game::GetCurrent().NewGame(difficulty);
@@ -145,18 +174,33 @@ void MainMenu::KeyEvent(Gorgon::Input::Key key, float pressed) {
         if(key == Keycodes::A && pressed == 1) {
             StartNewGame(1);
         }
-        if(key == Keycodes::S && pressed == 1) {
+        if(key == Keycodes::D && pressed == 1) {
             StartNewGame(3);
         }
-        if(key == Keycodes::D && pressed == 1) {
+        if(key == Keycodes::S && pressed == 1) {
+            // Hide settings pop-up without starting a game.  This is the same as clicking the Close button.
             game_settings.Hide();
+
+            // Clear A and D key colors when the settings pop-up is closed, so the player knows they are no longer active.
+#ifdef GORGON_OPENRGB_SUPPORT
+            OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::A, Gorgon::Graphics::Color::Black);
+            OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::D, Gorgon::Graphics::Color::Black);
+#endif
         }
     }
     else {
         if(key == Keycodes::W && pressed == 1) {
+            // Show the settings pop-up when the player presses W in the main menu.
             game_settings.Show();
+
+            // Now the player can use W A and D keys to select difficulty or close the pop-up.  Set their colors to indicate that.
+#ifdef GORGON_OPENRGB_SUPPORT
+            OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::A, Gorgon::Graphics::Color::Yellow);
+            OpenRGB.SetKeyColor(Gorgon::Input::Keyboard::Keycodes::D, Gorgon::Graphics::Color::Orange);
+#endif
         }
         if(key == Keycodes::S && pressed == 1) {
+            // Quit the application when the player presses S in the main menu.
             parent->Quit();
         }
     }

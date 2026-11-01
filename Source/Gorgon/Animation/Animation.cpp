@@ -16,12 +16,61 @@ namespace Gorgon :: Animation {
 #	define LOG if(false) log
 #endif
 
+#ifdef GORGON_OPENRGB_SUPPORT
+    namespace internal {
+        void (*openrgb_governor_activated)(const Governor *) = nullptr;
+        void (*openrgb_governor_destroyed)(const Governor *) = nullptr;
+    }
+#endif
+
     Governor *Governor::active = nullptr;
 
+    Governor::Governor(Governor &&other) : controllers(std::move(other.controllers)) {
+        for(auto &c : controllers)
+            c.governor = this;
+
+        if(active == &other) {
+            active = this;
+#ifdef GORGON_OPENRGB_SUPPORT
+            if(internal::openrgb_governor_activated)
+                internal::openrgb_governor_activated(this);
+#endif
+        }
+    }
+
+    Governor &Governor::operator=(Governor &&other) {
+        if(this != &other) {
+            for(auto &c : controllers)
+                c.governor = nullptr;
+            controllers = std::move(other.controllers);
+            for(auto &c : controllers)
+                c.governor = this;
+
+            if(active == &other) {
+                active = this;
+#ifdef GORGON_OPENRGB_SUPPORT
+                if(internal::openrgb_governor_activated)
+                    internal::openrgb_governor_activated(this);
+#endif
+            }
+        }
+        return *this;
+    }
+
     Governor::~Governor() {
-        if(active == this)
+        if(active == this) {
             active = nullptr;
+#ifdef GORGON_OPENRGB_SUPPORT
+            if(internal::openrgb_governor_activated)
+                internal::openrgb_governor_activated(&Active());
+#endif
+        }
         
+#ifdef GORGON_OPENRGB_SUPPORT
+        if(internal::openrgb_governor_destroyed)
+            internal::openrgb_governor_destroyed(this);
+#endif
+
 		for(auto &c : controllers)
             c.SetGovernor(Active());
         
@@ -157,10 +206,13 @@ namespace Gorgon :: Animation {
 					progress=leftover;
 					Progress(0);
 				}
-				else if(leftover) {
-					progress-=leftover;
-                    if(timepassed) // prevent recursion
-                        Progress(0);
+				else {
+					isfinished=true;
+					if(leftover) {
+						progress-=leftover;
+						if(timepassed) // prevent recursion
+							Progress(0);
+					}
 				}
 				callfinished=true;
 			}

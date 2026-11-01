@@ -126,7 +126,6 @@ namespace Gorgon :: Widgets {
         }
 
         ~basic_TabPanel() {
-            delete buttonspnl;
             buttons.Destroy();
             tabs.Destroy();
         }
@@ -509,10 +508,7 @@ namespace Gorgon :: Widgets {
         bool KeyPressed(Input::Key key, float state) override {
             namespace Keycodes = Input::Keyboard::Keycodes;
 
-            if(state == 0)
-                return false;
-
-            if(key == Keycodes::Tab) {
+            if(state != 0 && key == Keycodes::Tab) {
                 if(Input::Keyboard::CurrentModifier == Input::Keyboard::Modifier::Ctrl) {
                     ActivateNext();
 
@@ -531,7 +527,7 @@ namespace Gorgon :: Widgets {
                 }
             }
 
-            return false;
+            return ComponentStackComposer::KeyPressed(key, state);
         }
 
 

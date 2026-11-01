@@ -9,13 +9,31 @@
 #include "Event.h"
 #include "Containers/Collection.h"
 
-namespace Gorgon { 
+#ifdef GORGON_OPENRGB_SUPPORT
+#include "Devices/OpenRGB/Context.h"
+#endif
+
+namespace Gorgon {
+
 	/// This namespace contains animation related functionality. 
 	namespace Animation {
 
 		class Base;
         class ControllerBase;
+        class Governor;
         
+#ifdef GORGON_OPENRGB_SUPPORT
+        /// @cond INTERNAL
+        namespace internal {
+            extern void (*openrgb_governor_activated)(const class Governor *);
+            extern void (*openrgb_governor_destroyed)(const class Governor *);
+        }
+        /// @endcond
+#endif
+    }
+
+    namespace Animation {
+
         /**
          * This class governs the progress of animations. There might be multiple governors.
          * There is always an active governor. Unless overridden, active governor will progress
@@ -26,13 +44,22 @@ namespace Gorgon {
         class Governor {
             friend class ControllerBase;
         public:
-            
+            Governor() = default;
+            Governor(const Governor &) : controllers() { }
+            Governor(Governor &&other);
+            Governor &operator=(const Governor &) { return *this; }
+            Governor &operator=(Governor &&other);
+
             /// Destroys this governor. If it is the active governor, default governor will be activated.
             virtual ~Governor();
             
             /// Activates this governor, replacing current one.
             virtual void Activate() {
                 active = this;
+#ifdef GORGON_OPENRGB_SUPPORT
+                if(internal::openrgb_governor_activated)
+                    internal::openrgb_governor_activated(this);
+#endif
             }
             
             /// Animates the animations within this governor. This function for the animator is called
@@ -55,6 +82,12 @@ namespace Gorgon {
                 else
                     return Default();
             }
+
+#ifdef GORGON_OPENRGB_SUPPORT
+            /// Governor-scoped OpenRGB lighting interface (`scene.OpenRGB` / `governor.OpenRGB`).
+            /// Zero overhead unless methods on this member are called.
+            Devices::OpenRGB::Context OpenRGB{*this};
+#endif
             
         private:
             static Governor *active;
@@ -63,6 +96,7 @@ namespace Gorgon {
 
 		/// Controllers are required to progress animations
 		class ControllerBase {
+			friend class Governor;
 		public:
 			/// Default constructor
 			ControllerBase();

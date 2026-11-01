@@ -40,10 +40,19 @@ set(UnitTests
 	URI
 	IO
 	LZMA
+	Shortcuts
 )
 
 if(${SCRIPTING})
 	list(APPEND UnitTests
 		Scripting
+	)
+endif()
+
+if(OPENRGB)
+	list(APPEND ManualTests
+		OpenRGB
+		OpenRGB_CLI
+		OpenRGB_Raw
 	)
 endif()

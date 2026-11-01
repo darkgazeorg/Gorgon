@@ -293,6 +293,7 @@ namespace WindowManager {
 		Input::Keyboard::CurrentModifier = Input::Keyboard::Modifier::None;
 
 		for(auto key : data->pressedkeys) {
+			data->parent->KeyPreviewEvent(key, 0.0f);
 			if(data->handlers.count(key)>0 && data->handlers[key]!=ConsumableEvent<Window, Input::Key, bool>::EmptyToken) {
 				data->parent->KeyEvent.FireFor(data->handlers[key], key, false);
 				data->handlers[key] = ConsumableEvent<Window, Input::Key, bool>::EmptyToken;
@@ -306,6 +307,21 @@ namespace WindowManager {
 	}
 
 	void handlekeydown(Gorgon::internal::windowdata *data, WPARAM wParam, LPARAM lParam) {
+		// On Windows layouts with AltGr (such as Turkish, German, French, UK), pressing AltGr
+		// generates a synthetic non-extended VK_CONTROL (Left Control) message immediately followed
+		// by an extended VK_MENU (Right Alt) message with the exact same timestamp.
+		if(wParam == VK_CONTROL && !(lParam & 0x01000000)) {
+			MSG next_msg;
+			LONG msg_time = GetMessageTime();
+			if(PeekMessage(&next_msg, NULL, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE)) {
+				if((next_msg.message == WM_KEYDOWN || next_msg.message == WM_SYSKEYDOWN) &&
+				   next_msg.wParam == VK_MENU && (next_msg.lParam & 0x01000000) &&
+				   next_msg.time == (DWORD)msg_time) {
+					return;
+				}
+			}
+		}
+
 		Input::Keyboard::Key key = WindowManager::maposkey(wParam, lParam);
 
 		switch(wParam) {
@@ -314,6 +330,9 @@ namespace WindowManager {
 			break;
 		case VK_SHIFT:
 			Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Shift);
+			break;
+		case VK_MENU:
+			Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Alt);
 			break;
 		case VK_LWIN:
 			Input::Keyboard::CurrentModifier.Add(Input::Keyboard::Modifier::Meta);
@@ -326,6 +345,9 @@ namespace WindowManager {
 		//if the key is repeating, do not repeat keyevent.
 		if(!(lParam&1<<30)) {
 			data->pressedkeys.insert(key);
+
+			// Preview event is broadcast to all preview listeners on press
+			data->parent->KeyPreviewEvent(key, 1.0f);
             
             Input::AllowCharEvent = false;
 			auto token = data->parent->KeyEvent(key, true);
@@ -338,6 +360,10 @@ namespace WindowManager {
 	}
 
 	void handlekeyup(Gorgon::internal::windowdata *data, WPARAM wParam, LPARAM lParam) {
+		Input::Keyboard::Key key = WindowManager::maposkey(wParam, lParam);
+		if(wParam == VK_CONTROL && !(lParam & 0x01000000) && data->pressedkeys.count(key) == 0) {
+			return;
+		}
 
 		switch(wParam) {
 		case VK_CONTROL:
@@ -345,6 +371,9 @@ namespace WindowManager {
 			break;
 		case VK_SHIFT:
 			Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Shift);
+			break;
+		case VK_MENU:
+			Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Alt);
 			break;
 		case VK_LWIN:
 			Input::Keyboard::CurrentModifier.Remove(Input::Keyboard::Modifier::Meta);
@@ -354,8 +383,10 @@ namespace WindowManager {
 			break;
 		}
 
-		Input::Keyboard::Key key = WindowManager::maposkey(wParam, lParam);
 		data->pressedkeys.erase(key);
+
+		// Preview event is broadcast to all preview listeners on release
+		data->parent->KeyPreviewEvent(key, 0.0f);
 
 		if(data->handlers.count(key)>0 && data->handlers[key]!=ConsumableEvent<Window, Input::Key, bool>::EmptyToken) {
 			data->parent->KeyEvent.FireFor(data->handlers[key], key, false);

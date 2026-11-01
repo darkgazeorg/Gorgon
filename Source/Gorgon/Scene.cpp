@@ -78,6 +78,7 @@ namespace Gorgon {
         ui(Widgets::Registry::Panel_Blank), 
         mouseinput(mouseinput)
     {
+        Shortcuts.AttachTo(*this);
         main.Add(graphics);
         ui.EnableScroll(false, false);
 
