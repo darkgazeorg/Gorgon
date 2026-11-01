@@ -655,6 +655,7 @@ namespace {
             nonDirectPanel.Add(brightnessScroll);
             nonDirectPanel.Add(brightnessValLbl);
 
+            directionRadios.SetWidth(Pixels(nonDirectPanel.GetInteriorSize().Width - 110));
             directionRadios.SetColumns(4);
             directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Left), "Left");
             directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Right), "Right");
@@ -1255,7 +1256,7 @@ namespace {
                     directionLbl.Move(Pixels(10, nextY));
                     directionLbl.SetWidth(Pixels(85));
                     directionRadios.Move(Pixels(100, nextY));
-                    directionRadios.SetWidth(Pixels(360));
+                    directionRadios.SetWidth(Pixels(nonDirectPanel.GetInteriorSize().Width - 110));
                     directionLbl.Show();
                     directionRadios.Show();
                     nextY += 40;
@@ -1650,6 +1651,7 @@ namespace {
             nonDirectPanel.Add(brightnessScroll);
             nonDirectPanel.Add(brightnessValLbl);
 
+            directionRadios.SetWidth(Pixels(nonDirectPanel.GetInteriorSize().Width - 110));
             directionRadios.SetColumns(4);
             directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Left), "Left");
             directionRadios.Add(static_cast<int>(OpenRGB::ModeDirection::Right), "Right");
@@ -2277,7 +2279,7 @@ namespace {
                     directionLbl.Move(Pixels(10, nextY));
                     directionLbl.SetWidth(Pixels(85));
                     directionRadios.Move(Pixels(100, nextY));
-                    directionRadios.SetWidth(Pixels(360));
+                    directionRadios.SetWidth(Pixels(nonDirectPanel.GetInteriorSize().Width - 110));
                     directionLbl.Show();
                     directionRadios.Show();
                     nextY += 40;
