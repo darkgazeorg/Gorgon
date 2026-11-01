@@ -1447,8 +1447,14 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
 
             for(auto &m : modes) {
-                if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+                if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0) {
+                    if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+                        if((m.flags & LL::ModeFlags::HasRandomColor) == 0 || m.color_mode != static_cast<uint32_t>(LL::ModeColorMode::Random)) {
+                            m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::PerLed);
+                        }
+                    }
                     continue;
+                }
 
                 if(m.colors.empty() && m.colors_min > 0)
                     m.colors.resize(m.colors_min, LL::Color(0, 0, 0, 0));
@@ -2180,6 +2186,8 @@ namespace Gorgon :: Devices :: OpenRGB {
                         j.send_mode = d->engaged || (d->hw_mode != mode_idx) || layer->mode_dirty;
                         if(mode_idx >= 0 && mode_idx < (int)layer->modes.size())
                             j.mode_data = layer->modes[mode_idx];
+                        if((j.mode_data.flags & LL::ModeFlags::HasPerLedColor) != 0)
+                            j.colors = toWireColors(composeRGBA(*d, *layer, layer_ctx));
                     }
 
                     layer->mode_dirty = false;
@@ -2208,7 +2216,19 @@ namespace Gorgon :: Devices :: OpenRGB {
                     if(!ok)
                         return handleDisconnect(s.client.GetLastError());
 
-                    j.d->last_sent.clear();
+                    if((j.mode_data.flags & LL::ModeFlags::HasPerLedColor) != 0 &&
+                       j.mode_data.color_mode != static_cast<uint32_t>(LL::ModeColorMode::Random)) {
+                        if(j.send_mode || j.colors != j.d->last_sent) {
+                            ok = s.client.UpdateLEDs((uint32_t)j.d->id, j.colors);
+                            if(!ok)
+                                return handleDisconnect(s.client.GetLastError());
+                            j.d->last_sent = j.colors;
+                        }
+                    }
+                    else {
+                        j.d->last_sent.clear();
+                    }
+
                     std::lock_guard<std::mutex> sg(s.state_mtx);
                     j.d->engaged    = false;
                     j.d->hw_mode    = j.target_mode;
@@ -2365,6 +2385,34 @@ namespace Gorgon :: Devices :: OpenRGB {
                 layer.mode_dirty  = true;
                 d->dirty          = true;
                 d->revision++;
+
+                const auto &m = layer.modes[idx];
+                if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+                    bool any_non_black = false;
+                    for(const auto &c : layer.base_leds) {
+                        if(c.A > 0 && (c.R > 0 || c.G > 0 || c.B > 0)) {
+                            any_non_black = true;
+                            break;
+                        }
+                    }
+                    if(!any_non_black) {
+                        Graphics::RGBA fallback(Byte(255), Byte(255), Byte(0), Byte(255));
+                        for(const auto &c : d->orig_colors) {
+                            if(c.ToWireRGB() != 0) {
+                                fallback = Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+                                break;
+                            }
+                        }
+                        if(layer.base_leds.size() < d->leds.size())
+                            layer.base_leds.resize(d->leds.size(), fallback);
+                        for(auto &c : layer.base_leds)
+                            c = fallback;
+                        if(!ctx) {
+                            for(auto &led : d->leds)
+                                led.color = fallback;
+                        }
+                    }
+                }
 
                 const Gorgon::Animation::Governor *eff_ctx = nullptr;
                 auto *eff_layer = resolveActiveLayer(*d, &eff_ctx);
@@ -2913,6 +2961,22 @@ namespace Gorgon :: Devices :: OpenRGB {
             applyMode(impl, context, idx);
     }
 
+    bool Device::SupportsModeColor() const {
+        std::lock_guard<std::mutex> g(S().state_mtx);
+        const auto &layer = getHandleLayer(*impl, context);
+        if(layer.active_mode < 0 || layer.active_mode >= (int)layer.modes.size())
+            return false;
+
+        const auto &m = layer.modes[layer.active_mode];
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0)
+            return true;
+
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m))
+            return true;
+
+        return false;
+    }
+
     int Device::GetModeColorCount() const {
         std::lock_guard<std::mutex> g(S().state_mtx);
         const auto &layer = getHandleLayer(*impl, context);
@@ -2920,10 +2984,13 @@ namespace Gorgon :: Devices :: OpenRGB {
             return 0;
 
         const auto &m = layer.modes[layer.active_mode];
-        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
-            return 0;
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0)
+            return (int)m.colors.size();
 
-        return (int)m.colors.size();
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m))
+            return 1;
+
+        return 0;
     }
 
     int Device::GetModeMinColors() const {
@@ -2933,10 +3000,13 @@ namespace Gorgon :: Devices :: OpenRGB {
             return 0;
 
         const auto &m = layer.modes[layer.active_mode];
-        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
-            return 0;
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0)
+            return (int)m.colors_min;
 
-        return (int)m.colors_min;
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m))
+            return 1;
+
+        return 0;
     }
 
     int Device::GetModeMaxColors() const {
@@ -2946,10 +3016,13 @@ namespace Gorgon :: Devices :: OpenRGB {
             return 0;
 
         const auto &m = layer.modes[layer.active_mode];
-        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
-            return 0;
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0)
+            return (int)m.colors_max;
 
-        return (int)m.colors_max;
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m))
+            return 1;
+
+        return 0;
     }
 
     std::vector<Graphics::RGBA> Device::GetModeColors() const {
@@ -2960,12 +3033,35 @@ namespace Gorgon :: Devices :: OpenRGB {
             return out;
 
         const auto &m = layer.modes[layer.active_mode];
-        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+            out.reserve(m.colors.size());
+            for(const auto &c : m.colors)
+                out.emplace_back(c.R(), c.G(), c.B(), Byte(255));
             return out;
+        }
 
-        out.reserve(m.colors.size());
-        for(const auto &c : m.colors)
-            out.emplace_back(c.R(), c.G(), c.B(), Byte(255));
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+            Graphics::RGBA col(Byte(255), Byte(255), Byte(0), Byte(255));
+            bool found = false;
+            for(const auto &c : layer.base_leds) {
+                if(c.A > 0 && (c.R > 0 || c.G > 0 || c.B > 0)) {
+                    col = c;
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) {
+                for(const auto &c : impl->orig_colors) {
+                    if(c.ToWireRGB() != 0) {
+                        col = Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            out.push_back(col);
+            return out;
+        }
 
         return out;
     }
@@ -2977,12 +3073,32 @@ namespace Gorgon :: Devices :: OpenRGB {
             return transparent;
 
         const auto &m = layer.modes[layer.active_mode];
-        if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 ||
-           color_index < 0 || color_index >= (int)m.colors.size())
-            return transparent;
+        if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+            if(color_index < 0 || color_index >= (int)m.colors.size())
+                return transparent;
 
-        const auto &c = m.colors[color_index];
-        return Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+            const auto &c = m.colors[color_index];
+            return Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+        }
+
+        if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+            if(color_index != 0)
+                return transparent;
+
+            for(const auto &c : layer.base_leds) {
+                if(c.A > 0 && (c.R > 0 || c.G > 0 || c.B > 0)) {
+                    return c;
+                }
+            }
+            for(const auto &c : impl->orig_colors) {
+                if(c.ToWireRGB() != 0) {
+                    return Graphics::RGBA(c.R(), c.G(), c.B(), Byte(255));
+                }
+            }
+            return Graphics::RGBA(Byte(255), Byte(255), Byte(0), Byte(255));
+        }
+
+        return transparent;
     }
 
     void Device::SetModeColor(Graphics::RGBA color, int color_index) {
@@ -2994,19 +3110,40 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
 
             auto &m = layer.modes[layer.active_mode];
-            if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0 || color_index < 0)
-                return;
+            if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+                if(color_index < 0)
+                    return;
 
-            int max_cols = m.colors_max > 0 ? (int)m.colors_max : std::max(1, (int)m.colors.size());
-            if(color_index >= max_cols)
-                return;
+                int max_cols = m.colors_max > 0 ? (int)m.colors_max : std::max(1, (int)m.colors.size());
+                if(color_index >= max_cols)
+                    return;
 
-            if(color_index >= (int)m.colors.size())
-                m.colors.resize(color_index + 1, LL::Color(0, 0, 0, 0));
+                if(color_index >= (int)m.colors.size())
+                    m.colors.resize(color_index + 1, LL::Color(0, 0, 0, 0));
 
-            m.colors[color_index] = wire(color);
-            m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
-            active = layer.active_mode;
+                m.colors[color_index] = wire(color);
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                active = layer.active_mode;
+            }
+            else if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+                if(color_index != 0)
+                    return;
+
+                auto col = opaque(color);
+                if(layer.base_leds.size() < impl->leds.size())
+                    layer.base_leds.resize(impl->leds.size(), col);
+                for(auto &c : layer.base_leds)
+                    c = col;
+
+                if(!context) {
+                    for(auto &led : impl->leds)
+                        led.color = col;
+                }
+
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::PerLed);
+                touchLayer(*impl, layer);
+                active = layer.active_mode;
+            }
         }
 
         if(active >= 0)
@@ -3022,21 +3159,39 @@ namespace Gorgon :: Devices :: OpenRGB {
                 return;
 
             auto &m = layer.modes[layer.active_mode];
-            if((m.flags & LL::ModeFlags::HasModeSpecificColor) == 0)
-                return;
+            if((m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
+                size_t count = colors.size();
+                if(m.colors_min > 0 && count < m.colors_min)
+                    count = m.colors_min;
+                if(m.colors_max > 0 && count > m.colors_max)
+                    count = m.colors_max;
 
-            size_t count = colors.size();
-            if(m.colors_min > 0 && count < m.colors_min)
-                count = m.colors_min;
-            if(m.colors_max > 0 && count > m.colors_max)
-                count = m.colors_max;
+                m.colors.resize(count, LL::Color(0, 0, 0, 0));
+                for(size_t i = 0; i < count && i < colors.size(); i++)
+                    m.colors[i] = wire(colors[i]);
 
-            m.colors.resize(count, LL::Color(0, 0, 0, 0));
-            for(size_t i = 0; i < count && i < colors.size(); i++)
-                m.colors[i] = wire(colors[i]);
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                active = layer.active_mode;
+            }
+            else if((m.flags & LL::ModeFlags::HasPerLedColor) != 0 && !isDirectMode(m)) {
+                if(colors.empty())
+                    return;
 
-            m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
-            active = layer.active_mode;
+                auto col = opaque(colors[0]);
+                if(layer.base_leds.size() < impl->leds.size())
+                    layer.base_leds.resize(impl->leds.size(), col);
+                for(auto &c : layer.base_leds)
+                    c = col;
+
+                if(!context) {
+                    for(auto &led : impl->leds)
+                        led.color = col;
+                }
+
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::PerLed);
+                touchLayer(*impl, layer);
+                active = layer.active_mode;
+            }
         }
 
         if(active >= 0)
@@ -3076,6 +3231,10 @@ namespace Gorgon :: Devices :: OpenRGB {
             }
             else if(!random && (m.flags & LL::ModeFlags::HasModeSpecificColor) != 0) {
                 m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::ModeSpecific);
+                active = layer.active_mode;
+            }
+            else if(!random && (m.flags & LL::ModeFlags::HasPerLedColor) != 0) {
+                m.color_mode = static_cast<uint32_t>(LL::ModeColorMode::PerLed);
                 active = layer.active_mode;
             }
         }

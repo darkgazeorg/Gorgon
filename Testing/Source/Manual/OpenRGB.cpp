@@ -1167,6 +1167,7 @@ namespace {
                 for(int i = 0; i < MAX_MODE_COLORS; i++) {
                     if(i < numShown && !isRand) {
                         *modeColorPickers[i] = Graphics::RGBAf(cols[i]);
+                        modeColorLabels[i]->SetText(maxCols == 1 ? "Color:" : ("Color " + std::to_string(i + 1) + ":"));
                         modeColorLabels[i]->Show();
                         modeColorPickers[i]->Show();
                     }
@@ -2188,6 +2189,7 @@ namespace {
                 for(int i = 0; i < MAX_MODE_COLORS; i++) {
                     if(i < numShown && !isRand) {
                         *modeColorPickers[i] = Graphics::RGBAf(cols[i]);
+                        modeColorLabels[i]->SetText(maxCols == 1 ? "Color:" : ("Color " + std::to_string(i + 1) + ":"));
                         modeColorLabels[i]->Show();
                         modeColorPickers[i]->Show();
                     }

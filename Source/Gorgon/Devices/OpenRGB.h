@@ -363,6 +363,9 @@ namespace Gorgon :: Devices :: OpenRGB {
         void SetMode(Mode mode_index);
         void SetMode(const std::string &mode_name);
 
+        /// Returns true if the active mode supports customizable color settings (mode-specific or per-LED effect color)
+        bool SupportsModeColor() const;
+
         /// Returns the number of mode-specific colors currently configured on the active mode
         int GetModeColorCount() const;
 
