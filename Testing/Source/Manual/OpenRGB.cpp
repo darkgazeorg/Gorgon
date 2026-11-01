@@ -21,6 +21,8 @@
 #include <Gorgon/Widgets/Layerbox.h>
 #include <Gorgon/Widgets/ColorPicker.h>
 #include <Gorgon/Widgets/Scrollbar.h>
+#include <Gorgon/Widgets/Dropdown.h>
+#include <Gorgon/UI/Dialog.h>
 #include <Gorgon/Devices/OpenRGB.h>
 
 #include <iostream>
@@ -72,27 +74,35 @@ namespace {
 
     std::string BuildDeviceMarkdown(const OpenRGB::Device &dev) {
         std::ostringstream ss;
-        ss << "# " << dev.GetName() << "\n\n";
-        ss << "* **Device ID:** " << dev.GetID() << "\n";
-        ss << "* **Type:** " << DeviceTypeToString(dev.GetType()) << "\n";
-        ss << "* **Status:** " << (dev.IsConnected() ? "Connected" : "Detached") << "\n";
+        ss << "* **Type:** " << DeviceTypeToString(dev.GetType())
+           << " | **Total LEDs:** " << dev.GetLEDCount();
         if(!dev.GetVendor().empty())
-            ss << "* **Vendor:** " << dev.GetVendor() << "\n";
-        if(!dev.GetDescription().empty())
-            ss << "* **Description:** " << dev.GetDescription() << "\n";
+            ss << " | **Vendor:** " << dev.GetVendor();
         if(!dev.GetVersion().empty())
-            ss << "* **Firmware Version:** " << dev.GetVersion() << "\n";
-        if(!dev.GetSerial().empty())
-            ss << "* **Serial:** `" << dev.GetSerial() << "`\n";
+            ss << " | **Firmware:** " << dev.GetVersion();
+        ss << "\n";
         if(!dev.GetLocation().empty())
             ss << "* **Location:** `" << dev.GetLocation() << "`\n";
-        ss << "* **Total LEDs:** " << dev.GetLEDCount() << "\n\n";
+        if(!dev.GetDescription().empty() && dev.GetDescription() != dev.GetName())
+            ss << "* **Description:** " << dev.GetDescription() << "\n";
+        ss << "\n";
 
-        ss << "## Hardware Modes (" << dev.GetModeCount() << ")\n\n";
+        ss << "### Lighting Zones (" << dev.GetZoneCount() << ")\n";
+        for(const auto &z : dev.GetZones()) {
+            ss << "* **" << z.GetName() << "**: " << ZoneTypeToString(z.GetType())
+               << " (" << z.GetLEDCount() << " LEDs";
+            if(z.IsMatrix()) {
+                ss << ", " << z.GetWidth() << "x" << z.GetHeight();
+            }
+            ss << ")\n";
+        }
+        ss << "\n";
+
+        ss << "### Hardware Modes (" << dev.GetModeCount() << ")\n";
         ss << "* **Active Mode:** " << dev.GetActiveModeName() << " (index " << dev.GetActiveMode() << ")\n";
         auto modes = dev.GetModeNames();
         if(!modes.empty()) {
-            ss << "* **Available Modes:** ";
+            ss << "* **Available:** ";
             for(size_t i = 0; i < modes.size(); i++) {
                 if(i > 0) ss << ", ";
                 if((int)i == dev.GetActiveMode())
@@ -100,17 +110,7 @@ namespace {
                 else
                     ss << modes[i];
             }
-            ss << "\n\n";
-        }
-
-        ss << "## Lighting Zones (" << dev.GetZoneCount() << ")\n\n";
-        for(const auto &z : dev.GetZones()) {
-            ss << "* **" << z.GetName() << "** — " << ZoneTypeToString(z.GetType())
-               << " (" << z.GetLEDCount() << " LEDs";
-            if(z.IsMatrix()) {
-                ss << ", " << z.GetWidth() << "x" << z.GetHeight() << " matrix";
-            }
-            ss << ")\n";
+            ss << "\n";
         }
 
         return ss.str();
@@ -379,6 +379,7 @@ namespace {
 
         Widgets::Label modeTitleLbl;
         Widgets::RadioButtons<int> modeRadios;
+        Widgets::Button infoBtn{"Device Info..."};
 
         static constexpr int MAX_MODE_COLORS = 8;
 
@@ -405,7 +406,7 @@ namespace {
         Widgets::RadioButtons<int> directionRadios;
         bool updatingDirection = false;
 
-        Widgets::MarkdownLabel nonDirectInfoLbl;
+        Widgets::Label activeModeStatusLbl;
 
         Widgets::Panel directPanel{Widgets::Registry::Panel_Blank};
         Widgets::Layerbox kbLayerbox{Widgets::Registry::Layerbox_Regular};
@@ -506,6 +507,13 @@ namespace {
             modeTitleLbl.SetWidth(Pixels(200));
             tab->Add(modeTitleLbl);
 
+            infoBtn.Move(Pixels(tabW - 140, 6));
+            infoBtn.SetWidth(Pixels(130));
+            infoBtn.ClickEvent.Register([this]() {
+                UI::ShowMessage(kb.GetName() + " - Device Info", "[!md!]" + BuildDeviceMarkdown(kb));
+            });
+            tab->Add(infoBtn);
+
             modeRadios.Move(Pixels(10, 32));
             modeRadios.SetWidth(Pixels(tabW - 20));
             int modeCount = kb.GetModeCount();
@@ -525,9 +533,10 @@ namespace {
             int contentTop = modeRadios.GetBounds().Bottom + 10;
             int contentH   = std::max(350, tabH - contentTop - 10);
 
-            // 2. Non-direct mode panel (with mode color settings + markdown info)
+            // 2. Non-direct mode panel (with mode color settings + params)
             nonDirectPanel.Move(Pixels(10, contentTop));
             nonDirectPanel.Resize(Pixels(tabW - 20, contentH));
+            nonDirectPanel.EnableScroll(false, false);
             tab->Add(nonDirectPanel);
 
             modeColorsTitleLbl.Move(Pixels(10, 6));
@@ -663,10 +672,9 @@ namespace {
                 kb.SetModeDirection(static_cast<OpenRGB::ModeDirection>(dirVal));
             });
 
-            nonDirectInfoLbl.SetAutosize(UI::Autosize::None, UI::Autosize::Automatic);
-            nonDirectInfoLbl.Move(Pixels(10, 120));
-            nonDirectInfoLbl.SetWidth(Pixels(tabW - 40));
-            nonDirectPanel.Add(nonDirectInfoLbl);
+            activeModeStatusLbl.Move(Pixels(10, 120));
+            activeModeStatusLbl.SetWidth(Pixels(tabW - 40));
+            nonDirectPanel.Add(activeModeStatusLbl);
 
             // 3. Direct mode interactive panel
             directPanel.Move(Pixels(10, contentTop));
@@ -803,6 +811,7 @@ namespace {
             govRadios.Add(2, "Scene B (Untouched -> Global)");
             govRadios.Set(0);
             directPanel.Add(govRadios);
+            directPanel.Resize(Pixels(tabW - 20, row5Y + 36));
 
             // Initialize software effects attached to this keyboard
             activeExplosion = std::make_unique<OpenRGB::ExplosionEffect>(Graphics::RGBA(255, 130, 0, 255), 850, 3.0f);
@@ -1172,26 +1181,14 @@ namespace {
                     directionRadios.Hide();
                 }
 
-                nonDirectInfoLbl.Move(Pixels(10, nextY + 10));
+                int tabW = std::max(800, tab ? tab->GetInteriorSize().Width : 800);
+                activeModeStatusLbl.Move(Pixels(10, nextY + 10));
+                activeModeStatusLbl.SetWidth(Pixels(tabW - 40));
+                activeModeStatusLbl.SetText("Hardware Mode Active: " + kb.GetActiveModeName() + " (Select Direct mode above to display interactive on-screen keyboard and progressbars)");
+                activeModeStatusLbl.Show();
+                nextY += 40;
 
-                std::ostringstream ss;
-                ss << "## Hardware Mode Active: **" << kb.GetActiveModeName() << "**\n\n";
-                if(maxCols > 0) {
-                    ss << "* **Mode Colors:** " << cols.size() << " active (supports " << minCols << " to " << maxCols << " colors)\n";
-                }
-                if(hasSpeed) {
-                    ss << "* **Speed:** " << kb.GetModeSpeed() << "\n";
-                }
-                if(hasBrightness) {
-                    ss << "* **Brightness:** " << kb.GetModeBrightness() << "\n";
-                }
-                if(hasDir) {
-                    ss << "* **Direction:** " << static_cast<int>(kb.GetModeDirection()) << "\n";
-                }
-                ss << "* Select **Direct** mode above to display the interactive on-screen keyboard and progressbars.\n\n"
-                   << "---\n\n"
-                   << BuildDeviceMarkdown(kb);
-                nonDirectInfoLbl.SetText(ss.str());
+                nonDirectPanel.Resize(Pixels(tabW - 20, nextY));
                 nonDirectPanel.Show();
             }
         }
@@ -1312,11 +1309,12 @@ namespace {
         Widgets::RadioButtons<int> directionRadios;
         bool updatingDirection = false;
 
-        Widgets::MarkdownLabel nonDirectInfoLbl;
+        Widgets::Label activeModeStatusLbl;
 
         Widgets::Panel directPanel{Widgets::Registry::Panel_Blank};
-        Widgets::Label zoneTitleLbl;
-        Widgets::RadioButtons<int> zoneRadios;
+        Widgets::Label zoneTitleLbl{"Lighting Zone:", Widgets::Registry::Label_Bold};
+        Widgets::DropdownList<std::string> zoneDropdown;
+        Widgets::Button infoBtn{"Device Info..."};
         bool updatingZone = false;
 
         Widgets::Layerbox devLayerbox{Widgets::Registry::Layerbox_Regular};
@@ -1429,11 +1427,54 @@ namespace {
             int tabW = std::max(800, tab->GetInteriorSize().Width);
             int tabH = std::max(550, tab->GetInteriorSize().Height);
 
-            modeTitleLbl.Move(Pixels(10, 6));
+            int topY = 6;
+            if(!zones.empty()) {
+                zoneTitleLbl.Move(Pixels(10, topY + 4));
+                zoneTitleLbl.SetWidth(Pixels(110));
+                tab->Add(zoneTitleLbl);
+
+                zoneDropdown.Move(Pixels(125, topY));
+                zoneDropdown.SetWidth(Pixels(std::min(450, tabW - 280)));
+                for(size_t z = 0; z < zones.size(); z++) {
+                    std::string zName = zones[z].GetName() + " (" + ZoneTypeToString(zones[z].GetType()) + ", " + std::to_string(zones[z].GetLEDCount()) + " LEDs)";
+                    zoneDropdown.List.Add(zName);
+                }
+                zoneDropdown.SetSelectedIndex(0);
+                tab->Add(zoneDropdown);
+
+                zoneDropdown.ChangedEvent.Register([this](long zIdx) {
+                    if(updatingZone || zIdx < 0 || zIdx >= (long)zones.size()) return;
+                    activeZoneIdx = (int)zIdx;
+                    selectedLed = -1;
+                    hoveredLed  = -1;
+                    selectedLedLbl.SetText("Selected LED: None (click any LED above)");
+                    prog.SetZone(zones[activeZoneIdx]);
+                    activeExplosion.TargetZone(zones[activeZoneIdx]);
+                    activeSwipe.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFlash.TargetZone(zones[activeZoneIdx]);
+                    activeDeathFade.TargetZone(zones[activeZoneIdx]);
+                    activePulse.TargetZone(zones[activeZoneIdx]);
+                    activeReactive.TargetZone(zones[activeZoneIdx]);
+                    ledBoxes = BuildZoneBoxes(dev, zones[activeZoneIdx], matrixW, matrixH);
+                    RedrawDevice();
+                });
+            }
+
+            infoBtn.Move(Pixels(tabW - 140, topY));
+            infoBtn.SetWidth(Pixels(130));
+            infoBtn.ClickEvent.Register([this]() {
+                UI::ShowMessage(dev.GetName() + " - Device Info", "[!md!]" + BuildDeviceMarkdown(dev));
+            });
+            tab->Add(infoBtn);
+
+            topY += 34;
+
+            modeTitleLbl.Move(Pixels(10, topY + 4));
             modeTitleLbl.SetWidth(Pixels(200));
             tab->Add(modeTitleLbl);
+            topY += 26;
 
-            modeRadios.Move(Pixels(10, 32));
+            modeRadios.Move(Pixels(10, topY));
             modeRadios.SetWidth(Pixels(tabW - 20));
             int modeCount = dev.GetModeCount();
             int cols = std::min(6, std::max(1, modeCount));
@@ -1454,6 +1495,7 @@ namespace {
             // 1. Non-Direct Panel
             nonDirectPanel.Move(Pixels(10, contentTop));
             nonDirectPanel.Resize(Pixels(tabW - 20, contentH));
+            nonDirectPanel.EnableScroll(false, false);
             tab->Add(nonDirectPanel);
 
             modeColorsTitleLbl.Move(Pixels(10, 6));
@@ -1586,10 +1628,9 @@ namespace {
                 dev.SetModeDirection(static_cast<OpenRGB::ModeDirection>(dirVal));
             });
 
-            nonDirectInfoLbl.SetAutosize(UI::Autosize::None, UI::Autosize::Automatic);
-            nonDirectInfoLbl.Move(Pixels(10, 120));
-            nonDirectInfoLbl.SetWidth(Pixels(tabW - 40));
-            nonDirectPanel.Add(nonDirectInfoLbl);
+            activeModeStatusLbl.Move(Pixels(10, 120));
+            activeModeStatusLbl.SetWidth(Pixels(tabW - 40));
+            nonDirectPanel.Add(activeModeStatusLbl);
 
             // 2. Direct Panel
             directPanel.Move(Pixels(10, contentTop));
@@ -1597,43 +1638,7 @@ namespace {
             directPanel.EnableScroll(false, false);
             tab->Add(directPanel);
 
-            int curY = 4;
-            if(!zones.empty()) {
-                zoneTitleLbl.Move(Pixels(4, curY));
-                zoneTitleLbl.SetWidth(Pixels(130));
-                directPanel.Add(zoneTitleLbl);
-
-                zoneRadios.Move(Pixels(140, curY));
-                zoneRadios.SetWidth(Pixels(tabW - 170));
-                int zCols = std::min(4, std::max(1, (int)zones.size()));
-                zoneRadios.SetColumns(zCols);
-                for(size_t z = 0; z < zones.size(); z++) {
-                    std::string zName = zones[z].GetName() + " (" + ZoneTypeToString(zones[z].GetType()) + ", " + std::to_string(zones[z].GetLEDCount()) + " LEDs)";
-                    zoneRadios.Add((int)z, zName);
-                }
-                zoneRadios.Set(0);
-                directPanel.Add(zoneRadios);
-
-                zoneRadios.ChangedEvent.Register([this](int zIdx) {
-                    if(updatingZone || zIdx < 0 || zIdx >= (int)zones.size()) return;
-                    activeZoneIdx = zIdx;
-                    selectedLed = -1;
-                    hoveredLed = -1;
-                    selectedLedLbl.SetText("Selected LED: None (click any LED above)");
-                    prog.SetZone(zones[activeZoneIdx]);
-                    activeExplosion.TargetZone(zones[activeZoneIdx]);
-                    activeSwipe.TargetZone(zones[activeZoneIdx]);
-                    activeDeathFlash.TargetZone(zones[activeZoneIdx]);
-                    activeDeathFade.TargetZone(zones[activeZoneIdx]);
-                    activePulse.TargetZone(zones[activeZoneIdx]);
-                    activeReactive.TargetZone(zones[activeZoneIdx]);
-                    ledBoxes = BuildZoneBoxes(dev, zones[activeZoneIdx], matrixW, matrixH);
-                    RedrawDevice();
-                });
-
-                curY += 34;
-            }
-
+            int curY = 0;
             int boxW = tabW - 30;
             int boxH = 150;
             devLayerbox.Move(Pixels(0, curY));
@@ -1739,6 +1744,7 @@ namespace {
             govRadios.Add(2, "Scene B (Untouched -> Global)");
             govRadios.Set(0);
             directPanel.Add(govRadios);
+            directPanel.Resize(Pixels(tabW - 20, curY + 36));
 
             activeExplosion.TargetDevice(dev);
             activeSwipe.TargetDevice(dev);
@@ -2115,26 +2121,14 @@ namespace {
                     directionRadios.Hide();
                 }
 
-                nonDirectInfoLbl.Move(Pixels(10, nextY + 10));
+                int tabW = std::max(800, tab ? tab->GetInteriorSize().Width : 800);
+                activeModeStatusLbl.Move(Pixels(10, nextY + 10));
+                activeModeStatusLbl.SetWidth(Pixels(tabW - 40));
+                activeModeStatusLbl.SetText("Hardware Mode Active: " + dev.GetActiveModeName() + " (Select Direct mode above to control lighting zones and animations)");
+                activeModeStatusLbl.Show();
+                nextY += 40;
 
-                std::ostringstream ss;
-                ss << "## Hardware Mode Active: **" << dev.GetActiveModeName() << "**\n\n";
-                if(maxCols > 0) {
-                    ss << "* **Mode Colors:** " << cols.size() << " active (supports " << minCols << " to " << maxCols << " colors)\n";
-                }
-                if(hasSpeed) {
-                    ss << "* **Speed:** " << dev.GetModeSpeed() << "\n";
-                }
-                if(hasBrightness) {
-                    ss << "* **Brightness:** " << dev.GetModeBrightness() << "\n";
-                }
-                if(hasDir) {
-                    ss << "* **Direction:** " << static_cast<int>(dev.GetModeDirection()) << "\n";
-                }
-                ss << "* Select **Direct** mode above to control lighting zones, per-LED illumination, and animations.\n\n"
-                   << "---\n\n"
-                   << BuildDeviceMarkdown(dev);
-                nonDirectInfoLbl.SetText(ss.str());
+                nonDirectPanel.Resize(Pixels(tabW - 20, nextY));
                 nonDirectPanel.Show();
             }
         }
@@ -2234,7 +2228,7 @@ int main() {
     Graphics::Initialize();
 
     auto &gen = *new Widgets::SimpleGenerator;
-    gen.Init("xyz", "", 7.5);
+    gen.Init("xyz", "", 9);
     UI::Initialize(gen);
 
     Graphics::BasicPrinter keyPrinter{Gorgon::Widgets::Registry::Active().Printer(Graphics::NamedFont::Small).GetGlyphRenderer(), 1.f, Gorgon::Graphics::TextAlignment::Center};
