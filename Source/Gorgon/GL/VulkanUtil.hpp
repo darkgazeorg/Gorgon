@@ -42,6 +42,7 @@
 #ifndef VULKAN_UTIL_CORE_ONLY
 #include <stb/stb_image.h>
 #define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 #include <tiny_obj_loader.h>
 #include <cgltf/cgltf.h>
 #endif
