@@ -26,6 +26,7 @@
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
+#include <GLFW/glfw3.h>
 
 
 #ifdef VULKAN_UTIL_IMPLEMENTATION
@@ -41,7 +42,6 @@
 #ifndef VULKAN_UTIL_CORE_ONLY
 #include <stb/stb_image.h>
 #define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <tiny_obj_loader.h>
 #include <cgltf/cgltf.h>
 #endif
@@ -244,6 +244,8 @@ namespace VulkanAbstraction {
         }
 
         namespace SwapchainHelpers {
+            bool SupportsDeviceExtensions(VkPhysicalDevice device,const std::vector<const char*>& required); 
+            bool IsSwapchainAdequate(VkPhysicalDevice device, VkSurfaceKHR surface);
             VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
             VkPresentModeKHR ChoosePresentMode(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
             VkExtent2D GetImageExtent(void* window, VkSurfaceCapabilitiesKHR capabilities);
@@ -268,7 +270,7 @@ namespace VulkanAbstraction {
         VkInstance CreateInstance(uint32_t api_version = VK_API_VERSION_1_0, const std::string& appName = "app", const std::string& engineName = "No Engine");
 #endif
         VkInstance CreateInstance(const std::vector<const char*>& extensions, const std::vector<const char*>& layers, uint32_t api_version = VK_API_VERSION_1_0, const std::string& appName = "app", const std::string& engineName = "No Engine");
-        VkPhysicalDevice PickPhysicalDevice(VkInstance instance);
+        VkPhysicalDevice PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
         QueueFamilyIndices PickQueueFamilyIndices(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface);
         VkDevice CreateLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndices queuefamilyindices, VkQueue* graphicsQueue, VkQueue* presentQueue);
         VkSwapchainKHR CreateSwapchain(VkDevice logicalDevice, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR capabilities, VkSurfaceFormatKHR surfaceFormat, VkPresentModeKHR presentMode, VkExtent2D imageExtent, QueueFamilyIndices familyIndices, VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
@@ -945,6 +947,35 @@ namespace VulkanAbstraction {
         }
 
         namespace SwapchainHelpers {
+                bool SupportsDeviceExtensions(VkPhysicalDevice device,const std::vector<const char*>& required) {
+                    uint32_t count = 0;
+                    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS)
+                        return false;
+
+                    std::vector<VkExtensionProperties> available(count);
+                    if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data()) != VK_SUCCESS)
+                        return false;
+
+                    for (const char* name : required) {
+                        bool found = std::any_of(available.begin(), available.end(),
+                            [name](const VkExtensionProperties& ext) {
+                                return std::strcmp(ext.extensionName, name) == 0;
+                            });
+                        if (!found) return false;
+                    }
+                    return true;
+                }
+                bool IsSwapchainAdequate(VkPhysicalDevice device, VkSurfaceKHR surface) {
+                    uint32_t formatCount = 0;
+                    if (vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr) != VK_SUCCESS)
+                        return false;
+
+                    uint32_t presentModeCount = 0;
+                    if (vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr) != VK_SUCCESS)
+                        return false;
+
+                    return formatCount > 0 && presentModeCount > 0;
+                }
             VkSurfaceCapabilitiesKHR GetSurfaceCapabilities(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
                 VkSurfaceCapabilitiesKHR caps;
                 vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
@@ -1100,7 +1131,8 @@ namespace VulkanAbstraction {
             std::cout << "Instance Created!";
             return instance;
         }
-#endif
+#endif 
+
 
         VkInstance CreateInstance(const std::vector<const char*>& extensions, const std::vector<const char*>& layers, uint32_t api_version, const std::string& appName, const std::string& engineName) {
             VkApplicationInfo appInfo{};
@@ -1124,22 +1156,71 @@ namespace VulkanAbstraction {
             return instance;
         }
 
-        VkPhysicalDevice PickPhysicalDevice(VkInstance instance) {
+        bool SupportsDeviceExtensions(VkPhysicalDevice device,const std::vector<const char*>& required) {
+            uint32_t count = 0;
+            if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr) != VK_SUCCESS)
+                return false;
+
+            std::vector<VkExtensionProperties> available(count);
+            if (vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data()) != VK_SUCCESS)
+                return false;
+
+            for (const char* name : required) {
+                bool found = std::any_of(available.begin(), available.end(),
+                    [name](const VkExtensionProperties& ext) {
+                        return std::strcmp(ext.extensionName, name) == 0;
+                    });
+                if (!found) return false;
+            }
+            return true;
+        }
+        bool IsSwapchainAdequate(VkPhysicalDevice device, VkSurfaceKHR surface) {
+            uint32_t formatCount = 0;
+            if (vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr) != VK_SUCCESS)
+                return false;
+
+            uint32_t presentModeCount = 0;
+            if (vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr) != VK_SUCCESS)
+                return false;
+
+            return formatCount > 0 && presentModeCount > 0;
+        }
+        VkPhysicalDevice PickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface) {
             uint32_t deviceCount = 0;
             vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
             if (deviceCount <= 0) { throw std::runtime_error("There is no vulkan supported physical device"); }
             std::vector<VkPhysicalDevice> devices(deviceCount);
             vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+            VkPhysicalDevice nonDiscrete=VK_NULL_HANDLE;
             for (auto& device : devices) {
                 VkPhysicalDeviceFeatures deviceFeatures;
                 vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
                 VkPhysicalDeviceProperties deviceProperties;
                 vkGetPhysicalDeviceProperties(device, &deviceProperties);
-                if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
-                    return device;
+                QueueFamilyIndices indices=PickQueueFamilyIndices(device,surface);
+                if(!indices.isComplete()) continue;
+                VkBool32 supportsPresentation;
+                vkGetPhysicalDeviceSurfaceSupportKHR(device,indices.presentationFamily.value(),surface,&supportsPresentation);
+                
+                if (    deviceProperties.apiVersion>=VK_API_VERSION_1_1 &&
+                        supportsPresentation &&
+                        deviceFeatures.geometryShader &&
+                        SupportsDeviceExtensions(device, { VK_KHR_SWAPCHAIN_EXTENSION_NAME })&&
+                        IsSwapchainAdequate(device, surface) &&
+                        indices.isComplete()
+                    ) {
+                    if(deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU){   
+                        return device;
+                    }
+                    nonDiscrete=device;
                 }
+
             }
-            return devices[0];
+            if(nonDiscrete!=VK_NULL_HANDLE){
+                return nonDiscrete;
+            }else{
+                throw std::runtime_error("There is no graphics device with presentation compatibility !");
+            }
         }
 
         QueueFamilyIndices PickQueueFamilyIndices(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
@@ -1156,7 +1237,6 @@ namespace VulkanAbstraction {
                 if (presentSupport) { queuefamilyindices.presentationFamily = i; }
                 i++;
             }
-            assert(queuefamilyindices.isComplete());
             return queuefamilyindices;
         }
 
@@ -1227,7 +1307,7 @@ namespace VulkanAbstraction {
 
         VulkanDevice SetupDevice(VkInstance instance, VkSurfaceKHR surface) {
             VulkanDevice device{};
-            device.physicalDevice = PickPhysicalDevice(instance);
+            device.physicalDevice = PickPhysicalDevice(instance,surface);
             device.familyIndices = PickQueueFamilyIndices(device.physicalDevice, surface);
             device.logicalDevice = CreateLogicalDevice(device.physicalDevice, device.familyIndices, &device.graphicsQueue, &device.presentQueue);
             return device;
