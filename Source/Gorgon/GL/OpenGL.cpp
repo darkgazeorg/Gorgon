@@ -270,6 +270,7 @@ namespace Gorgon :: GL {
 			glGenVertexArrays(1, &vaos[ctx]);
 			glBindVertexArray(vaos[ctx]);
 
+			glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
 			glEnableVertexAttribArray(0);
 			glVertexAttribIPointer(0, 1, GL_INT, 0, (GLvoid*)0);
 		}
