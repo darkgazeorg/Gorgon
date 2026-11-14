@@ -1405,6 +1405,11 @@ namespace Gorgon :: GL {
 	void ActivateTexture(Texture tex, int unit) {
 		if(!vk) return;
 
+		if(unit < 0 || unit >= TextureUnits) {
+			log << "Unsupported texture unit: " << unit;
+			return;
+		}
+
 		vk->activetextures[unit] = tex;
 		vk->activated[unit] = true;
 	}
