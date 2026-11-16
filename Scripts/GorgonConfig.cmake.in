@@ -12,7 +12,6 @@ find_dependency(PNG)
 find_dependency(JPEG)
 find_dependency(ZLIB)
 find_dependency(LibLZMA)
-find_dependency(GLEW)
 
 # ==============================================================================
 # 2. OS-Specific Core Dependencies & Compiler State
@@ -37,6 +36,7 @@ endif()
 # ==============================================================================
 # Capture the toggle states from the Gorgon build
 set(GORGON_HAS_OPENGL "@GORGON_GL_OPENGL@")
+set(GORGON_HAS_VULKAN "@GORGON_GL_VULKAN@")
 set(GORGON_HAS_FREETYPE "@FreeType@")
 set(GORGON_HAS_FONTCONFIG "@FONTCONFIG@")
 set(GORGON_HAS_FLAC "@FLAC@")
@@ -47,6 +47,11 @@ set(GORGON_AUDIOLIB "@AUDIOLIB@")
 
 if(GORGON_HAS_OPENGL)
     find_dependency(OpenGL)
+    find_dependency(GLEW)
+endif()
+
+if(GORGON_HAS_VULKAN)
+    find_dependency(Vulkan)
 endif()
 
 if(GORGON_HAS_FREETYPE)

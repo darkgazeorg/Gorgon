@@ -12,7 +12,12 @@
 #undef None
 #undef Success
 
+#ifdef GORGON_GL_VULKAN
+#include <X11/Xutil.h>
+#include "../../GL/Vulkan.h"
+#else
 #include <GL/glx.h>
+#endif
 
 #include "../../Geometry/Point.h"
 #include "../../Event.h"
@@ -38,7 +43,11 @@ namespace internal {
         bool move=false;
         Geometry::Point moveto;
         bool ismapped=false;
+#ifdef GORGON_GL_VULKAN
+        GL::WindowContext *context=nullptr;
+#else
         GLXContext context=0;
+#endif
         bool focused = false;
         Geometry::Point ppoint = {std::numeric_limits<int>::min(), std::numeric_limits<int>::min()};
         

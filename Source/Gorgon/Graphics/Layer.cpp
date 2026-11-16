@@ -74,13 +74,13 @@ namespace Graphics {
         Geometry::Rectangle prevclip;
 
         if(clippingenabled) {
-            isclipset = glIsEnabled(GL_SCISSOR_TEST);
-            glEnable(GL_SCISSOR_TEST);
+            isclipset = GL::IsClipEnabled();
+            GL::SetClipEnabled(true);
             
             prevclip = cliprectangle;
             
             cliprectangle = {Clip.Left, (ScreenSize.Height-Clip.Top)-Clip.Height(), Clip.Width(), Clip.Height()};
-            glScissor(cliprectangle.X, cliprectangle.Y, cliprectangle.Width, cliprectangle.Height);
+            GL::SetClipRectangle(cliprectangle);
         }
 
         ActivateQuadVertices();
@@ -98,7 +98,7 @@ namespace Graphics {
                 switch(nextop->type) {
                 case Operation::NewMask:
                     mask.Use();
-                    glClearColor(1.0f, 0, 0, 0);
+                    GL::SetClearColor(1.0f, 0, 0, 0);
                     GL::Clear();
                     GL::SetDefaultClear();
                     mask.RenderToScreen();
@@ -115,7 +115,7 @@ namespace Graphics {
             }
 
             if(surface.GetDrawMode() == ToMask && current != ToMask) {
-                glBlendFuncSeparate(GL_DST_COLOR, GL_ZERO, GL_ONE, GL_ZERO);
+                GL::SetMaskBlending();
                 mask.Use();
             }
 
@@ -203,10 +203,10 @@ namespace Graphics {
 
         if(clippingenabled) {
             if(!isclipset)
-                glDisable(GL_SCISSOR_TEST);
+                GL::SetClipEnabled(false);
             else {
                 cliprectangle = prevclip;
-                glScissor(cliprectangle.X, cliprectangle.Y, cliprectangle.Width, cliprectangle.Height);
+                GL::SetClipRectangle(cliprectangle);
             }
         }
 

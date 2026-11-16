@@ -1,21 +1,41 @@
 
-target_embed_shaders(Gorgon ShaderSrc.strings.gen
-	"Shaders/Simple_V.glsl"
-	"Shaders/NoTex_V.glsl"	
-	"Shaders/Simple_F.glsl"	
-	"Shaders/Alpha_F.glsl"	
-	"Shaders/Fill_F.glsl"	
-	"Shaders/ToMask_F.glsl"	
-	"Shaders/ToMaskFill_F.glsl"	
-)
+if(GORGON_GL_VULKAN)
+    target_embed_spirv(Gorgon ShaderSrc.strings.gen
+        "Shaders/Vulkan/Simple_V.glsl"
+        "Shaders/Vulkan/NoTex_V.glsl"
+        "Shaders/Vulkan/Simple_F.glsl"
+        "Shaders/Vulkan/Alpha_F.glsl"
+        "Shaders/Vulkan/Fill_F.glsl"
+        "Shaders/Vulkan/ToMask_F.glsl"
+        "Shaders/Vulkan/ToMaskFill_F.glsl"
+    )
 
-target_embed_shaders(Gorgon MaskedShaderSrc.strings.gen
-	"Shaders/Masked_V.glsl"
-	"Shaders/MaskedAlpha_F.glsl"	
-	"Shaders/MaskedNoTex_V.glsl"	
-	"Shaders/MaskedFill_F.glsl"
-	"Shaders/Masked_F.glsl"
-)
+    target_embed_spirv(Gorgon MaskedShaderSrc.strings.gen
+        "Shaders/Vulkan/Masked_V.glsl"
+        "Shaders/Vulkan/MaskedAlpha_F.glsl"
+        "Shaders/Vulkan/MaskedNoTex_V.glsl"
+        "Shaders/Vulkan/MaskedFill_F.glsl"
+        "Shaders/Vulkan/Masked_F.glsl"
+    )
+else()
+    target_embed_shaders(Gorgon ShaderSrc.strings.gen
+    	"Shaders/Simple_V.glsl"
+    	"Shaders/NoTex_V.glsl"	
+    	"Shaders/Simple_F.glsl"	
+    	"Shaders/Alpha_F.glsl"	
+    	"Shaders/Fill_F.glsl"	
+    	"Shaders/ToMask_F.glsl"	
+    	"Shaders/ToMaskFill_F.glsl"	
+    )
+
+    target_embed_shaders(Gorgon MaskedShaderSrc.strings.gen
+    	"Shaders/Masked_V.glsl"
+    	"Shaders/MaskedAlpha_F.glsl"	
+    	"Shaders/MaskedNoTex_V.glsl"	
+    	"Shaders/MaskedFill_F.glsl"
+    	"Shaders/Masked_F.glsl"
+    )
+endif()
 
 
 target_sources(Gorgon

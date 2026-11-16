@@ -104,14 +104,22 @@ namespace Gorgon :: WindowManager {
         intptr_t context;
 
         void switchcontext(Gorgon::internal::windowdata &data) {
+#ifdef GORGON_GL_VULKAN
+            GL::MakeCurrent(data.context);
+#else
             glXMakeCurrent(WindowManager::display, data.handle, data.context);
+#endif
             context=reinterpret_cast<intptr_t>(&data);
         }
 
         void finalizerender(Gorgon::internal::windowdata &data) {
+#ifdef GORGON_GL_VULKAN
+            GL::Present();
+#else
             glFinish();
             glFlush();
             glXSwapBuffers(WindowManager::display, data.handle);
+#endif
             XFlush(WindowManager::display);
         }
         

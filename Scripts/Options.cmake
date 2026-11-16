@@ -1,4 +1,11 @@
-set(_GRAPHICS_LIBRARY_CHOICES OpenGL)
+set(_GRAPHICS_LIBRARY_CHOICES OpenGL Vulkan)
+
+# Vulkan backend only has a surface for X11 at the moment
+if(WIN32)
+    set(_GRAPHICS_LIBRARY_DEFAULT OpenGL)
+else()
+    set(_GRAPHICS_LIBRARY_DEFAULT Vulkan)
+endif()
 
 # Options
 option(USE_DOUBLE "Use double precision for geometry calculations." OFF)
@@ -6,7 +13,7 @@ option(FAST_ANY "Enable fast any type. This will disable type safety for any and
 
 # Modules
 # Possibly only scripting module can be disabled without breaking the entire build.
-set   (GraphicsLibrary "OpenGL" CACHE STRING "Select the graphics library to use")
+set   (GraphicsLibrary "${_GRAPHICS_LIBRARY_DEFAULT}" CACHE STRING "Select the graphics library to use")
 set_property(CACHE GraphicsLibrary PROPERTY STRINGS ${_GRAPHICS_LIBRARY_CHOICES})
 option(AUDIO "Enable audio. Disabling audio might break the entire build." ON)
 option(SCRIPTING "Enable scripting module." ON)
@@ -62,6 +69,10 @@ if(NOT GraphicsLibrary IN_LIST _GRAPHICS_LIBRARY_CHOICES)
   message(FATAL_ERROR "Invalid value for GraphicsLibrary: ${GraphicsLibrary}\nValid options: ${_GRAPHICS_LIBRARY_CHOICES}")
 endif()
 
+if(WIN32 AND GraphicsLibrary STREQUAL "Vulkan")
+  message(FATAL_ERROR "Vulkan graphics library is not supported on Windows yet. Please use OpenGL.")
+endif()
+
 if(VORBIS AND NOT OGG)
   message(FATAL_ERROR "Vorbis support requires OGG container support. Please enable OGG.")
 endif()
@@ -82,7 +93,12 @@ endif()
 
 if(GraphicsLibrary STREQUAL "OpenGL")
     set(GORGON_GL_OPENGL ON CACHE INTERNAL "Enable OpenGL support")
+    set(GORGON_GL_VULKAN OFF CACHE INTERNAL "Enable Vulkan support")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_OPENGL)
+elseif(GraphicsLibrary STREQUAL "Vulkan")
+    set(GORGON_GL_OPENGL OFF CACHE INTERNAL "Enable OpenGL support")
+    set(GORGON_GL_VULKAN ON CACHE INTERNAL "Enable Vulkan support")
+    target_compile_definitions(Gorgon PUBLIC GORGON_GL_VULKAN)
 endif()
 
 if(AUDIO)

@@ -6,7 +6,7 @@ Gorgon is a cross-platform framework for games and visual applications. It provi
 
 * **Core & Application Lifecycle** (Main engine loop, Scene system & scene management, Event & ConsumableEvent dispatcher, high-resolution Time, Configuration, Logging)
 * **Window Management** (Cross-platform native windowing for Windows & Linux/X11, multi-monitor enumeration, clipboard management, native drag-and-drop)
-* **Graphics & Rendering** (OpenGL rendering abstractions, 2D layers & transformations, FrameBuffer & shaders, textures, bitmap blending)
+* **Graphics & Rendering** (Vulkan and OpenGL rendering abstractions, 2D layers & transformations, FrameBuffer & shaders, textures, bitmap blending)
 * **CGI & Vector Graphics** (Computer generated images, lines, circles, Bézier curves, polylines, polygons & path fills, color models & representations)
 * **Image Processing & Formats** (Software image transformations, scaling/interpolation, image encoding/decoding for PNG, JPEG, LZMA)
 * **UI & Widgets** (Retained-mode UI framework, layout organizers [Flow, List], template-driven styling with composer, STL-like typed widgets [e.g. `List<T>`, `Inputbox<T>`], core controls [Button, Checkbox, Textbox, MarkdownLabel, Panel, ColorPicker, Scrollbars], ready-to-use standard dialog boxes, custom DialogWindow, and built-in tooltip system)
@@ -28,7 +28,9 @@ Gorgon is a cross-platform framework for games and visual applications. It provi
 
 ### Common Required Dependencies
 Gorgon uses **vcpkg** on Windows to build purely static libraries, ensuring zero-dependency standalone executables. On Linux, it leverages standard system packages.
-* **Graphics:** OpenGL 2.1+ (Core), GLEW (Static)
+* **Graphics:** Selected with the `GraphicsLibrary` CMake option.
+  * **Vulkan** (default on Linux): Vulkan 1.1+, Vulkan Memory Allocator, glslc. Validation layers are off by default in all build types; set `GORGON_VULKAN_VALIDATION=1` to enable them.
+  * **OpenGL** (default and the only option on Windows): OpenGL 2.1+ (Core), GLEW (Static)
 * **Formats:** libpng, libjpeg-turbo, zlib, liblzma
 * **Utils:** cpptrace (Windows-only for stack traces)
 
@@ -47,6 +49,7 @@ libx11-dev libxinerama-dev libxrandr-dev libxext-dev \
 libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
 doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
 libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+libvulkan-dev libvulkan-memory-allocator-dev glslc \
 libgl1-mesa-dev libglew-dev
 ```
 
@@ -56,7 +59,8 @@ sudo dnf install gcc g++ cmake ninja-build pkgconf-pkg-config \
 libX11-devel libXinerama-devel libXrandr-devel libXext-devel \
 libpng-devel libjpeg-turbo-devel zlib-devel xz-devel \
 doxygen freetype-devel pulseaudio-libs-devel fontconfig-devel \
-flac-devel libogg-devel libvorbis-devel libcurl-devel glew-devel
+flac-devel libogg-devel libvorbis-devel libcurl-devel \
+vulkan-loader-devel vulkan-headers VulkanMemoryAllocator-devel glslc glew-devel
 ```
 
 ---

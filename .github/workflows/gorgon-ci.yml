@@ -16,8 +16,12 @@ env:
 jobs:
   # LINUX BUILD
   linux-build:
-    name: Linux (GCC)
+    name: Linux (GCC, ${{ matrix.graphics }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        graphics: [Vulkan, OpenGL]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -33,10 +37,11 @@ jobs:
             libpng-dev libjpeg-dev zlib1g-dev liblzma-dev \
             doxygen libfreetype-dev libpulse-dev libfontconfig1-dev \
             libflac-dev libogg-dev libvorbis-dev libcurl4-openssl-dev \
+            libvulkan-dev libvulkan-memory-allocator-dev glslc \
             libgl1-mesa-dev libglew-dev
 
       - name: Configure
-        run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G Ninja
+        run: cmake -S . -B build/Default -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DGraphicsLibrary=${{ matrix.graphics }} -G Ninja
 
       - name: Build
         run: cmake --build build/Default --parallel
@@ -54,13 +59,13 @@ jobs:
           fi
 
       - name: Package SDK
-        run: tar -czf Gorgon-Linux-SDK.tar.gz -C dist .
+        run: tar -czf Gorgon-Linux-${{ matrix.graphics }}-SDK.tar.gz -C dist .
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Gorgon-Linux-SDK
-          path: Gorgon-Linux-SDK.tar.gz
+          name: Gorgon-Linux-${{ matrix.graphics }}-SDK
+          path: Gorgon-Linux-${{ matrix.graphics }}-SDK.tar.gz
 
   # WINDOWS BUILD
   build-windows:

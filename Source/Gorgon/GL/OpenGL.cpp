@@ -5,6 +5,7 @@
 #include "../Graphics/Color.h"
 #include "../Containers/Image.h"
 #include "../OS.h"
+#include "../WindowManager.h"
 
 
 #ifdef LINUX
@@ -162,6 +163,11 @@ namespace Gorgon :: GL {
 		glDeleteTextures(1, &tex);
 	}
 
+	void ActivateTexture(Texture tex, int unit) {
+		glActiveTexture(GL_TEXTURE0 + unit);
+		glBindTexture(GL_TEXTURE_2D, tex);
+	}
+
 	void RenderToTexture(FrameBuffer &buffer) {
 		buffer.Use();
 	}
@@ -213,9 +219,74 @@ namespace Gorgon :: GL {
 		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_ONE);
 	}
 
+	void SetMaskBlending() {
+		glBlendFuncSeparate(GL_DST_COLOR, GL_ZERO, GL_ONE, GL_ZERO);
+	}
+
 	void SetDefaultClear() {
 		glClearColor(0.4f, 0.2f, 0.0f, 0.0f);
 		glClearDepth(1.0f);
+	}
+
+	void SetClearColor(float r, float g, float b, float a) {
+		glClearColor(r, g, b, a);
+	}
+
+	bool IsClipEnabled() {
+		return glIsEnabled(GL_SCISSOR_TEST);
+	}
+
+	void SetClipEnabled(bool enabled) {
+		if(enabled)
+			glEnable(GL_SCISSOR_TEST);
+		else
+			glDisable(GL_SCISSOR_TEST);
+	}
+
+	void SetClipRectangle(const Geometry::Rectangle &rectangle) {
+		glScissor(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+	}
+
+	namespace {
+		int quadvertexindex[] ={
+			0, 3, 1,
+			1, 3, 2
+		};
+
+		GLuint quadvbo = 0;
+		std::map<decltype(WindowManager::CurrentContext()), GLuint> vaos;
+	}
+
+	void SetupQuadVertices() {
+		if(!quadvbo) {
+			glGenBuffers(1, &quadvbo);
+
+			glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
+			glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(int), quadvertexindex, GL_STATIC_DRAW);
+		}
+
+		if(vaos.count(WindowManager::CurrentContext())==0) {
+			auto ctx=WindowManager::CurrentContext();
+			glGenVertexArrays(1, &vaos[ctx]);
+			glBindVertexArray(vaos[ctx]);
+
+			glBindBuffer(GL_ARRAY_BUFFER, quadvbo);
+			glEnableVertexAttribArray(0);
+			glVertexAttribIPointer(0, 1, GL_INT, 0, (GLvoid*)0);
+		}
+	}
+
+	void ActivateQuadVertices() {
+#ifndef NDEBUG
+		if(vaos.count(WindowManager::CurrentContext())==0) {
+			throw std::logic_error("Context not initialized???");
+		}
+#endif
+		glBindVertexArray(vaos[WindowManager::CurrentContext()]);
+	}
+
+	void DrawQuadVertices() {
+		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
 	void Resize(const Geometry::Size &size) {

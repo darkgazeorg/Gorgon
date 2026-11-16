@@ -8,7 +8,6 @@
 
 #include "../GL/Shader.h"
 
-#include "../GL/OpenGL.h"
 #include "Color.h"
 #include "../GL.h"
 
@@ -58,8 +57,7 @@ namespace Gorgon :: Graphics {
 		
 		/// Sets diffuse texture
 		SimpleShader &SetDiffuse(GL::Texture value) {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 0);
 			
 			return *this;
 		}
@@ -102,8 +100,7 @@ namespace Gorgon :: Graphics {
 		
 		/// Sets diffuse texture
 		MaskedShader &SetDiffuse(GL::Texture value) {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 0);
 			
 			return *this;
 		}
@@ -118,8 +115,7 @@ namespace Gorgon :: Graphics {
 		MaskedShader &SetMask(GL::Texture value) {
 			BindTexture("mask", 1);
 
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 1);
 
 			return *this;
 		}
@@ -166,8 +162,7 @@ namespace Gorgon :: Graphics {
 
 		/// Sets alpha texture
 		AlphaShader &SetAlpha(GL::Texture value) {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 0);
 
 			return *this;
 		}
@@ -213,8 +208,7 @@ namespace Gorgon :: Graphics {
 		MaskedAlphaShader &SetAlpha(GL::Texture value) {
 			BindTexture("diffuse", 0);
 
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 0);
 
 			return *this;
 		}
@@ -229,8 +223,7 @@ namespace Gorgon :: Graphics {
 		MaskedAlphaShader &SetMask(GL::Texture value) {
 			BindTexture("mask", 1);
 
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 1);
 
 			return *this;
 		}
@@ -302,8 +295,7 @@ namespace Gorgon :: Graphics {
 		MaskedFillShader &SetMask(GL::Texture value) {
 			BindTexture("mask", 1);
 
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, value);
+			GL::ActivateTexture(value, 1);
 
 			return *this;
 		}

@@ -13,8 +13,10 @@ namespace Gorgon :: GL {
 		namespace UBOBindingPoint			{ enum Type { Resolution, }; }
 		namespace TextureUnit				{ enum Type { Diffuse, Normal, Specular, Depth, AlphaMask }; }
 
+#ifdef GORGON_GL_OPENGL
 		unsigned int						SetupUBO(int size, int binding_point);
 		void								UpdateUBO(unsigned int ubo, int size, void const * const data);
+#endif
 
 		class Shader
 		{
@@ -37,7 +39,9 @@ namespace Gorgon :: GL {
 			void UpdateUniform(int name, const QuadVertices &value);
 			void UpdateUniform(int name, const QuadTextureCoords &value);
 			void UpdateUniform(int name, const Graphics::RGBAf &value);
+#ifdef GORGON_GL_OPENGL
 			void BindUBO(const std::string& name, UBOBindingPoint::Type bindingPoint);
+#endif
 
 			void InitializeWithSource(std::string vertexsrc, std::string fragmentsrc,
 									  std::string geometrysrc = "", std::map<std::string, std::string> defines={});

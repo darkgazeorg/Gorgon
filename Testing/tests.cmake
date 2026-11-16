@@ -10,6 +10,7 @@ set(ManualTests
 	Generic
 	Audio
 	PDParser
+	RenderPaths
 	Scene
 	Window
 	Font

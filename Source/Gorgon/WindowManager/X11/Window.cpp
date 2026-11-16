@@ -336,6 +336,12 @@ namespace internal {
         if(data->handle == 0)
             return;
         
+#ifdef GORGON_GL_VULKAN
+        //surface should be destroyed before its window
+        GL::DestroyWindowContext(data->context);
+        data->context = nullptr;
+#endif
+
         XDestroyWindow(WindowManager::display, data->handle);
         data->handle = 0;
         
@@ -343,6 +349,21 @@ namespace internal {
     }
     
     void Window::createglcontext() {
+#ifdef GORGON_GL_VULKAN
+        try {
+            data->context = GL::CreateWindowContext(WindowManager::display, data->handle, bounds.GetSize());
+        }
+        catch(const std::exception &ex) {
+            OS::DisplayMessage(std::string("Vulkan initialization failed: ")+ex.what());
+            exit(1);
+        }
+
+        WindowManager::internal::switchcontext(*data);
+
+        Graphics::Initialize();
+
+        GL::SetupContext(bounds.GetSize());
+#else
         static int attributeListDbl[] = {
             GLX_RGBA,
             GLX_DOUBLEBUFFER,
@@ -376,6 +397,7 @@ namespace internal {
         // test code
         glXSwapBuffers(WindowManager::display, data->handle);		
         XFlush(WindowManager::display);
+#endif
     }
 
     void Window::SetTitle(const std::string &title) {	

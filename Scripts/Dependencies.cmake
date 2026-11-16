@@ -55,10 +55,21 @@ if(GORGON_GL_OPENGL)
 endif()
 
 # GLEW provides an imported target with all the necessary include paths and libraries
-find_package(GLEW REQUIRED)
-target_link_libraries(Gorgon PUBLIC GLEW::GLEW)
-target_compile_definitions(Gorgon PUBLIC GLEW_STATIC)
-message(STATUS "Found GLEW.")
+if(GORGON_GL_OPENGL)
+    find_package(GLEW REQUIRED)
+    target_link_libraries(Gorgon PUBLIC GLEW::GLEW)
+    target_compile_definitions(Gorgon PUBLIC GLEW_STATIC)
+    message(STATUS "Found GLEW.")
+endif()
+
+if(GORGON_GL_VULKAN)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(Gorgon PUBLIC Vulkan::Vulkan)
+    message(STATUS "Found Vulkan -> ${Vulkan_VERSION}")
+
+    find_path(VMA_INCLUDE_DIR vk_mem_alloc.h REQUIRED)
+    target_include_directories(Gorgon SYSTEM PRIVATE "${VMA_INCLUDE_DIR}")
+endif()
 
 # --- Optional libraries ---------------------------------------------------
 
