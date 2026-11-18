@@ -21,6 +21,7 @@ namespace Gorgon {
     class Runner {
     public:
         /// Takes the control of the execution until Quit is called.
+        /// @param clamp this is for clamping the delta to 15ms per frame 
         virtual void Run(bool clamp=true) = 0;
 
         /// Runs a single frame

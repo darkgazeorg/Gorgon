@@ -408,7 +408,9 @@ namespace Gorgon {
         virtual void Quit() override {
             quiting = true;
         }
-
+        
+        ///Starts the Render Loop of the window
+        /// @param clamp this is for clamping the delta to 15ms per frame 
         virtual void Run(bool clamp) override {
             while(!quiting) {
                 clamp ? Gorgon::NextFrame() : Gorgon::UpdateFrame();

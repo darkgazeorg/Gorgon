@@ -175,6 +175,7 @@ namespace Gorgon {
         /// Runs the application by running the active scene, 
         /// progressing OS events and rendering mechanism. This
         /// function will run until Quit is called.
+        /// @param clamp this is for clamping the delta to 15ms per frame 
         void Run(bool clamp=true) override;
 
         /// Steps the application by running the active scene, 
