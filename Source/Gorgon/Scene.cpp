@@ -137,14 +137,14 @@ namespace Gorgon {
         return scene;
     }
     
-    void SceneManager::Run(bool clamp_fps) {
+    void SceneManager::Run(bool clamp) {
         while(!quiting) {
             if(active) {
                 active->doframe(Time::DeltaTime());
                 active->render();
             }
 
-            clamp_fps ? Gorgon::NextFrame() : Gorgon::UpdateFrame();
+            clamp ? Gorgon::NextFrame() : Gorgon::UpdateFrame();
         }
 
         SwitchScene(NoSceneID);

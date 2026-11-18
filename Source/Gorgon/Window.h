@@ -409,9 +409,9 @@ namespace Gorgon {
             quiting = true;
         }
 
-        virtual void Run(bool clamp_fps) override {
+        virtual void Run(bool clamp) override {
             while(!quiting) {
-                clamp_fps ? Gorgon::NextFrame() : Gorgon::UpdateFrame();
+                clamp ? Gorgon::NextFrame() : Gorgon::UpdateFrame();
             }
 
             Gorgon::Window::Close();

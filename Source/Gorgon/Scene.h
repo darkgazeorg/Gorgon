@@ -175,7 +175,7 @@ namespace Gorgon {
         /// Runs the application by running the active scene, 
         /// progressing OS events and rendering mechanism. This
         /// function will run until Quit is called.
-        void Run(bool clamp_fps=true) override;
+        void Run(bool clamp=true) override;
 
         /// Steps the application by running the active scene, 
         /// progressing OS events and rendering mechanism.

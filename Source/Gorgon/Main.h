@@ -21,7 +21,7 @@ namespace Gorgon {
     class Runner {
     public:
         /// Takes the control of the execution until Quit is called.
-        virtual void Run(bool clamp_fps=true) = 0;
+        virtual void Run(bool clamp=true) = 0;
 
         /// Runs a single frame
         virtual void Step() = 0;
