@@ -9,7 +9,7 @@ include(CMakePackageConfigHelpers)
 # ==============================================================================
 # Install the compiled binaries, libraries, and public headers to standard paths
 install(TARGETS Gorgon
-    EXPORT GorgonTargets
+    EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -61,52 +61,52 @@ endif()
 # Allows out-of-tree projects to find Gorgon in the build directory without installing
 if(EXPORT_BUILD_TREE)
     # Export the targets file locally
-    export(EXPORT GorgonTargets 
-           FILE "${CMAKE_CURRENT_BINARY_DIR}/GorgonTargets.cmake"
+    export(EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets 
+           FILE "${CMAKE_CURRENT_BINARY_DIR}/Gorgon${GORGON_PACKAGE_SUFFIX}Targets.cmake"
            NAMESPACE Gorgon::)
            
     # Generate the local config file from the template
     configure_file(
         "${PROJECT_SOURCE_DIR}/Scripts/GorgonConfig.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/GorgonConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
         @ONLY
     )
            
     # Register the package in the CMake user package registry
-    export(PACKAGE Gorgon)
-    message(STATUS "Gorgon Build Tree Exported for Local Discovery (with Functions)")
+    export(PACKAGE Gorgon${GORGON_PACKAGE_SUFFIX})
+    message(STATUS "Gorgon${GORGON_PACKAGE_SUFFIX} Build Tree Exported for Local Discovery (with Functions)")
 endif()
 
 # ==============================================================================
 # 4. System Install Export (For Global Usage)
 # ==============================================================================
 # Defines where the CMake package files will live on the system
-set(CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/Gorgon")
+set(CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/Gorgon${GORGON_PACKAGE_SUFFIX}")
 
-# Install the Targets file (maps Gorgon::Gorgon to the installed binaries)
-install(EXPORT GorgonTargets
-        FILE GorgonTargets.cmake
+# Install the Targets file (maps Gorgon::Gorgon or Gorgon::Gorgon_vk to the installed binaries)
+install(EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets
+        FILE Gorgon${GORGON_PACKAGE_SUFFIX}Targets.cmake
         NAMESPACE Gorgon::
         DESTINATION "${CMAKECONFIG_INSTALL_DIR}")
 
 # Generate the Config file for the installation tree
 configure_package_config_file(
     "${PROJECT_SOURCE_DIR}/Scripts/GorgonConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
     INSTALL_DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )
 
 # Generate the Version file to enforce compatibility rules
 write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}ConfigVersion.cmake"
     VERSION ${GORGON_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
 # Install the generated Config files AND the custom Public functions script
 install(FILES 
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}ConfigVersion.cmake"
     "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
     DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )

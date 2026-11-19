@@ -94,11 +94,17 @@ endif()
 if(GraphicsLibrary STREQUAL "OpenGL")
     set(GORGON_GL_OPENGL ON CACHE INTERNAL "Enable OpenGL support")
     set(GORGON_GL_VULKAN OFF CACHE INTERNAL "Enable Vulkan support")
+    set(GORGON_PACKAGE_SUFFIX "" CACHE INTERNAL "Package suffix for graphics backend")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_OPENGL)
 elseif(GraphicsLibrary STREQUAL "Vulkan")
     set(GORGON_GL_OPENGL OFF CACHE INTERNAL "Enable OpenGL support")
     set(GORGON_GL_VULKAN ON CACHE INTERNAL "Enable Vulkan support")
+    set(GORGON_PACKAGE_SUFFIX "_vk" CACHE INTERNAL "Package suffix for graphics backend")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_VULKAN)
+    set_target_properties(Gorgon PROPERTIES
+        OUTPUT_NAME "Gorgon_vk"
+        EXPORT_NAME "Gorgon_vk"
+    )
 endif()
 
 if(AUDIO)

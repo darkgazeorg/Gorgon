@@ -50,9 +50,24 @@ namespace Gorgon {
     /// This function marks the end of current frame and starts the next one. This function calls
     /// the Tick function at start of the next frame. Additionally, this function calls end of
     /// frame tasks such as rendering. Before starting the next frame, a certain delay is performed.
-    /// This delay aims to set each frame duration to 16ms, this duration sets the frames per second
-    /// to 62.5. This delay greatly reduces the system load of simple games/applications.
+    /// By default, this delay aims to set each frame duration to 16ms (~62.5 FPS). This delay
+    /// greatly reduces the system load of simple games/applications. The limit can be changed
+    /// using SetMinimumFrameDuration or SetFrameRateLimit.
     void NextFrame(bool render = true);
+
+    /// Sets the minimum frame duration in milliseconds used by NextFrame to limit the frame rate.
+    /// Setting this to 0 disables frame rate limiting. Default is 16ms.
+    void SetMinimumFrameDuration(unsigned long duration);
+
+    /// Returns the minimum frame duration in milliseconds used by NextFrame.
+    unsigned long GetMinimumFrameDuration();
+
+    /// Sets the target frame rate limit in frames per second used by NextFrame.
+    /// Setting this to 0 disables frame rate limiting.
+    void SetFrameRateLimit(unsigned int fps);
+
+    /// Returns the current frame rate limit in frames per second, or 0 if unlimited.
+    unsigned int GetFrameRateLimit();
 
     /// This method works similar to next frame, however, no delay is done. This function allows an
     /// application to update the display and perform OS tasks while still continuing operation.
