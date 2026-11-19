@@ -419,8 +419,10 @@ namespace Gorgon {
             Gorgon::Window::Close();
         }
 
-        virtual void Step() override {
-            Gorgon::NextFrame();
+        /// Steps the Application one frame
+        /// @param clamp Steps the application based on 66fps or non clamped fps rate
+        virtual void Step(bool clamp) override {
+            clamp ? Gorgon::NextFrame() : Gorgon::UpdateFrame();
         }
         
         /// @name Events 

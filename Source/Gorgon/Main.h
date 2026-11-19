@@ -25,7 +25,8 @@ namespace Gorgon {
         virtual void Run(bool clamp=true) = 0;
 
         /// Runs a single frame
-        virtual void Step() = 0;
+        /// @param clamp Steps the application based on 66fps or non clamped fps rate
+        virtual void Step(bool clamp=true) = 0;
 
         /// Should quit after the current frame is completed for a graceful exit.
         virtual void Quit() = 0;

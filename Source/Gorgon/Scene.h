@@ -180,13 +180,14 @@ namespace Gorgon {
 
         /// Steps the application by running the active scene, 
         /// progressing OS events and rendering mechanism.
-        void Step() override {
+        /// @param clamp Steps the application based on 66fps or non clamped fps rate
+        void Step(bool clamp=true) override {
             if(active) {
                 active->doframe(Time::DeltaTime());
                 active->render();
             }
 
-            Gorgon::NextFrame();
+            clamp ? Gorgon::NextFrame(): Gorgon::UpdateFrame();
         }
 
         /// Returns the number of scenes registered
