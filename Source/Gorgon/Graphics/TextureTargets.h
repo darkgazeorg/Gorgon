@@ -77,7 +77,7 @@ namespace Gorgon :: Graphics {
 
 		/// Draws a simple image to the screen to the given position with the given size.
 		virtual void Draw(const TextureSource &image, const Geometry::Rectanglef &location, RGBAf color = RGBAf(1.f)) {
-			Draw(image, location.TopLeft(), location.TopRight(), location.BottomLeft(), location.BottomRight(), color);
+			Draw(image, location.TopLeft(), location.TopRight(), location.BottomRight(), location.BottomLeft(), color);
 		}
 
 		/// Draws a simple image to the screen using the given tiling method, coordinates and size
