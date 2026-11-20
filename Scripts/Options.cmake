@@ -1,6 +1,6 @@
 set(_GRAPHICS_LIBRARY_CHOICES OpenGL Vulkan)
 
-# Vulkan backend only has a surface for X11 at the moment
+# Default graphics library per platform
 if(WIN32)
     set(_GRAPHICS_LIBRARY_DEFAULT OpenGL)
 else()
@@ -67,10 +67,6 @@ endif()
 # Validate selections
 if(NOT GraphicsLibrary IN_LIST _GRAPHICS_LIBRARY_CHOICES)
   message(FATAL_ERROR "Invalid value for GraphicsLibrary: ${GraphicsLibrary}\nValid options: ${_GRAPHICS_LIBRARY_CHOICES}")
-endif()
-
-if(WIN32 AND GraphicsLibrary STREQUAL "Vulkan")
-  message(FATAL_ERROR "Vulkan graphics library is not supported on Windows yet. Please use OpenGL.")
 endif()
 
 if(VORBIS AND NOT OGG)

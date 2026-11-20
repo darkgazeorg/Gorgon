@@ -32,7 +32,13 @@ endfunction()
 # way as target_embed_shaders: file names are variable names, and variables are strings containing the
 # compiled shader. Vertex shaders should end with _V, others are assumed to be fragment shaders.
 function(target_embed_spirv target_name output_file)
-    find_program(GLSLC_EXECUTABLE glslc REQUIRED)
+    find_program(GLSLC_EXECUTABLE glslc
+        HINTS
+            "$ENV{VULKAN_SDK}/Bin"
+            "$ENV{VULKAN_SDK}/bin"
+            "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/tools/shaderc"
+        REQUIRED
+    )
 
     set(current_output "${CMAKE_CURRENT_BINARY_DIR}/${output_file}")
     set(spirv_dir "${CMAKE_CURRENT_BINARY_DIR}/Spirv")

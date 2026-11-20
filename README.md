@@ -29,8 +29,8 @@ Gorgon is a cross-platform framework for games and visual applications. It provi
 ### Common Required Dependencies
 Gorgon uses **vcpkg** on Windows to build purely static libraries, ensuring zero-dependency standalone executables. On Linux, it leverages standard system packages.
 * **Graphics:** Selected with the `GraphicsLibrary` CMake option.
-  * **Vulkan** (default on Linux): Vulkan 1.1+, Vulkan Memory Allocator, glslc. Validation layers are off by default in all build types; set `GORGON_VULKAN_VALIDATION=1` to enable them.
-  * **OpenGL** (default and the only option on Windows): OpenGL 2.1+ (Core), GLEW (Static)
+  * **Vulkan** (default on Linux): Vulkan 1.1+, Vulkan Memory Allocator, glslc (provided by the LunarG Vulkan SDK on Windows). Validation layers are off by default in all build types; set `GORGON_VULKAN_VALIDATION=1` to enable them.
+  * **OpenGL** (default on Windows): OpenGL 2.1+ (Core), GLEW (Static)
 * **Formats:** libpng, libjpeg-turbo, zlib, liblzma
 * **Utils:** cpptrace (Windows-only for stack traces)
 

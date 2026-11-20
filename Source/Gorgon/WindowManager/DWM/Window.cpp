@@ -83,6 +83,12 @@ namespace internal {
 			break;
 
 		case WM_DESTROY:
+#ifdef GORGON_GL_VULKAN
+			if(context) {
+				GL::DestroyWindowContext(context);
+				context = nullptr;
+			}
+#endif
 			parent->DestroyedEvent();
 			break;
 
@@ -210,7 +216,9 @@ namespace internal {
 		UpdateWindow(hwnd);
 
 		data->handle=hwnd;
+#ifndef GORGON_GL_VULKAN
 		data->device_context = GetDC(data->handle);
+#endif
 		internal::windowdata::mapping[hwnd]=data;
 
 		PostMessage(hwnd, WM_ACTIVATE, -1, -1);
@@ -271,7 +279,9 @@ namespace internal {
 		UpdateWindow(hwnd);
 
 		data->handle = hwnd;
+#ifndef GORGON_GL_VULKAN
 		data->device_context = GetDC(data->handle);
+#endif
 		internal::windowdata::mapping[hwnd] = data;
 
 		PostMessage(hwnd, WM_ACTIVATE, -1, -1);
@@ -288,6 +298,10 @@ namespace internal {
 
 	void Window::osdestroy() {
         if(data) {
+#ifdef GORGON_GL_VULKAN
+            GL::DestroyWindowContext(data->context);
+            data->context = nullptr;
+#endif
             DestroyWindow(data->handle);
             internal::windowdata::mapping[data->handle]=nullptr;
         }
@@ -387,6 +401,21 @@ namespace internal {
 	}
 
 	void Window::createglcontext() {
+#ifdef GORGON_GL_VULKAN
+		try {
+			data->context = GL::CreateWindowContext(GetModuleHandle(NULL), reinterpret_cast<uintptr_t>(data->handle), bounds.GetSize());
+		}
+		catch(const std::exception &ex) {
+			OS::DisplayMessage(std::string("Vulkan initialization failed: ") + ex.what());
+			exit(1);
+		}
+
+		WindowManager::internal::switchcontext(*data);
+
+		Graphics::Initialize();
+
+		GL::SetupContext(bounds.GetSize());
+#else
 		static	PIXELFORMATDESCRIPTOR pfd=	// pfd Tells Windows How We Want Things To Be
 		{
 			sizeof(PIXELFORMATDESCRIPTOR),	// Size Of This Pixel Format Descriptor
@@ -423,9 +452,16 @@ namespace internal {
 		Graphics::Initialize();
 
 		GL::SetupContext(bounds.GetSize());
+#endif
 	}
 
 	void Window::Close() {
+		if(data->handle == 0)
+			return;
+#ifdef GORGON_GL_VULKAN
+		GL::DestroyWindowContext(data->context);
+		data->context = nullptr;
+#endif
 		DestroyWindow(data->handle);
 		data->handle = 0;
 	}

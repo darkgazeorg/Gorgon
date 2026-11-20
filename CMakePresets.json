@@ -125,6 +125,14 @@
       }
     },
     {
+      "name": "WindowsVulkan",
+      "inherits": "WindowsDefault",
+      "displayName": "Windows Vulkan Build",
+      "cacheVariables": {
+        "GraphicsLibrary": "Vulkan"
+      }
+    },
+    {
       "name": "WindowsQuick",
       "inherits": "WindowsDefault",
       "displayName": "Windows Quick Build",

@@ -351,7 +351,7 @@ namespace internal {
     void Window::createglcontext() {
 #ifdef GORGON_GL_VULKAN
         try {
-            data->context = GL::CreateWindowContext(WindowManager::display, data->handle, bounds.GetSize());
+            data->context = GL::CreateWindowContext(WindowManager::display, static_cast<uintptr_t>(data->handle), bounds.GetSize());
         }
         catch(const std::exception &ex) {
             OS::DisplayMessage(std::string("Vulkan initialization failed: ")+ex.what());
