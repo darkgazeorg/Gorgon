@@ -7,11 +7,11 @@ namespace Gorgon{
     class Camera{
         /// The Point in the world space where your camera focus
         /// Example: You can give the player's position
-        Gorgon::Geometry::Pointf target;
+        Gorgon::Geometry::Pointf target={0.0f,0.0f};
         
         /// The Point in the screen space where your camera focus to target
         /// Example: You can give middle of the screen { w/2 , h/2}
-        Gorgon::Geometry::Pointf offset;
+        Gorgon::Geometry::Pointf offset={0.0f,0.0f};
         
         /// Zoom rate to target position 
         float zoom=1.0f;
@@ -38,7 +38,7 @@ namespace Gorgon{
         Gorgon::Geometry::Pointf GetTarget() const;
 
         void ResetCamera(){
-            *this=Camera{};
+            *this=Camera();
         }
 
     };

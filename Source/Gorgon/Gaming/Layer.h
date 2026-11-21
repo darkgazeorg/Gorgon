@@ -115,5 +115,6 @@ namespace Gorgon::Gaming{
                 
         protected:
             Camera camera{};
+            Geometry::Pointf TileSize{};//TODO!
     };
 };
