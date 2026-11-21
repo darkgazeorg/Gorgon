@@ -15,6 +15,20 @@
 // curl type used in header so forward declare instead of including curl headers
 struct curl_slist;  
 
+namespace Gorgon {
+    namespace Containers {
+        template<class T_> class basic_Image;
+        using Image = basic_Image<Byte>;
+        class Wave;
+    }
+    namespace Graphics {
+        class Bitmap;
+    }
+    namespace Multimedia {
+        class Wave;
+    }
+}
+
 namespace Gorgon :: Network {
 
     /**
@@ -71,6 +85,9 @@ namespace Gorgon :: Network {
                 
                 /// Page not found
                 PageNotFound            =404,
+
+                /// Received data could not be decoded into the requested format
+                InvalidFormat           = 1001,
                 
                 /// An unknown error has occurred
                 Unknown                    = -1,
@@ -137,6 +154,35 @@ namespace Gorgon :: Network {
 
         /// Convenience tag instance for the temporary-vector Get/Post overloads.
         inline static constexpr DataTag ObtainData{};
+
+        /// Tag type used to select the Get/Post overload that decodes response
+        /// data into a temporary Containers::Image passed to ImageTransferCompletedEvent.
+        struct ImageTag {};
+
+        /// Convenience tag instance for the temporary-image Get/Post overloads.
+        inline static constexpr ImageTag ObtainImage{};
+
+        /// Tag type used to select the Get/Post overload that decodes response
+        /// data into a temporary Graphics::Bitmap passed to BitmapTransferCompletedEvent.
+        struct BitmapTag {};
+
+        /// Convenience tag instance for the temporary-bitmap Get/Post overloads.
+        inline static constexpr BitmapTag ObtainBitmap{};
+
+        /// Tag type used to select the Get/Post overload that decodes response
+        /// data into a temporary Containers::Wave passed to WaveTransferCompletedEvent.
+        struct WaveTag {};
+
+        /// Convenience tag instance for the temporary-wave Get/Post overloads.
+        inline static constexpr WaveTag ObtainWave{};
+
+        /// Tag type used to select the Get/Post overload that decodes response
+        /// data into a temporary Multimedia::Wave passed to MultimediaWaveTransferCompletedEvent.
+        struct MultimediaWaveTag {};
+
+        /// Convenience tag instance for the temporary Multimedia::Wave Get/Post overloads.
+        inline static constexpr MultimediaWaveTag ObtainMultimediaWave{};
+        inline static constexpr MultimediaWaveTag ObtainSound{};
     
         HTTP();
         ~HTTP();
@@ -161,6 +207,27 @@ namespace Gorgon :: Network {
         
         /// Fired when GetFile operation is completed. 
         Event<HTTP> FileTransferCompletedEvent;
+
+        /// Fired when an image (Containers::Image) transfer and decoding is completed.
+        /// When ObtainImage is used, the given image is temporary and will be destroyed
+        /// after the event handler finishes; you may move or swap its data.
+        Event<HTTP, Containers::Image&> ImageTransferCompletedEvent;
+
+        /// Fired when a bitmap (Graphics::Bitmap) transfer and decoding is completed.
+        /// When ObtainBitmap is used, the given bitmap is temporary and will be destroyed
+        /// after the event handler finishes; you may move or swap its data.
+        Event<HTTP, Graphics::Bitmap&> BitmapTransferCompletedEvent;
+
+        /// Fired when a wave container (Containers::Wave) transfer and decoding is completed.
+        /// Supports WAV, FLAC, and OGG formats. When ObtainWave is used, the given wave is
+        /// temporary and will be destroyed after the event handler finishes; you may move or swap it.
+        Event<HTTP, Containers::Wave&> WaveTransferCompletedEvent;
+
+        /// Fired when a multimedia wave (Multimedia::Wave) transfer and decoding is completed.
+        /// Supports WAV, FLAC, and OGG formats. When ObtainMultimediaWave / ObtainSound is used,
+        /// the given wave is temporary and will be destroyed after the event handler finishes;
+        /// you may move it.
+        Event<HTTP, Multimedia::Wave&> MultimediaWaveTransferCompletedEvent;
         
         /// Fired if an error occurs
         Event<HTTP, Error> TransferErrorEvent;
@@ -243,6 +310,46 @@ namespace Gorgon :: Network {
         /// Streams the data to the given output stream (GET request).
         void Get(const std::string &URL, std::ostream &stream, const HeaderMap &overrideHeaders = {});
 
+        /// Requests an image (PNG, JPEG, BMP) from the given URL and decodes it into a
+        /// temporary Containers::Image passed to ImageTransferCompletedEvent.
+        void Get(const std::string &URL, ImageTag, const HeaderMap &overrideHeaders = {});
+
+        /// Requests an image (PNG, JPEG, BMP) from the given URL and decodes it into the
+        /// supplied Containers::Image, then fires ImageTransferCompletedEvent.
+        void Get(const std::string &URL, Containers::Image &img, const HeaderMap &overrideHeaders = {});
+
+        /// Requests an image (PNG, JPEG, BMP) from the given URL and decodes it into a
+        /// temporary Graphics::Bitmap passed to BitmapTransferCompletedEvent.
+        /// @param prepare If true (default), calls Bitmap::Prepare() on the main thread before firing the event.
+        void Get(const std::string &URL, BitmapTag, bool prepare = true, const HeaderMap &overrideHeaders = {});
+
+        /// Convenience overload with per-request headers and prepare = true.
+        void Get(const std::string &URL, BitmapTag, const HeaderMap &overrideHeaders);
+
+        /// Requests an image (PNG, JPEG, BMP) from the given URL and decodes it into the
+        /// supplied Graphics::Bitmap, then fires BitmapTransferCompletedEvent.
+        /// @param prepare If true (default), calls Bitmap::Prepare() on the main thread before firing the event.
+        void Get(const std::string &URL, Graphics::Bitmap &bmp, bool prepare = true, const HeaderMap &overrideHeaders = {});
+
+        /// Convenience overload with per-request headers and prepare = true.
+        void Get(const std::string &URL, Graphics::Bitmap &bmp, const HeaderMap &overrideHeaders);
+
+        /// Requests wave audio data (WAV, FLAC, OGG) from the given URL and decodes it into a
+        /// temporary Containers::Wave passed to WaveTransferCompletedEvent.
+        void Get(const std::string &URL, WaveTag, const HeaderMap &overrideHeaders = {});
+
+        /// Requests wave audio data (WAV, FLAC, OGG) from the given URL and decodes it into the
+        /// supplied Containers::Wave, then fires WaveTransferCompletedEvent.
+        void Get(const std::string &URL, Containers::Wave &wave, const HeaderMap &overrideHeaders = {});
+
+        /// Requests wave audio data (WAV, FLAC, OGG) from the given URL and decodes it into a
+        /// temporary Multimedia::Wave passed to MultimediaWaveTransferCompletedEvent.
+        void Get(const std::string &URL, MultimediaWaveTag, const HeaderMap &overrideHeaders = {});
+
+        /// Requests wave audio data (WAV, FLAC, OGG) from the given URL and decodes it into the
+        /// supplied Multimedia::Wave, then fires MultimediaWaveTransferCompletedEvent.
+        void Get(const std::string &URL, Multimedia::Wave &wave, const HeaderMap &overrideHeaders = {});
+
         // ---- POST requests ----
 
         /// Posts data and retrieves the response as text.
@@ -261,6 +368,46 @@ namespace Gorgon :: Network {
 
         /// Posts data and streams the response to the given output stream.
         void Post(const std::string &URL, const std::string &postData, std::ostream &stream, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response image (PNG, JPEG, BMP) into a temporary
+        /// Containers::Image passed to ImageTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, ImageTag, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response image (PNG, JPEG, BMP) into the supplied
+        /// Containers::Image, then fires ImageTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, Containers::Image &img, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response image (PNG, JPEG, BMP) into a temporary
+        /// Graphics::Bitmap passed to BitmapTransferCompletedEvent.
+        /// @param prepare If true (default), calls Bitmap::Prepare() on the main thread before firing the event.
+        void Post(const std::string &URL, const std::string &postData, BitmapTag, bool prepare = true, const HeaderMap &overrideHeaders = {});
+
+        /// Convenience overload with per-request headers and prepare = true.
+        void Post(const std::string &URL, const std::string &postData, BitmapTag, const HeaderMap &overrideHeaders);
+
+        /// Posts data and decodes the response image (PNG, JPEG, BMP) into the supplied
+        /// Graphics::Bitmap, then fires BitmapTransferCompletedEvent.
+        /// @param prepare If true (default), calls Bitmap::Prepare() on the main thread before firing the event.
+        void Post(const std::string &URL, const std::string &postData, Graphics::Bitmap &bmp, bool prepare = true, const HeaderMap &overrideHeaders = {});
+
+        /// Convenience overload with per-request headers and prepare = true.
+        void Post(const std::string &URL, const std::string &postData, Graphics::Bitmap &bmp, const HeaderMap &overrideHeaders);
+
+        /// Posts data and decodes the response wave audio (WAV, FLAC, OGG) into a temporary
+        /// Containers::Wave passed to WaveTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, WaveTag, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response wave audio (WAV, FLAC, OGG) into the supplied
+        /// Containers::Wave, then fires WaveTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, Containers::Wave &wave, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response wave audio (WAV, FLAC, OGG) into a temporary
+        /// Multimedia::Wave passed to MultimediaWaveTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, MultimediaWaveTag, const HeaderMap &overrideHeaders = {});
+
+        /// Posts data and decodes the response wave audio (WAV, FLAC, OGG) into the supplied
+        /// Multimedia::Wave, then fires MultimediaWaveTransferCompletedEvent.
+        void Post(const std::string &URL, const std::string &postData, Multimedia::Wave &wave, const HeaderMap &overrideHeaders = {});
 
         /// Check if the process is still running
         bool IsRunning() const { return isrunning; }
@@ -329,7 +476,24 @@ namespace Gorgon :: Network {
       bool isrunning = false;
       inline static bool isinitialized = false;
 
-      enum { None, Text, Data, OwnedData, File, Stream } currentoperation;
+      enum OperationType {
+          None, Text, Data, OwnedData, File, Stream,
+          Image, OwnedImage, Bitmap, OwnedBitmap,
+          Wave, OwnedWave, MultimediaWave, OwnedMultimediaWave
+      } currentoperation = None;
+
+      void startDecodeOperation(const std::string &URL, OperationType op,
+                                const HeaderMap &overrideHeaders, const std::string &postData = "",
+                                void *target = nullptr, bool prepare = true);
+
+      std::vector<Byte> decodebuf;
+      Containers::Image *decodedimg = nullptr;
+      Containers::Wave *decodedwave = nullptr;
+      Containers::Image *targetimg = nullptr;
+      Graphics::Bitmap *targetbmp = nullptr;
+      Containers::Wave *targetwave = nullptr;
+      Multimedia::Wave *targetmwave = nullptr;
+      bool preparebitmap = true;
 
       // Response headers storage filled by headerwriter callback
       HeaderStorage responseHeaders;
