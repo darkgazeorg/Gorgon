@@ -21,6 +21,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_library(Gorgon STATIC "")
 add_library(Gorgon::Gorgon ALIAS Gorgon)
+target_compile_features(Gorgon PUBLIC cxx_std_17)
 
 include(Options)
 include(Compiler)

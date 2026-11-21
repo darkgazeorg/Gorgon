@@ -18,5 +18,5 @@ target_sources(Gorgon
 )
 
 find_package(X11 REQUIRED)
-include_directories(${X11_INCLUDE_DIR})
+target_include_directories(Gorgon PRIVATE ${X11_INCLUDE_DIR})
 target_link_libraries(Gorgon PRIVATE ${X11_LIBRARIES} ${X11_Xrandr_LIB} ${X11_Xinerama_LIB})

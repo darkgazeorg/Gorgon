@@ -21,7 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- 3. THE EXECUTABLE ---
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(${PROJECT_NAME} ${APP_SOURCES})
-add_compile_definitions(GORGON_USE_CONSOLE)
+target_compile_definitions(${PROJECT_NAME} PRIVATE GORGON_USE_CONSOLE)
 
 # Link with the core Gorgon library
 target_link_libraries(${PROJECT_NAME} PRIVATE Gorgon::Gorgon)
