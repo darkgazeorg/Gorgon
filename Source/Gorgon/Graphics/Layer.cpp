@@ -69,6 +69,10 @@ namespace Graphics {
 
         dotransformandclip();
 
+        auto layertransform = Transform;
+        if(camera) Transform *= camera->GetMatrix();
+
+
         bool isclipset = false;
         
         Geometry::Rectangle prevclip;
@@ -196,6 +200,8 @@ namespace Graphics {
             GL::SetDefaultBlending();
             mask.RenderToScreen();
         }
+        
+        Transform=layertransform;
 
         for(auto &l : children) {
             l.Render();

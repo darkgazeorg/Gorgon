@@ -5,7 +5,6 @@
 #include "Geometry/Bounds.h"
 #include "Geometry/Transform3D.h"
 #include "Input/Mouse.h"
-
 namespace Gorgon {
     class Layer;
 

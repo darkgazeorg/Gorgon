@@ -161,6 +161,11 @@ namespace Gorgon {
             return MultiLess(rest...);
     }
 
+    template<class T_,class V_>
+    T_ Lerp(T_ val1,T_ val2,V_ speed){
+        return val1+(val2-val1)*speed;
+    }
+
     /// Converts the given degrees to radians
     inline Float Angle(Float degrees) {
         return degrees / 180 * PI;

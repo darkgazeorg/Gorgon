@@ -7,6 +7,7 @@
 #include "../Geometry/Rectangle.h"
 #include "../GL/Simple.h"
 #include "../GL/FrameBuffer.h"
+#include "../Camera.h"
 
 namespace Gorgon :: Graphics {
 
@@ -320,9 +321,15 @@ namespace Gorgon :: Graphics {
             return clippingenabled;
         }
 
+        void SetCamera(Gorgon::Camera& cam){
+            this->camera=&cam;
+        }
         using Gorgon::Layer::GetSize;
 
     private:
+        /// Optional Camera 
+        Gorgon::Camera* camera=nullptr;
+            
         std::vector<internal::Surface> surfaces;
         std::vector<Operation> operations;
 

@@ -21,6 +21,7 @@ target_sources(Gorgon
         TMP.h
         Types.h
         Window.h
+        Camera.h
 )
 
 target_sources(Gorgon
@@ -31,6 +32,7 @@ target_sources(Gorgon
         SGuid.cpp
         Scene.cpp
         Window.cpp
+        Camera.cpp
 )
 
 if(GSCRIPT_GENERATOR)
