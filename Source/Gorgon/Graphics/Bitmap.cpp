@@ -38,6 +38,7 @@ namespace Gorgon :: Graphics {
 		}
 
 		std::ifstream file(filename, std::ios::binary);
+		if(!file.is_open()) return false;
 
 		static const uint32_t pngsig  = 0x474E5089;
 		static const uint32_t jpgsig1 = 0xE0FFD8FF;
@@ -45,13 +46,14 @@ namespace Gorgon :: Graphics {
 		static const uint32_t bmpsig  = 0x4D42;
 
 		uint32_t sig = IO::ReadUInt32(file);
+		if(!file) return false;
 
 		file.close();
 
 		if(sig == pngsig) {
 			return ImportPNG(filename);
 		}
-		else if(sig == jpgsig1 || sig == jpgsig2) {
+		else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xffffff) == 0xffd8ff) {
 			return ImportJPEG(filename);
 		}
 		else if((sig&0xffff) == bmpsig) {
@@ -68,13 +70,14 @@ namespace Gorgon :: Graphics {
 		static const uint32_t bmpsig  = 0x4D42;
 
 		uint32_t sig = IO::ReadUInt32(file);
+		if(!file) return false;
 
 		file.seekg(-4, std::ios::cur);
 
 		if(sig == pngsig) {
 			return ImportPNG(file);
 		}
-		else if(sig == jpgsig1 || sig == jpgsig2) {
+		else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xffffff) == 0xffd8ff) {
 			return ImportJPEG(file);
 		}
 		else if((sig&0xffff) == bmpsig) {

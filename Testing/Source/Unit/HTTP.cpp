@@ -1,6 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_all.hpp>
 #include <Gorgon/Network/HTTP.h>
+#include <Gorgon/Containers/Image.h>
+#include <Gorgon/Graphics/Bitmap.h>
+#include <Gorgon/Containers/Wave.h>
+#include <Gorgon/Multimedia/Wave.h>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -584,4 +588,354 @@ TEST_CASE("HTTP GetResponseHeaders", "[HTTP]") {
         http.onframe();
     }
     REQUIRE(headersReceived);
+}
+
+TEST_CASE("HTTP Get Image (ObtainImage and Owned)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/Logo.png";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainImage (temporary Containers::Image passed to ImageTransferCompletedEvent)
+    {
+        bool completed = false;
+        Gorgon::Containers::Image captured;
+
+        http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &img) {
+            REQUIRE(img.GetWidth() > 0);
+            REQUIRE(img.GetHeight() > 0);
+            captured = std::move(img);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainImage);
+        while (!completed) http.onframe();
+
+        REQUIRE(captured.GetWidth() > 0);
+        REQUIRE(captured.GetHeight() > 0);
+    }
+
+    // 2. Owned Containers::Image passed by reference
+    {
+        bool completed = false;
+        Gorgon::Containers::Image target;
+        http.ImageTransferCompletedEvent.Clear();
+        http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &img) {
+            REQUIRE(&img == &target);
+            completed = true;
+        });
+
+        http.Get(url, target);
+        while (!completed) http.onframe();
+
+        REQUIRE(target.GetWidth() > 0);
+        REQUIRE(target.GetHeight() > 0);
+    }
+}
+
+TEST_CASE("HTTP Get Bitmap (ObtainBitmap and Owned, prepare=false)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/Logo.png";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainBitmap with prepare=false (safe in headless unit test without GL context)
+    {
+        bool completed = false;
+        Gorgon::Graphics::Bitmap captured;
+
+        http.BitmapTransferCompletedEvent.Register([&](Gorgon::Graphics::Bitmap &bmp) {
+            REQUIRE(bmp.HasData());
+            REQUIRE(!bmp.HasTexture());
+            REQUIRE(bmp.GetWidth() > 0);
+            REQUIRE(bmp.GetHeight() > 0);
+            captured = std::move(bmp);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainBitmap, false);
+        while (!completed) http.onframe();
+
+        REQUIRE(captured.HasData());
+        REQUIRE(captured.GetWidth() > 0);
+        REQUIRE(captured.GetHeight() > 0);
+    }
+
+    // 2. Owned Graphics::Bitmap passed by reference with prepare=false
+    {
+        bool completed = false;
+        Gorgon::Graphics::Bitmap target;
+        http.BitmapTransferCompletedEvent.Clear();
+        http.BitmapTransferCompletedEvent.Register([&](Gorgon::Graphics::Bitmap &bmp) {
+            REQUIRE(&bmp == &target);
+            completed = true;
+        });
+
+        http.Get(url, target, false);
+        while (!completed) http.onframe();
+
+        REQUIRE(target.HasData());
+        REQUIRE(!target.HasTexture());
+        REQUIRE(target.GetWidth() > 0);
+        REQUIRE(target.GetHeight() > 0);
+    }
+}
+
+TEST_CASE("HTTP Get JPEG Image (ObtainImage and ObtainBitmap)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/sample.jpg";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainImage
+    {
+        bool completed = false;
+        http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &img) {
+            REQUIRE(img.GetWidth() == 32);
+            REQUIRE(img.GetHeight() == 32);
+            REQUIRE(img.GetMode() == Gorgon::Graphics::ColorMode::RGB);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainImage);
+        while (!completed) http.onframe();
+    }
+
+    // 2. ObtainBitmap (prepare=false)
+    {
+        bool completed = false;
+        http.BitmapTransferCompletedEvent.Register([&](Gorgon::Graphics::Bitmap &bmp) {
+            REQUIRE(bmp.HasData());
+            REQUIRE(bmp.GetWidth() == 32);
+            REQUIRE(bmp.GetHeight() == 32);
+            REQUIRE(bmp.GetMode() == Gorgon::Graphics::ColorMode::RGB);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainBitmap, false);
+        while (!completed) http.onframe();
+    }
+}
+
+TEST_CASE("HTTP Post Image (BMP)", "[HTTP]") {
+    Gorgon::Containers::Image src({16, 12}, Gorgon::Graphics::ColorMode::RGB);
+    for(int y = 0; y < src.GetHeight(); ++y) {
+        for(int x = 0; x < src.GetWidth(); ++x) {
+            src(x, y, 0) = static_cast<Gorgon::Byte>((x * 16) % 256);
+            src(x, y, 1) = static_cast<Gorgon::Byte>((y * 20) % 256);
+            src(x, y, 2) = 128;
+        }
+    }
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    std::ostringstream oss(std::ios::binary);
+    REQUIRE(src.ExportBMP(oss));
+    std::string payload = oss.str();
+
+    bool completed = false;
+    http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &img) {
+        REQUIRE(img.GetWidth() == 16);
+        REQUIRE(img.GetHeight() == 12);
+        REQUIRE(img.GetMode() == Gorgon::Graphics::ColorMode::RGB);
+        REQUIRE(img == src);
+        completed = true;
+    });
+
+    http.Post(testphp_base + "?action=echo_post", payload, Gorgon::Network::HTTP::ObtainImage);
+    while (!completed) http.onframe();
+}
+
+TEST_CASE("HTTP Get Wave (WAV)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/sample.wav";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainWave
+    {
+        bool completed = false;
+        http.WaveTransferCompletedEvent.Register([&](Gorgon::Containers::Wave &wave) {
+            REQUIRE(wave.GetSize() == 11025);
+            REQUIRE(wave.GetSampleRate() == 22050);
+            REQUIRE(wave.GetChannelCount() == 1);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainWave);
+        while (!completed) http.onframe();
+    }
+
+    // 2. Owned Containers::Wave
+    {
+        bool completed = false;
+        Gorgon::Containers::Wave target;
+        http.WaveTransferCompletedEvent.Clear();
+        http.WaveTransferCompletedEvent.Register([&](Gorgon::Containers::Wave &wave) {
+            REQUIRE(&wave == &target);
+            completed = true;
+        });
+
+        http.Get(url, target);
+        while (!completed) http.onframe();
+
+        REQUIRE(target.GetSize() == 11025);
+        REQUIRE(target.GetSampleRate() == 22050);
+        REQUIRE(target.GetChannelCount() == 1);
+    }
+}
+
+#ifdef GORGON_FLAC_SUPPORT
+TEST_CASE("HTTP Get Wave (FLAC)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/sample.flac";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainWave
+    {
+        bool completed = false;
+        http.WaveTransferCompletedEvent.Register([&](Gorgon::Containers::Wave &wave) {
+            REQUIRE(wave.GetSize() == 11025);
+            REQUIRE(wave.GetSampleRate() == 22050);
+            REQUIRE(wave.GetChannelCount() == 1);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainWave);
+        while (!completed) http.onframe();
+    }
+
+    // 2. ObtainMultimediaWave and Owned Multimedia::Wave
+    {
+        bool completed = false;
+        http.MultimediaWaveTransferCompletedEvent.Register([&](Gorgon::Multimedia::Wave &wave) {
+            REQUIRE(wave.HasData());
+            REQUIRE(wave.GetSize() == 11025);
+            REQUIRE(wave.GetSampleRate() == 22050);
+            REQUIRE(wave.GetChannelCount() == 1);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainMultimediaWave);
+        while (!completed) http.onframe();
+    }
+
+    {
+        bool completed = false;
+        Gorgon::Multimedia::Wave target;
+        http.MultimediaWaveTransferCompletedEvent.Clear();
+        http.MultimediaWaveTransferCompletedEvent.Register([&](Gorgon::Multimedia::Wave &wave) {
+            REQUIRE(&wave == &target);
+            completed = true;
+        });
+
+        http.Get(url, target);
+        while (!completed) http.onframe();
+
+        REQUIRE(target.HasData());
+        REQUIRE(target.GetSize() == 11025);
+        REQUIRE(target.GetSampleRate() == 22050);
+    }
+}
+#endif
+
+#ifdef GORGON_VORBIS_SUPPORT
+TEST_CASE("HTTP Get Wave (OGG Vorbis)", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/sample.ogg";
+
+    Gorgon::Network::HTTP http;
+    http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+        FAIL("Unexpected TransferErrorEvent (" << err.error << "): " << err.message);
+    });
+
+    // 1. ObtainWave
+    {
+        bool completed = false;
+        http.WaveTransferCompletedEvent.Register([&](Gorgon::Containers::Wave &wave) {
+            REQUIRE(wave.GetSize() == 11025);
+            REQUIRE(wave.GetSampleRate() == 22050);
+            REQUIRE(wave.GetChannelCount() == 1);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainWave);
+        while (!completed) http.onframe();
+    }
+
+    // 2. ObtainSound / Multimedia::Wave&
+    {
+        bool completed = false;
+        http.MultimediaWaveTransferCompletedEvent.Register([&](Gorgon::Multimedia::Wave &wave) {
+            REQUIRE(wave.HasData());
+            REQUIRE(wave.GetSize() == 11025);
+            REQUIRE(wave.GetSampleRate() == 22050);
+            REQUIRE(wave.GetChannelCount() == 1);
+            completed = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainSound);
+        while (!completed) http.onframe();
+    }
+
+    {
+        bool completed = false;
+        Gorgon::Multimedia::Wave target;
+        http.MultimediaWaveTransferCompletedEvent.Clear();
+        http.MultimediaWaveTransferCompletedEvent.Register([&](Gorgon::Multimedia::Wave &wave) {
+            REQUIRE(&wave == &target);
+            completed = true;
+        });
+
+        http.Get(url, target);
+        while (!completed) http.onframe();
+
+        REQUIRE(target.HasData());
+        REQUIRE(target.GetSize() == 11025);
+        REQUIRE(target.GetSampleRate() == 22050);
+    }
+}
+#endif
+
+TEST_CASE("HTTP Image and Wave InvalidFormat Error", "[HTTP]") {
+    std::string url = "https://darkgaze.org/test.txt";
+    Gorgon::Network::HTTP http;
+
+    // 1. Plain text fetched as Image
+    {
+        bool errored = false;
+        http.TransferErrorEvent.Register([&](Gorgon::Network::HTTP::Error err) {
+            REQUIRE(err.error == Gorgon::Network::HTTP::Error::InvalidFormat);
+            errored = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainImage);
+        while (!errored) http.onframe();
+    }
+
+    // 2. Plain text fetched as Wave
+    {
+        bool errored = false;
+        http.TransferErrorEvent.Clear();
+        http.TransferErrorEvent.Register([&](Gorgon::Network::HTTP::Error err) {
+            REQUIRE(err.error == Gorgon::Network::HTTP::Error::InvalidFormat);
+            errored = true;
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainWave);
+        while (!errored) http.onframe();
+    }
 }

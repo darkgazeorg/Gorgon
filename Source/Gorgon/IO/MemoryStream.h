@@ -44,28 +44,25 @@ namespace Gorgon :: IO {
 		pos_type seekoff(off_type off, std::ios_base::seekdir way, std::ios_base::openmode which) {
 			if(way == std::ios_base::cur) {
 				cur += off;
-				if(cur > end) cur = end;
-				return cur-begin;
 			}
 			else if(way == std::ios_base::end) {
 				cur = end - off;
-				if(cur < begin) cur = begin;
-				return cur-begin;
 			}
 			else {
 				cur = begin + off;
-				if(cur > end) cur = end;
-
-				return cur-begin;
 			}
 
-			return pos_type(off_type(-1));
+			if(cur < begin) cur = begin;
+			if(cur > end) cur = end;
+
+			return cur - begin;
 		}
 		
 		pos_type seekpos(pos_type sp, std::ios_base::openmode which) {
-			cur = begin + (int)sp;
+			cur = begin + static_cast<off_type>(sp);
+			if(cur < begin) cur = begin;
 			if(cur > end) cur = end;
-			return cur-begin;
+			return cur - begin;
 		}
 	private:
 		const char *begin;

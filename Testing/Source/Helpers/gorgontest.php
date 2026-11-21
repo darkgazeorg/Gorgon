@@ -7,6 +7,7 @@
  *
  *   echo_headers   - Returns all received request headers as JSON
  *   echo_post      - Returns the raw POST body
+ *   echo_base64    - Base64-decodes the POST body and returns raw binary bytes
  *   echo_all       - Returns JSON with both headers and POST body
  *   set_cookie     - Sets cookies specified in query params "name" and "value"
  *                    Optionally accepts "path", "domain", "secure", "httponly",
@@ -53,6 +54,18 @@ function handle_action($action) {
         case 'echo_post':
             $body = file_get_contents('php://input');
             echo $body;
+            break;
+
+        case 'echo_base64':
+            header('Content-Type: application/octet-stream');
+            $body = file_get_contents('php://input');
+            $decoded = base64_decode($body, true);
+            if ($decoded === false) {
+                http_response_code(400);
+                echo 'Invalid base64';
+            } else {
+                echo $decoded;
+            }
             break;
 
         case 'echo_all':
