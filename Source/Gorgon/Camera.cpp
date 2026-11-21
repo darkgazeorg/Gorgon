@@ -47,4 +47,14 @@ namespace Gorgon{
         // so we are just looking our world point (target) from screen point(offset)  
         return transform;
     }
+
+    void Camera::SetRotation( float angles ){rotation=angles;}
+    float Camera::GetRotation() const {return rotation;} 
+    void Camera::SetZoomRate( float rate ){zoom=rate;}
+    float Camera::GetZoomRate() const {return zoom;} 
+    void Camera::SetOffset(const Gorgon::Geometry::Pointf& offset){this->offset=offset;}
+    Gorgon::Geometry::Pointf Camera::GetOffset() const {return offset;}
+    void Camera::SetTarget(const Gorgon::Geometry::Pointf& target){this->target=target;}
+    Gorgon::Geometry::Pointf Camera::GetTarget() const {return target;}
+
 };

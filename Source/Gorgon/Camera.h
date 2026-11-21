@@ -5,7 +5,6 @@ namespace Gorgon{
 
 
     class Camera{
-        public:
         /// The Point in the world space where your camera focus
         /// Example: You can give the player's position
         Gorgon::Geometry::Pointf target;
@@ -19,11 +18,28 @@ namespace Gorgon{
         /// rotation around target position (angles)
         float rotation=0.0f;
         
+        public:
         Geometry::Pointf GetScreenToWorld(const Geometry::Pointf &p);
-
-        Geometry::Pointf GetWorldToScreen(const Geometry::Pointf &p);
         
+        Geometry::Pointf GetWorldToScreen(const Geometry::Pointf &p);
+
         Gorgon::Geometry::Transform3D GetMatrix();
+
+        void SetRotation( float angles );
+        float GetRotation() const; 
+
+        void SetZoomRate( float rate );
+        float GetZoomRate() const; 
+
+        void SetOffset(const Gorgon::Geometry::Pointf& offset);
+        Gorgon::Geometry::Pointf GetOffset() const;
+
+        void SetTarget(const Gorgon::Geometry::Pointf& offset);
+        Gorgon::Geometry::Pointf GetTarget() const;
+
+        void ResetCamera(){
+            *this=Camera{};
+        }
 
     };
 

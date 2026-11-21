@@ -59,6 +59,7 @@ add_subdirectory(String)
 add_subdirectory(Time)
 add_subdirectory(Utils)
 add_subdirectory(WindowManager)
+add_subdirectory(Gaming)
 
 if(AUDIO)
     add_subdirectory(Audio)

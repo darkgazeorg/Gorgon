@@ -69,9 +69,7 @@ namespace Graphics {
 
         dotransformandclip();
 
-        auto layertransform = Transform;
-        if(camera) Transform *= camera->GetMatrix();
-
+        
 
         bool isclipset = false;
         
@@ -201,7 +199,6 @@ namespace Graphics {
             mask.RenderToScreen();
         }
         
-        Transform=layertransform;
 
         for(auto &l : children) {
             l.Render();
