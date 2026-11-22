@@ -135,7 +135,8 @@ int Main(const std::vector<std::string> &) {
 
     // HTTP accepts a single progress display. To show progress on several displays at the
     // same time, use `MultiTargetProgressDisplay`, which forwards the progress it receives
-    // to all added targets. Targets are not owned; they must outlive the transfers.
+    // to all added targets. Targets are not owned; they must outlive the transfers. If you
+    // only need a single progress display, you can skip this and give the widget directly to HTTP.
     Gorgon::MultiTargetProgressDisplay progress;
     progress.AddTarget(progressBar);
 #ifdef GORGON_OPENRGB_SUPPORT
@@ -251,10 +252,15 @@ int Main(const std::vector<std::string> &) {
 
     // This lambda is called once the image is fully downloaded and ready to be used.
     imageHttp.BitmapTransferCompletedEvent.Register([&](Graphics::Bitmap &bmp) {
+        // This request is called without a concrete data target so the bitmap is
+        // created temporarily. We have to move it to more permanent storage if
+        // we want to be able to show it on the screen.
         downloadedLogo = std::move(bmp);
         drawDownloadedLogo();
+
         logoState = "Logo: " + std::to_string(downloadedLogo.GetWidth()) + "x" +
                     std::to_string(downloadedLogo.GetHeight()) + " px";
+                    
         updateMediaStatus();
         std::cout << "[Example 2] Imported & prepared " << logoState << std::endl;
     });
@@ -351,6 +357,7 @@ int Main(const std::vector<std::string> &) {
         http.DataTransferCompletedEvent.Clear();
         http.BitmapTransferCompletedEvent.Clear();
         http.TransferErrorEvent.Clear();
+        http.ProgressEvent.Clear();
         return true;
     };
 
@@ -647,10 +654,10 @@ int Main(const std::vector<std::string> &) {
     // =========================================================================
     //  8. Slow Download with Progress
     // =========================================================================
-    // The test script can stream a file slowly (here, the logo over 5 seconds) so the
-    // progress bar has something to show. Progress is reported to the display set with
-    // `SetProgressDisplay`, no additional code is needed in this handler. Small and
-    // quick transfers will simply jump from 0 to 100%.
+    // The test script generates and streams a ~450 KB BMP image slowly (~2 chunks/sec
+    // over 5 seconds) so each chunk exceeds server/proxy buffers and the progress bar
+    // fills smoothly. Progress is reported to the display set with `SetProgressDisplay`
+    // (and `ProgressEvent` if registered). Small, fast transfers jump from 0 to 100%.
     Widgets::Button btnSlow("8. Slow Image Download", [&]() {
         if(!beginDemo()) return;
 
@@ -663,12 +670,15 @@ int Main(const std::vector<std::string> &) {
         http.TransferErrorEvent.Register([&](HTTP::Error err) {
             showOutput("8. Slow Download Error", err.what());
         });
+        http.ProgressEvent.Register([&](Gorgon::Float ratio) {
+            std::cout << "[Example 8] Progress: " << int(ratio * 100) << "%" << std::endl;
+        });
 
         // Clear the picture so the new one is visible when it arrives
         logoLayer.Clear();
 
-        http.Get(TestPhpURL + "?action=slow_download&file=Logo.png&seconds=5", HTTP::ObtainBitmap);
-        showOutput("8. Slow Download", "Downloading the logo over about 5 seconds...");
+        http.Get(TestPhpURL + "?action=slow_download&file=generated.bmp&seconds=5", HTTP::ObtainBitmap);
+        showOutput("8. Slow Download", "Downloading generated ~450 KB image over about 5 seconds...");
     });
     btnSlow.Move(Units(0.0, 10.25));
     btnSlow.SetWidth(Units(10.0));
