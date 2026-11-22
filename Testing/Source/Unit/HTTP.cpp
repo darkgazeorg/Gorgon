@@ -996,4 +996,39 @@ TEST_CASE("HTTP Progress Event and Display", "[HTTP]") {
         while(!completed) http.onframe();
         REQUIRE(!http.HasProgressDisplay());
     }
+
+    // Slow chunked download should deliver intermediate progress updates before 1.0
+    {
+        std::string slowUrl = "https://darkgaze.org/testing/gorgontest.php?action=slow_download&file=generated.bmp&seconds=2";
+        Gorgon::Network::HTTP http;
+        RecordingDisplay display;
+        std::vector<Gorgon::Float> events;
+        bool completed = false;
+
+        http.SetProgressDisplay(display);
+        http.ProgressEvent.Register([&](Gorgon::Float v) { events.push_back(v); });
+        http.BitmapTransferCompletedEvent.Register([&](Gorgon::Graphics::Bitmap &bmp) {
+            REQUIRE(bmp.GetWidth() == 480);
+            REQUIRE(bmp.GetHeight() == 320);
+            completed = true;
+        });
+        http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+            FAIL("Unexpected TransferErrorEvent: " << err.message);
+        });
+
+        http.Get(slowUrl, Gorgon::Network::HTTP::ObtainBitmap, false);
+        while(!completed) http.onframe();
+
+        REQUIRE(events.size() >= 3);
+        REQUIRE(events.size() == display.values.size());
+        REQUIRE(events.back() == 1.f);
+        bool sawIntermediate = false;
+        for(size_t i = 0; i < events.size(); i++) {
+            if(events[i] > 0.f && events[i] < 1.f)
+                sawIntermediate = true;
+            if(i > 0)
+                REQUIRE(events[i] >= events[i - 1]);
+        }
+        REQUIRE(sawIntermediate);
+    }
 }

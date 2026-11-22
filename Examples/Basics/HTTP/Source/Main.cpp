@@ -327,9 +327,9 @@ int Main(const std::vector<std::string> &) {
     // server may throttle or block your requests.
 
     // =========================================================================
-    //  Interactive HTTP Client for Examples 3-7 (Triggered via Buttons)
+    //  Interactive HTTP Client for Examples 3-8 (Triggered via Buttons)
     // =========================================================================
-    // Because Examples 3-7 are triggered one at a time by button clicks, a single
+    // Because Examples 3-8 are triggered one at a time by button clicks, a single
     // `HTTP` object can serve all of them. `window.Run()` pumps events automatically,
     // so each button simply calls `http.Get(...)` or `http.Post(...)` and returns.
     HTTP http;
@@ -695,6 +695,7 @@ int Main(const std::vector<std::string> &) {
         window.Quit();
     });
 
+#ifdef GORGON_OPENRGB_SUPPORT
     // When supported, OpenRGB takes control of RGB lighting on your keyboard. 
     // Suspend/resume the connection when the window loses focus to avoid interfering 
     // with other apps. OpenRGB is used for shortcuts below, as well as the progress 
@@ -706,6 +707,7 @@ int Main(const std::vector<std::string> &) {
     window.FocusedEvent.Register([&]() {
         Gorgon::Devices::OpenRGB::Resume();
     });
+#endif
 
     Gorgon::Input::Shortcuts shortcuts;
     shortcuts.Set(Gorgon::Input::Keyboard::Keycodes::Escape, [&]() {

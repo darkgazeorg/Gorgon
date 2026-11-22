@@ -11,6 +11,7 @@ This interactive example demonstrates usage of the `Gorgon::Network::HTTP` trans
 5. **POST Requests & Binary Data**: Sending POST bodies, receiving raw bytes with `ObtainData`, and reference/file/stream variants.
 6. **Cookie Management**: Automatic `Set-Cookie` parsing and persistence (`StoreCookies(true)`), inspecting attributes (`GetCookieInfo`, `GetCookies`), and manual cookies (`SetCookie`, `HTTP::Cookie::Parse`, `HTTP::Cookie::Build`, `ClearCookies`).
 7. **Error Handling**: Handling HTTP status (`PageNotFound`) and media decode (`InvalidFormat`) failures via `TransferErrorEvent`.
+8. **Progress Reporting & Slow Download**: Streaming a generated ~450 KB BMP slowly (~2 updates/sec) while updating both a `Widgets::Progressbar` and an `OpenRGB::Progressbar` via `MultiTargetProgressDisplay` and `SetProgressDisplay()` (plus `ProgressEvent`), inside a unit-sized fullscreen `Widgets::Panel`.
 
 ## How to Run
 
