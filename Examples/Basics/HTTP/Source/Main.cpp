@@ -13,6 +13,7 @@
  *   5. POST requests & binary/file/stream transfers (`ObtainData`, etc.)
  *   6. Cookie handling: automatic cookie jar (`StoreCookies`) & manual cookies
  *   7. Error handling (`TransferErrorEvent` & `HTTP::Error::Code`)
+ *   8. Progress reporting (`SetProgressDisplay`, `ProgressEvent`) used by examples 3+
  *
  * UI Sizing Note:
  *   All GUI controls in this example use Gorgon UI units (`Units` / `_u`).
@@ -29,6 +30,13 @@
 #include <Gorgon/Widgets/Button.h>
 #include <Gorgon/Widgets/Label.h>
 #include <Gorgon/Widgets/Layerbox.h>
+#include <Gorgon/Widgets/Panel.h>
+#include <Gorgon/Widgets/Progressbar.h>
+#include <Gorgon/Widgets/Registry.h>
+#include <Gorgon/Progress.h>
+#ifdef GORGON_OPENRGB_SUPPORT
+#include <Gorgon/Devices/OpenRGB.h>
+#endif
 #include <Gorgon/Widgets/Textarea.h>
 #include <Gorgon/Graphics/Bitmap.h>
 #include <Gorgon/Graphics/Layer.h>
@@ -74,37 +82,81 @@ int Main(const std::vector<std::string> &) {
     Gorgon::UI::Window window({800, 500}, "Gorgon HTTP Example");
     Gorgon::UI::Initialize();
 
-    // Size the window interior in Gorgon UI units.
-    // A unit combines text height, widget spacing, and borders (buttons default to 1 unit tall).
-    window.ResizeInterior(Units(28.0, 16.5));
-    window.Center();
+    // A fullscreen panel has no borders, but it leaves the spacing that widgets need
+    // from the window edges, so we can place widgets starting from (0, 0) without
+    // calculating margins ourselves.
+    Widgets::Panel mainPanel(Widgets::Registry::Panel_Fullscreen);
+    window.Add(mainPanel);
+    mainPanel.EnableScroll(false, false);
 
     // ---- Build Unit-Sized Controls ----
+    // A unit combines text height, widget spacing, and borders (buttons default to 1 unit tall).
+    // Widgets below are added to the panel and positioned/sized in units.
     Widgets::Label titleLbl("Click an example below (#2 run at start):");
-    titleLbl.Move(Units(0.5, 0.5));
+    titleLbl.Move(Units(0.0, 0.0));
     titleLbl.SetWidth(Units(10.0));
-    window.Add(titleLbl);
+    mainPanel.Add(titleLbl);
 
     Widgets::Label mediaStatusLbl("Logo: waiting... | Sound: waiting...");
-    mediaStatusLbl.Move(Units(11.5, 0.5));
+    mediaStatusLbl.Move(Units(11.0, 0.0));
     mediaStatusLbl.SetWidth(Units(16.0));
-    window.Add(mediaStatusLbl);
+    mainPanel.Add(mediaStatusLbl);
 
     Widgets::Textarea outputLog;
-    outputLog.Move(Units(11.5, 1.5));
-    outputLog.Resize(Units(16.0, 14.5));
+    outputLog.Move(Units(11.0, 1.0));
+    outputLog.Resize(Units(16.0, 14.0));
     outputLog.Readonly = true;
     outputLog.WordWrap = true;
     outputLog.AutoSelectAll = false;
-    window.Add(outputLog);
+    mainPanel.Add(outputLog);
 
     Widgets::Layerbox logoBox;
-    logoBox.Move(Units(0.5, 11.0));
-    logoBox.Resize(Units(10.0, 5.0));
-    window.Add(logoBox);
+    logoBox.Move(Units(0.0, 11.5));
+    logoBox.Resize(Units(10.0, 3.5));
+    mainPanel.Add(logoBox);
 
     Graphics::Layer logoLayer;
     logoBox.GetLayer().Add(logoLayer);
+
+    // ---- Progress display ----
+    // Examples 3 and onwards report their progress here. HTTP can drive anything that
+    // implements `Gorgon::ProgressDisplay`: the progress bar widget is one, and the OpenRGB
+    // progress bar (lights on your keyboard's number row) is another one.
+    Widgets::Progressbar progressBar;
+    progressBar.Move(Units(0.0, 15.25));
+    progressBar.Resize(Units(27.0, 1.0));
+    mainPanel.Add(progressBar);
+
+#ifdef GORGON_OPENRGB_SUPPORT
+    // Does nothing visible if there is no OpenRGB server running.
+    Gorgon::Devices::OpenRGB::Progressbar rgbBar{Gorgon::Devices::OpenRGB::KeyGroup::NumberRow};
+    rgbBar.SetProgressRatio(0.f);
+#endif
+
+    // HTTP accepts a single progress display. To show progress on several displays at the
+    // same time, use `MultiTargetProgressDisplay`, which forwards the progress it receives
+    // to all added targets. Targets are not owned; they must outlive the transfers.
+    Gorgon::MultiTargetProgressDisplay progress;
+    progress.AddTarget(progressBar);
+#ifdef GORGON_OPENRGB_SUPPORT
+    progress.AddTarget(rgbBar);
+#endif
+
+    // If you only need the progress bar widget (the most common case), you do not need
+    // the multi target display at all, give the widget to HTTP directly:
+    //
+    //      http.SetProgressDisplay(progressBar);
+    //
+    // If you need the value yourself (to print a percentage for example), register to
+    // `ProgressEvent` instead. It receives the progress ratio between 0 and 1:
+    //
+    //      http.ProgressEvent.Register([&](Gorgon::Float ratio) {
+    //          label.SetText(std::to_string(int(ratio * 100)) + "%");
+    //      });
+    //
+    // HTTP only asks curl for progress information if a display is set or ProgressEvent
+    // has a listener when the request starts, so there is no cost otherwise. Both can be
+    // used at the same time.
 
     auto showOutput = [&](const std::string &heading, const std::string &body) {
         std::cout << "\n=== " << heading << " ===\n" << body << std::endl;
@@ -276,6 +328,12 @@ int Main(const std::vector<std::string> &) {
     // so each button simply calls `http.Get(...)` or `http.Post(...)` and returns.
     HTTP http;
 
+    // Every transfer made by `http` (examples 3 onwards) will now update `progress`,
+    // which forwards to the progress bar widget and the OpenRGB keys. It is reset to 0
+    // when a transfer starts and set to 1 when it completes successfully.
+    // Using only the widget would be `http.SetProgressDisplay(progressBar);`
+    http.SetProgressDisplay(progress);
+
     // Clear HTTP state before starting a new demo. This is not necessary if you are to
     // download only a single file, or process them using the same event handlers.
     auto beginDemo = [&]() -> bool {
@@ -291,25 +349,26 @@ int Main(const std::vector<std::string> &) {
         http.ResponseHeadersReceivedEvent.Clear();
         http.TextTransferCompletedEvent.Clear();
         http.DataTransferCompletedEvent.Clear();
+        http.BitmapTransferCompletedEvent.Clear();
         http.TransferErrorEvent.Clear();
         return true;
     };
 
     // ---- Row: Example 1 & Example 2 Buttons ----
     Widgets::Button btnBlocking("1. Blocking GET Text", runBlockingGet);
-    btnBlocking.Move(Units(0.5, 1.5));
+    btnBlocking.Move(Units(0.0, 1.0));
     btnBlocking.SetWidth(Units(10.0));
-    window.Add(btnBlocking);
+    mainPanel.Add(btnBlocking);
 
     Widgets::Button btnFetchLogo("2a. Fetch Logo", startLogoDownload);
-    btnFetchLogo.Move(Units(0.5, 2.5));
+    btnFetchLogo.Move(Units(0.0, 2.0));
     btnFetchLogo.SetWidth(Units(5.0));
-    window.Add(btnFetchLogo);
+    mainPanel.Add(btnFetchLogo);
 
     Widgets::Button btnFetchAudio("2b. Fetch Sound", startAudioDownload);
-    btnFetchAudio.Move(Units(5.5, 2.5));
+    btnFetchAudio.Move(Units(5.0, 2.0));
     btnFetchAudio.SetWidth(Units(5.0));
-    window.Add(btnFetchAudio);
+    mainPanel.Add(btnFetchAudio);
 
     auto replaySound = [&]() {
 #ifdef GORGON_AUDIO_SUPPORT
@@ -326,9 +385,9 @@ int Main(const std::vector<std::string> &) {
     };
 
     Widgets::Button btnReplayAudio("2c. Replay Sound (Space)", replaySound);
-    btnReplayAudio.Move(Units(0.5, 3.5));
+    btnReplayAudio.Move(Units(0.0, 3.0));
     btnReplayAudio.SetWidth(Units(10.0));
-    window.Add(btnReplayAudio);
+    mainPanel.Add(btnReplayAudio);
 
     // =========================================================================
     //  3. Non-Blocking GET & Response Headers
@@ -363,9 +422,9 @@ int Main(const std::vector<std::string> &) {
         http.Get(TestTextURL);
         showOutput("3. Async GET & Headers", "Request sent asynchronously to " + TestTextURL + "...");
     });
-    btnAsyncGet.Move(Units(0.5, 4.75));
+    btnAsyncGet.Move(Units(0.0, 4.25));
     btnAsyncGet.SetWidth(Units(10.0));
-    window.Add(btnAsyncGet);
+    mainPanel.Add(btnAsyncGet);
 
     // =========================================================================
     //  4. Request Headers (Global & Per-Request Overrides)
@@ -401,9 +460,9 @@ int Main(const std::vector<std::string> &) {
         http.Get(TestPhpURL + "?action=echo_headers", perRequest);
         showOutput("4. Request Headers", "Sending global + per-request override headers...");
     });
-    btnReqHeaders.Move(Units(0.5, 5.75));
+    btnReqHeaders.Move(Units(0.0, 5.25));
     btnReqHeaders.SetWidth(Units(10.0));
-    window.Add(btnReqHeaders);
+    mainPanel.Add(btnReqHeaders);
 
     // =========================================================================
     //  5. POST Requests & Binary / File / Stream Transfers
@@ -434,9 +493,9 @@ int Main(const std::vector<std::string> &) {
         );
         showOutput("5a. POST JSON", "Sending JSON POST payload...");
     });
-    btnPostJson.Move(Units(0.5, 6.75));
+    btnPostJson.Move(Units(0.0, 6.25));
     btnPostJson.SetWidth(Units(5.0));
-    window.Add(btnPostJson);
+    mainPanel.Add(btnPostJson);
 
     Widgets::Button btnPostData("5b. POST Data", [&]() {
         if(!beginDemo()) return;
@@ -455,9 +514,9 @@ int Main(const std::vector<std::string> &) {
         http.Post(TestPhpURL + "?action=echo_post", "raw-binary-payload", HTTP::ObtainData);
         showOutput("5b. POST ObtainData", "Posting payload and receiving raw bytes...");
     });
-    btnPostData.Move(Units(5.5, 6.75));
+    btnPostData.Move(Units(5.0, 6.25));
     btnPostData.SetWidth(Units(5.0));
-    window.Add(btnPostData);
+    mainPanel.Add(btnPostData);
 
     // =========================================================================
     //  6. Cookie Handling (Automatic Cookie Jar & Manual Cookies)
@@ -496,9 +555,9 @@ int Main(const std::vector<std::string> &) {
         http.Get(TestPhpURL + "?action=set_cookie&name=gorgon_user&value=explorer&httponly=1&samesite=Lax");
         showOutput("6a. Set Cookie", "Requesting Set-Cookie header from server...");
     });
-    btnSetCookie.Move(Units(0.5, 7.75));
+    btnSetCookie.Move(Units(0.0, 7.25));
     btnSetCookie.SetWidth(Units(5.0));
-    window.Add(btnSetCookie);
+    mainPanel.Add(btnSetCookie);
 
     Widgets::Button btnEchoCookies("6b. Echo Cookies", [&]() {
         if(!beginDemo()) return;
@@ -529,9 +588,9 @@ int Main(const std::vector<std::string> &) {
         http.Get(TestPhpURL + "?action=echo_cookies");
         showOutput("6b. Echo Cookies", "Sending stored + manual cookies to server...");
     });
-    btnEchoCookies.Move(Units(5.5, 7.75));
+    btnEchoCookies.Move(Units(5.0, 7.25));
     btnEchoCookies.SetWidth(Units(5.0));
-    window.Add(btnEchoCookies);
+    mainPanel.Add(btnEchoCookies);
 
     // Simply clear all cookies stored in this HTTP object. 
     Widgets::Button btnClearCookies("6c. Clear Cookies", [&]() {
@@ -540,9 +599,9 @@ int Main(const std::vector<std::string> &) {
                    "Cleared all cookies. Stored count is now " +
                    std::to_string(http.GetCookies().size()) + ".");
     });
-    btnClearCookies.Move(Units(0.5, 8.75));
+    btnClearCookies.Move(Units(0.0, 8.25));
     btnClearCookies.SetWidth(Units(10.0));
-    window.Add(btnClearCookies);
+    mainPanel.Add(btnClearCookies);
 
     // =========================================================================
     //  7. Error Handling (TransferErrorEvent)
@@ -562,9 +621,9 @@ int Main(const std::vector<std::string> &) {
         http.Get("https://darkgaze.org/testing/non_existent_page_404.txt");
         showOutput("7a. 404 Error", "Requesting missing URL to trigger PageNotFound...");
     });
-    btnErr404.Move(Units(0.5, 9.75));
+    btnErr404.Move(Units(0.0, 9.25));
     btnErr404.SetWidth(Units(5.0));
-    window.Add(btnErr404);
+    mainPanel.Add(btnErr404);
 
     // Attempting to decode a non-image file as an image triggers `Error::InvalidFormat`.
     Widgets::Button btnErrFormat("7b. Bad Format", [&]() {
@@ -581,9 +640,45 @@ int Main(const std::vector<std::string> &) {
         http.Get(TestTextURL, HTTP::ObtainImage);
         showOutput("7b. Bad Format", "Fetching plain text with ObtainImage to trigger InvalidFormat...");
     });
-    btnErrFormat.Move(Units(5.5, 9.75));
+    btnErrFormat.Move(Units(5.0, 9.25));
     btnErrFormat.SetWidth(Units(5.0));
-    window.Add(btnErrFormat);
+    mainPanel.Add(btnErrFormat);
+
+    // =========================================================================
+    //  8. Slow Download with Progress
+    // =========================================================================
+    // The test script can stream a file slowly (here, the logo over 5 seconds) so the
+    // progress bar has something to show. Progress is reported to the display set with
+    // `SetProgressDisplay`, no additional code is needed in this handler. Small and
+    // quick transfers will simply jump from 0 to 100%.
+    Widgets::Button btnSlow("8. Slow Image Download", [&]() {
+        if(!beginDemo()) return;
+
+        http.BitmapTransferCompletedEvent.Register([&](Graphics::Bitmap &bmp) {
+            downloadedLogo = std::move(bmp);
+            drawDownloadedLogo();
+            showOutput("8. Slow Download", "Downloaded " + std::to_string(downloadedLogo.GetWidth()) +
+                       "x" + std::to_string(downloadedLogo.GetHeight()) + " image.");
+        });
+        http.TransferErrorEvent.Register([&](HTTP::Error err) {
+            showOutput("8. Slow Download Error", err.what());
+        });
+
+        // Clear the picture so the new one is visible when it arrives
+        logoLayer.Clear();
+
+        http.Get(TestPhpURL + "?action=slow_download&file=Logo.png&seconds=5", HTTP::ObtainBitmap);
+        showOutput("8. Slow Download", "Downloading the logo over about 5 seconds...");
+    });
+    btnSlow.Move(Units(0.0, 10.25));
+    btnSlow.SetWidth(Units(10.0));
+    mainPanel.Add(btnSlow);
+
+    // Resize the panel interior first, then make the window match the exterior size
+    // of the panel (interior + spacing). Sizes are in units.
+    mainPanel.ResizeInterior(Units(27.0, 16.25));
+    window.Resize(mainPanel.GetCurrentSize());
+    window.Center();
 
     // ---- Keyboard shortcuts & clean window close ----
     window.ClosingEvent.Register([&]() {

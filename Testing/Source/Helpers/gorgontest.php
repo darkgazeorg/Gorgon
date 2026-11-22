@@ -17,6 +17,7 @@
  *   echo_method    - Returns the HTTP method used
  *   set_response_header - Sets a response header from "name" and "value" query params
  *   multi          - Performs multiple actions separated by comma in "actions" param
+ *   slow_download  - Streams a file ("file", default Logo.png) over "seconds" (default 5)
  *
  * Default (no action): returns "OK"
  */
@@ -123,6 +124,39 @@ function handle_action($action) {
                 header($name . ': ' . $value);
             }
             echo "header_set";
+            break;
+
+        case 'slow_download':
+            // Streams a file from this directory slowly so progress reporting can be tested.
+            // Params: "file" (Logo.png, sample.wav, sample.flac, sample.ogg, sample.jpg;
+            // default Logo.png) and "seconds" (1-30, default 5).
+            $allowed = ['Logo.png' => 'image/png', 'sample.wav' => 'audio/wav',
+                        'sample.flac' => 'audio/flac', 'sample.ogg' => 'audio/ogg',
+                        'sample.jpg' => 'image/jpeg'];
+            $file = isset($_GET['file']) ? $_GET['file'] : 'Logo.png';
+            if (!isset($allowed[$file]) || !is_file(__DIR__ . '/' . $file)) {
+                http_response_code(404);
+                echo 'Unknown file';
+                break;
+            }
+            $seconds = isset($_GET['seconds']) ? max(1, min(30, intval($_GET['seconds']))) : 5;
+            $data = file_get_contents(__DIR__ . '/' . $file);
+            $size = strlen($data);
+
+            header('Content-Type: ' . $allowed[$file]);
+            header('Content-Length: ' . $size);
+            header('Cache-Control: no-store');
+            header('X-Accel-Buffering: no');
+            while (ob_get_level() > 0) ob_end_flush();
+
+            // 10 chunks per second
+            $chunks = $seconds * 10;
+            $chunksize = (int)ceil($size / $chunks);
+            for ($pos = 0; $pos < $size; $pos += $chunksize) {
+                echo substr($data, $pos, $chunksize);
+                flush();
+                usleep(100000);
+            }
             break;
 
         case 'multi':
