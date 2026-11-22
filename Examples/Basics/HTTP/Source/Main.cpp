@@ -685,6 +685,18 @@ int Main(const std::vector<std::string> &) {
         window.Quit();
     });
 
+    // When supported, OpenRGB takes control of RGB lighting on your keyboard. 
+    // Suspend/resume the connection when the window loses focus to avoid interfering 
+    // with other apps. OpenRGB is used for shortcuts below, as well as the progress 
+    // bar on the number row.
+    window.LostFocusEvent.Register([&]() {
+        Gorgon::Devices::OpenRGB::Suspend();
+    });
+
+    window.FocusedEvent.Register([&]() {
+        Gorgon::Devices::OpenRGB::Resume();
+    });
+
     Gorgon::Input::Shortcuts shortcuts;
     shortcuts.Set(Gorgon::Input::Keyboard::Keycodes::Escape, [&]() {
         window.Quit();
