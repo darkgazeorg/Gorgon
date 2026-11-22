@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Gorgon/Containers/Collection.h"
 #include "Types.h"
 
 namespace Gorgon {
@@ -19,6 +20,40 @@ namespace Gorgon {
         virtual Float GetProgressRatio() const {
             return -1.f;
         }
+    };
+
+    class MultiTargetProgressDisplay : public ProgressDisplay {
+    public:
+        void SetProgressRatio(Float value) override {
+            for(auto &target : targets) {
+                target.SetProgressRatio(value);
+            }
+        }
+
+        Float GetProgressRatio() const override {
+            if(targets.GetSize() == 0) return -1.f;
+
+            Float sum = 0.f;
+            for(auto &target : targets) {
+                sum += target.GetProgressRatio();
+            }
+
+            return sum / targets.GetSize();
+        }
+        
+        /// Adds a new target to the progress display. The progress
+        /// sent to this display will be forwarded to all targets.
+        virtual void AddTarget(ProgressDisplay &target) {
+            targets.Add(target);
+        }
+
+        /// Removes a target from the progress display.
+        virtual void RemoveTarget(ProgressDisplay &target) {
+            targets.Remove(target);
+        }
+
+    private:
+        Containers::Collection<ProgressDisplay> targets;
     };
 
 }
