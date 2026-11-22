@@ -18,18 +18,26 @@
         "tasks": [
             {
                 "label": "Elevated Install Gorgon",
-                "type": "shell",
+                "type": "process",
                 "presentation": {
                     "reveal": "always",
                     "panel": "shared"
                 },
                 "problemMatcher": [],
                 "windows": {
-                    "command": "powershell",
+                    "command": "powershell.exe",
                     "args": [
                         "-NoProfile",
-                        "-Command",
-                        "Start-Process cmake -ArgumentList '--install', '${command:cmake.buildDirectory}', '--config', '${command:cmake.buildType}' -Verb RunAs -Wait"
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        "${workspaceFolder}\\Scripts\\ElevatedInstall.ps1",
+                        "-CMakeExecutable",
+                        "cmake",
+                        "-BuildDirectory",
+                        "${command:cmake.buildDirectory}",
+                        "-Configuration",
+                        "${command:cmake.buildType}"
                     ]
                 },
                 "linux": {
@@ -45,18 +53,26 @@
             },
             {
                 "label": "Elevated Clean Install Gorgon",
-                "type": "shell",
+                "type": "process",
                 "presentation": {
                     "reveal": "always",
                     "panel": "shared"
                 },
                 "problemMatcher": [],
                 "windows": {
-                    "command": "powershell",
+                    "command": "powershell.exe",
                     "args": [
                         "-NoProfile",
-                        "-Command",
-                        "Start-Process powershell -ArgumentList '-NoProfile', '-Command', 'Write-Host \"Wiping old SDK installation...\" -ForegroundColor Cyan; if (Test-Path \"C:\\Program Files (x86)\\Gorgon\") { Remove-Item -Recurse -Force \"C:\\Program Files (x86)\\Gorgon\" }; cmake --install \"${command:cmake.buildDirectory}\" --config ${command:cmake.buildType}; Write-Host \"`nClean Install Complete. Press any key to close...\" -ForegroundColor Green; $null = $Host.UI.RawUI.ReadKey(\"NoEcho,IncludeKeyDown\")' -Verb RunAs"
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        "${workspaceFolder}\\Scripts\\ElevatedCleanInstall.ps1",
+                        "-CMakeExecutable",
+                        "cmake",
+                        "-BuildDirectory",
+                        "${command:cmake.buildDirectory}",
+                        "-Configuration",
+                        "${command:cmake.buildType}"
                     ]
                 },
                 "linux": {

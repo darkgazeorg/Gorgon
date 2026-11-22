@@ -883,15 +883,12 @@ namespace VulkanAbstraction {
             pushconstRange.offset=offset;
             pushconstRange.size=size;
             pushconstRange.stageFlags=shaderStage;
-            this->pushConstant=std::make_optional(
-                VulkanPushConstant
-                {   
-                    .pushConstantRange=pushconstRange,
-                    .offset=offset,
-                    .size=size,
-                    .flags=shaderStage
-                }
-            );
+            VulkanPushConstant pushConstant{};
+            pushConstant.pushConstantRange = pushconstRange;
+            pushConstant.offset = offset;
+            pushConstant.size = size;
+            pushConstant.flags = shaderStage;
+            this->pushConstant = std::make_optional(pushConstant);
         }
         namespace Memory {
             Image CreateImage(VmaAllocator allocator, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags flags,VkSampleCountFlagBits sampleFlags) {
@@ -1230,7 +1227,7 @@ namespace VulkanAbstraction {
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
             std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
-            size_t i = 0;
+            uint32_t i = 0;
             for (auto& fam : queueFamilies) {
                 if (fam.queueFlags & VK_QUEUE_GRAPHICS_BIT) { queuefamilyindices.graphicsFamily = i; }
                 VkBool32 presentSupport;
@@ -1859,7 +1856,9 @@ namespace VulkanAbstraction {
                 vkCmdBindPipeline(commandBuffer, bindPoint, pipeline.pipeline);
             }
             void SetScissor(VkCommandBuffer& commandBuffer, VulkanPresenter& presenter) {
-                VkRect2D scissor{ .offset = {0,0}, .extent = {presenter.swapchainProperties.imageExtent.width, presenter.swapchainProperties.imageExtent.height} };
+                VkRect2D scissor{};
+                scissor.offset = {0, 0};
+                scissor.extent = {presenter.swapchainProperties.imageExtent.width, presenter.swapchainProperties.imageExtent.height};
                 vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
             }
             void SetScissor(VkCommandBuffer& commandBuffer, const VkRect2D& scissor) {

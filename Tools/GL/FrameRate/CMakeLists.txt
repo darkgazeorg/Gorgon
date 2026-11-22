@@ -5,15 +5,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Gorgon QUIET)
-find_package(Gorgon_vk QUIET)
+find_package(Gorgon_gl QUIET)
 
-if(NOT Gorgon_FOUND AND NOT Gorgon_vk_FOUND)
-    message(FATAL_ERROR "Neither Gorgon (OpenGL) nor Gorgon_vk (Vulkan) package was found.")
+if(NOT Gorgon_FOUND AND NOT Gorgon_gl_FOUND)
+    message(FATAL_ERROR "Neither Gorgon (Vulkan) nor Gorgon_gl (OpenGL) package was found.")
 endif()
 
-if(Gorgon_FOUND)
+if(Gorgon_gl_FOUND)
     add_executable(FrameRateTest_gl Main.cpp)
-    target_link_libraries(FrameRateTest_gl PRIVATE Gorgon::Gorgon)
+    target_link_libraries(FrameRateTest_gl PRIVATE Gorgon::Gorgon_gl)
     set_target_properties(FrameRateTest_gl PROPERTIES
         OUTPUT_NAME "FrameRateTest_gl"
         DEBUG_POSTFIX ""
@@ -23,9 +23,9 @@ if(Gorgon_FOUND)
     )
 endif()
 
-if(Gorgon_vk_FOUND)
+if(Gorgon_FOUND)
     add_executable(FrameRateTest_vk Main.cpp)
-    target_link_libraries(FrameRateTest_vk PRIVATE Gorgon::Gorgon_vk)
+    target_link_libraries(FrameRateTest_vk PRIVATE Gorgon::Gorgon)
     set_target_properties(FrameRateTest_vk PROPERTIES
         OUTPUT_NAME "FrameRateTest_vk"
         DEBUG_POSTFIX ""

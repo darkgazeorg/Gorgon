@@ -9,7 +9,10 @@
     "liblzma",
     "cpptrace",
     "glew",
-    "vulkan-memory-allocator"
+    "vulkan-headers",
+    "vulkan-loader",
+    "vulkan-memory-allocator",
+    "shaderc"
   ],
   "features": {
     "flac": {
