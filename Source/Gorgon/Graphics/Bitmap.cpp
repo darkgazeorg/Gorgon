@@ -9,305 +9,307 @@
 #include "../Utils/Assert.h"
 
 namespace Gorgon :: Graphics {
-	
-	void Bitmap::Prepare() {
-		if(data) {
-			Graphics::Texture::Set(*data);
-		}
-	}
+    
+    void Bitmap::Prepare() {
+        if(data) {
+            Graphics::Texture::Set(*data);
+        }
+    }
 
-	void Bitmap::Discard() {
-		delete data;
-		data=nullptr;
-	}
+    void Bitmap::Discard() {
+        delete data;
+        data=nullptr;
+    }
 
-	bool Bitmap::Import(const std::string &filename) {
-		auto dotpos = filename.find_last_of('.');
-		if(dotpos != (size_t)-1) {
-			auto ext = filename.substr(dotpos+1);
+    bool Bitmap::Import(const std::string &filename) {
+        auto dotpos = filename.find_last_of('.');
+        if(dotpos != (size_t)-1) {
+            auto ext = filename.substr(dotpos+1);
 
-			if(String::ToLower(ext) == "png") {
-				return ImportPNG(filename);
-			}
-			else if(String::ToLower(ext) == "jpg" || String::ToLower(ext) =="jpeg") {
-				return ImportJPEG(filename);
-			}
-			else if(String::ToLower(ext) == "bmp") {
-				return ImportBMP(filename);
-			}
-		}
+            if(String::ToLower(ext) == "png") {
+                return ImportPNG(filename);
+            }
+            else if(String::ToLower(ext) == "jpg" || String::ToLower(ext) =="jpeg") {
+                return ImportJPEG(filename);
+            }
+            else if(String::ToLower(ext) == "bmp") {
+                return ImportBMP(filename);
+            }
+        }
 
-		std::ifstream file(filename, std::ios::binary);
-		if(!file.is_open()) return false;
+        std::ifstream file(filename, std::ios::binary);
+        if(!file.is_open()) return false;
 
-		static const uint32_t pngsig  = 0x474E5089;
-		static const uint32_t jpgsig1 = 0xE0FFD8FF;
-		static const uint32_t jpgsig2 = 0xE1FFD8FF;
-		static const uint32_t bmpsig  = 0x4D42;
+        static const uint32_t pngsig  = 0x474E5089;
+        static const uint32_t jpgsig1 = 0xE0FFD8FF;
+        static const uint32_t jpgsig2 = 0xE1FFD8FF;
+        static const uint32_t jpgsig3 = 0xFFD8FF;
+        static const uint32_t bmpsig  = 0x4D42;
 
-		uint32_t sig = IO::ReadUInt32(file);
-		if(!file) return false;
+        uint32_t sig = IO::ReadUInt32(file);
+        if(!file) return false;
 
-		file.close();
+        file.close();
 
-		if(sig == pngsig) {
-			return ImportPNG(filename);
-		}
-		else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xffffff) == 0xffd8ff) {
-			return ImportJPEG(filename);
-		}
-		else if((sig&0xffff) == bmpsig) {
-			return ImportBMP(filename);
-		}
+        if(sig == pngsig) {
+            return ImportPNG(filename);
+        }
+        else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xFFFFFF) == jpgsig3) {
+            return ImportJPEG(filename);
+        }
+        else if((sig&0xffff) == bmpsig) {
+            return ImportBMP(filename);
+        }
 
-		throw std::runtime_error("Unsupported file format");
-	}
+        throw std::runtime_error("Unsupported file format");
+    }
 
-	bool Bitmap::Import(std::istream &file) {
-		static const uint32_t pngsig  = 0x474E5089;
-		static const uint32_t jpgsig1 = 0xE0FFD8FF;
-		static const uint32_t jpgsig2 = 0xE1FFD8FF;
-		static const uint32_t bmpsig  = 0x4D42;
+    bool Bitmap::Import(std::istream &file) {
+        static const uint32_t pngsig  = 0x474E5089;
+        static const uint32_t jpgsig1 = 0xE0FFD8FF;
+        static const uint32_t jpgsig2 = 0xE1FFD8FF;
+        static const uint32_t jpgsig3 = 0xFFD8FF;
+        static const uint32_t bmpsig  = 0x4D42;
 
-		uint32_t sig = IO::ReadUInt32(file);
-		if(!file) return false;
+        uint32_t sig = IO::ReadUInt32(file);
+        if(!file) return false;
 
-		file.seekg(-4, std::ios::cur);
+        file.seekg(-4, std::ios::cur);
 
-		if(sig == pngsig) {
-			return ImportPNG(file);
-		}
-		else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xffffff) == 0xffd8ff) {
-			return ImportJPEG(file);
-		}
-		else if((sig&0xffff) == bmpsig) {
-			return ImportBMP(file);
-		}
+        if(sig == pngsig) {
+            return ImportPNG(file);
+        }
+        else if(sig == jpgsig1 || sig == jpgsig2 || (sig & 0xFFFFFF) == jpgsig3) {
+            return ImportJPEG(file);
+        }
+        else if((sig&0xffff) == bmpsig) {
+            return ImportBMP(file);
+        }
 
-		throw std::runtime_error("Unsupported file format");
-	}
+        throw std::runtime_error("Unsupported file format");
+    }
 
-	bool Bitmap::ImportPNG(const std::string &filename) {
-		std::ifstream file(filename, std::ios::binary);
+    bool Bitmap::ImportPNG(const std::string &filename) {
+        std::ifstream file(filename, std::ios::binary);
 
-		if(!file.is_open() || !file.good()) return false;
+        if(!file.is_open() || !file.good()) return false;
 
-		Destroy();
+        Destroy();
 
-		data=new Containers::Image();
-		Encoding::Png.Decode(file, *data);
+        data=new Containers::Image();
+        Encoding::Png.Decode(file, *data);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ImportJPEG(const std::string &filename) {
-		std::ifstream file(filename, std::ios::binary);
+    bool Bitmap::ImportJPEG(const std::string &filename) {
+        std::ifstream file(filename, std::ios::binary);
 
-		if(!file.is_open() || !file.good()) return false;
+        if(!file.is_open() || !file.good()) return false;
 
-		Destroy();
+        Destroy();
 
-		data=new Containers::Image();
-		Encoding::Jpg.Decode(file, *data);
+        data=new Containers::Image();
+        Encoding::Jpg.Decode(file, *data);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ImportBMP(const std::string &filename) {
-		std::ifstream file(filename, std::ios::binary);
+    bool Bitmap::ImportBMP(const std::string &filename) {
+        std::ifstream file(filename, std::ios::binary);
 
-		if(!file.is_open() || !file.good()) return false;
+        if(!file.is_open() || !file.good()) return false;
 
-		Destroy();
+        Destroy();
 
-		data=new Containers::Image();
-		return data->ImportBMP(filename);
-	}
+        data=new Containers::Image();
+        return data->ImportBMP(filename);
+    }
 
-	bool Bitmap::ImportPNG(std::istream &file) {
-		Destroy();
+    bool Bitmap::ImportPNG(std::istream &file) {
+        Destroy();
 
-		data=new Containers::Image();
-		Encoding::Png.Decode(file, *data);
+        data=new Containers::Image();
+        Encoding::Png.Decode(file, *data);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ImportJPEG(std::istream &file) {
-		Destroy();
+    bool Bitmap::ImportJPEG(std::istream &file) {
+        Destroy();
 
-		data=new Containers::Image();
-		Encoding::Jpg.Decode(file, *data);
+        data=new Containers::Image();
+        Encoding::Jpg.Decode(file, *data);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ImportBMP(std::istream &file) {
-		Destroy();
+    bool Bitmap::ImportBMP(std::istream &file) {
+        Destroy();
 
-		data=new Containers::Image();
-		return data->ImportBMP(file);
-	}
+        data=new Containers::Image();
+        return data->ImportBMP(file);
+    }
 
-	bool Bitmap::Export(const std::string &filename) const {
-		auto dotpos = filename.find_last_of('.');
-		if(dotpos != (size_t)-1) {
-			auto ext = filename.substr(dotpos+1);
+    bool Bitmap::Export(const std::string &filename) const {
+        auto dotpos = filename.find_last_of('.');
+        if(dotpos != (size_t)-1) {
+            auto ext = filename.substr(dotpos+1);
 
-			if(String::ToLower(ext) == "png") {
-				return ExportPNG(filename);
-			}
-			else if(String::ToLower(ext) == "jpg" || String::ToLower(ext) =="jpeg") {
-				return ExportJPEG(filename);
-			}
-			else if(String::ToLower(ext) == "bmp") {
-				return ExportBMP(filename);
-			}
-		}
-		
-		return false;
-	}
+            if(String::ToLower(ext) == "png") {
+                return ExportPNG(filename);
+            }
+            else if(String::ToLower(ext) == "jpg" || String::ToLower(ext) =="jpeg") {
+                return ExportJPEG(filename);
+            }
+            else if(String::ToLower(ext) == "bmp") {
+                return ExportBMP(filename);
+            }
+        }
+        
+        return false;
+    }
 
-	bool Bitmap::ExportPNG(const std::string &filename) const {
-		ASSERT(data, "Image data does not exists");
+    bool Bitmap::ExportPNG(const std::string &filename) const {
+        ASSERT(data, "Image data does not exists");
 
-		if(GetMode()!=Graphics::ColorMode::RGB				&&
-		   GetMode()!=Graphics::ColorMode::RGBA				&&
-		   GetMode()!=Graphics::ColorMode::Grayscale		&&
-		   GetMode()!=Graphics::ColorMode::Grayscale_Alpha  &&
-		   GetMode()!=Graphics::ColorMode::Alpha)
-			throw std::runtime_error("Unsupported color mode");
+        if(GetMode()!=Graphics::ColorMode::RGB               &&
+            GetMode()!=Graphics::ColorMode::RGBA             &&
+            GetMode()!=Graphics::ColorMode::Grayscale        &&
+            GetMode()!=Graphics::ColorMode::Grayscale_Alpha  &&
+            GetMode()!=Graphics::ColorMode::Alpha)
+            throw std::runtime_error("Unsupported color mode");
 
         if(data->GetSize().Cells() == 0)
             return false;
 
-		std::ofstream file(filename, std::ios::binary);
-		if(!file.is_open())
-			return false;
+        std::ofstream file(filename, std::ios::binary);
+        if(!file.is_open())
+            return false;
 
         Encoding::Png.Encode(*data, file);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ExportPNG(std::ostream &out) const {
-		ASSERT(data, "Image data does not exists");
+    bool Bitmap::ExportPNG(std::ostream &out) const {
+        ASSERT(data, "Image data does not exists");
 
         if(data->GetSize().Cells() == 0)
             return false;
 
-		if(GetMode()!=Graphics::ColorMode::RGB				&&
-		   GetMode()!=Graphics::ColorMode::RGBA				&&
-		   GetMode()!=Graphics::ColorMode::Grayscale		&&
-		   GetMode()!=Graphics::ColorMode::Grayscale_Alpha  &&
-		   GetMode()!=Graphics::ColorMode::Alpha)
-			throw std::runtime_error("Unsupported color mode");
+        if(GetMode()!=Graphics::ColorMode::RGB                &&
+           GetMode()!=Graphics::ColorMode::RGBA                &&
+           GetMode()!=Graphics::ColorMode::Grayscale        &&
+           GetMode()!=Graphics::ColorMode::Grayscale_Alpha  &&
+           GetMode()!=Graphics::ColorMode::Alpha)
+            throw std::runtime_error("Unsupported color mode");
 
         Encoding::Png.Encode(*data, out);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool Bitmap::ExportBMP(const std::string &filename) const {
-		ASSERT(data, "Image data does not exists");
+    bool Bitmap::ExportBMP(const std::string &filename) const {
+        ASSERT(data, "Image data does not exists");
 
         if(data->GetSize().Cells() == 0)
             return false;
             
-		return data->ExportBMP(filename);
-	}
+        return data->ExportBMP(filename);
+    }
 
-	bool Bitmap::ExportBMP(std::ostream &out) const {
-		ASSERT(data, "Image data does not exists");
-
-        if(data->GetSize().Cells() == 0)
-            return false;
-
-		return data->ExportBMP(out);
-	}
-
-	bool Bitmap::ExportJPEG(const std::string &filename, int quality) const {
-		ASSERT(data, "Image data does not exists");
-
-		if(GetMode()!=Graphics::ColorMode::RGB &&
-		   GetMode()!=Graphics::ColorMode::Grayscale)
-			throw std::runtime_error("Unsupported color mode");
-		
-		if(quality < 0 || quality > 100)
-			throw std::runtime_error("Unsupported quality");
+    bool Bitmap::ExportBMP(std::ostream &out) const {
+        ASSERT(data, "Image data does not exists");
 
         if(data->GetSize().Cells() == 0)
             return false;
 
-		std::ofstream file(filename, std::ios::binary);
-		if(!file.is_open())
-			return false;
+        return data->ExportBMP(out);
+    }
 
-		Encoding::Jpg.Encode(*data, file, quality);
+    bool Bitmap::ExportJPEG(const std::string &filename, int quality) const {
+        ASSERT(data, "Image data does not exists");
 
-		return true;
-	}
-
-	bool Bitmap::ExportJPG(std::ostream &out, int quality) const {
-		ASSERT(data, "Image data does not exists");
-
-		if(GetMode()!=Graphics::ColorMode::RGB &&
-		   GetMode()!=Graphics::ColorMode::Grayscale)
-			throw std::runtime_error("Unsupported color mode");
+        if(GetMode()!=Graphics::ColorMode::RGB &&
+           GetMode()!=Graphics::ColorMode::Grayscale)
+            throw std::runtime_error("Unsupported color mode");
+        
+        if(quality < 0 || quality > 100)
+            throw std::runtime_error("Unsupported quality");
 
         if(data->GetSize().Cells() == 0)
             return false;
 
-		if(quality < 0 || quality > 100)
-			throw std::runtime_error("Unsupported quality");
+        std::ofstream file(filename, std::ios::binary);
+        if(!file.is_open())
+            return false;
 
-		Encoding::Jpg.Encode(*data, out, quality);
+        Encoding::Jpg.Encode(*data, file, quality);
 
-		return true;
-	}
+        return true;
+    }
 
-	void Bitmap::StripRGB() {
-		ASSERT(HasAlpha(), "Unsupported color mode");
+    bool Bitmap::ExportJPG(std::ostream &out, int quality) const {
+        ASSERT(data, "Image data does not exists");
 
-		int alpha = GetAlphaIndex();
+        if(GetMode()!=Graphics::ColorMode::RGB &&
+           GetMode()!=Graphics::ColorMode::Grayscale)
+            throw std::runtime_error("Unsupported color mode");
 
-		auto &data = *this->data;
+        if(data->GetSize().Cells() == 0)
+            return false;
 
-		Containers::Image img(data.GetSize(), ColorMode::Alpha);
+        if(quality < 0 || quality > 100)
+            throw std::runtime_error("Unsupported quality");
 
-		for(int y=0; y<data.GetHeight(); y++) {
-			for(int x=0; x<data.GetWidth(); x++) {
-				img(x, y, 0) = data(x, y, alpha);
-			}
-		}
+        Encoding::Jpg.Encode(*data, out, quality);
 
-		Assume(std::move(img));
-	}
+        return true;
+    }
 
-	void Bitmap::StripAlpha() {
-		if(!HasAlpha()) return;
+    void Bitmap::StripRGB() {
+        ASSERT(HasAlpha(), "Unsupported color mode");
 
-		int alpha = GetAlphaIndex();
+        int alpha = GetAlphaIndex();
 
-		auto &data = *this->data;
+        auto &data = *this->data;
 
-		Containers::Image img(data.GetSize(), (ColorMode)((int)GetMode()&~(int)ColorMode::Alpha));
+        Containers::Image img(data.GetSize(), ColorMode::Alpha);
 
-		for(int y=0; y<data.GetHeight(); y++) {
-			for(int x=0; x<data.GetWidth(); x++) {
-				int cc = 0;
-				for(int c=0; c<(int)data.GetChannelsPerPixel(); c++) {
-					if(c!=alpha) {
-						img(x, y, cc++) = data(x, y, c);
-					}
-				}
-			}
-		}
+        for(int y=0; y<data.GetHeight(); y++) {
+            for(int x=0; x<data.GetWidth(); x++) {
+                img(x, y, 0) = data(x, y, alpha);
+            }
+        }
 
-		Assume(std::move(img));
-	}
+        Assume(std::move(img));
+    }
 
-	void Bitmap::Grayscale(float ratio, GrayscaleConversionMethod method) {
+    void Bitmap::StripAlpha() {
+        if(!HasAlpha()) return;
+
+        int alpha = GetAlphaIndex();
+
+        auto &data = *this->data;
+
+        Containers::Image img(data.GetSize(), (ColorMode)((int)GetMode()&~(int)ColorMode::Alpha));
+
+        for(int y=0; y<data.GetHeight(); y++) {
+            for(int x=0; x<data.GetWidth(); x++) {
+                int cc = 0;
+                for(int c=0; c<(int)data.GetChannelsPerPixel(); c++) {
+                    if(c!=alpha) {
+                        img(x, y, cc++) = data(x, y, c);
+                    }
+                }
+            }
+        }
+
+        Assume(std::move(img));
+    }
+
+    void Bitmap::Grayscale(float ratio, GrayscaleConversionMethod method) {
         mode = GetMode();        
         ColorMode newmode = mode;
         bool alpha = HasAlpha();
@@ -318,22 +320,22 @@ namespace Gorgon :: Graphics {
             }
             else if(mode == ColorMode::RGB || mode == ColorMode::BGR)  {
                 newmode = ColorMode::Grayscale;
-			}
-			else if(mode == ColorMode::Grayscale || mode == ColorMode::Grayscale_Alpha) {
-				return;
-			}
-			else if(mode == ColorMode::Alpha) {
-				this->data->ChangeMode(ColorMode::Grayscale);
+            }
+            else if(mode == ColorMode::Grayscale || mode == ColorMode::Grayscale_Alpha) {
+                return;
+            }
+            else if(mode == ColorMode::Alpha) {
+                this->data->ChangeMode(ColorMode::Grayscale);
 
-				return;
-			}
+                return;
+            }
             else
                 throw std::runtime_error("Unsupported color mode");
         }
         
         
-		auto &data = *this->data;
-		Containers::Image img(data.GetSize(), newmode);
+        auto &data = *this->data;
+        Containers::Image img(data.GetSize(), newmode);
         
         std::function<RGBA(int, int)> getcolor;
         std::function<void(int, int, RGBA)> setcolor;
@@ -367,8 +369,8 @@ namespace Gorgon :: Graphics {
         }
         
         
-		for(int y=0; y<data.GetHeight(); y++) {
-			for(int x=0; x<data.GetWidth(); x++) {
+        for(int y=0; y<data.GetHeight(); y++) {
+            for(int x=0; x<data.GetWidth(); x++) {
                 if(ratio == 1) {
                     if(alpha)
                         img(x, y, 1) = data(x, y, 3);
@@ -389,8 +391,8 @@ namespace Gorgon :: Graphics {
         
         Assume(std::move(img));
     }
-	
-	std::vector<Geometry::Bounds> Bitmap::CreateLinearAtlas(Containers::Collection<const Bitmap> list, AtlasMargin margins) {
+    
+    std::vector<Geometry::Bounds> Bitmap::CreateLinearAtlas(Containers::Collection<const Bitmap> list, AtlasMargin margins) {
         std::vector<Geometry::Bounds> ret;
         std::map<const Bitmap *, Geometry::Bounds> mapping;
         
@@ -399,11 +401,11 @@ namespace Gorgon :: Graphics {
         if(N == 0) return ret;
         if(N == 1) return {Geometry::Bounds(0, 0, list[0].GetSize())};
 
-		int marginwidth = 0;
+        int marginwidth = 0;
 
-		if(margins == Zero) {
-			marginwidth = 1;
-		}
+        if(margins == Zero) {
+            marginwidth = 1;
+        }
 
         auto mode = list[0].GetMode();
         
@@ -435,8 +437,8 @@ namespace Gorgon :: Graphics {
         
         // average line height would be skewed towards high
         int avgh = list[int(N*2/3)].GetHeight();
-		if(margins == Zero)
-			avgh += 1;
+        if(margins == Zero)
+            avgh += 1;
         
         int lines = (int)std::round(std::sqrt(float(N)/avgh*avgw));
         
@@ -445,11 +447,11 @@ namespace Gorgon :: Graphics {
         w += minw;
         int maxx = 0;
 
-		
-		if(margins == Zero) {
-			x = marginwidth;
-			y = marginwidth;
-		}
+        
+        if(margins == Zero) {
+            x = marginwidth;
+            y = marginwidth;
+        }
         
         //build positions
         for(int i=0; i<N; i++) {
@@ -496,10 +498,10 @@ namespace Gorgon :: Graphics {
                     
                     if(maxx < x) maxx = x;
                     
-					if(margins == Zero)
-						x = 1;
-					else
-						x = 0;
+                    if(margins == Zero)
+                        x = 1;
+                    else
+                        x = 0;
 
                     i--;
                 }
@@ -512,9 +514,9 @@ namespace Gorgon :: Graphics {
         
         Resize({maxx, y + marginwidth}, mode);
 
-		if(margins == Zero) {
-			data->Clear();
-		}
+        if(margins == Zero) {
+            data->Clear();
+        }
         
         //channel count
         int C = GetChannelsPerPixel();
@@ -539,7 +541,7 @@ namespace Gorgon :: Graphics {
             ret.push_back(mapping[ordering[i]]);
         }
 
-		//ExportPNG("atlas.png");
+        //ExportPNG("atlas.png");
         
         return ret;
     }
@@ -576,7 +578,7 @@ namespace Gorgon :: Graphics {
 
     
     std::vector<TextureImage> Bitmap::CreateAtlasImages(std::vector<Geometry::Bounds> boundaries) const {
-		if(GetID() == 0) throw std::runtime_error("Cannot map atlas from an unprepared image");
+        if(GetID() == 0) throw std::runtime_error("Cannot map atlas from an unprepared image");
         
         std::vector<TextureImage> ret;
         ret.reserve(boundaries.size());
@@ -588,160 +590,160 @@ namespace Gorgon :: Graphics {
         return ret;
     }
 
-	Geometry::Margin Bitmap::Trim(bool left, bool top, bool right, bool bottom) {
-		ASSERT(data, "Image data does not exists");
+    Geometry::Margin Bitmap::Trim(bool left, bool top, bool right, bool bottom) {
+        ASSERT(data, "Image data does not exists");
 
-		auto ret = Trim({0, 0, GetSize()}, left, top, right, bottom);
+        auto ret = Trim({0, 0, GetSize()}, left, top, right, bottom);
 
-		auto &data = *this->data;
+        auto &data = *this->data;
 
-		if(ret.TotalX() == 0 && ret.TotalY() == 0) return ret;
+        if(ret.TotalX() == 0 && ret.TotalY() == 0) return ret;
 
-		if(ret.TotalX() >= data.GetWidth() || ret.TotalY() >= data.GetHeight()) 
+        if(ret.TotalX() >= data.GetWidth() || ret.TotalY() >= data.GetHeight()) 
             return ret;
 
-		Containers::Image img(data.GetSize() - ret.Total(), GetMode());
+        Containers::Image img(data.GetSize() - ret.Total(), GetMode());
 
-		int yy=0;
-		for(int y=ret.Top; y<data.GetHeight() - ret.Bottom; y++) {
-			int xx=0;
-			for(int x=ret.Left; x<data.GetWidth() - ret.Right; x++) {
-				for(int c=0; c<(int)data.GetChannelsPerPixel(); c++) {
-					img(xx, yy, c) = data(x, y, c);
-				}
-				xx++;
-			}
-			yy++;
-		}
+        int yy=0;
+        for(int y=ret.Top; y<data.GetHeight() - ret.Bottom; y++) {
+            int xx=0;
+            for(int x=ret.Left; x<data.GetWidth() - ret.Right; x++) {
+                for(int c=0; c<(int)data.GetChannelsPerPixel(); c++) {
+                    img(xx, yy, c) = data(x, y, c);
+                }
+                xx++;
+            }
+            yy++;
+        }
 
-		Assume(std::move(img));
+        Assume(std::move(img));
 
-		return ret;
-	}
+        return ret;
+    }
 
-	Geometry::Margin Bitmap::Trim(Geometry::Bounds bounds, bool left, bool top, bool right, bool bottom) {
-		ASSERT(data, "Image data does not exists");
+    Geometry::Margin Bitmap::Trim(Geometry::Bounds bounds, bool left, bool top, bool right, bool bottom) {
+        ASSERT(data, "Image data does not exists");
 
-		Geometry::Margin ret(0, 0, 0, 0);
+        Geometry::Margin ret(0, 0, 0, 0);
 
-		if(!HasAlpha()) 
+        if(!HasAlpha()) 
             return ret;
 
-		int alpha = GetAlphaIndex();
+        int alpha = GetAlphaIndex();
 
-		auto &data = *this->data;
+        auto &data = *this->data;
 
-		if(left) {
-			for(int x=bounds.Left; x<bounds.Right; x++) {
-				bool empty = true;
+        if(left) {
+            for(int x=bounds.Left; x<bounds.Right; x++) {
+                bool empty = true;
 
-				for(int y=bounds.Top; y<bounds.Bottom; y++) {
-					if(data(x, y, alpha) != 0) {
-						empty = false;
-						break;
-					}
-				}
+                for(int y=bounds.Top; y<bounds.Bottom; y++) {
+                    if(data(x, y, alpha) != 0) {
+                        empty = false;
+                        break;
+                    }
+                }
 
-				if(empty) {
-					ret.Left++;
-				}
-				else {
-					break;
-				}
-			}
-		}
+                if(empty) {
+                    ret.Left++;
+                }
+                else {
+                    break;
+                }
+            }
+        }
 
-		if(top) {
-			for(int y=bounds.Top; y<bounds.Bottom; y++) {
-				bool empty = true;
+        if(top) {
+            for(int y=bounds.Top; y<bounds.Bottom; y++) {
+                bool empty = true;
 
-				for(int x=bounds.Left; x<bounds.Right; x++) {
-					if(data(x, y, alpha) != 0) {
-						empty = false;
-						break;
-					}
-				}
+                for(int x=bounds.Left; x<bounds.Right; x++) {
+                    if(data(x, y, alpha) != 0) {
+                        empty = false;
+                        break;
+                    }
+                }
 
-				if(empty) {
-					ret.Top++;
-				}
-				else {
-					break;
-				}
-			}
-		}
+                if(empty) {
+                    ret.Top++;
+                }
+                else {
+                    break;
+                }
+            }
+        }
 
-		if(right) {
-			for(int x=bounds.Right-1; x>=bounds.Left; x--) {
-				bool empty = true;
+        if(right) {
+            for(int x=bounds.Right-1; x>=bounds.Left; x--) {
+                bool empty = true;
 
-				for(int y=bounds.Top; y<bounds.Bottom; y++) {
-					if(data(x, y, alpha) != 0) {
-						empty = false;
-						break;
-					}
-				}
+                for(int y=bounds.Top; y<bounds.Bottom; y++) {
+                    if(data(x, y, alpha) != 0) {
+                        empty = false;
+                        break;
+                    }
+                }
 
-				if(empty) {
-					ret.Right++;
-				}
-				else {
-					break;
-				}
-			}
-		}
+                if(empty) {
+                    ret.Right++;
+                }
+                else {
+                    break;
+                }
+            }
+        }
 
-		if(bottom) {
-			for(int y=bounds.Bottom-1; y>=bounds.Top; y--) {
-				bool empty = true;
+        if(bottom) {
+            for(int y=bounds.Bottom-1; y>=bounds.Top; y--) {
+                bool empty = true;
 
-				for(int x=bounds.Left; x<bounds.Right; x++) {
-					if(data(x, y, alpha) != 0) {
-						empty = false;
-						break;
-					}
-				}
+                for(int x=bounds.Left; x<bounds.Right; x++) {
+                    if(data(x, y, alpha) != 0) {
+                        empty = false;
+                        break;
+                    }
+                }
 
-				if(empty) {
-					ret.Bottom++;
-				}
-				else {
-					break;
-				}
-			}
-		}
+                if(empty) {
+                    ret.Bottom++;
+                }
+                else {
+                    break;
+                }
+            }
+        }
 
-		return ret;
-	}
+        return ret;
+    }
 
-	Containers::Image Bitmap::ReleaseData() {
-		if(data==nullptr) {
+    Containers::Image Bitmap::ReleaseData() {
+        if(data==nullptr) {
 #ifndef NDEBUG
-			ASSERT_DUMP(false, "No data to release");
+            ASSERT_DUMP(false, "No data to release");
 #endif
 
-			return { };
-		}
-		else {
-			Containers::Image temp=std::move(*data);
+            return { };
+        }
+        else {
+            Containers::Image temp=std::move(*data);
 
-			delete data;
-			data=nullptr;
+            delete data;
+            data=nullptr;
 
-			return temp;
-		}
-	}
-	
-	bool Bitmap::IsEmpty(Geometry::Bounds bounds) const {
+            return temp;
+        }
+    }
+    
+    bool Bitmap::IsEmpty(Geometry::Bounds bounds) const {
         if(bounds.GetSize().Area() == 0)
             return true;
 
-		if(!HasAlpha()) 
+        if(!HasAlpha()) 
             return false;
 
-		int alpha = GetAlphaIndex();
+        int alpha = GetAlphaIndex();
 
-		auto &data = *this->data;
+        auto &data = *this->data;
 
         for(int y=bounds.Top; y<bounds.Bottom; y++) {
             for(int x=bounds.Left; x<bounds.Right; x++) {
@@ -753,53 +755,53 @@ namespace Gorgon :: Graphics {
         return true;
     }
 
-	Graphics::Bitmap Bitmap::Rotate90() const {
-		ASSERT(data, "Bitmap data is not set");
+    Graphics::Bitmap Bitmap::Rotate90() const {
+        ASSERT(data, "Bitmap data is not set");
 
-		Graphics::Bitmap target(GetHeight(), GetWidth(), GetMode());
+        Graphics::Bitmap target(GetHeight(), GetWidth(), GetMode());
 
-		int h = target.GetHeight();
-		ForAllPixels([&](int x, int y, int c) {
-			target(y, h - x - 1, c) = (*this)(x, y, c);
-		});
+        int h = target.GetHeight();
+        ForAllPixels([&](int x, int y, int c) {
+            target(y, h - x - 1, c) = (*this)(x, y, c);
+        });
 
-		return target;
-	}
+        return target;
+    }
 
-	Graphics::Bitmap Bitmap::Rotate180() const {
-		ASSERT(data, "Bitmap data is not set");
+    Graphics::Bitmap Bitmap::Rotate180() const {
+        ASSERT(data, "Bitmap data is not set");
 
-		Graphics::Bitmap target(GetSize(), GetMode());
+        Graphics::Bitmap target(GetSize(), GetMode());
 
-		int h = target.GetHeight();
-		int w = target.GetWidth();
-		ForAllPixels([&](int x, int y, int c) {
-			target(w - x - 1, h - y - 1, c) = (*this)(x, y, c);
-		});
+        int h = target.GetHeight();
+        int w = target.GetWidth();
+        ForAllPixels([&](int x, int y, int c) {
+            target(w - x - 1, h - y - 1, c) = (*this)(x, y, c);
+        });
 
-		return target;
-	}
+        return target;
+    }
 
-	Graphics::Bitmap Bitmap::Rotate270() const {
-		ASSERT(data, "Bitmap data is not set");
+    Graphics::Bitmap Bitmap::Rotate270() const {
+        ASSERT(data, "Bitmap data is not set");
 
-		Graphics::Bitmap target(GetHeight(), GetWidth(), GetMode());
+        Graphics::Bitmap target(GetHeight(), GetWidth(), GetMode());
 
-		int w = target.GetWidth();
-		ForAllPixels([&](int x, int y, int c) {
-			target(w - y - 1, x, c) = (*this)(x, y, c);
-		});
+        int w = target.GetWidth();
+        ForAllPixels([&](int x, int y, int c) {
+            target(w - y - 1, x, c) = (*this)(x, y, c);
+        });
 
-		return target;
-	}
+        return target;
+    }
 
-	Graphics::Bitmap Bitmap::ZoomMultiple(int factor) const {
+    Graphics::Bitmap Bitmap::ZoomMultiple(int factor) const {
         ASSERT(data, "Bitmap data is not set");
 
         if(factor <= 0)
             throw std::runtime_error("Zoom factor is invalid.");
         
-		Graphics::Bitmap target(GetWidth() * factor, GetHeight() * factor, GetMode());
+        Graphics::Bitmap target(GetWidth() * factor, GetHeight() * factor, GetMode());
         
         target.ForAllPixels([&](int x, int y, int c) {
             target(x, y, c) = (*data)(x / factor, y / factor, c);
