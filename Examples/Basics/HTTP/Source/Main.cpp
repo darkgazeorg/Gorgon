@@ -20,6 +20,7 @@
  *   is 1 unit tall), so layouts scale consistently across screen resolutions.
  */
 
+#include "Gorgon/Graphics/Color.h"
 #include <Gorgon/EntryPoint.h>
 #include <Gorgon/Main.h>
 #include <Gorgon/UI.h>
@@ -49,11 +50,9 @@ using Gorgon::UI::Units;
 namespace Graphics = Gorgon::Graphics;
 namespace Widgets  = Gorgon::Widgets;
 
-namespace {
-
     // Test endpoints hosted for Gorgon's HTTP examples & unit tests
     const std::string TestTextURL = "https://darkgaze.org/test.txt";
-    const std::string TestPhpURL  = "https://darkgaze.org/testing/gorgontest.php";
+    const std::string TestPhpURL  = "https://darkgaze.org/testing/gorgontest.php"; //test script capable of echoing headers, cookies, and POST data
     const std::string TestLogoURL = "https://darkgaze.org/testing/Logo.png";
 
 #ifdef GORGON_VORBIS_SUPPORT
@@ -67,7 +66,6 @@ namespace {
     const std::string TestAudioFormat = "WAV";
 #endif
 
-} // namespace
 
 int Main(const std::vector<std::string> &) {
     Gorgon::Initialize("HTTPExample");
@@ -82,7 +80,7 @@ int Main(const std::vector<std::string> &) {
     window.Center();
 
     // ---- Build Unit-Sized Controls ----
-    Widgets::Label titleLbl("Click an example below (async #2 starts automatically):");
+    Widgets::Label titleLbl("Click an example below (#2 run at start):");
     titleLbl.Move(Units(0.5, 0.5));
     titleLbl.SetWidth(Units(10.0));
     window.Add(titleLbl);
@@ -112,6 +110,11 @@ int Main(const std::vector<std::string> &) {
         std::cout << "\n=== " << heading << " ===\n" << body << std::endl;
         outputLog.SetText(heading + "\n" + std::string(heading.size(), '-') + "\n" + body);
     };
+
+    // =========================================================================
+    // READ FIRST: This file contains lambda function for each example. These are
+    // called as the buttons are clicked.
+    // =========================================================================
 
     // =========================================================================
     //  1. Blocking Text Request (HTTP::BlockingGetText)
@@ -151,8 +154,8 @@ int Main(const std::vector<std::string> &) {
     //   - Audio:  WAV, FLAC, OGG Vorbis
     //
     // Why do we need TWO separate HTTP objects (`imageHttp` and `audioHttp`)?
-    //   Each `HTTP` object owns a single curl handle and worker thread, so it can
-    //   only perform ONE transfer at a time. Calling `Get()` or `Post()` on an
+    //   Each `HTTP` object can only perform ONE transfer at a time.
+    //   Calling `Get()` or `Post()` on an
     //   `HTTP` object that is already busy (`IsRunning() == true`) throws
     //   `std::runtime_error`. To download the image and sound concurrently at
     //   startup, we use two separate `HTTP` objects.
@@ -169,12 +172,12 @@ int Main(const std::vector<std::string> &) {
         mediaStatusLbl.SetText(logoState + " | " + audioState);
     };
 
+    // Draws the logo in the Layerbox once it is downloaded.
     auto drawDownloadedLogo = [&]() {
         logoLayer.Clear();
         if(!downloadedLogo.HasTexture())
             return;
 
-        logoBox.Refresh();
         auto boxSz = logoBox.GetLayer().GetCalculatedSize();
         if(boxSz.Width <= 0 || boxSz.Height <= 0 ||
            downloadedLogo.GetWidth() <= 0 || downloadedLogo.GetHeight() <= 0)
@@ -193,6 +196,8 @@ int Main(const std::vector<std::string> &) {
     };
 
     HTTP imageHttp;
+
+    // This lambda is called once the image is fully downloaded and ready to be used.
     imageHttp.BitmapTransferCompletedEvent.Register([&](Graphics::Bitmap &bmp) {
         downloadedLogo = std::move(bmp);
         drawDownloadedLogo();
@@ -201,6 +206,8 @@ int Main(const std::vector<std::string> &) {
         updateMediaStatus();
         std::cout << "[Example 2] Imported & prepared " << logoState << std::endl;
     });
+
+    // If something goes wrong during the transfer, this lambda is called with an HTTP::Error.
     imageHttp.TransferErrorEvent.Register([&](HTTP::Error err) {
         logoState = std::string("Logo failed: ") + err.what();
         updateMediaStatus();
@@ -208,7 +215,7 @@ int Main(const std::vector<std::string> &) {
 
     HTTP audioHttp;
     audioHttp.MultimediaWaveTransferCompletedEvent.Register([&](Gorgon::Multimedia::Wave &wave) {
-#ifdef GORGON_AUDIO_SUPPORT
+#ifdef GORGON_AUDIO_SUPPORT // These checks are not necessary if you installed Gorgon with audio support.
         soundController.ReleaseData();
 #endif
         importedSound = std::move(wave);
@@ -226,11 +233,17 @@ int Main(const std::vector<std::string> &) {
         updateMediaStatus();
     });
 
+    // This lambda triggers download
     auto startLogoDownload = [&]() {
+        // Check if the HTTP object is already downloading a previous request. If so, ignore this click.
         if(imageHttp.IsRunning())
             return;
+
+        // Update UI status
         logoState = "Logo: downloading...";
         updateMediaStatus();
+
+        // Actual get request.
         imageHttp.Get(TestLogoURL, HTTP::ObtainBitmap);
     };
 
@@ -242,10 +255,18 @@ int Main(const std::vector<std::string> &) {
         audioHttp.Get(TestAudioURL, HTTP::ObtainMultimediaWave);
     };
 
-    // Start both async downloads immediately; `window.Run()` drives BeforeFrameEvent
-    // automatically so no waiting loop is needed.
+    // Start both async downloads immediately. If running this application
+    // without a window, you have to call `imageHttp.Run()` and `audioHttp.Run()`
+    // for them to complete, but `window.Run()` handles these automatically.
     startLogoDownload();
     startAudioDownload();
+
+    // You can also create a simple queue to download multiple resources but a
+    // single `HTTP` object can only handle one transfer at a time so each 
+    // resource must wait for the previous one to finish. Alternatively, you
+    // can create a pool of HTTP objects to download multiple resources
+    // concurrently, however, do not create too many downloads at once or the
+    // server may throttle or block your requests.
 
     // =========================================================================
     //  Interactive HTTP Client for Examples 3-7 (Triggered via Buttons)
@@ -255,6 +276,8 @@ int Main(const std::vector<std::string> &) {
     // so each button simply calls `http.Get(...)` or `http.Post(...)` and returns.
     HTTP http;
 
+    // Clear HTTP state before starting a new demo. This is not necessary if you are to
+    // download only a single file, or process them using the same event handlers.
     auto beginDemo = [&]() -> bool {
         if(http.IsRunning()) {
             showOutput("HTTP Client Busy",
@@ -263,6 +286,7 @@ int Main(const std::vector<std::string> &) {
                        "with separate `HTTP` objects.");
             return false;
         }
+
         // Clear previous one-off demo callbacks before registering the next demo's handlers
         http.ResponseHeadersReceivedEvent.Clear();
         http.TextTransferCompletedEvent.Clear();
@@ -271,7 +295,7 @@ int Main(const std::vector<std::string> &) {
         return true;
     };
 
-    // ---- Row: Example 1 & Example 2 Buttons (1 unit tall each) ----
+    // ---- Row: Example 1 & Example 2 Buttons ----
     Widgets::Button btnBlocking("1. Blocking GET Text", runBlockingGet);
     btnBlocking.Move(Units(0.5, 1.5));
     btnBlocking.SetWidth(Units(10.0));
@@ -313,9 +337,12 @@ int Main(const std::vector<std::string> &) {
     // `TextTransferCompletedEvent` delivers the downloaded body as `std::string &`.
     std::string asyncHeaderSummary;
     Widgets::Button btnAsyncGet("3. Async GET & Headers", [&]() {
-        if(!beginDemo()) return;
+        if(!beginDemo()) return; //check current operation and clear previous callbacks
 
         asyncHeaderSummary.clear();
+
+        // Headers are obtained served on a separate event once the header block is finished
+        // loading. This doesn't wait for the entire resource to be downloaded.
         http.ResponseHeadersReceivedEvent.Register([&](HTTP::HeaderStorage &hdrs) {
             std::ostringstream oss;
             oss << "Received " << hdrs.size() << " headers";
@@ -332,6 +359,7 @@ int Main(const std::vector<std::string> &) {
             showOutput("3. Async GET Error", "Code " + std::to_string(err.error) + ": " + err.what());
         });
 
+        // Start the request
         http.Get(TestTextURL);
         showOutput("3. Async GET & Headers", "Request sent asynchronously to " + TestTextURL + "...");
     });
@@ -345,15 +373,11 @@ int Main(const std::vector<std::string> &) {
     // `SetHeader` persists headers across requests until `RemoveHeader`/`ClearHeaders`.
     // Passing a `HeaderMap` overrides/adds headers for that single request only.
     Widgets::Button btnReqHeaders("4. Request Headers", [&]() {
-        if(!beginDemo()) return;
+        if(!beginDemo()) return; //check current operation and clear previous callbacks
 
+        // Assign some global headers that will be sent with every request until removed or cleared.
         http.SetHeader("X-App-Client", "GorgonHTTPExample/1.0");
         http.SetHeader("X-Session-Mode", "default");
-
-        HTTP::HeaderMap perRequest = {
-            {"X-Session-Mode", "override-for-this-call"},
-            {"X-Request-Id",   "req-100"}
-        };
 
         http.TextTransferCompletedEvent.Register([&](std::string &body) {
             http.RemoveHeader("X-Session-Mode");
@@ -365,6 +389,15 @@ int Main(const std::vector<std::string> &) {
             showOutput("4. Request Headers Error", err.what());
         });
 
+
+        HTTP::HeaderMap perRequest = {
+            {"X-Session-Mode", "override-for-this-call"},
+            {"X-Request-Id",   "req-100"}
+        };
+
+        // Send a GET request with query parameters, you can use Encoding::URI 
+        // to help building query strings if needed. perRequest is local headers
+        // and does not persist after this request.
         http.Get(TestPhpURL + "?action=echo_headers", perRequest);
         showOutput("4. Request Headers", "Sending global + per-request override headers...");
     });
@@ -390,6 +423,10 @@ int Main(const std::vector<std::string> &) {
             showOutput("5a. POST JSON Error", err.what());
         });
 
+        // This posts json data to the server. You can use Encoding::JSON
+        // to build and parse JSON objects. See JSON example. JSON decoder
+        // can further download resources contained within the JSON object
+        // automatically.
         http.Post(
             TestPhpURL + "?action=echo_all",
             R"({"player":"Ada","score":1250})",
@@ -404,6 +441,7 @@ int Main(const std::vector<std::string> &) {
     Widgets::Button btnPostData("5b. POST Data", [&]() {
         if(!beginDemo()) return;
 
+        // this event is called when the data is requested as a vector of bytes.
         http.DataTransferCompletedEvent.Register([&](std::vector<Gorgon::Byte> &bytes) {
             std::string echoed(bytes.begin(), bytes.end());
             showOutput("5b. POST ObtainData",
@@ -413,6 +451,7 @@ int Main(const std::vector<std::string> &) {
             showOutput("5b. POST Data Error", err.what());
         });
 
+        // Post raw binary data and receive the response as a vector of bytes.
         http.Post(TestPhpURL + "?action=echo_post", "raw-binary-payload", HTTP::ObtainData);
         showOutput("5b. POST ObtainData", "Posting payload and receiving raw bytes...");
     });
@@ -429,11 +468,16 @@ int Main(const std::vector<std::string> &) {
     Widgets::Button btnSetCookie("6a. Set Cookie", [&]() {
         if(!beginDemo()) return;
 
+        // Enable automatic cookie storage for this HTTP object. This is off by default.
+        // Very useful when stateful sessions are required, such as logging into a website.
         http.StoreCookies(true);
 
+        // Just a regular text transfer
         http.TextTransferCompletedEvent.Register([&](std::string &body) {
             std::ostringstream oss;
             oss << "Server response: " << body << "\n";
+
+            // Display cookie information
             if(http.HasCookie("gorgon_user")) {
                 auto info = http.GetCookieInfo("gorgon_user");
                 oss << "Stored cookie -> name=" << info.name
@@ -448,6 +492,7 @@ int Main(const std::vector<std::string> &) {
             showOutput("6a. Set Cookie Error", err.what());
         });
 
+        // A regular GET request where server responds with a Set-Cookie header.
         http.Get(TestPhpURL + "?action=set_cookie&name=gorgon_user&value=explorer&httponly=1&samesite=Lax");
         showOutput("6a. Set Cookie", "Requesting Set-Cookie header from server...");
     });
@@ -479,6 +524,8 @@ int Main(const std::vector<std::string> &) {
             showOutput("6b. Echo Cookies Error", err.what());
         });
 
+        // Server responds with a list of cookies it got from the request. This will include
+        // cookies stored automatically.
         http.Get(TestPhpURL + "?action=echo_cookies");
         showOutput("6b. Echo Cookies", "Sending stored + manual cookies to server...");
     });
@@ -486,6 +533,7 @@ int Main(const std::vector<std::string> &) {
     btnEchoCookies.SetWidth(Units(5.0));
     window.Add(btnEchoCookies);
 
+    // Simply clear all cookies stored in this HTTP object. 
     Widgets::Button btnClearCookies("6c. Clear Cookies", [&]() {
         http.ClearCookies();
         showOutput("6c. Clear Cookies",
@@ -518,6 +566,7 @@ int Main(const std::vector<std::string> &) {
     btnErr404.SetWidth(Units(5.0));
     window.Add(btnErr404);
 
+    // Attempting to decode a non-image file as an image triggers `Error::InvalidFormat`.
     Widgets::Button btnErrFormat("7b. Bad Format", [&]() {
         if(!beginDemo()) return;
 
@@ -541,18 +590,14 @@ int Main(const std::vector<std::string> &) {
         window.Quit();
     });
 
-    window.KeyEvent.Register([&](Gorgon::Input::Key key, float state) {
-        namespace Keycodes = Gorgon::Input::Keyboard::Keycodes;
-        if(state == 1 && key == Keycodes::Escape) {
-            window.Quit();
-            return true;
-        }
-        if(state == 1 && key == Keycodes::Space) {
-            replaySound();
-            return true;
-        }
-        return false;
-    });
+    Gorgon::Input::Shortcuts shortcuts;
+    shortcuts.Set(Gorgon::Input::Keyboard::Keycodes::Escape, [&]() {
+        window.Quit();
+    }, Gorgon::Graphics::Color::Red);
+    shortcuts.Set(Gorgon::Input::Keyboard::Keycodes::Space, [&]() {
+        replaySound();
+    }, Gorgon::Graphics::Color::Blue);
+
 
     window.Run();
     return 0;

@@ -55,8 +55,15 @@ namespace Gorgon :: Input {
      */
     class Shortcuts {
     public:
-        Shortcuts();
+        /// Automatically tries to attach itself. If scene manager is active, checks for an active scene and attaches,
+        /// otherwise attaches to the first window. If an active scene is not found or no windows exist, this object
+        /// will not be attached to anything even if attach is true. Use AttachTo() to attach to a specific window or scene.
+        explicit Shortcuts(bool attach = true);
+
+        /// Automatically attaches to the specified window's KeyPreviewEvent.
         explicit Shortcuts(Window &window);
+
+        /// Automatically attaches to the specified scene, registering for ActivatedEvent and DeactivatedEvent.
         explicit Shortcuts(Scene &scene);
         ~Shortcuts();
 
