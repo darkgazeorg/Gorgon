@@ -1,5 +1,8 @@
 #include "Wave.h"
 #include "../Encoding/FLAC.h"
+#ifdef GORGON_VORBIS_SUPPORT
+#include "../Encoding/Vorbis.h"
+#endif
 
 namespace Gorgon :: Multimedia {
     
@@ -106,6 +109,11 @@ namespace Gorgon :: Multimedia {
                 return ImportFLAC(filename);
             }
 #endif
+#ifdef GORGON_VORBIS_SUPPORT
+            else if(String::ToLower(ext) == "ogg") {
+                return ImportVorbis(filename);
+            }
+#endif
         }
 
         std::ifstream file(filename, std::ios::binary);
@@ -119,9 +127,11 @@ namespace Gorgon :: Multimedia {
     bool Wave::Import(std::istream &file) {
         static const uint32_t wavsig  = 0x46464952;
         static const uint32_t flacsig = 0x43614c66;
+        static const uint32_t oggsig  = 0x5367674F;
 
         uint32_t sig = IO::ReadUInt32(file);
-        file.seekg(0, std::ios::beg);
+        if(!file) return false;
+        file.seekg(-4, std::ios::cur);
 
         if(sig == wavsig) {
             return ImportWav(file);
@@ -129,6 +139,11 @@ namespace Gorgon :: Multimedia {
 #ifdef GORGON_FLAC_SUPPORT
         else if(sig == flacsig) {
             return ImportFLAC(file);
+        }
+#endif
+#ifdef GORGON_VORBIS_SUPPORT
+        else if(sig == oggsig) {
+            return ImportVorbis(file);
         }
 #endif
 
@@ -211,6 +226,32 @@ namespace Gorgon :: Multimedia {
             return false;
         
         Encoding::Flac.Encode(*data, file, bps);
+        
+        return true;
+    }
+#endif
+
+#ifdef GORGON_VORBIS_SUPPORT
+    bool Wave::ImportVorbis(const std::string &filename) {
+        std::ifstream file(filename, std::ios::binary);
+        
+        if(!file.is_open())
+            return false;
+        
+        return ImportVorbis(file);
+    }
+    
+    bool Wave::ImportVorbis(std::istream &file) {
+        if(!data) {
+            data = new Containers::Wave;
+            own = true;
+        }
+        
+        Encoding::VorbisStream streamer;
+        auto info = streamer.DecodeStart(file);
+        data->Resize(info.Samples, info.Channels);
+        data->SetSampleRate(info.SampleRate);
+        streamer.DecodeSome(*data, 0);
         
         return true;
     }

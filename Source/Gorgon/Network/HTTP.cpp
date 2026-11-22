@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -7,9 +8,17 @@
 #include "HTTP.h"
 #include "../Main.h"
 #include "Gorgon/String.h"
+#include "../Containers/Image.h"
+#include "../Graphics/Bitmap.h"
+#include "../Containers/Wave.h"
+#include "../Multimedia/Wave.h"
+#include "../IO/MemoryStream.h"
 
 #define WINDOWS_LEAN_AND_MEAN
 #include <curl/curl.h>
+
+#undef min
+#undef max
 
 namespace Gorgon :: Network {
 
@@ -197,7 +206,12 @@ HTTP::HTTP() : TextTransferCompletedEvent(this),
                ResponseHeadersReceivedEvent(this),
                DataTransferCompletedEvent(this),
                FileTransferCompletedEvent(this), 
-               TransferErrorEvent(this) 
+               ImageTransferCompletedEvent(this),
+               BitmapTransferCompletedEvent(this),
+               WaveTransferCompletedEvent(this),
+               MultimediaWaveTransferCompletedEvent(this),
+               TransferErrorEvent(this),
+               ProgressEvent(this)
 {
   Initialize();
 
@@ -216,6 +230,9 @@ HTTP::~HTTP() {
 
     if(runner.joinable())
         runner.join();
+
+    delete decodedimg;
+    delete decodedwave;
 
     curl_easy_cleanup(curl);
 }
@@ -317,10 +334,46 @@ curl_slist *HTTP::buildRequestHeaders(const HeaderMap &overrideHeaders) {
     return headerList;
 }
 
+void HTTP::reportprogress(float value) {
+    reportedprogress = value;
+
+    if(progressdisplay)
+        progressdisplay->SetProgressRatio(value);
+
+    ProgressEvent(value);
+}
+
+int HTTP::xferinfo(void *clientp, long long dltotal, long long dlnow,
+                   long long ultotal, long long ulnow) {
+    // Runs in the worker thread, so only store the ratio. onframe will report it.
+    auto self = static_cast<HTTP *>(clientp);
+
+    long long total = dltotal + ultotal;
+    if(total > 0) {
+        float ratio = float(double(dlnow + ulnow) / double(total));
+        // 1.0 is reserved for after the transfer (and decoding) is finished
+        self->progressvalue = std::max(0.f, std::min(ratio, 0.99f));
+    }
+
+    return 0;
+}
+
 void HTTP::setupCurl(const std::string &URL, const HeaderMap &overrideHeaders,
                      const std::string &postData) {
     curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
+    // Progress is tracked only if somebody is interested, otherwise curl does no extra work
+    trackprogress = progressdisplay != nullptr || ProgressEvent.HasListeners();
+    progressvalue = 0.f;
+    reportedprogress = -1.f; // so that the initial 0 is reported
+    if(trackprogress) {
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &HTTP::xferinfo);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    }
+    else {
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    }
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
@@ -386,6 +439,61 @@ void HTTP::operation() {
 
   // should sync with main thread
   err = translateerror(res);
+
+  if(err.error == 0) {
+    if(currentoperation == Image || currentoperation == OwnedImage ||
+       currentoperation == Bitmap || currentoperation == OwnedBitmap) {
+      try {
+        if(decodebuf.size() < 4) {
+          err = Error("Cannot import image: empty or truncated data", Error::InvalidFormat);
+        } else {
+          IO::MemoryInputStream mem(
+              reinterpret_cast<const char *>(decodebuf.data()),
+              reinterpret_cast<const char *>(decodebuf.data() + decodebuf.size())
+          );
+          Graphics::Bitmap tmp;
+          if(!tmp.Import(mem) || !tmp.HasData()) {
+            err = Error("Cannot import image data", Error::InvalidFormat);
+          } else {
+            delete decodedimg;
+            decodedimg = new Containers::Image(tmp.ReleaseData());
+          }
+        }
+      } catch(const std::exception &e) {
+        err = Error(std::string("Cannot import image: ") + e.what(), Error::InvalidFormat);
+      } catch(...) {
+        err = Error("Cannot import image: unknown decoding error", Error::InvalidFormat);
+      }
+      decodebuf.clear();
+    } else if(currentoperation == Wave || currentoperation == OwnedWave ||
+              currentoperation == MultimediaWave || currentoperation == OwnedMultimediaWave) {
+      try {
+        if(decodebuf.size() < 4) {
+          err = Error("Cannot import wave: empty or truncated data", Error::InvalidFormat);
+        } else {
+          IO::MemoryInputStream mem(
+              reinterpret_cast<const char *>(decodebuf.data()),
+              reinterpret_cast<const char *>(decodebuf.data() + decodebuf.size())
+          );
+          Multimedia::Wave tmp;
+          if(!tmp.Import(mem) || !tmp.HasData()) {
+            err = Error("Cannot import wave data", Error::InvalidFormat);
+          } else {
+            delete decodedwave;
+            decodedwave = &tmp.ReleaseData();
+          }
+        }
+      } catch(const std::exception &e) {
+        err = Error(std::string("Cannot import wave: ") + e.what(), Error::InvalidFormat);
+      } catch(...) {
+        err = Error("Cannot import wave: unknown decoding error", Error::InvalidFormat);
+      }
+      decodebuf.clear();
+    }
+  } else {
+    decodebuf.clear();
+  }
+
   isrunning = false;
 }
 
@@ -436,6 +544,38 @@ void HTTP::startOperation(const std::string &URL, std::ostream &stream,
   if(runner.joinable())
     runner.join();
   runner = std::thread(&HTTP::operation, this);
+}
+
+void HTTP::startDecodeOperation(const std::string &URL, OperationType op,
+                                const HeaderMap &overrideHeaders, const std::string &postData,
+                                void *target, bool prepare) {
+  std::lock_guard<std::mutex> guard(mtx);
+  if(isrunning)
+    throw std::runtime_error("Running another task at the moment.");
+
+  if(currentoperation == Data || currentoperation == OwnedData)
+    tempvec.reset();
+
+  responseHeaders.clear();
+  pendingSetCookies.clear();
+  headersAvailable = false;
+
+  delete decodedimg;
+  decodedimg = nullptr;
+  delete decodedwave;
+  decodedwave = nullptr;
+  decodebuf.clear();
+
+  targetimg = (op == OwnedImage) ? static_cast<Containers::Image *>(target) : nullptr;
+  targetbmp = (op == OwnedBitmap) ? static_cast<Graphics::Bitmap *>(target) : nullptr;
+  targetwave = (op == OwnedWave) ? static_cast<Containers::Wave *>(target) : nullptr;
+  targetmwave = (op == OwnedMultimediaWave) ? static_cast<Multimedia::Wave *>(target) : nullptr;
+  preparebitmap = prepare;
+
+  isrunning = true;
+  currentoperation = op;
+
+  startOperation(URL, decodebuf, overrideHeaders, postData);
 }
 
 // ---- GET requests ----
@@ -514,6 +654,46 @@ void HTTP::Get(const std::string &URL, std::ostream &stream, const HeaderMap &ov
   currentoperation = Stream;
 
   startOperation(URL, stream, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, ImageTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Image, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, Containers::Image &img, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedImage, overrideHeaders, "", &img);
+}
+
+void HTTP::Get(const std::string &URL, BitmapTag, bool prepare, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Bitmap, overrideHeaders, "", nullptr, prepare);
+}
+
+void HTTP::Get(const std::string &URL, BitmapTag, const HeaderMap &overrideHeaders) {
+  Get(URL, BitmapTag{}, true, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, Graphics::Bitmap &bmp, bool prepare, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedBitmap, overrideHeaders, "", &bmp, prepare);
+}
+
+void HTTP::Get(const std::string &URL, Graphics::Bitmap &bmp, const HeaderMap &overrideHeaders) {
+  Get(URL, bmp, true, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, WaveTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Wave, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, Containers::Wave &wave, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedWave, overrideHeaders, "", &wave);
+}
+
+void HTTP::Get(const std::string &URL, MultimediaWaveTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, MultimediaWave, overrideHeaders);
+}
+
+void HTTP::Get(const std::string &URL, Multimedia::Wave &wave, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedMultimediaWave, overrideHeaders, "", &wave);
 }
 
 // ---- POST requests ----
@@ -597,9 +777,56 @@ void HTTP::Post(const std::string &URL, const std::string &postData,
   startOperation(URL, stream, overrideHeaders, postData);
 }
 
+void HTTP::Post(const std::string &URL, const std::string &postData, ImageTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Image, overrideHeaders, postData);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, Containers::Image &img, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedImage, overrideHeaders, postData, &img);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, BitmapTag, bool prepare, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Bitmap, overrideHeaders, postData, nullptr, prepare);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, BitmapTag, const HeaderMap &overrideHeaders) {
+  Post(URL, postData, BitmapTag{}, true, overrideHeaders);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, Graphics::Bitmap &bmp, bool prepare, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedBitmap, overrideHeaders, postData, &bmp, prepare);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, Graphics::Bitmap &bmp, const HeaderMap &overrideHeaders) {
+  Post(URL, postData, bmp, true, overrideHeaders);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, WaveTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, Wave, overrideHeaders, postData);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, Containers::Wave &wave, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedWave, overrideHeaders, postData, &wave);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, MultimediaWaveTag, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, MultimediaWave, overrideHeaders, postData);
+}
+
+void HTTP::Post(const std::string &URL, const std::string &postData, Multimedia::Wave &wave, const HeaderMap &overrideHeaders) {
+  startDecodeOperation(URL, OwnedMultimediaWave, overrideHeaders, postData, &wave);
+}
+
 // ---- Frame handler ----
 
 void HTTP::onframe() {
+    // report progress made by the worker thread; does not need the operation mutex
+    if(trackprogress && isrunning) {
+        float cur = progressvalue;
+        if(reportedprogress < 0 || cur - reportedprogress >= 0.01f)
+            reportprogress(cur);
+    }
+
     // handle response headers first using header mutex only; this can run even
     // while the operation thread is performing a request since it doesn't lock mtx.
     {
@@ -629,6 +856,12 @@ void HTTP::onframe() {
     // if operation is set but not running this means the operation
     // has finished but the event has not been fired yet
     if(currentoperation != None && !isrunning) {
+        // Final progress is reported before the result so displays end up full
+        if(trackprogress) {
+            trackprogress = false;
+            if(err.error == 0)
+                reportprogress(1.f);
+        }
         // Process any remaining pending cookies (in case headers arrived
         // after the last onframe but before operation finished)
         {
@@ -644,6 +877,10 @@ void HTTP::onframe() {
         }
 
         if(err.error != 0) {
+            delete decodedimg;
+            decodedimg = nullptr;
+            delete decodedwave;
+            decodedwave = nullptr;
             TransferErrorEvent(err);
         }
         else {
@@ -671,6 +908,66 @@ void HTTP::onframe() {
             case Stream:
                 FileTransferCompletedEvent();
                 break;
+            case Image: {
+                Containers::Image img = std::move(*decodedimg);
+                delete decodedimg;
+                decodedimg = nullptr;
+                ImageTransferCompletedEvent(img);
+                break;
+            }
+            case OwnedImage: {
+                *targetimg = std::move(*decodedimg);
+                delete decodedimg;
+                decodedimg = nullptr;
+                ImageTransferCompletedEvent(*targetimg);
+                break;
+            }
+            case Bitmap: {
+                Graphics::Bitmap bmp(std::move(*decodedimg));
+                delete decodedimg;
+                decodedimg = nullptr;
+                if(preparebitmap)
+                    bmp.Prepare();
+                BitmapTransferCompletedEvent(bmp);
+                break;
+            }
+            case OwnedBitmap: {
+                targetbmp->Destroy();
+                targetbmp->Assume(std::move(*decodedimg));
+                delete decodedimg;
+                decodedimg = nullptr;
+                if(preparebitmap)
+                    targetbmp->Prepare();
+                BitmapTransferCompletedEvent(*targetbmp);
+                break;
+            }
+            case Wave: {
+                Containers::Wave wave = std::move(*decodedwave);
+                delete decodedwave;
+                decodedwave = nullptr;
+                WaveTransferCompletedEvent(wave);
+                break;
+            }
+            case OwnedWave: {
+                *targetwave = std::move(*decodedwave);
+                delete decodedwave;
+                decodedwave = nullptr;
+                WaveTransferCompletedEvent(*targetwave);
+                break;
+            }
+            case MultimediaWave: {
+                Multimedia::Wave wave;
+                wave.Assume(*decodedwave);
+                decodedwave = nullptr;
+                MultimediaWaveTransferCompletedEvent(wave);
+                break;
+            }
+            case OwnedMultimediaWave: {
+                targetmwave->Assume(*decodedwave);
+                decodedwave = nullptr;
+                MultimediaWaveTransferCompletedEvent(*targetmwave);
+                break;
+            }
             case None:
                 break;
             }

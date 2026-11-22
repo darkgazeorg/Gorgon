@@ -185,10 +185,10 @@ namespace Encoding {
 
         *bytes = (size_t)input.gcount();
 
-        if(input.eof())
+        if(*bytes == 0 && input.eof())
             return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 
-        return (input.good() ? FLAC__STREAM_DECODER_READ_STATUS_CONTINUE : FLAC__STREAM_DECODER_READ_STATUS_ABORT);
+        return (*bytes > 0 || input.good() ? FLAC__STREAM_DECODER_READ_STATUS_CONTINUE : FLAC__STREAM_DECODER_READ_STATUS_ABORT);
     }
 
     FLAC__StreamDecoderSeekStatus stream_decode_seek(
@@ -253,7 +253,7 @@ namespace Encoding {
 
         *bytes = bytestoread;
 
-        if(input.input.size() == input.readpos)
+        if(*bytes == 0)
             return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
 
         return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -446,6 +446,9 @@ namespace Encoding {
 
         FLAC__stream_decoder_process_until_end_of_stream(dec);
 
+
+        if(stream.channels == 0)
+            throw std::runtime_error("Invalid FLAC file: no audio frames decoded");
 
         wave.Assume(stream.data, stream.currentpos / stream.channels, Audio::StandardChannels(stream.channels));
         wave.SetSampleRate(stream.rate);
