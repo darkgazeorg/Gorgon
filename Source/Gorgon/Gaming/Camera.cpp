@@ -1,5 +1,5 @@
 #include"Camera.h"
-namespace Gorgon{
+namespace Gorgon::Gaming{
 
     Geometry::Pointf Camera::GetScreenToWorld(const Geometry::Pointf &p){
         auto p1=p-Offset;

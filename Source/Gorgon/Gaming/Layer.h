@@ -1,7 +1,7 @@
 #pragma once
 
 #include"../Graphics/Layer.h"
-#include"../Camera.h"
+#include"Camera.h"
 #include"../Graphics/Shaders.h"
 namespace Gorgon::Gaming{
 

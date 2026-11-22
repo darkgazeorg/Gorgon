@@ -6,9 +6,11 @@ target_sources(Gorgon
 		../Graphics/Layer.h
 		../Graphics/Shaders.h
         Layer.h
+        Camera.h
 )
 
 target_sources(Gorgon
     PRIVATE
 		Layer.cpp
+		Camera.cpp
 )

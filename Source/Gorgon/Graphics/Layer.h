@@ -7,7 +7,6 @@
 #include "../Geometry/Rectangle.h"
 #include "../GL/Simple.h"
 #include "../GL/FrameBuffer.h"
-#include "../Camera.h"
 
 namespace Gorgon :: Graphics {
 

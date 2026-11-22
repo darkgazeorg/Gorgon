@@ -1,7 +1,7 @@
 #pragma once
 #include"Gorgon/Geometry.h"
 #include"Gorgon/Geometry/Transform3D.h"
-namespace Gorgon{
+namespace Gorgon::Gaming{
 
 
     class Camera{
