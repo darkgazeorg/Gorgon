@@ -117,13 +117,13 @@ jobs:
                 body: subBody,
               });
 
-              core.info(`Created aggregated extra issue for tasks: ${tasksForIssue.join(",")}`);
+              core.info(`Created aggregated extra issue for tasks: ${uncheckedExtra.concat(uncheckedOptional).join(",")}`);
 
               // Add a comment summarizing created subtask issue and listing tasks
               let createdList = uncheckedExtra.map(t => `- ${t} [extra]`).join("\n") + "\n";
               createdList += uncheckedOptional.map(t => `- ${t} [optional]`).join("\n");
               const commentToParent = [
-                `The following unchecked checklist items marked with ` + "`[extra]`" + ` were consolidated into a single auto-created issue:",
+                "The following unchecked checklist items marked with `[extra]` or `[optional]` were consolidated into a single auto-created issue:",
                 "",
                 createdList,
                 "",
