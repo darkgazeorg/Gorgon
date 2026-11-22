@@ -204,6 +204,18 @@ namespace Gorgon {
             return scenes[scene];
         }
 
+        /// Returns if there is an active scene.
+        bool HasActiveScene() const {
+            return active != nullptr;
+        }
+
+        /// Returns the active scene. If there is no active scene, 
+        /// this function throws runtime error.
+        Scene &GetActiveScene() {
+            if(!active) throw std::runtime_error("No active scene");
+            return *active;
+        }
+
         /// Deletes the given scene, nothing is done if the scene is
         /// not found
         void DeleteScene(SceneID scene) {

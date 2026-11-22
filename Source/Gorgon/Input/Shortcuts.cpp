@@ -121,7 +121,20 @@ namespace Gorgon :: Input {
         }
     };
 
-    Shortcuts::Shortcuts() : impl(std::make_unique<Impl>()) { }
+    Shortcuts::Shortcuts(bool attach) : impl(std::make_unique<Impl>()) {
+        if(attach) {
+            if(Window::Windows.GetSize() > 0) {
+                if(auto mngr = dynamic_cast<SceneManager*>(&Window::Windows[0]); mngr) {
+                    if(mngr->HasActiveScene()) {
+                        AttachTo(mngr->GetActiveScene());
+                    }
+                }
+                else {
+                    AttachTo(Window::Windows[0]);
+                }
+            }
+        }
+    }
 
     Shortcuts::Shortcuts(Window &window) : Shortcuts() {
         AttachTo(window);

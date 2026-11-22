@@ -1,6 +1,10 @@
 #pragma once
 
-#include <numeric>
+#include "Gorgon/String.h"
+#include "Resource/GID.h"
+
+#include <string>
+#include <vector>
 
 namespace Gorgon {
 
