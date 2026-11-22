@@ -17,6 +17,9 @@
 #define WINDOWS_LEAN_AND_MEAN
 #include <curl/curl.h>
 
+#undef min
+#undef max
+
 namespace Gorgon :: Network {
 
 // ---- Static helpers ----
