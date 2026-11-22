@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <atomic>
 #include <string>
 #include <fstream>
 #include <map>
@@ -10,6 +11,7 @@
 #include <vector>
 
 #include "../Event.h"
+#include "../Progress.h"
 #include "../String.h"  // for CaseInsensitiveLess
 
 // curl type used in header so forward declare instead of including curl headers
@@ -231,6 +233,32 @@ namespace Gorgon :: Network {
         
         /// Fired if an error occurs
         Event<HTTP, Error> TransferErrorEvent;
+
+        // ---- Progress reporting ----
+
+        /// Fired on the main thread (from onframe) while a transfer is in progress. The
+        /// parameter is the overall progress ratio in [0, 1] covering both upload (POST body)
+        /// and download. It is not extremely granular: it is only fired when the ratio has
+        /// advanced by at least 1% since the last time, and a final 1.0 is fired right before
+        /// the completion event of a successful transfer. Progress tracking is enabled
+        /// per request only if this event has a listener or a progress display is set when
+        /// the request is started, so there is no overhead otherwise. Register your listener
+        /// before calling Get/Post.
+        Event<HTTP, Float> ProgressEvent;
+
+        /// Sets a progress display (e.g. a progress bar widget) that will be automatically
+        /// updated during transfers that start after this call. Display is reset to 0 at the
+        /// start of a transfer and set to 1 when the transfer completes successfully. The
+        /// ownership is not transferred, ensure the display outlives the transfers or call
+        /// RemoveProgressDisplay. To drive several displays at once, set a
+        /// MultiTargetProgressDisplay.
+        void SetProgressDisplay(ProgressDisplay &display) { progressdisplay = &display; }
+
+        /// Stops updating the progress display. Do not call from another thread.
+        void RemoveProgressDisplay() { progressdisplay = nullptr; }
+
+        /// Returns whether a progress display is set
+        bool HasProgressDisplay() const { return progressdisplay != nullptr; }
 
         // ---- Request header management ----
 
@@ -459,6 +487,19 @@ namespace Gorgon :: Network {
                               const std::string &postData = "");
 
       void *curl = nullptr;
+
+      // libcurl transfer info callback (runs in the worker thread). Only stores the ratio.
+      static int xferinfo(void *clientp, long long dltotal, long long dlnow,
+                          long long ultotal, long long ulnow);
+
+      // Whether the current request reports progress
+      bool trackprogress = false;
+      // Ratio stored by the worker thread, consumed by onframe
+      std::atomic<float> progressvalue{0.f};
+      // Last ratio reported to the listeners
+      float reportedprogress = 0.f;
+      ProgressDisplay *progressdisplay = nullptr;
+      void reportprogress(float value);
       std::string tempstr;
       std::string tempPostData; // stored so it outlives the async operation
       std::unique_ptr<std::vector<Byte>,

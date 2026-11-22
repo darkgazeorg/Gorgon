@@ -939,3 +939,61 @@ TEST_CASE("HTTP Image and Wave InvalidFormat Error", "[HTTP]") {
         while (!errored) http.onframe();
     }
 }
+
+namespace {
+    class RecordingDisplay : public Gorgon::ProgressDisplay {
+    public:
+        void SetProgressRatio(Gorgon::Float value) override { values.push_back(value); }
+        Gorgon::Float GetProgressRatio() const override { return values.empty() ? 0.f : values.back(); }
+        std::vector<Gorgon::Float> values;
+    };
+}
+
+TEST_CASE("HTTP Progress Event and Display", "[HTTP]") {
+    std::string url = "https://darkgaze.org/testing/Logo.png";
+
+    // Event only
+    {
+        Gorgon::Network::HTTP http;
+        std::vector<Gorgon::Float> values;
+        bool completed = false;
+        http.ProgressEvent.Register([&](Gorgon::Float v) { values.push_back(v); });
+        http.BitmapTransferCompletedEvent.Register([&](Gorgon::Graphics::Bitmap &) { completed = true; });
+        http.TransferErrorEvent.Register([](Gorgon::Network::HTTP::Error err) {
+            FAIL("Unexpected TransferErrorEvent: " << err.message);
+        });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainBitmap, false);
+        while(!completed) http.onframe();
+
+        REQUIRE(!values.empty());
+        REQUIRE(values.back() == 1.f);
+        for(size_t i = 1; i < values.size(); i++)
+            REQUIRE(values[i] >= values[i-1]);
+    }
+
+    // Display only
+    {
+        Gorgon::Network::HTTP http;
+        RecordingDisplay display;
+        bool completed = false;
+        http.SetProgressDisplay(display);
+        http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &) { completed = true; });
+
+        http.Get(url, Gorgon::Network::HTTP::ObtainImage);
+        while(!completed) http.onframe();
+
+        REQUIRE(!display.values.empty());
+        REQUIRE(display.values.back() == 1.f);
+    }
+
+    // Neither: nothing should be reported and nothing should break
+    {
+        Gorgon::Network::HTTP http;
+        bool completed = false;
+        http.ImageTransferCompletedEvent.Register([&](Gorgon::Containers::Image &) { completed = true; });
+        http.Get(url, Gorgon::Network::HTTP::ObtainImage);
+        while(!completed) http.onframe();
+        REQUIRE(!http.HasProgressDisplay());
+    }
+}

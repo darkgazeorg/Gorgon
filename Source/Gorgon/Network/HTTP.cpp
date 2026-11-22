@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -206,7 +207,8 @@ HTTP::HTTP() : TextTransferCompletedEvent(this),
                BitmapTransferCompletedEvent(this),
                WaveTransferCompletedEvent(this),
                MultimediaWaveTransferCompletedEvent(this),
-               TransferErrorEvent(this) 
+               TransferErrorEvent(this),
+               ProgressEvent(this)
 {
   Initialize();
 
@@ -329,10 +331,46 @@ curl_slist *HTTP::buildRequestHeaders(const HeaderMap &overrideHeaders) {
     return headerList;
 }
 
+void HTTP::reportprogress(float value) {
+    reportedprogress = value;
+
+    if(progressdisplay)
+        progressdisplay->SetProgressRatio(value);
+
+    ProgressEvent(value);
+}
+
+int HTTP::xferinfo(void *clientp, long long dltotal, long long dlnow,
+                   long long ultotal, long long ulnow) {
+    // Runs in the worker thread, so only store the ratio. onframe will report it.
+    auto self = static_cast<HTTP *>(clientp);
+
+    long long total = dltotal + ultotal;
+    if(total > 0) {
+        float ratio = float(double(dlnow + ulnow) / double(total));
+        // 1.0 is reserved for after the transfer (and decoding) is finished
+        self->progressvalue = std::max(0.f, std::min(ratio, 0.99f));
+    }
+
+    return 0;
+}
+
 void HTTP::setupCurl(const std::string &URL, const HeaderMap &overrideHeaders,
                      const std::string &postData) {
     curl_easy_setopt(curl, CURLOPT_URL, URL.c_str());
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
+    // Progress is tracked only if somebody is interested, otherwise curl does no extra work
+    trackprogress = progressdisplay != nullptr || ProgressEvent.HasListeners();
+    progressvalue = 0.f;
+    reportedprogress = -1.f; // so that the initial 0 is reported
+    if(trackprogress) {
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, &HTTP::xferinfo);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, this);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    }
+    else {
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    }
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
@@ -779,6 +817,13 @@ void HTTP::Post(const std::string &URL, const std::string &postData, Multimedia:
 // ---- Frame handler ----
 
 void HTTP::onframe() {
+    // report progress made by the worker thread; does not need the operation mutex
+    if(trackprogress && isrunning) {
+        float cur = progressvalue;
+        if(reportedprogress < 0 || cur - reportedprogress >= 0.01f)
+            reportprogress(cur);
+    }
+
     // handle response headers first using header mutex only; this can run even
     // while the operation thread is performing a request since it doesn't lock mtx.
     {
@@ -808,6 +853,12 @@ void HTTP::onframe() {
     // if operation is set but not running this means the operation
     // has finished but the event has not been fired yet
     if(currentoperation != None && !isrunning) {
+        // Final progress is reported before the result so displays end up full
+        if(trackprogress) {
+            trackprogress = false;
+            if(err.error == 0)
+                reportprogress(1.f);
+        }
         // Process any remaining pending cookies (in case headers arrived
         // after the last onframe but before operation finished)
         {
