@@ -2,23 +2,23 @@
 namespace Gorgon{
 
     Geometry::Pointf Camera::GetScreenToWorld(const Geometry::Pointf &p){
-        auto p1=p-offset;
-        p1=p1/zoom;
+        auto p1=p-Offset;
+        p1=p1/Zoom;
         p1=Gorgon::Geometry::Pointf(  
-            p1.X*cosf(-rotation*Gorgon::PI/180.0f)-p1.Y*sinf(-rotation*Gorgon::PI/180.0f),
-            p1.X*sinf(-rotation*Gorgon::PI/180.0f)+p1.Y*cosf(-rotation*Gorgon::PI/180.0f)
+            p1.X*cosf(-Rotation*Gorgon::PI/180.0f)-p1.Y*sinf(-Rotation*Gorgon::PI/180.0f),
+            p1.X*sinf(-Rotation*Gorgon::PI/180.0f)+p1.Y*cosf(-Rotation*Gorgon::PI/180.0f)
         );
-        p1=p1+target;
+        p1=p1+Target;
         return p1;
     }
     Geometry::Pointf Camera::GetWorldToScreen(const Geometry::Pointf &p){
-        auto p1=p-target;
-        p1=p1*zoom;
+        auto p1=p-Target;
+        p1=p1*Zoom;
         p1=Gorgon::Geometry::Pointf(  
-            p1.X*cosf(rotation*Gorgon::PI/180.0f)-p1.Y*sinf(rotation*Gorgon::PI/180.0f),
-            p1.X*sinf(rotation*Gorgon::PI/180.0f)+p1.Y*cosf(rotation*Gorgon::PI/180.0f)
+            p1.X*cosf(Rotation*Gorgon::PI/180.0f)-p1.Y*sinf(Rotation*Gorgon::PI/180.0f),
+            p1.X*sinf(Rotation*Gorgon::PI/180.0f)+p1.Y*cosf(Rotation*Gorgon::PI/180.0f)
         );
-        p1=p1+offset;
+        p1=p1+Offset;
         return p1;
     }
     
@@ -26,16 +26,16 @@ namespace Gorgon{
     Gorgon::Geometry::Transform3D Camera::GetMatrix() {
         Gorgon::Geometry::Transform3D transform;
         //move point to offset
-        transform.Translate({offset.X,offset.Y,0.0f});
+        transform.Translate({Offset.X,Offset.Y,0.0f});
         
         //scale 
-        transform.Scale(zoom,zoom);
+        transform.Scale(Zoom,Zoom);
         
         //rotate around origin
-        transform.Rotate({0.0f,0.0f,1.0f},rotation*Gorgon::PI/180.0f);
+        transform.Rotate({0.0f,0.0f,1.0f},Rotation*Gorgon::PI/180.0f);
         
         //move target to origin
-        transform.Translate({-target.X,-target.Y,0.0f});
+        transform.Translate({-Target.X,-Target.Y,0.0f});
         
         // Transform is multiplied right to left 
         // if you look bottom to up; 
@@ -47,14 +47,4 @@ namespace Gorgon{
         // so we are just looking our world point (target) from screen point(offset)  
         return transform;
     }
-
-    void Camera::SetRotation( float angles ){rotation=angles;}
-    float Camera::GetRotation() const {return rotation;} 
-    void Camera::SetZoomRate( float rate ){zoom=rate;}
-    float Camera::GetZoomRate() const {return zoom;} 
-    void Camera::SetOffset(const Gorgon::Geometry::Pointf& offset){this->offset=offset;}
-    Gorgon::Geometry::Pointf Camera::GetOffset() const {return offset;}
-    void Camera::SetTarget(const Gorgon::Geometry::Pointf& target){this->target=target;}
-    Gorgon::Geometry::Pointf Camera::GetTarget() const {return target;}
-
 };
