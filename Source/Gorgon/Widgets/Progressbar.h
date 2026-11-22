@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Gorgon/Progress.h"
 #include "Slider.h"
 
 namespace Gorgon :: Widgets {
@@ -24,7 +25,10 @@ namespace Gorgon :: Widgets {
         T_(*VAL_)(float, T_, T_) = FloatToValue<T_>,
         template<class C_, class PT_, PT_(C_::*Getter_)() const, void(C_::*Setter_)(const PT_ &)> class P_ = Gorgon::NumericProperty
     >
-    class Progressor : public SliderBase<T_, DIV_, VAL_, P_, internal::SliderInteractivity::None, internal::SliderValueMapping::OneValue> {
+    class Progressor : 
+        public SliderBase<T_, DIV_, VAL_, P_, internal::SliderInteractivity::None, internal::SliderValueMapping::OneValue>,
+        public ProgressDisplay
+    {
         using Base = SliderBase<T_, DIV_, VAL_, P_, internal::SliderInteractivity::None, internal::SliderValueMapping::OneValue>;
     public:
 
@@ -44,6 +48,14 @@ namespace Gorgon :: Widgets {
 
         Progressor(const UI::Template &temp, T_ cur, T_ max) : Base(temp, cur, max)
         { }
+
+        void SetProgressRatio(Float value) override {
+            SetValue(VAL_(value, Base::GetMinimum(), Base::GetMaximum()));
+        }
+
+        Float GetProgressRatio() const override {
+            return DIV_(Base::GetValue(), Base::GetMinimum(), Base::GetMaximum());
+        }
         
         using Base::SetValue;
         using Base::GetValue;
