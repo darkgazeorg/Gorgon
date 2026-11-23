@@ -67,7 +67,13 @@ if(GORGON_GL_VULKAN)
     target_link_libraries(Gorgon PUBLIC Vulkan::Vulkan)
     message(STATUS "Found Vulkan -> ${Vulkan_VERSION}")
 
-    find_path(VMA_INCLUDE_DIR vk_mem_alloc.h REQUIRED)
+    find_path(VMA_INCLUDE_DIR vk_mem_alloc.h
+        HINTS
+            "$ENV{VULKAN_SDK}/Include"
+            "$ENV{VULKAN_SDK}/include"
+        PATH_SUFFIXES vma
+        REQUIRED
+    )
     target_include_directories(Gorgon SYSTEM PRIVATE "${VMA_INCLUDE_DIR}")
 endif()
 

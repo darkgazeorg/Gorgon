@@ -53,8 +53,9 @@ int main(int argc, char* argv[]) {
 		
 		auto name = file.name;
 
-		if(name.find_last_of('/') != name.npos) {
-			name = name.substr(name.find_last_of('/')+1);
+		auto sep = name.find_last_of("/\\");
+		if(sep != name.npos) {
+			name = name.substr(sep + 1);
 		}
 
 		name = name.substr(0, name.find_first_of('.'));

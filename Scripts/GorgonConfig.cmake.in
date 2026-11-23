@@ -112,7 +112,7 @@ endif()
 # 5. Exported Targets & Functions
 # ==============================================================================
 # Include the exported targets (the compiled libraries)
-include("${CMAKE_CURRENT_LIST_DIR}/GorgonTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/Gorgon@GORGON_PACKAGE_SUFFIX@Targets.cmake")
 
 # Include the custom framework functions (e.g., gorgon_copy_directory)
 include("${CMAKE_CURRENT_LIST_DIR}/Public.cmake")

@@ -45,6 +45,6 @@ if(GORGON_GL_VULKAN)
     # Third party implementations in this file are not subject to the warning rules of Gorgon
     set_source_files_properties(VulkanUtil.cpp
         TARGET_DIRECTORY Gorgon
-        PROPERTIES COMPILE_OPTIONS "-w"
+        PROPERTIES COMPILE_OPTIONS "$<IF:$<CXX_COMPILER_ID:MSVC>,/w,-w>"
     )
 endif()

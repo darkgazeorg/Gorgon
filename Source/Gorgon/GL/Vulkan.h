@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include "../GL.h"
 
 namespace Gorgon :: GL {
@@ -11,7 +13,7 @@ namespace Gorgon :: GL {
 
 	/// Creates a new context for the given native window. Vulkan is initialized with the first window
 	/// as physical device selection depends on its surface. Throws if Vulkan cannot be used.
-	WindowContext *CreateWindowContext(void *display, unsigned long window, const Geometry::Size &size);
+	WindowContext *CreateWindowContext(void *display, uintptr_t window, const Geometry::Size &size);
 
 	/// Destroys the given context. This should be called before its window is destroyed.
 	void DestroyWindowContext(WindowContext *context);

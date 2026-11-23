@@ -2,12 +2,13 @@
 #include "FrameBuffer.h"
 #include "Shader.h"
 
+#include "../OS.h"
 #include "../Window.h"
 #include "../Containers/Image.h"
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <deque>
 #include <fstream>
@@ -24,7 +25,7 @@ namespace Gorgon :: GL {
 	Gorgon::Utils::Logger log;
 
 	const char *GetNativeSurfaceExtension();
-	VkSurfaceKHR CreateNativeSurface(VkInstance instance, void *display, unsigned long window);
+	VkSurfaceKHR CreateNativeSurface(VkInstance instance, void *display, uintptr_t window);
 
 	namespace VF = VulkanAbstraction::VulkanF;
 	namespace SC = VulkanAbstraction::SingleTimeCommands;
@@ -215,9 +216,9 @@ namespace Gorgon :: GL {
 		/// Validation layers slow down every Vulkan call considerably, they are only enabled on request
 		/// by setting GORGON_VULKAN_VALIDATION=1, regardless of the build type.
 		bool validationrequested() {
-			auto value = std::getenv("GORGON_VULKAN_VALIDATION");
+			auto value = OS::GetEnvVar("GORGON_VULKAN_VALIDATION");
 
-			return value && *value && std::string(value) != "0";
+			return !value.empty() && value != "0";
 		}
 
 		void createinstance() {
@@ -1225,7 +1226,7 @@ namespace Gorgon :: GL {
 		vk = nullptr;
 	}
 
-	WindowContext *CreateWindowContext(void *display, unsigned long window, const Geometry::Size &size) {
+	WindowContext *CreateWindowContext(void *display, uintptr_t window, const Geometry::Size &size) {
 		bool first = !vk;
 
 		if(first) {
@@ -1626,9 +1627,9 @@ namespace Gorgon :: GL {
 	}
 
 	int Shader::LocateUniform(const std::string &name) {
-		if(name == "vertex_coords") return offsetof(Uniforms, vertex_coords);
-		if(name == "tex_coords") return offsetof(Uniforms, tex_coords);
-		if(name == "tint") return offsetof(Uniforms, tint);
+		if(name == "vertex_coords") return static_cast<int>(offsetof(Uniforms, vertex_coords));
+		if(name == "tex_coords") return static_cast<int>(offsetof(Uniforms, tex_coords));
+		if(name == "tint") return static_cast<int>(offsetof(Uniforms, tint));
 
 		return -1;
 	}

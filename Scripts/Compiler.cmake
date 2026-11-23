@@ -2,6 +2,7 @@ target_compile_definitions(Gorgon PUBLIC UNICODE _UNICODE)
 
 target_compile_options(Gorgon PUBLIC 
     $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+    $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
     $<$<CXX_COMPILER_ID:MSVC>:/MP>
     $<$<CXX_COMPILER_ID:MSVC>:/bigobj>
     $<$<CXX_COMPILER_ID:MSVC>:/wd4068>

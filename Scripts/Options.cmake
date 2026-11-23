@@ -1,11 +1,7 @@
 set(_GRAPHICS_LIBRARY_CHOICES OpenGL Vulkan)
 
-# Vulkan backend only has a surface for X11 at the moment
-if(WIN32)
-    set(_GRAPHICS_LIBRARY_DEFAULT OpenGL)
-else()
-    set(_GRAPHICS_LIBRARY_DEFAULT Vulkan)
-endif()
+# Vulkan is the default graphics library on all platforms.
+set(_GRAPHICS_LIBRARY_DEFAULT Vulkan)
 
 # Options
 option(USE_DOUBLE "Use double precision for geometry calculations." OFF)
@@ -69,10 +65,6 @@ if(NOT GraphicsLibrary IN_LIST _GRAPHICS_LIBRARY_CHOICES)
   message(FATAL_ERROR "Invalid value for GraphicsLibrary: ${GraphicsLibrary}\nValid options: ${_GRAPHICS_LIBRARY_CHOICES}")
 endif()
 
-if(WIN32 AND GraphicsLibrary STREQUAL "Vulkan")
-  message(FATAL_ERROR "Vulkan graphics library is not supported on Windows yet. Please use OpenGL.")
-endif()
-
 if(VORBIS AND NOT OGG)
   message(FATAL_ERROR "Vorbis support requires OGG container support. Please enable OGG.")
 endif()
@@ -91,14 +83,28 @@ if(FAST_ANY)
     target_compile_definitions(Gorgon PUBLIC GORGON_FAST_ANY)
 endif()
 
+unset(GORGON_GL_OPENGL CACHE)
+unset(GORGON_GL_VULKAN CACHE)
+unset(GORGON_PACKAGE_SUFFIX CACHE)
+
 if(GraphicsLibrary STREQUAL "OpenGL")
-    set(GORGON_GL_OPENGL ON CACHE INTERNAL "Enable OpenGL support")
-    set(GORGON_GL_VULKAN OFF CACHE INTERNAL "Enable Vulkan support")
+    set(GORGON_GL_OPENGL ON)
+    set(GORGON_GL_VULKAN OFF)
+    set(GORGON_PACKAGE_SUFFIX "_gl")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_OPENGL)
+    set_target_properties(Gorgon PROPERTIES
+        OUTPUT_NAME "Gorgon_gl"
+        EXPORT_NAME "Gorgon_gl"
+    )
 elseif(GraphicsLibrary STREQUAL "Vulkan")
-    set(GORGON_GL_OPENGL OFF CACHE INTERNAL "Enable OpenGL support")
-    set(GORGON_GL_VULKAN ON CACHE INTERNAL "Enable Vulkan support")
+    set(GORGON_GL_OPENGL OFF)
+    set(GORGON_GL_VULKAN ON)
+    set(GORGON_PACKAGE_SUFFIX "")
     target_compile_definitions(Gorgon PUBLIC GORGON_GL_VULKAN)
+    set_target_properties(Gorgon PROPERTIES
+        OUTPUT_NAME "Gorgon"
+        EXPORT_NAME "Gorgon"
+    )
 endif()
 
 if(AUDIO)
