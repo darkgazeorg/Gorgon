@@ -951,6 +951,11 @@ bool Client::SetCustomMode(uint32_t dev_id) {
     return impl->SendPacket(dev_id, NET_PACKET_ID_RGBCONTROLLER_SETCUSTOMMODE, nullptr, 0);
 }
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
+
 bool Client::UpdateMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode) {
     if (!IsConnected()) return false;
 
@@ -986,6 +991,10 @@ bool Client::SaveMode(uint32_t dev_id, int32_t mode_idx, const Mode &mode) {
 
     return impl->SendPacket(dev_id, NET_PACKET_ID_RGBCONTROLLER_SAVEMODE, payload.data(), static_cast<uint32_t>(payload.size()));
 }
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 bool Client::SetClientFlags(uint32_t flags) {
     if (!IsConnected()) return false;

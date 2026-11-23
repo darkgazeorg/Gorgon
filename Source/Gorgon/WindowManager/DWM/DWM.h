@@ -20,6 +20,10 @@
 #	undef max
 #	undef min
 
+#ifdef GORGON_GL_VULKAN
+#	include "../../GL/Vulkan.h"
+#endif
+
 ///@cond internal
 namespace Gorgon {
 
@@ -131,8 +135,12 @@ namespace internal {
 
 		HWND handle = 0;
 		Window *parent;
+#ifdef GORGON_GL_VULKAN
+		GL::WindowContext *context = nullptr;
+#else
 		HGLRC context = 0;
 		HDC device_context = 0;
+#endif
 		Geometry::Margin chrome = {0, 0};
 		bool pointerdisplayed = true;
 		bool min = false;

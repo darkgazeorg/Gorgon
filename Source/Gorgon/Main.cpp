@@ -67,6 +67,8 @@ namespace Gorgon {
 
 	bool exiting = false;
 
+	unsigned long minframeduration = 16;
+
 	namespace internal {
 		std::string systemname;
 	}
@@ -172,8 +174,8 @@ namespace Gorgon {
 		auto ctime=Time::GetTime();
 		auto currentdelta=ctime-Time::FrameStart();
         
-		if(currentdelta<16) {
-			std::this_thread::sleep_for(std::chrono::duration<unsigned long, std::milli>(15-currentdelta));
+		if(minframeduration > 0 && currentdelta < minframeduration) {
+			std::this_thread::sleep_for(std::chrono::duration<unsigned long, std::milli>(minframeduration - 1 - currentdelta));
 		}
 
 		Tick();
@@ -181,6 +183,30 @@ namespace Gorgon {
 		BeforeFrameEvent();
 
 		OS::processmessages();
+	}
+
+	void SetMinimumFrameDuration(unsigned long duration) {
+		minframeduration = duration;
+	}
+
+	unsigned long GetMinimumFrameDuration() {
+		return minframeduration;
+	}
+
+	void SetFrameRateLimit(unsigned int fps) {
+		if(fps == 0) {
+			minframeduration = 0;
+		}
+		else {
+			minframeduration = 1000UL / fps;
+		}
+	}
+
+	unsigned int GetFrameRateLimit() {
+		if(minframeduration == 0) {
+			return 0;
+		}
+		return static_cast<unsigned int>(1000UL / minframeduration);
 	}
 	
 	void UpdateFrame() {

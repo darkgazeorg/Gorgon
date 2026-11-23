@@ -26,13 +26,22 @@ namespace Gorgon :: WindowManager {
 		namespace internal {
 
 			void switchcontext(Gorgon::internal::windowdata &data) {
+#ifdef GORGON_GL_VULKAN
+				GL::MakeCurrent(data.context);
+				context=reinterpret_cast<intptr_t>(&data);
+#else
 				if(context==reinterpret_cast<intptr_t>(&data)) return;
 				wglMakeCurrent(data.device_context, data.context);
 				context=reinterpret_cast<intptr_t>(&data);
+#endif
 			}
 
 			void finalizerender(Gorgon::internal::windowdata &data) {
+#ifdef GORGON_GL_VULKAN
+				GL::Present();
+#else
 				SwapBuffers(data.device_context);
+#endif
 			}
 
 		}

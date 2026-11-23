@@ -9,7 +9,7 @@ include(CMakePackageConfigHelpers)
 # ==============================================================================
 # Install the compiled binaries, libraries, and public headers to standard paths
 install(TARGETS Gorgon
-    EXPORT GorgonTargets
+    EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -61,52 +61,58 @@ endif()
 # Allows out-of-tree projects to find Gorgon in the build directory without installing
 if(EXPORT_BUILD_TREE)
     # Export the targets file locally
-    export(EXPORT GorgonTargets 
-           FILE "${CMAKE_CURRENT_BINARY_DIR}/GorgonTargets.cmake"
+    export(EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets 
+           FILE "${CMAKE_CURRENT_BINARY_DIR}/Gorgon${GORGON_PACKAGE_SUFFIX}Targets.cmake"
            NAMESPACE Gorgon::)
            
     # Generate the local config file from the template
     configure_file(
         "${PROJECT_SOURCE_DIR}/Scripts/GorgonConfig.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/GorgonConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
         @ONLY
+    )
+
+    configure_file(
+        "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/Public.cmake"
+        COPYONLY
     )
            
     # Register the package in the CMake user package registry
-    export(PACKAGE Gorgon)
-    message(STATUS "Gorgon Build Tree Exported for Local Discovery (with Functions)")
+    export(PACKAGE Gorgon${GORGON_PACKAGE_SUFFIX})
+    message(STATUS "Gorgon${GORGON_PACKAGE_SUFFIX} Build Tree Exported for Local Discovery (with Functions)")
 endif()
 
 # ==============================================================================
 # 4. System Install Export (For Global Usage)
 # ==============================================================================
 # Defines where the CMake package files will live on the system
-set(CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/Gorgon")
+set(CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/Gorgon${GORGON_PACKAGE_SUFFIX}")
 
-# Install the Targets file (maps Gorgon::Gorgon to the installed binaries)
-install(EXPORT GorgonTargets
-        FILE GorgonTargets.cmake
+# Install the Targets file (maps Gorgon::Gorgon or Gorgon::Gorgon_gl to the installed binaries)
+install(EXPORT Gorgon${GORGON_PACKAGE_SUFFIX}Targets
+        FILE Gorgon${GORGON_PACKAGE_SUFFIX}Targets.cmake
         NAMESPACE Gorgon::
         DESTINATION "${CMAKECONFIG_INSTALL_DIR}")
 
 # Generate the Config file for the installation tree
 configure_package_config_file(
     "${PROJECT_SOURCE_DIR}/Scripts/GorgonConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
     INSTALL_DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )
 
 # Generate the Version file to enforce compatibility rules
 write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}ConfigVersion.cmake"
     VERSION ${GORGON_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
 # Install the generated Config files AND the custom Public functions script
 install(FILES 
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/GorgonConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/InstallFiles/Gorgon${GORGON_PACKAGE_SUFFIX}ConfigVersion.cmake"
     "${PROJECT_SOURCE_DIR}/Scripts/Public.cmake"
     DESTINATION "${CMAKECONFIG_INSTALL_DIR}"
 )
@@ -152,12 +158,13 @@ if(is_multi_config)
     # 1. Define OS-specific elevation commands for the install phase
     if(CMAKE_HOST_WIN32)
         # Windows: Use PowerShell to trigger the UAC Admin prompt
-        set(ELEVATE_CMD_REL powershell -NoProfile -Command 
-            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Release' -Verb RunAs -Wait")
-        set(ELEVATE_CMD_DBG powershell -NoProfile -Command 
-            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'Debug' -Verb RunAs -Wait")
-        set(ELEVATE_CMD_RWD powershell -NoProfile -Command 
-            "Start-Process '${CMAKE_COMMAND}' -ArgumentList '--install', '${CMAKE_BINARY_DIR}', '--config', 'RelWithDebInfo' -Verb RunAs -Wait")
+        set(ELEVATED_INSTALL_SCRIPT "${PROJECT_SOURCE_DIR}/Scripts/ElevatedInstall.ps1")
+        set(ELEVATE_CMD_REL powershell -NoProfile -ExecutionPolicy Bypass -File "${ELEVATED_INSTALL_SCRIPT}"
+            -CMakeExecutable "${CMAKE_COMMAND}" -BuildDirectory "${CMAKE_BINARY_DIR}" -Configuration Release)
+        set(ELEVATE_CMD_DBG powershell -NoProfile -ExecutionPolicy Bypass -File "${ELEVATED_INSTALL_SCRIPT}"
+            -CMakeExecutable "${CMAKE_COMMAND}" -BuildDirectory "${CMAKE_BINARY_DIR}" -Configuration Debug)
+        set(ELEVATE_CMD_RWD powershell -NoProfile -ExecutionPolicy Bypass -File "${ELEVATED_INSTALL_SCRIPT}"
+            -CMakeExecutable "${CMAKE_COMMAND}" -BuildDirectory "${CMAKE_BINARY_DIR}" -Configuration RelWithDebInfo)
     else()
         # Linux/macOS: Use PolicyKit for a visual GUI password prompt
         find_program(PKEXEC_CMD pkexec)
