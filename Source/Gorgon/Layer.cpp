@@ -120,7 +120,6 @@ namespace Gorgon {
         else
             Transform.Translate((Gorgon::Float)bounds.Left, (Gorgon::Float)bounds.Top, 0);
 
-
         auto curbounds = Geometry::Bounds(Offset, bounds.GetSize());
 
         if(Clip.Left < curbounds.Left)

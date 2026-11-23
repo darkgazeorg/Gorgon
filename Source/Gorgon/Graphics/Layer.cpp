@@ -69,6 +69,8 @@ namespace Graphics {
 
         dotransformandclip();
 
+        
+
         bool isclipset = false;
         
         Geometry::Rectangle prevclip;
@@ -196,6 +198,7 @@ namespace Graphics {
             GL::SetDefaultBlending();
             mask.RenderToScreen();
         }
+        
 
         for(auto &l : children) {
             l.Render();

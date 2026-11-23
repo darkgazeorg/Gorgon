@@ -167,6 +167,7 @@ namespace Gorgon :: Graphics {
     * Currently Normal, and FrameBuffer modes are supported.
     */
     class Layer : public Gorgon::Layer, public Graphics::TextureTarget {
+    protected:
         struct Operation {
             enum {
                 NewMask
@@ -320,9 +321,10 @@ namespace Gorgon :: Graphics {
             return clippingenabled;
         }
 
+
         using Gorgon::Layer::GetSize;
 
-    private:
+    protected:
         std::vector<internal::Surface> surfaces;
         std::vector<Operation> operations;
 
