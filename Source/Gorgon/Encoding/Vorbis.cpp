@@ -48,7 +48,7 @@ namespace vorbis {
     int ogg_streamseek( void *vs, ogg_int64_t to, int type ) {
         auto v = reinterpret_cast<streamread*>(vs);
 
-        if(v->stream) {
+        if(!v->stream.bad()) {
             v->stream.clear();
             switch(type) {
             case SEEK_SET:
@@ -58,21 +58,28 @@ namespace vorbis {
                 v->stream.seekg(to, std::ios::cur);
                 break;
             case SEEK_END:
-                v->stream.seekg(v->len - to, std::ios::beg);
+                v->stream.seekg(static_cast<std::streamoff>(v->len) + static_cast<std::streamoff>(to), std::ios::beg);
                 break;
+            default:
+                return -1;
             }
+
+            return v->stream.fail() ? -1 : 0;
         }
 
-        return 0;
+        return -1;
     }
 
     long ogg_streamtell( void *vs ) {
         auto v = reinterpret_cast<streamread*>(vs);
 
-        if(v->stream)
+        if(!v->stream.bad()) {
+            if(v->stream.eof())
+                v->stream.clear(std::ios::eofbit);
             return (long)v->stream.tellg();
+        }
         else
-            return 0;
+            return -1;
     }
 
     size_t ogg_streamread(void* dest, size_t size1, size_t size2, void* vs) {
@@ -80,6 +87,8 @@ namespace vorbis {
         
         if(v->stream) {
             v->stream.read((char*)dest,size1*size2);
+            if(v->stream.eof() && !v->stream.bad())
+                v->stream.clear(std::ios::eofbit);
             return (size_t)v->stream.gcount();
         }
         else
@@ -100,8 +109,10 @@ namespace vorbis {
         delete streamer;
         delete stream;
         auto ogg = (OggVorbis_File*)(decoder);
-        ov_clear(ogg);
-        delete ogg;
+        if(ogg) {
+            ov_clear(ogg);
+            delete ogg;
+        }
     }
     
     unsigned long VorbisStream::DecodeSome(Containers::Wave &wave, unsigned long start) {
@@ -175,9 +186,6 @@ namespace vorbis {
                 }
                 
                 processed += sz;
-                
-                if(long(target - processed) < sz)
-                    break;
             }
         }
         

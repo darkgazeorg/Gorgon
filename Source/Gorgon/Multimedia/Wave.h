@@ -228,6 +228,14 @@ namespace Multimedia {
         /// Export the data to the given FLAC file. Returns false if the file cannot be saved.
         bool ExportFLAC(const std::string &filename, int bps = 16);
 #endif
+
+#ifdef GORGON_VORBIS_SUPPORT
+        /// Imports the given Vorbis (OGG) file. Returns false if the file cannot be imported.
+        bool ImportVorbis(const std::string &filename);
+        
+        /// Imports the given Vorbis (OGG) file. Returns false if the file cannot be imported.
+        bool ImportVorbis(std::istream &stream);
+#endif
         
         
         /// For iteration

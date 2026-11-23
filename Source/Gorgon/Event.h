@@ -321,6 +321,14 @@ namespace Gorgon {
 			handlers.DeleteAll();
         }
 		
+		/// Returns whether there is at least one handler registered to this event.
+		/// Useful to avoid expensive preparation work when nobody is listening.
+		bool HasListeners() {
+			std::lock_guard<std::mutex> g(access);
+
+			return handlers.GetCount() > 0;
+		}
+
 		/// value for an empty token
 		static const Token EmptyToken;
 		

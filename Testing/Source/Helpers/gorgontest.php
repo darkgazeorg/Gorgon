@@ -7,6 +7,7 @@
  *
  *   echo_headers   - Returns all received request headers as JSON
  *   echo_post      - Returns the raw POST body
+ *   echo_base64    - Base64-decodes the POST body and returns raw binary bytes
  *   echo_all       - Returns JSON with both headers and POST body
  *   set_cookie     - Sets cookies specified in query params "name" and "value"
  *                    Optionally accepts "path", "domain", "secure", "httponly",
@@ -16,6 +17,7 @@
  *   echo_method    - Returns the HTTP method used
  *   set_response_header - Sets a response header from "name" and "value" query params
  *   multi          - Performs multiple actions separated by comma in "actions" param
+ *   slow_download  - Streams a file ("file", default generated.bmp) over "seconds" (default 5)
  *
  * Default (no action): returns "OK"
  */
@@ -53,6 +55,18 @@ function handle_action($action) {
         case 'echo_post':
             $body = file_get_contents('php://input');
             echo $body;
+            break;
+
+        case 'echo_base64':
+            header('Content-Type: application/octet-stream');
+            $body = file_get_contents('php://input');
+            $decoded = base64_decode($body, true);
+            if ($decoded === false) {
+                http_response_code(400);
+                echo 'Invalid base64';
+            } else {
+                echo $decoded;
+            }
             break;
 
         case 'echo_all':
@@ -110,6 +124,76 @@ function handle_action($action) {
                 header($name . ': ' . $value);
             }
             echo "header_set";
+            break;
+
+        case 'slow_download':
+            // Streams a file slowly so progress reporting receives ~2 updates/second.
+            // Params: "file" (generated.bmp, Logo.png, sample.wav, sample.flac, sample.ogg,
+            // sample.jpg; default generated.bmp) and "seconds" (1-30, default 5).
+            // generated.bmp creates a ~450 KB 480x320 24-bit BMP so each chunk exceeds
+            // server/proxy output buffers (~8-32 KB).
+            $allowed = ['Logo.png' => 'image/png', 'sample.wav' => 'audio/wav',
+                        'sample.flac' => 'audio/flac', 'sample.ogg' => 'audio/ogg',
+                        'sample.jpg' => 'image/jpeg'];
+            $file = isset($_GET['file']) ? $_GET['file'] : 'generated.bmp';
+            $seconds = isset($_GET['seconds']) ? max(1, min(30, intval($_GET['seconds']))) : 5;
+
+            if ($file === 'generated.bmp') {
+                $w = 480;
+                $h = 320;
+                $rowBytes = $w * 3; // 1440, already multiple of 4
+                $pixelSize = $rowBytes * $h;
+                $size = 54 + $pixelSize;
+                $data = pack('a2Vv2VV3v2V6',
+                    'BM', $size, 0, 0, 54,
+                    40, $w, $h, 1, 24, 0, $pixelSize, 2835, 2835, 0, 0
+                );
+                // Build a smooth BGR gradient image
+                $rowTemplate = '';
+                for ($x = 0; $x < $w; $x++) {
+                    $rowTemplate .= chr((int)($x * 255 / $w)) . "\x00\x00";
+                }
+                for ($y = 0; $y < $h; $y++) {
+                    $g = chr((int)($y * 255 / $h));
+                    $r = chr(255 - (int)($y * 255 / $h));
+                    $row = '';
+                    for ($x = 0; $x < $w; $x++) {
+                        $row .= $rowTemplate[$x * 3] . $g . $r;
+                    }
+                    $data .= $row;
+                }
+                $contentType = 'image/bmp';
+            } else {
+                if (!isset($allowed[$file]) || !is_file(__DIR__ . '/' . $file)) {
+                    http_response_code(404);
+                    echo 'Unknown file';
+                    break;
+                }
+                $data = file_get_contents(__DIR__ . '/' . $file);
+                $size = strlen($data);
+                $contentType = $allowed[$file];
+            }
+
+            @ini_set('zlib.output_compression', '0');
+            @ini_set('output_buffering', 'off');
+            if (function_exists('apache_setenv')) {
+                @apache_setenv('no-gzip', '1');
+            }
+
+            header('Content-Type: ' . $contentType);
+            header('Content-Length: ' . $size);
+            header('Cache-Control: no-store');
+            header('X-Accel-Buffering: no');
+            while (ob_get_level() > 0) ob_end_flush();
+
+            // 2 chunks per second (~46 KB per chunk for generated.bmp)
+            $chunks = $seconds * 2;
+            $chunksize = max(1, (int)ceil($size / $chunks));
+            for ($pos = 0; $pos < $size; $pos += $chunksize) {
+                echo substr($data, $pos, $chunksize);
+                flush();
+                usleep(500000);
+            }
             break;
 
         case 'multi':

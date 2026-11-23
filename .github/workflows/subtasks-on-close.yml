@@ -40,6 +40,7 @@ jobs:
 
             const uncheckedNonExempt = [];
             const uncheckedExtra = [];
+            const uncheckedOptional = [];
 
             for (const line of lines) {
               const m = line.match(checklistRegex);
@@ -48,8 +49,10 @@ jobs:
                 const marker = (m[2] || "").toLowerCase();
                 if (marker === "extra") {
                   uncheckedExtra.push(taskText);
-                } else if (marker === "optional" || marker === "cancelled") {
-                  // exempt — do nothing
+                } else if (marker === "optional") {
+                  uncheckedOptional.push(taskText);
+                } else if (marker === "cancelled") {
+                  // cancelled — exempt
                 } else {
                   // no exempt marker — treat as required
                   uncheckedNonExempt.push(taskText);
@@ -87,39 +90,56 @@ jobs:
               return;
             }
 
-            // All required tasks are complete — create issues for unchecked [extra] items (if any)
+            // All required tasks are complete — create a single issue for unchecked [extra] items (if any).
+            // If extras exist, include optional items as well; if no extras exist but optional items do, do nothing.
             if (uncheckedExtra.length > 0) {
-              for (const t of uncheckedExtra) {
-                const title = `Subtask (auto-created): ${t}`;
-                const subBody = [
-                  `Auto-created subtask from parent issue #${issueNumber} (${issue.title}).`,
-                  "",
-                  `Original task: ${t}`,
-                  "",
-                  `Parent issue: ${issue.html_url}`
-                ].join("\n");
+              // Title: if only one task, use that task as the title; otherwise use "Extra tasks for [original task name]"
+              const title = (uncheckedExtra.length + uncheckedOptional.length) === 1 ? uncheckedExtra[0] : `Extra tasks for ${issue.title}`;
 
-                await github.rest.issues.create({
-                  owner: repoOwner,
-                  repo: repoName,
-                  title,
-                  body: subBody,
-                });
-                core.info(`Created new issue for extra task: ${t}`);
-              }
+              // Build checklist lines, marking each as [extra]
+              let taskLines = uncheckedExtra.map(t => `- [ ] ${t} [extra]`).join("\n") + "\n";
+              taskLines += uncheckedOptional.map(t => `- [ ] ${t} [optional]`).join("\n");
 
-              // Add a comment summarizing created subtasks
-              const createdList = uncheckedExtra.map(t => `- ${t}`).join("\n");
+              const subBody = [
+                // Task list first
+                taskLines,
+                "",
+                // Auto-created notice below the task list
+                `Auto-created subtask(s) from parent issue #${issueNumber} (${issue.title}).`,
+                "",
+                `Parent issue: ${issue.html_url}`
+              ].join("\n");
+
+              const created = await github.rest.issues.create({
+                owner: repoOwner,
+                repo: repoName,
+                title,
+                body: subBody,
+              });
+
+              core.info(`Created aggregated extra issue for tasks: ${tasksForIssue.join(",")}`);
+
+              // Add a comment summarizing created subtask issue and listing tasks
+              let createdList = uncheckedExtra.map(t => `- ${t} [extra]`).join("\n") + "\n";
+              createdList += uncheckedOptional.map(t => `- ${t} [optional]`).join("\n");
+              const commentToParent = [
+                `The following unchecked checklist items marked with ` + "`[extra]`" + ` were consolidated into a single auto-created issue:",
+                "",
+                createdList,
+                "",
+                `Created issue: ${created.data.html_url}`
+              ].join("\n");
+
               await github.rest.issues.createComment({
                 owner: repoOwner,
                 repo: repoName,
                 issue_number: issueNumber,
-                body: [
-                  `The following unchecked checklist items marked with ` + "`[extra]`" + ` were auto-created as new issues:`,
-                  "",
-                  createdList,
-                ].join("\n"),
+                body: commentToParent,
               });
+            } else if (uncheckedOptional.length > 0) {
+              // There are optional items but no extras — do not create an issue per instructions.
+              core.info("Unchecked optional tasks present but no extras — no aggregated issue will be created.");
             } else {
               core.info("No unchecked [extra] tasks to create.");
             }
+
